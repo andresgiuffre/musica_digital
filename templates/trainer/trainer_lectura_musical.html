@@ -1,0 +1,496 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .trainer-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2rem;
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+
+    #playback-area {
+        background: white;
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 2px solid var(--border);
+        width: 100%;
+        position: relative;
+    }
+
+    .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        background: var(--surface);
+        padding: 1rem 2rem;
+        border-radius: 1rem;
+        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+        border: 1px solid var(--border);
+    }
+
+    .controls-group {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .btn-control {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: transform 0.1s;
+    }
+
+    .btn-control:hover:not(:disabled) {
+        transform: translateY(-2px);
+    }
+
+    .btn-control:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .tempo-selector {
+        padding: 0.5rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        font-weight: bold;
+        color: var(--primary);
+    }
+
+    #osmdCanvas {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    /* Director Visual / Conductor */
+    #conductor-widget {
+        position: fixed;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 100px;
+        height: 100px;
+        background: white;
+        border-radius: 50%;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        border: 4px solid var(--border);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: border-color 0.1s;
+    }
+
+    .beat-dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--border);
+        position: absolute;
+        transition: background-color 0.1s, transform 0.1s;
+    }
+
+    .beat-dot.active {
+        background: var(--primary);
+        transform: scale(1.3);
+        box-shadow: 0 0 10px var(--primary);
+    }
+
+    .pos-down { bottom: 10px; left: 40px; }
+    .pos-left { top: 40px; left: 10px; }
+    .pos-right { top: 40px; right: 10px; }
+    .pos-up { top: 10px; left: 40px; }
+
+    /* Debug Panel */
+    #debug-panel {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.85);
+        color: #0f0;
+        padding: 1.5rem;
+        border-radius: 12px;
+        font-family: 'Courier New', Courier, monospace;
+        z-index: 1000;
+        min-width: 250px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .debug-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+        padding-bottom: 0.25rem;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="conductor-widget">
+    <!-- Renderizado dinámicamente -->
+</div>
+
+<div id="debug-panel" style="display: none;">
+    <h3 style="margin-top:0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">🛠 Debug Sync</h3>
+    <div class="debug-row"><span>Compás:</span> <strong id="dbg-measure">0</strong></div>
+    <div class="debug-row"><span>Tiempo:</span> <strong id="dbg-beat">0</strong></div>
+    <div class="debug-row"><span>Nota(s):</span> <strong id="dbg-notes">-</strong></div>
+    <div class="debug-row"><span>Duración:</span> <strong id="dbg-duration">0</strong></div>
+    <div class="debug-row"><span>Master TS:</span> <strong id="dbg-time">0.000</strong></div>
+</div>
+
+<div class="trainer-container">
+    <div style="text-align: center;">
+        <h1 style="margin-bottom: 0.5rem;">{{ piece.title }}</h1>
+        <p style="color: var(--text-secondary);">Autor: {{ piece.author }} | Compás: {{ piece.time_signature }}</p>
+    </div>
+
+    <div class="toolbar">
+        <div class="controls-group">
+            <button id="btn-play" class="btn-control">▶ Reproducir</button>
+            <button id="btn-pause" class="btn-control" disabled>⏸ Pausar</button>
+            <button id="btn-stop" class="btn-control" disabled>⏹ Detener</button>
+        </div>
+        
+        <div class="controls-group">
+            <button id="btn-debug" class="btn-control" style="background: #555;">🐛 Debug</button>
+            <label style="font-weight: bold; color: var(--text-secondary);">Velocidad:</label>
+            <select id="tempo-selector" class="tempo-selector">
+                <option value="0.5">50% Lento</option>
+                <option value="0.75">75% Práctica</option>
+                <option value="1.0" selected>100% Original</option>
+                <option value="1.25">125% Rápido</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="playback-area">
+        <div id="osmdCanvas"></div>
+    </div>
+</div>
+
+<textarea id="xmlContent" style="display:none;">{{ piece.xml_content }}</textarea>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
+<script>
+    const osmdCanvas = document.getElementById('osmdCanvas');
+    const xmlContent = document.getElementById('xmlContent').value;
+    const btnPlay = document.getElementById('btn-play');
+    const btnPause = document.getElementById('btn-pause');
+    const btnStop = document.getElementById('btn-stop');
+    const btnDebug = document.getElementById('btn-debug');
+    const tempoSelector = document.getElementById('tempo-selector');
+    const conductorWidget = document.getElementById('conductor-widget');
+    const debugPanel = document.getElementById('debug-panel');
+
+    let osmd = null;
+    let baseBpm = 100;
+    let isPlaying = false;
+    let transportEvents = [];
+    let timeNumerator = 4; // Por defecto 4/4
+    let clickSynth = null;
+
+    btnDebug.addEventListener('click', () => {
+        debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
+    });
+
+    function initSynth() {
+        if (!clickSynth) {
+            clickSynth = new Tone.MembraneSynth({
+                pitchDecay: 0.05,
+                octaves: 2,
+                oscillator: { type: "sine" },
+                envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 }
+            }).toDestination();
+            clickSynth.volume.value = -12; // Menos penetrante
+        }
+    }
+
+    function renderConductor(numerator) {
+        timeNumerator = numerator;
+        conductorWidget.innerHTML = '';
+        if (numerator === 4) {
+            addBeatDot(1, 'pos-down');
+            addBeatDot(2, 'pos-left');
+            addBeatDot(3, 'pos-right');
+            addBeatDot(4, 'pos-up');
+        } else if (numerator === 3) {
+            addBeatDot(1, 'pos-down');
+            addBeatDot(2, 'pos-right');
+            addBeatDot(3, 'pos-up');
+        } else if (numerator === 2) {
+            addBeatDot(1, 'pos-down');
+            addBeatDot(2, 'pos-up');
+        } else {
+            // Fallback genérico a 1
+            addBeatDot(1, 'pos-down');
+        }
+    }
+
+    function addBeatDot(num, posClass) {
+        let div = document.createElement('div');
+        div.className = `beat-dot ${posClass}`;
+        div.id = `beat-${num}`;
+        conductorWidget.appendChild(div);
+    }
+
+    async function initOSMD() {
+        osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(osmdCanvas, {
+            autoResize: true,
+            drawTitle: false,
+            drawSubtitle: false,
+            drawComposer: false,
+            backend: "svg",
+            followCursor: true
+        });
+        
+        await osmd.load(xmlContent);
+        osmd.render();
+        osmd.cursor.show();
+
+        // Extraer Time Signature (Ej: 4/4)
+        if (osmd.sheet && osmd.sheet.SourceMeasures && osmd.sheet.SourceMeasures.length > 0) {
+            let ts = osmd.sheet.SourceMeasures[0].ActiveTimeSignature;
+            if (ts) {
+                renderConductor(ts.Numerator);
+            }
+        }
+    }
+
+    function parsePitch(osmdNote) {
+        if (!osmdNote.Pitch) return null;
+        let fn = osmdNote.Pitch.FundamentalNote;
+        let step = "";
+        if (typeof fn === "string") {
+            step = fn;
+        } else {
+            step = ["C", "D", "E", "F", "G", "A", "B"][fn];
+        }
+        
+        if (!step) return null;
+
+        let alter = "";
+        if (osmdNote.Pitch.Alteration === 1) alter = "#";
+        if (osmdNote.Pitch.Alteration === -1) alter = "b";
+        
+        // OSMD's Octave 1 == MIDI Octave 4 (Middle C)
+        const octave = osmdNote.Pitch.Octave + 3;
+        return `${step}${alter}${octave}`;
+    }
+
+    function buildSequence() {
+        let events = [];
+        osmd.cursor.reset();
+
+        while (!osmd.cursor.iterator.EndReached) {
+            let ts = osmd.cursor.iterator.currentTimeStamp;
+            if(!ts) break;
+            
+            let realValue = ts.RealValue; // Fracción de redonda
+            let beats = realValue * 4;    // Tiempo absoluto en cuartos (beats)
+
+            let notesToPlay = [];
+            let maxDuration = 0;
+            let measureIndex = osmd.cursor.iterator.CurrentMeasureIndex;
+
+            let notes = osmd.cursor.NotesUnderCursor();
+            if (notes) {
+                notes.forEach(n => {
+                    let pitch = parsePitch(n);
+                    let durVal = n.Length ? n.Length.RealValue : 0;
+                    if (durVal > maxDuration) maxDuration = durVal;
+
+                    if(pitch) {
+                        notesToPlay.push({
+                            pitch: pitch,
+                            durationRealValue: durVal
+                        });
+                    }
+                });
+            }
+
+            if (maxDuration === 0) maxDuration = 0.25;
+
+            events.push({
+                time: beats, 
+                timeRealValue: realValue,
+                measureIndex: measureIndex,
+                maxDuration: maxDuration,
+                notes: notesToPlay
+            });
+            
+            osmd.cursor.next();
+        }
+        
+        osmd.cursor.reset();
+        return events;
+    }
+
+    async function startPlayback() {
+        try {
+            if (window.Tone) await Tone.start();
+            initSynth();
+            
+            if (!isPlaying && Tone.Transport.state !== "started") {
+                const events = buildSequence();
+                console.log("Built sequence:", events);
+                
+                if (events.length === 0) {
+                    console.error("No events found in sequence!");
+                    return;
+                }
+                
+                Tone.Transport.cancel();
+                transportEvents = [];
+
+                let speedMult = parseFloat(tempoSelector.value);
+                Tone.Transport.bpm.value = baseBpm * speedMult;
+
+                const isMuted = AudioEngine && AudioEngine.isMuted;
+                if(isMuted) clickSynth.volume.value = -Infinity;
+                else clickSynth.volume.value = (AudioEngine.volume === -Infinity) ? -Infinity : 0;
+
+                // Programar Notas y Sincronización Visual
+                events.forEach((evt, idx) => {
+                    let ticks = Math.round(evt.time * Tone.Transport.PPQ);
+                    let transportId = Tone.Transport.schedule((time) => {
+                        Tone.Draw.schedule(() => {
+                            if(idx > 0) osmd.cursor.next();
+                            
+                            // Debug Panel
+                            document.getElementById('dbg-measure').innerText = evt.measureIndex;
+                            let durBeats = (evt.maxDuration * 4).toFixed(2);
+                            document.getElementById('dbg-duration').innerText = `${durBeats} beats`;
+                            let pitchStrs = evt.notes.map(n => n.pitch).join(', ');
+                            document.getElementById('dbg-notes').innerText = pitchStrs || 'Silencio';
+                            document.getElementById('dbg-time').innerText = time.toFixed(3);
+                            
+                        }, time);
+
+                        // Reproducir con DURACIÓN EXACTA
+                        evt.notes.forEach(note => {
+                            if(AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
+                                let durationTicks = Math.round(note.durationRealValue * 4 * Tone.Transport.PPQ);
+                                AudioEngine.sampler.triggerAttackRelease(note.pitch, durationTicks + "i", time);
+                            }
+                        });
+
+                    }, ticks + "i"); // Agendado absoluto en Ticks del Reloj Maestro
+                    
+                    transportEvents.push(transportId);
+                });
+
+                // Programar Metrónomo y Director Visual
+                let lastEvent = events[events.length - 1];
+                let totalBeats = Math.ceil(lastEvent.time + (lastEvent.maxDuration * 4));
+                
+                let tickCount = 0;
+                let repeatId = Tone.Transport.scheduleRepeat((time) => {
+                    if (tickCount >= totalBeats) {
+                        Tone.Transport.clear(repeatId);
+                        return;
+                    }
+                    
+                    if (!isMuted) {
+                        if (tickCount % timeNumerator === 0) clickSynth.triggerAttackRelease("C3", "16n", time);
+                        else clickSynth.triggerAttackRelease("G2", "16n", time);
+                    }
+
+                    const currentTick = tickCount; // Capturar el valor exacto para el Draw
+                    Tone.Draw.schedule(() => {
+                        let beatNum = (currentTick % timeNumerator) + 1;
+                        document.getElementById('dbg-beat').innerText = beatNum;
+                        
+                        document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
+                        let dot = document.getElementById(`beat-${beatNum}`);
+                        if(dot) dot.classList.add('active');
+                        
+                        conductorWidget.style.borderColor = 'var(--primary)';
+                        setTimeout(() => conductorWidget.style.borderColor = 'var(--border)', 100);
+                    }, time);
+
+                    tickCount++;
+                }, "4n");
+                transportEvents.push(repeatId);
+
+                // Finalizar
+                let finalTicks = Math.round(totalBeats * Tone.Transport.PPQ);
+                Tone.Transport.schedule((time) => {
+                    Tone.Draw.schedule(() => {
+                        stopPlayback();
+                        fetch('/api/record_attempt/lectura-musical/', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                presented_question: 'lectura',
+                                guessed_answer: 'completada',
+                                is_correct: true,
+                                response_time_ms: 0
+                            })
+                        });
+                    }, time);
+                }, finalTicks + "i");
+
+                Tone.Transport.start();
+                isPlaying = true;
+                btnPlay.disabled = true;
+                btnPause.disabled = false;
+                btnStop.disabled = false;
+            } else if (Tone.Transport.state === "paused") {
+                Tone.Transport.start();
+                isPlaying = true;
+                btnPlay.disabled = true;
+                btnPause.disabled = false;
+            }
+        } catch (error) {
+            console.error("Playback error:", error);
+            alert("Error al reproducir: " + error.message);
+        }
+    }
+
+    function pausePlayback() {
+        Tone.Transport.pause();
+        isPlaying = false;
+        btnPlay.disabled = false;
+        btnPause.disabled = true;
+    }
+
+    function stopPlayback() {
+        Tone.Transport.stop();
+        Tone.Transport.cancel();
+        isPlaying = false;
+        btnPlay.disabled = false;
+        btnPause.disabled = true;
+        btnStop.disabled = true;
+        osmd.cursor.reset();
+        document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
+    }
+
+    tempoSelector.addEventListener('change', () => {
+        if(isPlaying) {
+            Tone.Transport.bpm.value = baseBpm * parseFloat(tempoSelector.value);
+        }
+    });
+
+    btnPlay.addEventListener('click', startPlayback);
+    btnPause.addEventListener('click', pausePlayback);
+    btnStop.addEventListener('click', stopPlayback);
+
+    document.addEventListener("DOMContentLoaded", () => {
+        initOSMD();
+    });
+</script>
+{% endblock %}

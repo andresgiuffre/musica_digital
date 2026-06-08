@@ -9,7 +9,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Avg
 from django.contrib import messages
-from .models import Game, Score, Attempt, UserProfile, Achievement, UserAchievement
+from .models import Game, Score, Attempt, UserProfile, Achievement, UserAchievement, Piece
 
 def register(request):
     if request.method == 'POST':
@@ -248,10 +248,11 @@ def trainer_dictado_melodico(request):
     return render(request, 'trainer/trainer_dictado_melodico.html', context)
 
 @login_required
-def trainer_solfeo_ritmico(request):
-    game = get_object_or_404(Game, slug='solfeo-ritmico')
+def trainer_lectura_musical(request):
+    game = get_object_or_404(Game, slug='lectura-musical')
     score, _ = Score.objects.get_or_create(user=request.user, game=game)
     stats_data = get_game_stats(request.user, game)
+    piece = Piece.objects.first() # Por ahora cargamos la primera pieza
     
     context = {
         'game': game,
@@ -259,8 +260,9 @@ def trainer_solfeo_ritmico(request):
         'incorrect_answers': stats_data['incorrect_answers'],
         'avg_time': stats_data['avg_time'],
         'hardest': stats_data['hardest'],
+        'piece': piece
     }
-    return render(request, 'trainer/trainer_solfeo_ritmico.html', context)
+    return render(request, 'trainer/trainer_lectura_musical.html', context)
 
 @login_required
 @csrf_exempt
@@ -307,6 +309,12 @@ def record_attempt(request, game_slug):
                     score.max_streak = score.current_streak
                 
                 xp_gain = 10
+                if score.game.slug == 'dictado-melodico':
+                    path_slug = 'trainer_dictado_melodico'
+                elif score.game.slug == 'lectura-musical':
+                    path_slug = 'trainer_lectura_musical'
+                else:
+                    path_slug = 'trainer_' + score.game.slug.replace('-', '_')
                 if score.current_streak == 10:
                     xp_gain += 50
                 elif score.current_streak == 5:
