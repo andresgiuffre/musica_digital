@@ -17,6 +17,8 @@
         <a href="{% url 'trainer_notas' %}" class="btn btn-primary" style="width: 100%;">Jugar</a>
         {% elif game.slug == 'intervalos' %}
         <a href="{% url 'trainer_intervalos' %}" class="btn btn-primary" style="width: 100%;">Jugar</a>
+        {% elif game.slug == 'intervalos-auditivos' %}
+        <a href="{% url 'trainer_intervalos_auditivos' %}" class="btn btn-primary" style="width: 100%;">Jugar</a>
         {% endif %}
     </div>
     {% endfor %}

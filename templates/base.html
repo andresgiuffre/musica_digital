@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -152,6 +153,7 @@
         {% block content %}{% endblock %}
     </main>
 
+    <script src="{% static 'js/audio_engine.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>
