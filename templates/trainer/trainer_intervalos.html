@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .trainer-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2rem;
+    }
+
+    #staff-container {
+        background: white;
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+        border: 2px solid var(--border);
+        transition: border-color 0.3s;
+    }
+
+    .status-bar {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        max-width: 600px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .intervals-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        max-width: 600px;
+        width: 100%;
+    }
+
+    .intervals-grid:last-child {
+        grid-template-columns: repeat(3, 1fr);
+        margin-top: -1rem;
+    }
+    
+    .btn-interval {
+        padding: 1.5rem 0.5rem;
+        font-size: 1.25rem;
+        border-radius: 1rem;
+        background: var(--surface);
+        border: 2px solid var(--border);
+        color: var(--text);
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.1s;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-interval:hover {
+        transform: translateY(-2px);
+        border-color: var(--primary);
+        box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2);
+    }
+
+    .btn-interval:active {
+        transform: translateY(2px);
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    .flash-correct {
+        border-color: var(--success) !important;
+        background-color: rgba(16, 185, 129, 0.1);
+    }
+
+    .flash-incorrect {
+        border-color: var(--danger) !important;
+        background-color: rgba(239, 68, 68, 0.1);
+        animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    #feedback-msg {
+        height: 1.5rem;
+        font-weight: 600;
+        text-align: center;
+        width: 100%;
+    }
+
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+      40%, 60% { transform: translate3d(4px, 0, 0); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="trainer-container">
+    <div style="text-align: center;">
+        <h2 style="margin-bottom: 0.5rem;">{{ game.name }}</h2>
+        <div id="feedback-msg"></div>
+    </div>
+
+    <div class="status-bar">
+        <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+        <div>Nivel: <span id="level-counter">{{ score.level }}</span></div>
+    </div>
+
+    <div id="staff-container">
+        <!-- VexFlow will render here -->
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%; max-width: 600px;">
+        <div class="intervals-grid">
+            <button class="btn-interval" data-interval="2">Segunda</button>
+            <button class="btn-interval" data-interval="3">Tercera</button>
+            <button class="btn-interval" data-interval="4">Cuarta</button>
+            <button class="btn-interval" data-interval="5">Quinta</button>
+        </div>
+        <div class="intervals-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <button class="btn-interval" data-interval="6">Sexta</button>
+            <button class="btn-interval" data-interval="7">Séptima</button>
+            <button class="btn-interval" data-interval="8">Octava</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/vexflow@3.0.9/releases/vexflow-min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const VF = Vex.Flow;
+        const div = document.getElementById("staff-container");
+        const feedbackMsg = document.getElementById("feedback-msg");
+        let renderer, context, stave;
+        
+        const noteScale = ['c', 'd', 'e', 'f', 'g', 'a', 'b'];
+        const intervalNames = {
+            2: "Segunda", 3: "Tercera", 4: "Cuarta", 
+            5: "Quinta", 6: "Sexta", 7: "Séptima", 8: "Octava"
+        };
+        
+        let currentIntervalValue = 0;
+        let currentNotesStr = "";
+        let startTime = 0;
+
+        function getNoteStrByIndex(absIndex) {
+            const octave = Math.floor(absIndex / 7);
+            const noteChar = noteScale[absIndex % 7];
+            return noteChar + '/' + octave;
+        }
+
+        function initVexFlow() {
+            div.innerHTML = "";
+            renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
+            renderer.resize(300, 150);
+            context = renderer.getContext();
+            context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
+
+            stave = new VF.Stave(10, 20, 280);
+            stave.addClef("treble");
+            stave.setContext(context).draw();
+        }
+
+        function drawInterval() {
+            initVexFlow();
+            
+            // Valid base notes from C4 (index 28) to A4 (index 33)
+            // Octave 4 is 4*7=28. c=0, a=5 -> 28 to 33.
+            const baseIndex = 28 + Math.floor(Math.random() * 6);
+            
+            // Random interval from 2 to 8
+            currentIntervalValue = 2 + Math.floor(Math.random() * 7);
+            
+            const topIndex = baseIndex + currentIntervalValue - 1;
+            
+            const note1 = getNoteStrByIndex(baseIndex);
+            const note2 = getNoteStrByIndex(topIndex);
+            
+            currentNotesStr = note1 + "-" + note2;
+
+            const note = new VF.StaveNote({ clef: "treble", keys: [note1, note2], duration: "q" });
+            
+            const voice = new VF.Voice({ num_beats: 1, beat_value: 4 });
+            voice.addTickables([note]);
+
+            const formatter = new VF.Formatter().joinVoices([voice]).format([voice], 200);
+            voice.draw(context, stave);
+            
+            startTime = Date.now();
+            feedbackMsg.innerText = "";
+        }
+
+        function handleGuess(guessedIntervalStr) {
+            const guessedInterval = parseInt(guessedIntervalStr, 10);
+            const responseTime = Date.now() - startTime;
+            const isCorrect = guessedInterval === currentIntervalValue;
+
+            if (isCorrect) {
+                div.classList.add("flash-correct");
+                feedbackMsg.innerText = "¡Correcto: " + intervalNames[currentIntervalValue] + "!";
+                feedbackMsg.style.color = "var(--success)";
+            } else {
+                div.classList.add("flash-incorrect");
+                feedbackMsg.innerText = "Incorrecto. La respuesta era " + intervalNames[currentIntervalValue] + ".";
+                feedbackMsg.style.color = "var(--danger)";
+            }
+
+            setTimeout(() => {
+                div.classList.remove("flash-correct");
+                div.classList.remove("flash-incorrect");
+            }, 500);
+
+            fetch('{% url "record_attempt" game.slug %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    presented_question: currentNotesStr,
+                    guessed_answer: guessedInterval.toString(),
+                    is_correct: isCorrect,
+                    response_time_ms: responseTime
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('streak-counter').innerText = data.current_streak;
+                    document.getElementById('level-counter').innerText = data.level;
+                }
+            })
+            .catch(err => console.error(err));
+
+            setTimeout(drawInterval, 1000); // Wait 1 sec to let user read the feedback
+        }
+
+        document.querySelectorAll('.btn-interval').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if (feedbackMsg.innerText !== "") return;
+                const guessedInterval = e.target.getAttribute('data-interval');
+                handleGuess(guessedInterval);
+            });
+        });
+
+        drawInterval();
+    });
+</script>
+{% endblock %}

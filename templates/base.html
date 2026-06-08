@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Entrenador Musical MVP</title>
+    <title>Música Digital</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -133,7 +133,7 @@
 </head>
 <body>
     <nav>
-        <a href="{% url 'dashboard' %}" class="nav-brand">🎵 MusicTrainer</a>
+        <a href="{% url 'dashboard' %}" class="nav-brand">🎵 Música Digital</a>
         <div>
             {% if user.is_authenticated %}
                 <span style="margin-right: 1rem;">Hola, {{ user.username }}</span>
