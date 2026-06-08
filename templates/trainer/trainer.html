@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .trainer-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2rem;
+    }
+
+    #staff-container {
+        background: white;
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+        border: 2px solid var(--border);
+        transition: border-color 0.3s;
+    }
+
+    .status-bar {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        max-width: 600px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .notes-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        max-width: 600px;
+        width: 100%;
+    }
+
+    .notes-grid:last-child {
+        grid-template-columns: repeat(3, 1fr);
+        margin-top: -1rem; /* Adjust if needed to fit nicely */
+    }
+    
+    .btn-note {
+        padding: 1.5rem;
+        font-size: 1.5rem;
+        border-radius: 1rem;
+        background: var(--surface);
+        border: 2px solid var(--border);
+        color: var(--text);
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.1s;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-note:hover {
+        transform: translateY(-2px);
+        border-color: var(--primary);
+        box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2);
+    }
+
+    .btn-note:active {
+        transform: translateY(2px);
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    .flash-correct {
+        border-color: var(--success) !important;
+        background-color: rgba(16, 185, 129, 0.1);
+    }
+
+    .flash-incorrect {
+        border-color: var(--danger) !important;
+        background-color: rgba(239, 68, 68, 0.1);
+        animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+      40%, 60% { transform: translate3d(4px, 0, 0); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="trainer-container">
+    <div class="status-bar">
+        <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+        <div>Nivel: <span id="level-counter">{{ score.level }}</span></div>
+    </div>
+
+    <div id="staff-container">
+        <!-- VexFlow will render here -->
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%; max-width: 600px;">
+        <div class="notes-grid">
+            <button class="btn-note" data-note="c">Do</button>
+            <button class="btn-note" data-note="d">Re</button>
+            <button class="btn-note" data-note="e">Mi</button>
+            <button class="btn-note" data-note="f">Fa</button>
+        </div>
+        <div class="notes-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <button class="btn-note" data-note="g">Sol</button>
+            <button class="btn-note" data-note="a">La</button>
+            <button class="btn-note" data-note="b">Si</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/vexflow@3.0.9/releases/vexflow-min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const VF = Vex.Flow;
+        const div = document.getElementById("staff-container");
+        let renderer, context, stave;
+        
+        const possibleNotes = ['c/4', 'd/4', 'e/4', 'f/4', 'g/4', 'a/4', 'b/4', 'c/5', 'd/5', 'e/5', 'f/5', 'g/5'];
+        let currentNoteStr = "";
+        let currentNoteLetter = "";
+        let startTime = 0;
+
+        function initVexFlow() {
+            div.innerHTML = "";
+            renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
+            renderer.resize(300, 150);
+            context = renderer.getContext();
+            context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
+
+            stave = new VF.Stave(10, 20, 280);
+            stave.addClef("treble");
+            stave.setContext(context).draw();
+        }
+
+        function drawNote() {
+            initVexFlow();
+            
+            // Pick a random note
+            currentNoteStr = possibleNotes[Math.floor(Math.random() * possibleNotes.length)];
+            currentNoteLetter = currentNoteStr.charAt(0);
+
+            const note = new VF.StaveNote({ clef: "treble", keys: [currentNoteStr], duration: "q" });
+            
+            // Add leger lines if necessary (VexFlow handles this automatically mostly)
+
+            const voice = new VF.Voice({ num_beats: 1, beat_value: 4 });
+            voice.addTickables([note]);
+
+            const formatter = new VF.Formatter().joinVoices([voice]).format([voice], 200);
+            voice.draw(context, stave);
+            
+            startTime = Date.now();
+        }
+
+        function handleGuess(guessedLetter) {
+            const responseTime = Date.now() - startTime;
+            const isCorrect = guessedLetter === currentNoteLetter;
+
+            // Visual feedback
+            if (isCorrect) {
+                div.classList.add("flash-correct");
+            } else {
+                div.classList.add("flash-incorrect");
+            }
+
+            setTimeout(() => {
+                div.classList.remove("flash-correct");
+                div.classList.remove("flash-incorrect");
+            }, 500);
+
+            // Send to backend
+            fetch('{% url "record_attempt" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    presented_note: currentNoteStr,
+                    guessed_note: guessedLetter,
+                    is_correct: isCorrect,
+                    response_time_ms: responseTime
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('streak-counter').innerText = data.current_streak;
+                    document.getElementById('level-counter').innerText = data.level;
+                }
+            })
+            .catch(err => console.error("Error recording attempt:", err));
+
+            // Immediately draw next note to keep flow fast
+            drawNote();
+        }
+
+        // Event listeners
+        document.querySelectorAll('.btn-note').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const guessedLetter = e.target.getAttribute('data-note');
+                handleGuess(guessedLetter);
+            });
+        });
+
+        // Start
+        drawNote();
+    });
+</script>
+{% endblock %}
