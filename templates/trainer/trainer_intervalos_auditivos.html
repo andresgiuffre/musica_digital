@@ -1,0 +1,522 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .grid-layout {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 2rem;
+        align-items: start;
+        width: 100%;
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
+    @media (max-width: 768px) {
+        .grid-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .trainer-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+    }
+
+    .status-bar {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .intervals-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        width: 100%;
+    }
+
+    .intervals-grid:last-child {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .btn-interval {
+        padding: 1.25rem 0.5rem;
+        font-size: 1.15rem;
+        border-radius: 1rem;
+        background: var(--surface);
+        border: 2px solid var(--border);
+        color: var(--text);
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.15s;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+
+    .btn-interval:hover:not(:disabled) {
+        transform: translateY(-2px);
+        border-color: var(--primary);
+        box-shadow: 0 8px 12px -3px rgba(79, 70, 229, 0.15);
+    }
+
+    .btn-interval:active:not(:disabled) {
+        transform: translateY(1px);
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    .btn-interval:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .flash-correct {
+        border-color: var(--success) !important;
+        background-color: rgba(16, 185, 129, 0.1) !important;
+    }
+
+    .flash-incorrect {
+        border-color: var(--danger) !important;
+        background-color: rgba(239, 68, 68, 0.1) !important;
+        animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    /* Soundwave animation styles */
+    .soundwave-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 50px;
+        margin-top: 1rem;
+        opacity: 0.25;
+        transition: opacity 0.3s;
+    }
+    .soundwave-container.active {
+        opacity: 1;
+    }
+    .soundwave-container .bar {
+        width: 6px;
+        height: 12px;
+        background-color: var(--primary);
+        border-radius: 3px;
+        transition: height 0.2s ease;
+    }
+    .soundwave-container.active .bar {
+        animation: bounce 0.6s ease-in-out infinite alternate;
+    }
+    .soundwave-container.active .bar:nth-child(1) { animation-delay: 0.1s; }
+    .soundwave-container.active .bar:nth-child(2) { animation-delay: 0.3s; }
+    .soundwave-container.active .bar:nth-child(3) { animation-delay: 0.2s; }
+    .soundwave-container.active .bar:nth-child(4) { animation-delay: 0.4s; }
+    .soundwave-container.active .bar:nth-child(5) { animation-delay: 0.15s; }
+
+    @keyframes bounce {
+        0% { height: 8px; }
+        100% { height: 42px; }
+    }
+
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+      40%, 60% { transform: translate3d(4px, 0, 0); }
+    }
+
+    /* Accuracy ring stats styles */
+    .accuracy-circle {
+        position: relative;
+        width: 130px;
+        height: 130px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.4s ease;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+    .accuracy-circle .inner-circle {
+        width: 108px;
+        height: 108px;
+        border-radius: 50%;
+        background-color: var(--surface);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .pulse-ring-btn {
+        position: relative;
+    }
+
+    .pulse-ring-btn.playing {
+        animation: pulse-ring 1.6s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+
+    @keyframes pulse-ring {
+        0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.6); }
+        70% { box-shadow: 0 0 0 16px rgba(79, 70, 229, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="grid-layout">
+    <!-- Main game column -->
+    <div class="card trainer-container">
+        <div style="text-align: center; width: 100%;">
+            <h2 style="margin-bottom: 0.5rem; font-size: 1.75rem;">👂 {{ game.name }}</h2>
+            <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 0.5rem;">Escucha con atención e identifica la distancia musical.</p>
+            <div id="feedback-msg" style="height: 1.5rem; font-weight: 800; text-align: center; width: 100%; font-size: 1.15rem;"></div>
+        </div>
+
+        <div class="status-bar">
+            <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+            <div>Nivel: <span id="level-counter">{{ score.level }}</span></div>
+        </div>
+
+        <!-- Central Play Audio Section -->
+        <div id="exercise-box" style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; min-height: 200px; background: white; border-radius: 1rem; border: 2px solid var(--border); transition: all 0.3s; position: relative; padding: 1rem;">
+            
+            <div id="staff-container" style="width: 100%; display: flex; justify-content: center; margin-bottom: 0.5rem;">
+                <!-- VexFlow will render here -->
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <button id="btn-play-interval" class="pulse-ring-btn" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #6366F1); color: white; border: none; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(79, 70, 229, 0.3); transition: all 0.2s;" title="Escuchar Intervalo">
+                    ▶
+                </button>
+                <div class="soundwave-container" id="soundwave" style="margin-top: 0;">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
+            </div>
+            <div style="margin-top: 0.5rem; font-weight: 600; color: var(--text-secondary); font-size: 0.85rem;" id="audio-btn-desc">Reproducir Intervalo</div>
+        </div>
+
+        <!-- Answers grid -->
+        <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+            <div class="intervals-grid">
+                <button class="btn-interval" data-interval="Segunda" disabled>Segunda</button>
+                <button class="btn-interval" data-interval="Tercera" disabled>Tercera</button>
+                <button class="btn-interval" data-interval="Cuarta" disabled>Cuarta</button>
+                <button class="btn-interval" data-interval="Quinta" disabled>Quinta</button>
+            </div>
+            <div class="intervals-grid">
+                <button class="btn-interval" data-interval="Sexta" disabled>Sexta</button>
+                <button class="btn-interval" data-interval="Séptima" disabled>Séptima</button>
+                <button class="btn-interval" data-interval="Octava" disabled>Octava</button>
+            </div>
+        </div>
+
+        <!-- Post-answer controls -->
+        <div id="controls-panel" style="display: none; justify-content: center; gap: 1rem; width: 100%; margin-top: 0.5rem;">
+            <button id="btn-replay" class="btn" style="background: transparent; border: 2px solid var(--border); color: var(--text); display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem;">
+                🔊 Escuchar nuevamente
+            </button>
+            <button id="btn-next" class="btn btn-primary" style="padding: 0.75rem 2rem;">
+                Siguiente →
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats sidebar column -->
+    <div class="card" style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <h3 style="font-size: 1.25rem; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            📊 Tus Estadísticas
+        </h3>
+        
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+            <div class="accuracy-circle" id="stat-accuracy-circle" style="background: conic-gradient(var(--primary) {{ score.accuracy }}%, var(--border) {{ score.accuracy }}% 100%);">
+                <div class="inner-circle">
+                    <span id="stat-accuracy" style="font-size: 1.75rem; font-weight: 800; color: var(--text);">{{ score.accuracy }}%</span>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">Precisión</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div style="background: rgba(0,0,0,0.02); padding: 0.75rem; border-radius: 0.75rem; border: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">Correctas</div>
+                <div id="stat-correct" style="font-size: 1.35rem; font-weight: 800; color: var(--success);">{{ score.correct_answers }}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.02); padding: 0.75rem; border-radius: 0.75rem; border: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">Incorrectas</div>
+                <div id="stat-incorrect" style="font-size: 1.35rem; font-weight: 800; color: var(--danger);">{{ incorrect_answers }}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.02); padding: 0.75rem; border-radius: 0.75rem; border: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">Mejor Racha</div>
+                <div id="stat-max-streak" style="font-size: 1.35rem; font-weight: 800; color: var(--primary);">{{ score.max_streak }}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.02); padding: 0.75rem; border-radius: 0.75rem; border: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">Tiempo Prom.</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: var(--text);"><span id="stat-avg-time">{{ avg_time }}</span>s</div>
+            </div>
+        </div>
+
+        <div>
+            <h4 style="font-size: 0.95rem; margin-bottom: 0.75rem; color: var(--text-secondary); font-weight: 600;">Intervalos más difíciles:</h4>
+            <div id="stat-hardest-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                {% if hardest %}
+                    {% for item in hardest %}
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.8rem; background: rgba(239, 68, 68, 0.04); border: 1px solid rgba(239, 68, 68, 0.12); border-radius: 0.5rem; font-size: 0.9rem;">
+                            <span style="font-weight: 700; color: var(--text);">{{ item.interval }}</span>
+                            <span style="font-weight: 800; color: var(--danger);">{{ item.accuracy }}% precisión</span>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div id="stat-hardest-placeholder" style="font-size: 0.85rem; color: var(--text-secondary); font-style: italic; text-align: center; padding: 0.75rem; border: 1px dashed var(--border); border-radius: 0.5rem;">
+                        Intenta cada intervalo al menos 3 veces para ver su nivel de dificultad.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/vexflow@3.0.9/releases/vexflow-min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const VF = Vex.Flow;
+        const div = document.getElementById("staff-container");
+        let renderer, context, stave;
+        const btnPlay = document.getElementById("btn-play-interval");
+        const wave = document.getElementById("soundwave");
+        const btnDesc = document.getElementById("audio-btn-desc");
+        const feedbackMsg = document.getElementById("feedback-msg");
+        const exerciseBox = document.getElementById("exercise-box");
+        const answerButtons = document.querySelectorAll(".btn-interval");
+        const controlsPanel = document.getElementById("controls-panel");
+        const btnReplay = document.getElementById("btn-replay");
+        const btnNext = document.getElementById("btn-next");
+
+        const noteScale = ['c', 'd', 'e', 'f', 'g', 'a', 'b'];
+        const intervalNames = {
+            2: "Segunda", 3: "Tercera", 4: "Cuarta", 
+            5: "Quinta", 6: "Sexta", 7: "Séptima", 8: "Octava"
+        };
+
+        let currentIntervalValue = 0;
+        let currentIntervalName = "";
+        let note1 = "";
+        let note2 = "";
+        let startTime = 0;
+        let hasPlayed = false;
+        let audioPlayingTimeout = null;
+
+        function initVexFlow() {
+            div.innerHTML = "";
+            renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
+            renderer.resize(300, 150);
+            context = renderer.getContext();
+            context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
+
+            stave = new VF.Stave(10, 20, 280);
+            stave.addClef("treble");
+            stave.setContext(context).draw();
+        }
+
+        function drawStaff(n1, n2, showBoth) {
+            initVexFlow();
+            if (!n1) return;
+            
+            let keys = [n1];
+            if (showBoth && n2) {
+                keys = [n1, n2];
+            }
+            
+            const note = new VF.StaveNote({ clef: "treble", keys: keys, duration: "q" });
+            const voice = new VF.Voice({ num_beats: 1, beat_value: 4 });
+            voice.addTickables([note]);
+
+            new VF.Formatter().joinVoices([voice]).format([voice], 200);
+            voice.draw(context, stave);
+        }
+
+        function generateInterval() {
+            // C4 (index 28) to A4 (index 33)
+            const baseIndex = 28 + Math.floor(Math.random() * 6);
+            currentIntervalValue = 2 + Math.floor(Math.random() * 7); // 2 to 8
+            const topIndex = baseIndex + currentIntervalValue - 1;
+
+            note1 = getNoteStrByIndex(baseIndex);
+            note2 = getNoteStrByIndex(topIndex);
+            currentIntervalName = intervalNames[currentIntervalValue];
+
+            hasPlayed = false;
+            btnPlay.disabled = false;
+            btnPlay.innerHTML = "▶";
+            btnDesc.innerText = "Reproducir Intervalo";
+            exerciseBox.style.borderColor = "var(--border)";
+            feedbackMsg.innerText = "";
+            controlsPanel.style.display = "none";
+
+            drawStaff(note1, note2, false);
+
+            answerButtons.forEach(btn => {
+                btn.disabled = true;
+                btn.classList.remove("flash-correct", "flash-incorrect");
+            });
+        }
+
+        function getNoteStrByIndex(absIndex) {
+            const octave = Math.floor(absIndex / 7);
+            const noteChar = noteScale[absIndex % 7];
+            return noteChar + '/' + octave;
+        }
+
+        function playIntervalAudio() {
+            if (!note1 || !note2) return;
+
+            // Clear any previous animations
+            clearTimeout(audioPlayingTimeout);
+            wave.classList.remove("active");
+            btnPlay.classList.remove("playing");
+
+            // Trigger animation
+            setTimeout(() => {
+                wave.classList.add("active");
+                btnPlay.classList.add("playing");
+            }, 10);
+
+            AudioEngine.playInterval(note1, note2, false, 0.7);
+
+            // Turn off animation after play duration (0.7s * 2 = 1400ms)
+            audioPlayingTimeout = setTimeout(() => {
+                wave.classList.remove("active");
+                btnPlay.classList.remove("playing");
+            }, 1450);
+
+            if (!hasPlayed) {
+                hasPlayed = true;
+                startTime = Date.now();
+                btnDesc.innerText = "Reproduciendo...";
+                setTimeout(() => {
+                    btnDesc.innerText = "Escuchar de nuevo";
+                    btnPlay.innerHTML = "🔊";
+                    answerButtons.forEach(btn => {
+                        btn.disabled = false;
+                    });
+                }, 1400);
+            }
+        }
+
+        btnPlay.addEventListener("click", () => {
+            playIntervalAudio();
+        });
+
+        btnReplay.addEventListener("click", () => {
+            playIntervalAudio();
+        });
+
+        function handleGuess(guessedInterval) {
+            const responseTime = Date.now() - startTime;
+            const isCorrect = guessedInterval === currentIntervalName;
+
+            answerButtons.forEach(btn => {
+                btn.disabled = true;
+                if (btn.getAttribute("data-interval") === currentIntervalName) {
+                    btn.classList.add("flash-correct");
+                }
+                if (btn.getAttribute("data-interval") === guessedInterval && !isCorrect) {
+                    btn.classList.add("flash-incorrect");
+                }
+            });
+
+            if (isCorrect) {
+                exerciseBox.style.borderColor = "var(--success)";
+                feedbackMsg.innerText = "¡Correcto: " + currentIntervalName + "!";
+                feedbackMsg.style.color = "var(--success)";
+            } else {
+                exerciseBox.style.borderColor = "var(--danger)";
+                feedbackMsg.innerText = "Incorrecto. Era una " + currentIntervalName + ".";
+                feedbackMsg.style.color = "var(--danger)";
+            }
+
+            // Reveal full interval visually
+            drawStaff(note1, note2, true);
+
+            // Record attempt
+            fetch('{% url "record_attempt" game.slug %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    presented_question: currentIntervalName,
+                    guessed_answer: guessedInterval,
+                    is_correct: isCorrect,
+                    response_time_ms: responseTime
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Update main HUD scores
+                    document.getElementById('streak-counter').innerText = data.current_streak;
+                    document.getElementById('level-counter').innerText = data.level;
+
+                    // Update real-time stats panel
+                    document.getElementById('stat-accuracy').innerText = data.accuracy + "%";
+                    document.getElementById('stat-accuracy-circle').style.background = 
+                        `conic-gradient(var(--primary) ${data.accuracy}%, var(--border) ${data.accuracy}% 100%)`;
+                    document.getElementById('stat-correct').innerText = parseInt(document.getElementById('stat-correct').innerText, 10) + (isCorrect ? 1 : 0);
+                    document.getElementById('stat-incorrect').innerText = data.incorrect_answers;
+                    document.getElementById('stat-max-streak').innerText = data.max_streak;
+                    document.getElementById('stat-avg-time').innerText = data.avg_time;
+
+                    // Update hardest intervals list
+                    const listContainer = document.getElementById('stat-hardest-list');
+                    if (data.hardest && data.hardest.length > 0) {
+                        listContainer.innerHTML = '';
+                        data.hardest.forEach(item => {
+                            const divItem = document.createElement('div');
+                            divItem.style.display = 'flex';
+                            divItem.style.justifyContent = 'space-between';
+                            divItem.style.alignItems = 'center';
+                            divItem.style.padding = '0.6rem 0.8rem';
+                            divItem.style.background = 'rgba(239, 68, 68, 0.04)';
+                            divItem.style.border = '1px solid rgba(239, 68, 68, 0.12)';
+                            divItem.style.borderRadius = '0.5rem';
+                            divItem.style.fontSize = '0.9rem';
+                            divItem.innerHTML = `<span style="font-weight: 700; color: var(--text);">${item.interval}</span>
+                                                 <span style="font-weight: 800; color: var(--danger);">${item.accuracy}% precisión</span>`;
+                            listContainer.appendChild(divItem);
+                        });
+                    }
+                }
+            })
+            .catch(err => console.error(err));
+
+            // Show control panel
+            controlsPanel.style.display = "flex";
+            btnPlay.disabled = true;
+        }
+
+        answerButtons.forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                const guessed = e.target.getAttribute("data-interval");
+                handleGuess(guessed);
+            });
+        });
+
+        btnNext.addEventListener("click", () => {
+            generateInterval();
+        });
+
+        // Initialize first round
+        generateInterval();
+    });
+</script>
+{% endblock %}
