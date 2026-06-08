@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 2rem auto;">
+    <div class="card">
+        <h2 style="text-align: center; margin-bottom: 2rem;">Crear Cuenta</h2>
+        <form method="post">
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="form-group">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div style="color: var(--danger); font-size: 0.875rem; margin-top: 0.25rem;">
+                            {{ field.errors }}
+                        </div>
+                    {% endif %}
+                    {% if field.help_text %}
+                        <div style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.25rem;">
+                            {{ field.help_text }}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Registrarse</button>
+        </form>
+        <p style="text-align: center; margin-top: 1.5rem; color: var(--text-secondary);">
+            ¿Ya tienes cuenta? <a href="{% url 'login' %}" style="color: var(--primary);">Inicia sesión aquí</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
