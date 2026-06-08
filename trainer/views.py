@@ -1,11 +1,11 @@
 import json
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib.auth.forms import UserCreationForm
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from .models import Exercise, Score, Attempt
+from .models import Game, Score, Attempt
 
 def register(request):
     if request.method == 'POST':
@@ -20,65 +20,70 @@ def register(request):
 
 @login_required
 def dashboard(request):
-    score, created = Score.objects.get_or_create(user=request.user)
+    games = Game.objects.all()
+    scores = Score.objects.filter(user=request.user)
+    total_points = sum(s.total_points for s in scores)
+    
     context = {
-        'score': score
+        'games': games,
+        'total_points': total_points,
     }
     return render(request, 'trainer/dashboard.html', context)
 
 @login_required
-def trainer(request):
-    # Retrieve or create default exercise for MVP
-    exercise, _ = Exercise.objects.get_or_create(
-        name='Notas Clave de Sol - Nivel 1',
-        defaults={
-            'clef': 'treble',
-            'min_note': 'C4',
-            'max_note': 'G5'
-        }
-    )
-    score, _ = Score.objects.get_or_create(user=request.user)
+def trainer_notas(request):
+    game = get_object_or_404(Game, slug='notas')
+    score, _ = Score.objects.get_or_create(user=request.user, game=game)
     context = {
-        'exercise': exercise,
+        'game': game,
         'score': score
     }
-    return render(request, 'trainer/trainer.html', context)
+    return render(request, 'trainer/trainer_notas.html', context)
+
+@login_required
+def trainer_intervalos(request):
+    game = get_object_or_404(Game, slug='intervalos')
+    score, _ = Score.objects.get_or_create(user=request.user, game=game)
+    context = {
+        'game': game,
+        'score': score
+    }
+    return render(request, 'trainer/trainer_intervalos.html', context)
 
 @login_required
 @csrf_exempt
-def record_attempt(request):
+def record_attempt(request, game_slug):
     if request.method == 'POST':
         try:
+            game = Game.objects.get(slug=game_slug)
             data = json.loads(request.body)
-            presented_note = data.get('presented_note')
-            guessed_note = data.get('guessed_note')
+            presented_question = data.get('presented_question')
+            guessed_answer = data.get('guessed_answer')
             is_correct = data.get('is_correct')
             response_time_ms = data.get('response_time_ms')
             
-            # Save attempt
             Attempt.objects.create(
                 user=request.user,
-                presented_note=presented_note,
-                guessed_note=guessed_note,
+                game=game,
+                presented_question=presented_question,
+                guessed_answer=guessed_answer,
                 is_correct=is_correct,
                 response_time_ms=response_time_ms
             )
 
-            # Update score
-            score = Score.objects.get(user=request.user)
+            score, _ = Score.objects.get_or_create(user=request.user, game=game)
             score.total_answers += 1
             if is_correct:
                 score.correct_answers += 1
                 score.current_streak += 1
-                score.total_points += 10 + (score.current_streak * 2) # Bonus for streak
+                score.total_points += 10 + (score.current_streak * 2)
                 if score.current_streak > score.max_streak:
                     score.max_streak = score.current_streak
             else:
                 score.current_streak = 0
             
-            # Level up logic (simple for MVP)
             if score.correct_answers > 0 and score.correct_answers % 20 == 0:
-                if is_correct: # Only level up on a correct answer that hits the threshold
+                if is_correct:
                     score.level += 1
 
             score.save()
