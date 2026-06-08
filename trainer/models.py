@@ -74,3 +74,17 @@ class UserAchievement(models.Model):
     class Meta:
         unique_together = ('user', 'achievement')
 
+    def __str__(self):
+        return f"{self.user.username} - {self.achievement.name}"
+
+class Piece(models.Model):
+    title = models.CharField(max_length=200)
+    author = models.CharField(max_length=200, blank=True, null=True)
+    time_signature = models.CharField(max_length=10, default="4/4")
+    key_signature = models.CharField(max_length=50, blank=True, null=True)
+    difficulty = models.IntegerField(default=1, help_text="1: Principiante, 2: Intermedio, 3: Avanzado")
+    xml_content = models.TextField(help_text="Contenido en formato MusicXML")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} - {self.author}"
