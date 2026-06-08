@@ -5,6 +5,9 @@ class Game(models.Model):
     slug = models.SlugField(unique=True)
     name = models.CharField(max_length=100)
     description = models.TextField()
+    order = models.IntegerField(default=1)
+    recommended_accuracy = models.IntegerField(default=0)
+    recommended_attempts = models.IntegerField(default=0)
 
     def __str__(self):
         return self.name
@@ -42,3 +45,32 @@ class Attempt(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.game.slug} - {'Correct' if self.is_correct else 'Incorrect'}"
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    total_xp = models.IntegerField(default=0)
+    user_level = models.IntegerField(default=1)
+    current_daily_streak = models.IntegerField(default=0)
+    max_daily_streak = models.IntegerField(default=0)
+    last_active_date = models.DateField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Perfil de {self.user.username}"
+
+class Achievement(models.Model):
+    slug = models.SlugField(unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    icon = models.CharField(max_length=50, default="🏆")
+    
+    def __str__(self):
+        return self.name
+
+class UserAchievement(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='achievements')
+    achievement = models.ForeignKey(Achievement, on_delete=models.CASCADE)
+    date_earned = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'achievement')
+

@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <div class="card" style="display: flex; align-items: center; gap: 2rem; margin-bottom: 2rem; border-top: 4px solid var(--primary);">
+        <div style="width: 100px; height: 100px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 3rem;">
+            👤
+        </div>
+        <div>
+            <h1 style="margin-bottom: 0.25rem;">{{ user.username }}</h1>
+            <div style="color: var(--text-secondary); font-size: 1.1rem; font-weight: 600;">Nivel {{ profile.user_level }}</div>
+        </div>
+        <div style="margin-left: auto; text-align: right;">
+            <div style="font-size: 2rem; font-weight: 800; color: var(--primary);">{{ profile.total_xp }}</div>
+            <div style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 600;">XP TOTAL</div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 3rem;">
+        <div class="card" style="text-align: center;">
+            <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 0.5rem;">Precisión Histórica</div>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--success);">{{ global_acc }}%</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">De {{ total_answers }} ejercicios</div>
+        </div>
+        <div class="card" style="text-align: center;">
+            <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 0.5rem;">Mejor Racha Diaria</div>
+            <div style="font-size: 2rem; font-weight: 800; color: #F59E0B;">{{ profile.max_daily_streak }} 🔥</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Días seguidos</div>
+        </div>
+    </div>
+
+    <h2 style="margin-bottom: 1.5rem;">Logros</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
+        {% for a in achievements %}
+        <div class="card" style="text-align: center; padding: 1.5rem 1rem; {% if not a.unlocked %}opacity: 0.4; filter: grayscale(100%);{% else %}border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.02);{% endif %}">
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">{{ a.obj.icon }}</div>
+            <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem; color: var(--text);">{{ a.obj.name }}</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary);">{{ a.obj.description }}</p>
+            {% if not a.unlocked %}
+                <div style="margin-top: 0.5rem; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">🔒 Bloqueado</div>
+            {% else %}
+                <div style="margin-top: 0.5rem; font-size: 0.75rem; font-weight: 800; color: var(--success);">✅ Obtenido</div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p>No hay logros disponibles aún.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

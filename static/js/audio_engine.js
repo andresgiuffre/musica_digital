@@ -1,123 +1,117 @@
 const AudioEngine = {
-    ctx: null,
+    sampler: null,
+    isMuted: false,
+    volume: -5,
+    isReady: false,
     
     init() {
-        if (!this.ctx) {
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (this.ctx.state === 'suspended') {
-            this.ctx.resume();
-        }
+        this.bindSettingsUI();
     },
     
-    noteToFreq(noteStr) {
-        // Normalize strings like 'c/4' or 'C#5'
-        let normalized = noteStr.toLowerCase().replace('/', '');
+    bindSettingsUI() {
+        const muteToggle = document.getElementById('audio-mute-toggle');
+        const volSlider = document.getElementById('audio-volume-slider');
         
-        const noteMap = {
-            'c': 0, 'c#': 1, 'db': 1, 'd': 2, 'd#': 3, 'eb': 3, 'e': 4, 'f': 5, 'f#': 6, 'gb': 6,
-            'g': 7, 'g#': 8, 'ab': 8, 'a': 9, 'a#': 10, 'bb': 10, 'b': 11
-        };
-        
-        const match = normalized.match(/^([a-g]#?|db|eb|gb|ab|bb)?(\d)$/);
-        if (!match) return 261.63; // Fallback to Do4
-        
-        const note = match[1];
-        const octave = parseInt(match[2]);
-        
-        const semitonesFromC4 = noteMap[note] + (octave - 4) * 12;
-        return 261.6256 * Math.pow(2, semitonesFromC4 / 12);
-    },
-    
-    playFreq(freq, startTime, duration = 1.0, volume = 0.5) {
-        try {
-            this.init();
-            const ctx = this.ctx;
-            
-            const osc1 = ctx.createOscillator();
-            const osc2 = ctx.createOscillator();
-            const osc3 = ctx.createOscillator();
-            const gainNode = ctx.createGain();
-            const filter = ctx.createBiquadFilter();
-            
-            // Piano synthesis setup
-            osc1.type = 'triangle';
-            osc1.frequency.setValueAtTime(freq, startTime);
-            
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(freq * 2, startTime);
-            
-            osc3.type = 'sine';
-            osc3.frequency.setValueAtTime(freq * 3, startTime);
-            
-            // Lowpass filter for warmer sound
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(freq * 4, startTime);
-            filter.frequency.exponentialRampToValueAtTime(freq * 1.5, startTime + duration);
-            
-            // Gain Node envelope
-            gainNode.gain.setValueAtTime(0, startTime);
-            gainNode.gain.linearRampToValueAtTime(volume, startTime + 0.015); // Attack
-            gainNode.gain.exponentialRampToValueAtTime(volume * 0.4, startTime + 0.25); // Decay
-            gainNode.gain.setValueAtTime(volume * 0.4, startTime + duration - 0.15); // Sustain
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration); // Release
-            
-            // Gain settings for harmonics
-            const gainHarmonic1 = ctx.createGain();
-            const gainHarmonic2 = ctx.createGain();
-            
-            gainHarmonic1.gain.setValueAtTime(volume * 0.35, startTime);
-            gainHarmonic1.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.35);
-            
-            gainHarmonic2.gain.setValueAtTime(volume * 0.15, startTime);
-            gainHarmonic2.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.2);
-            
-            osc1.connect(gainNode);
-            osc2.connect(gainHarmonic1);
-            osc3.connect(gainHarmonic2);
-            
-            gainHarmonic1.connect(gainNode);
-            gainHarmonic2.connect(gainNode);
-            
-            gainNode.connect(filter);
-            filter.connect(ctx.destination);
-            
-            osc1.start(startTime);
-            osc2.start(startTime);
-            osc3.start(startTime);
-            
-            osc1.stop(startTime + duration);
-            osc2.stop(startTime + duration);
-            osc3.stop(startTime + duration);
-        } catch (e) {
-            console.error("Audio Engine playback failed:", e);
+        if (muteToggle && !muteToggle.hasAttribute('data-bound')) {
+            muteToggle.addEventListener('change', (e) => {
+                this.isMuted = !e.target.checked;
+                if (this.sampler) {
+                    this.sampler.volume.value = this.isMuted ? -Infinity : this.volume;
+                }
+            });
+            muteToggle.setAttribute('data-bound', 'true');
+        }
+        if (volSlider && !volSlider.hasAttribute('data-bound')) {
+            volSlider.addEventListener('input', (e) => {
+                const val = e.target.value; 
+                this.volume = val == 0 ? -Infinity : (val / 100) * 40 - 40;
+                if (this.sampler && !this.isMuted) {
+                    this.sampler.volume.value = this.volume;
+                }
+            });
+            volSlider.setAttribute('data-bound', 'true');
         }
     },
     
-    playNote(note, startTime = 0, duration = 1.0) {
+    preload() {
         this.init();
-        if (startTime === 0) {
-            startTime = this.ctx.currentTime;
-        }
-        const freq = this.noteToFreq(note);
-        this.playFreq(freq, startTime, duration);
-    },
-    
-    playNotes(notes, startTime = 0, duration = 1.2) {
-        this.init();
-        if (startTime === 0) {
-            startTime = this.ctx.currentTime;
-        }
-        const vol = 0.5 / Math.max(1, notes.length);
-        notes.forEach(note => {
-            const freq = this.noteToFreq(note);
-            this.playFreq(freq, startTime, duration, vol);
+        if (this.sampler) return Promise.resolve();
+        
+        console.log("Preloading local piano samples with Tone.js...");
+        
+        return new Promise((resolve, reject) => {
+            this.sampler = new Tone.Sampler({
+                urls: {
+                    "A0": "A0.mp3", "C1": "C1.mp3", "D#1": "Ds1.mp3", "F#1": "Fs1.mp3", "A1": "A1.mp3",
+                    "C2": "C2.mp3", "D#2": "Ds2.mp3", "F#2": "Fs2.mp3", "A2": "A2.mp3",
+                    "C3": "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3", "A3": "A3.mp3",
+                    "C4": "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3", "A4": "A4.mp3",
+                    "C5": "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3", "A5": "A5.mp3",
+                    "C6": "C6.mp3", "D#6": "Ds6.mp3", "F#6": "Fs6.mp3", "A6": "A6.mp3",
+                    "C7": "C7.mp3", "D#7": "Ds7.mp3", "F#7": "Fs7.mp3", "A7": "A7.mp3",
+                    "C8": "C8.mp3"
+                },
+                baseUrl: "/static/audio/piano/",
+                onload: () => {
+                    this.isReady = true;
+                    this.sampler.volume.value = this.isMuted ? -Infinity : this.volume;
+                    this.sampler.toDestination();
+                    console.log("Tone.js Piano sampler loaded successfully!");
+                    resolve();
+                },
+                onerror: (err) => {
+                    console.error("Tone.js failed to load samples", err);
+                    reject(err);
+                }
+            });
         });
     },
     
-    playInterval(note1, note2, harmonic = false, duration = 1.0) {
-        this.init();
-        const now = this.ctx.currentTime;
+    noteToMidiStr(noteStr) {
+        let normalized = noteStr.replace('/', '').toUpperCase();
+        if (!/\d/.test(normalized)) {
+            normalized += '4';
+        }
+        return normalized;
+    },
+    
+    playNote(note, startTime = null, duration = 1.0) {
+        if (this.isMuted) return;
+        
+        if (!this.isReady) {
+            this.preload().then(() => this.playNote(note, startTime, duration));
+            return;
+        }
+        
+        const midiNote = this.noteToMidiStr(note);
+        const time = startTime !== null ? startTime : Tone.now();
+        
+        this.sampler.triggerAttackRelease(midiNote, duration, time);
+    },
+    
+    playNotes(notes, startTime = null, duration = 1.2) {
+        if (this.isMuted) return;
+        
+        if (!this.isReady) {
+            this.preload().then(() => this.playNotes(notes, startTime, duration));
+            return;
+        }
+        
+        const time = startTime !== null ? startTime : Tone.now();
+        const midiNotes = notes.map(n => this.noteToMidiStr(n));
+        
+        this.sampler.triggerAttackRelease(midiNotes, duration, time);
+    },
+    
+    playInterval(note1, note2, harmonic = false, duration = 1.5) {
+        if (this.isMuted) return;
+        
+        if (!this.isReady) {
+            this.preload().then(() => this.playInterval(note1, note2, harmonic, duration));
+            return;
+        }
+        
+        const now = Tone.now();
         if (harmonic) {
             this.playNotes([note1, note2], now, duration);
         } else {
@@ -127,11 +121,29 @@ const AudioEngine = {
     },
     
     playMelody(notes, noteDuration = 0.6, gap = 0.1) {
-        this.init();
-        const now = this.ctx.currentTime;
+        if (this.isMuted) return;
+        
+        if (!this.isReady) {
+            this.preload().then(() => this.playMelody(notes, noteDuration, gap));
+            return;
+        }
+        
+        const now = Tone.now();
         notes.forEach((note, idx) => {
             const time = now + idx * (noteDuration + gap);
-            this.playNote(note, time, noteDuration);
+            const midiNote = this.noteToMidiStr(note);
+            this.sampler.triggerAttackRelease(midiNote, noteDuration, time);
         });
     }
 };
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.body.addEventListener('click', async () => {
+        if(!AudioEngine.isReady) {
+            if (window.Tone) {
+                await Tone.start();
+                AudioEngine.preload();
+            }
+        }
+    }, { once: true });
+});
