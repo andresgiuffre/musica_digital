@@ -1,26 +1,144 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+    .level-card {
+        display: flex;
+        align-items: center;
+        background: var(--surface);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 2px solid var(--border);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        position: relative;
+    }
+    .level-card.locked {
+        background: rgba(0,0,0,0.02);
+        opacity: 0.7;
+    }
+    .level-card.completed {
+        border-color: var(--success);
+    }
+    .level-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        margin-right: 1.5rem;
+        background: var(--bg);
+    }
+    .level-card.completed .level-icon {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+    }
+    .level-card.locked .level-icon {
+        background: rgba(0,0,0,0.05);
+        color: var(--text-secondary);
+    }
+    .level-info {
+        flex: 1;
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .stat-box {
+        background: var(--surface);
+        padding: 1rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div style="text-align: center; margin-bottom: 3rem;">
-    <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">Música Digital</h1>
-    <p style="color: var(--text-secondary); font-size: 1.125rem;">Selecciona un juego para entrenar. Puntaje Global: <strong style="color: var(--primary);">{{ total_points }}</strong> puntos.</p>
+<div style="text-align: center; margin-bottom: 2rem;">
+    <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">Mi Progreso</h1>
+    <p style="color: var(--text-secondary);">Sigue la Ruta de Aprendizaje para dominar la lectura musical.</p>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-bottom: 3rem;">
-    {% for game in games %}
-    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; border-top: 4px solid var(--primary);">
-        <div>
-            <h2 style="font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--text);">{{ game.name }}</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">{{ game.description }}</p>
+{% if messages %}
+    {% for message in messages %}
+        <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; font-weight: 600; text-align: center;">
+            {{ message }}
         </div>
-        {% if game.slug == 'notas' %}
-        <a href="{% url 'trainer_notas' %}" class="btn btn-primary" style="width: 100%;">Jugar</a>
-        {% elif game.slug == 'intervalos' %}
-        <a href="{% url 'trainer_intervalos' %}" class="btn btn-primary" style="width: 100%;">Jugar</a>
-        {% elif game.slug == 'intervalos-auditivos' %}
-        <a href="{% url 'trainer_intervalos_auditivos' %}" class="btn btn-primary" style="width: 100%;">Jugar</a>
-        {% endif %}
+    {% endfor %}
+{% endif %}
+
+<div class="stats-grid">
+    <div class="stat-box">
+        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Nivel Global</div>
+        <div style="font-size: 2rem; font-weight: 800; color: var(--primary);">{{ profile.user_level }}</div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary);">{{ profile.total_xp }} XP</div>
     </div>
+    <div class="stat-box">
+        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Racha Diaria</div>
+        <div style="font-size: 2rem; font-weight: 800; color: #F59E0B;">{{ profile.current_daily_streak }} 🔥</div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary);">Mejor: {{ profile.max_daily_streak }}</div>
+    </div>
+    <div class="stat-box">
+        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Actividad Hoy</div>
+        <div style="font-size: 1.5rem; font-weight: 800; color: var(--text); margin-top: 0.5rem;">{{ games_played_today }}</div>
+    </div>
+    <div class="stat-box">
+        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Precisión General</div>
+        <div style="font-size: 1.5rem; font-weight: 800; color: var(--success); margin-top: 0.5rem;">{{ global_acc }}%</div>
+    </div>
+</div>
+
+<div style="max-width: 800px; margin: 0 auto;">
+    <h2 style="margin-bottom: 1.5rem;">⭐ Ruta Recomendada</h2>
+    
+    {% for p in progress %}
+        <div class="level-card {% if p.completed %}completed{% endif %}">
+            <div class="level-icon">
+                {% if p.completed %}
+                    ✅
+                {% else %}
+                    ▶
+                {% endif %}
+            </div>
+            <div class="level-info">
+                <div style="font-size: 0.85rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Etapa {{ p.game.order }}</div>
+                <h3 style="font-size: 1.25rem; margin-bottom: 0.25rem;">{{ p.game.name }}</h3>
+                <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 0.5rem;">{{ p.game.description }}</p>
+                
+                <div style="display: flex; gap: 1.5rem; font-size: 0.85rem; font-weight: 600;">
+                    <span style="color: {% if p.accuracy >= p.game.recommended_accuracy %}var(--success){% else %}var(--text-secondary){% endif %};">Precisión: {{ p.accuracy }}% / {{ p.game.recommended_accuracy }}%</span>
+                    <span style="color: {% if p.score.total_answers >= p.game.recommended_attempts %}var(--success){% else %}var(--text-secondary){% endif %};">Ejercicios: {{ p.score.total_answers }} / {{ p.game.recommended_attempts }}</span>
+                </div>
+            </div>
+            
+            <div style="margin-left: 1rem; text-align: center;">
+                {% if p.completed %}
+                    <div style="font-size: 0.85rem; font-weight: 800; color: var(--success); margin-bottom: 0.5rem;">¡Objetivo Alcanzado!</div>
+                {% elif p.score.total_answers > 0 %}
+                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--primary); margin-bottom: 0.5rem;">En progreso</div>
+                {% else %}
+                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem;">Disponible</div>
+                {% endif %}
+                
+                {% if p.game.slug == 'notas' %}
+                    <a href="{% url 'trainer_notas' %}" class="btn btn-primary">Entrenar</a>
+                {% elif p.game.slug == 'intervalos' %}
+                    <a href="{% url 'trainer_intervalos' %}" class="btn btn-primary">Entrenar</a>
+                {% elif p.game.slug == 'intervalos-auditivos' %}
+                    <a href="{% url 'trainer_intervalos_auditivos' %}" class="btn btn-primary">Entrenar</a>
+                {% elif p.game.slug == 'dictado-melodico' %}
+                    <a href="{% url 'trainer_dictado_melodico' %}" class="btn btn-primary">Entrenar</a>
+                {% elif p.game.slug == 'solfeo-ritmico' %}
+                    <a href="{% url 'trainer_solfeo_ritmico' %}" class="btn btn-primary">Entrenar</a>
+                {% endif %}
+            </div>
+        </div>
     {% endfor %}
 </div>
 {% endblock %}

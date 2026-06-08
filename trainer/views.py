@@ -1,54 +1,162 @@
 import json
+import math
+from django.utils import timezone
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib.auth.forms import UserCreationForm
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Avg, Count, Q
-from .models import Game, Score, Attempt
+from django.db.models import Avg
+from django.contrib import messages
+from .models import Game, Score, Attempt, UserProfile, Achievement, UserAchievement
 
 def register(request):
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
+            UserProfile.objects.create(user=user)
             login(request, user)
             return redirect('dashboard')
     else:
         form = UserCreationForm()
     return render(request, 'registration/register.html', {'form': form})
 
+def get_user_level_for_xp(xp):
+    if xp < 100: return 1
+    if xp < 250: return 2
+    if xp < 500: return 3
+    if xp < 800: return 4
+    if xp < 1200: return 5
+    if xp < 1700: return 6
+    if xp < 2300: return 7
+    if xp < 3000: return 8
+    if xp < 4000: return 9
+    return 10 + (xp - 4000) // 1000
+
+def check_achievements(user):
+    profile = user.profile
+    scores = Score.objects.filter(user=user)
+    
+    total_correct = sum(s.correct_answers for s in scores)
+    total_answers = sum(s.total_answers for s in scores)
+    
+    def unlock(slug):
+        try:
+            ach = Achievement.objects.get(slug=slug)
+            UserAchievement.objects.get_or_create(user=user, achievement=ach)
+        except Achievement.DoesNotExist:
+            pass
+
+    if total_answers >= 1:
+        unlock('primer-paso')
+    if total_correct >= 10:
+        unlock('10-correctas')
+    if profile.max_daily_streak >= 7:
+        unlock('constancia')
+
+    for score in scores:
+        if score.correct_answers >= 20:
+            unlock('velocista')
+        if score.game.slug == 'notas' and score.total_answers >= 50 and score.accuracy >= 80:
+            unlock('maestro-notas')
+        if score.game.slug == 'intervalos' and score.total_answers >= 50 and score.accuracy >= 75:
+            unlock('explorador-intervalos')
+        if score.game.slug == 'intervalos-auditivos' and score.total_answers >= 50 and score.accuracy >= 70:
+            unlock('oido-entrenado')
+
+def get_user_progress(user):
+    games = Game.objects.all().order_by('order')
+    progress = []
+    
+    for game in games:
+        score, _ = Score.objects.get_or_create(user=user, game=game)
+        
+        completed = False
+        if score.total_answers >= game.recommended_attempts:
+            if score.total_answers > 0 and score.accuracy >= game.recommended_accuracy:
+                completed = True
+                
+        progress.append({
+            'game': game,
+            'score': score,
+            'unlocked': True,  # Everyone is unlocked now
+            'completed': completed,
+            'accuracy': score.accuracy
+        })
+        
+    return progress
+
+# restrict_if_locked is no longer used, but let's just delete its body or references.
+
 @login_required
 def dashboard(request):
-    games = Game.objects.all()
-    scores = Score.objects.filter(user=request.user)
-    total_points = sum(s.total_points for s in scores)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
     
+    today = timezone.localdate()
+    if profile.last_active_date:
+        delta = (today - profile.last_active_date).days
+        if delta > 1:
+            profile.current_daily_streak = 0
+            profile.save()
+            
+    progress = get_user_progress(request.user)
+    
+    completed_today = Attempt.objects.filter(user=request.user, timestamp__date=today).count()
+    games_played_today_str = "Sí" if completed_today > 0 else "No"
+    
+    scores = Score.objects.filter(user=request.user)
+    total_ans = sum(s.total_answers for s in scores)
+    total_corr = sum(s.correct_answers for s in scores)
+    global_acc = round((total_corr / total_ans) * 100) if total_ans > 0 else 0
+
     context = {
-        'games': games,
-        'total_points': total_points,
+        'profile': profile,
+        'progress': progress,
+        'games_played_today': games_played_today_str,
+        'global_acc': global_acc,
     }
     return render(request, 'trainer/dashboard.html', context)
+
+@login_required
+def perfil(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    achievements = Achievement.objects.all()
+    unlocked_slugs = UserAchievement.objects.filter(user=request.user).values_list('achievement__slug', flat=True)
+    
+    all_achievements = []
+    for a in achievements:
+        all_achievements.append({
+            'obj': a,
+            'unlocked': a.slug in unlocked_slugs
+        })
+        
+    scores = Score.objects.filter(user=request.user)
+    total_ans = sum(s.total_answers for s in scores)
+    total_corr = sum(s.correct_answers for s in scores)
+    global_acc = round((total_corr / total_ans) * 100) if total_ans > 0 else 0
+    
+    context = {
+        'profile': profile,
+        'achievements': all_achievements,
+        'global_acc': global_acc,
+        'total_answers': total_ans,
+    }
+    return render(request, 'trainer/perfil.html', context)
 
 @login_required
 def trainer_notas(request):
     game = get_object_or_404(Game, slug='notas')
     score, _ = Score.objects.get_or_create(user=request.user, game=game)
-    context = {
-        'game': game,
-        'score': score
-    }
+    context = {'game': game, 'score': score}
     return render(request, 'trainer/trainer_notas.html', context)
 
 @login_required
 def trainer_intervalos(request):
     game = get_object_or_404(Game, slug='intervalos')
     score, _ = Score.objects.get_or_create(user=request.user, game=game)
-    context = {
-        'game': game,
-        'score': score
-    }
+    context = {'game': game, 'score': score}
     return render(request, 'trainer/trainer_intervalos.html', context)
 
 def parse_interval_size(presented_question):
@@ -125,6 +233,36 @@ def trainer_intervalos_auditivos(request):
     return render(request, 'trainer/trainer_intervalos_auditivos.html', context)
 
 @login_required
+def trainer_dictado_melodico(request):
+    game = get_object_or_404(Game, slug='dictado-melodico')
+    score, _ = Score.objects.get_or_create(user=request.user, game=game)
+    stats_data = get_game_stats(request.user, game)
+    
+    context = {
+        'game': game,
+        'score': score,
+        'incorrect_answers': stats_data['incorrect_answers'],
+        'avg_time': stats_data['avg_time'],
+        'hardest': stats_data['hardest'],
+    }
+    return render(request, 'trainer/trainer_dictado_melodico.html', context)
+
+@login_required
+def trainer_solfeo_ritmico(request):
+    game = get_object_or_404(Game, slug='solfeo-ritmico')
+    score, _ = Score.objects.get_or_create(user=request.user, game=game)
+    stats_data = get_game_stats(request.user, game)
+    
+    context = {
+        'game': game,
+        'score': score,
+        'incorrect_answers': stats_data['incorrect_answers'],
+        'avg_time': stats_data['avg_time'],
+        'hardest': stats_data['hardest'],
+    }
+    return render(request, 'trainer/trainer_solfeo_ritmico.html', context)
+
+@login_required
 @csrf_exempt
 def record_attempt(request, game_slug):
     if request.method == 'POST':
@@ -147,21 +285,43 @@ def record_attempt(request, game_slug):
 
             score, _ = Score.objects.get_or_create(user=request.user, game=game)
             score.total_answers += 1
+            
+            profile, _ = UserProfile.objects.get_or_create(user=request.user)
+            today = timezone.localdate()
+            if profile.last_active_date != today:
+                if profile.last_active_date and (today - profile.last_active_date).days == 1:
+                    profile.current_daily_streak += 1
+                else:
+                    profile.current_daily_streak = 1
+                
+                if profile.current_daily_streak > profile.max_daily_streak:
+                    profile.max_daily_streak = profile.current_daily_streak
+                profile.last_active_date = today
+
+            xp_gain = 0
             if is_correct:
                 score.correct_answers += 1
                 score.current_streak += 1
                 score.total_points += 10 + (score.current_streak * 2)
                 if score.current_streak > score.max_streak:
                     score.max_streak = score.current_streak
+                
+                xp_gain = 10
+                if score.current_streak == 10:
+                    xp_gain += 50
+                elif score.current_streak == 5:
+                    xp_gain += 25
             else:
                 score.current_streak = 0
+                xp_gain = 2
             
-            if score.correct_answers > 0 and score.correct_answers % 20 == 0:
-                if is_correct:
-                    score.level += 1
-
+            profile.total_xp += xp_gain
+            profile.user_level = get_user_level_for_xp(profile.total_xp)
+            
+            profile.save()
             score.save()
-
+            check_achievements(request.user)
+            
             stats_data = get_game_stats(request.user, game)
 
             return JsonResponse({
@@ -173,7 +333,9 @@ def record_attempt(request, game_slug):
                 'accuracy': score.accuracy,
                 'incorrect_answers': stats_data['incorrect_answers'],
                 'avg_time': stats_data['avg_time'],
-                'hardest': stats_data['hardest']
+                'hardest': stats_data['hardest'],
+                'xp_gained': xp_gain,
+                'user_level': profile.user_level
             })
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)

@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Música Digital</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <style>
         :root {
             --primary: #4F46E5;
@@ -137,6 +138,9 @@
         <a href="{% url 'dashboard' %}" class="nav-brand">🎵 Música Digital</a>
         <div>
             {% if user.is_authenticated %}
+                <button id="audio-settings-btn" class="btn" style="background:transparent; font-size:1.2rem; margin-right: 1.5rem; cursor:pointer; border:none;" title="Configuración de Audio">⚙️</button>
+                <a href="{% url 'dashboard' %}" style="margin-right: 1.5rem;">Mi Progreso</a>
+                <a href="{% url 'perfil' %}" style="margin-right: 1.5rem;">Mi Perfil</a>
                 <span style="margin-right: 1rem;">Hola, {{ user.username }}</span>
                 <form action="{% url 'logout' %}" method="post" style="display:inline;">
                     {% csrf_token %}
@@ -149,10 +153,34 @@
         </div>
     </nav>
 
-    <main class="container">
+    <main style="padding: 2rem;">
         {% block content %}{% endblock %}
     </main>
 
+    <!-- Audio Settings Modal -->
+    <div id="audio-settings-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:var(--surface); padding:2rem; border-radius:1rem; min-width:300px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+            <h3 style="margin-bottom:1.5rem;">Configuración de Audio</h3>
+            <div style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
+                <label for="audio-mute-toggle" style="font-weight:600;">Sonido Activado</label>
+                <input type="checkbox" id="audio-mute-toggle" checked style="width:20px; height:20px;">
+            </div>
+            <div style="margin-bottom:1.5rem;">
+                <label for="audio-volume-slider" style="display:block; margin-bottom:0.5rem; font-weight:600;">Volumen</label>
+                <input type="range" id="audio-volume-slider" min="0" max="100" value="80" style="width:100%;">
+            </div>
+            <button onclick="document.getElementById('audio-settings-modal').style.display='none'" class="btn btn-primary" style="width:100%;">Cerrar</button>
+        </div>
+    </div>
+    
+    <script>
+        const settingsBtn = document.getElementById('audio-settings-btn');
+        if(settingsBtn) {
+            settingsBtn.addEventListener('click', () => {
+                document.getElementById('audio-settings-modal').style.display = 'flex';
+            });
+        }
+    </script>
     <script src="{% static 'js/audio_engine.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
