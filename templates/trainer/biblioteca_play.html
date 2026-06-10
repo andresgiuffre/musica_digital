@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% block title %}Biblioteca: {{ score.title|default:"Partitura" }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -160,26 +161,25 @@
     <div class="debug-row"><span>Master TS:</span> <strong id="dbg-time">0.000</strong></div>
 </div>
 
-<div class="trainer-container">
-    <div class="toolbar" style="margin-bottom: -1rem;">
-        <div class="controls-group">
-            <h2 style="margin: 0; color: var(--primary);">Nivel:</h2>
-            <select id="level-selector" class="select-styled" onchange="window.location.href='?level=' + this.value">
-                {% for p in pieces %}
-                    <option value="{{ p.difficulty }}" {% if p.difficulty == current_level %}selected{% endif %}>
-                        Nivel {{ p.difficulty }}: {{ p.title }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Header Area -->
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700">
         <div>
-            <p style="margin:0; font-weight:bold; color:var(--text-secondary);">Firma: {{ piece.time_signature }} | Tonalidad: {{ piece.key_signature }}</p>
+            <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+                {{ score.title|default:score.xml_file.name }}
+            </h1>
+            <p class="text-gray-400 mt-1">Compositor: {{ score.composer|default:"Desconocido" }}</p>
+        </div>
+        <div class="mt-4 md:mt-0">
+            <a href="{% url 'biblioteca_list' %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                Volver a Biblioteca
+            </a>
         </div>
     </div>
 
     <div class="toolbar">
         <div class="controls-group">
-            <button id="btn-play" class="btn-control">▶ Reproducir</button>
+            <button id="btn-play" class="btn-control" disabled>▶ Reproducir</button>
             <button id="btn-pause" class="btn-control" disabled>⏸ Pausar</button>
             <button id="btn-stop" class="btn-control" disabled>⏹ Detener</button>
         </div>
@@ -201,15 +201,12 @@
     </div>
 </div>
 
-<textarea id="xmlContent" style="display:none;">{{ piece.xml_content }}</textarea>
-
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
 <script>
     const osmdCanvas = document.getElementById('osmdCanvas');
-    const xmlContent = document.getElementById('xmlContent').value;
     const btnPlay = document.getElementById('btn-play');
     const btnPause = document.getElementById('btn-pause');
     const btnStop = document.getElementById('btn-stop');
@@ -222,7 +219,7 @@
     let baseBpm = 100;
     let isPlaying = false;
     let transportEvents = [];
-    let timeNumerator = 4; // Por defecto 4/4
+    let timeNumerator = 4;
     let clickSynth = null;
     let currentCursorIdx = 0;
 
@@ -238,7 +235,7 @@
                 oscillator: { type: "sine" },
                 envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 }
             }).toDestination();
-            clickSynth.volume.value = -12; // Menos penetrante
+            clickSynth.volume.value = -12;
         }
     }
 
@@ -270,37 +267,43 @@
     }
 
     async function initOSMD() {
-        osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(osmdCanvas, {
-            autoResize: true,
-            drawTitle: false,
-            drawSubtitle: false,
-            drawComposer: false,
+        osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(osmdCanvas);
+        osmd.setOptions({
             backend: "svg",
-            followCursor: true
+            drawTitle: false,
+            drawComposer: false,
+            cursorsOptions: [{type: 0, color: "#3b82f6", alpha: 0.5, size: 3}]
         });
         
-        await osmd.load(xmlContent);
-        osmd.render();
-        osmd.cursor.show();
+        try {
+            var xmlUrl = `{{ score.xml_file.url }}`;
+            const response = await fetch(xmlUrl);
+            if (!response.ok) throw new Error("No se pudo cargar el archivo MusicXML.");
+            const xmlContent = await response.text();
+            
+            await osmd.load(xmlContent);
+            osmd.render();
+            
+            osmd.cursor.show();
+            btnPlay.disabled = false;
 
-        if (osmd.sheet && osmd.sheet.SourceMeasures && osmd.sheet.SourceMeasures.length > 0) {
-            let ts = osmd.sheet.SourceMeasures[0].ActiveTimeSignature;
-            if (ts) {
-                renderConductor(ts.Numerator);
+            if (osmd.sheet && osmd.sheet.SourceMeasures && osmd.sheet.SourceMeasures.length > 0) {
+                let ts = osmd.sheet.SourceMeasures[0].ActiveTimeSignature;
+                if (ts) {
+                    renderConductor(ts.Numerator);
+                }
             }
+        } catch (err) {
+            console.error("OSMD Load Error:", err);
         }
     }
 
-    // Extracción de Notas Indestructible (Usando HalfTone absoluto)
     function parsePitch(osmdNote) {
         if (!osmdNote.Pitch || osmdNote.Pitch.halfTone === undefined) return null;
-        
-        // OSMD halfTone 48 = C4 (MIDI 60)
         let midi = osmdNote.Pitch.halfTone + 12;
         const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
         const octave = Math.floor(midi / 12) - 1;
         const note = notes[midi % 12];
-        
         return note + octave;
     }
 
@@ -454,16 +457,6 @@
                 Tone.Transport.schedule((time) => {
                     Tone.Draw.schedule(() => {
                         stopPlayback();
-                        fetch('/api/record_attempt/lectura-musical/', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                presented_question: 'lectura',
-                                guessed_answer: 'completada',
-                                is_correct: true,
-                                response_time_ms: 0
-                            })
-                        });
                     }, time);
                 }, finalTicks + "i");
 

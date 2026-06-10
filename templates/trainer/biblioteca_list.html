@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Biblioteca de Partituras{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-4xl font-bold text-white">Biblioteca de Partituras</h1>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for score in scores %}
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-blue-500 transition-colors">
+            <h2 class="text-2xl font-bold text-white mb-2">{{ score.title|default:score.xml_file.name }}</h2>
+            <p class="text-gray-400 mb-4">Compositor: {{ score.composer|default:"Desconocido" }}</p>
+            <div class="flex justify-between items-center">
+                <span class="bg-blue-900 text-blue-200 text-xs font-bold px-3 py-1 rounded-full">Dificultad {{ score.difficulty }}</span>
+                <a href="{% url 'biblioteca_play' score.id %}" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                    Practicar
+                </a>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-full text-center py-12">
+            <p class="text-gray-400 text-lg">No hay partituras en la biblioteca todavía.</p>
+            <p class="text-gray-500 text-sm mt-2">Sube archivos .musicxml desde el panel de administración.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
