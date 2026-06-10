@@ -252,7 +252,17 @@ def trainer_lectura_musical(request):
     game = get_object_or_404(Game, slug='lectura-musical')
     score, _ = Score.objects.get_or_create(user=request.user, game=game)
     stats_data = get_game_stats(request.user, game)
-    piece = Piece.objects.first() # Por ahora cargamos la primera pieza
+    
+    pieces = Piece.objects.all().order_by('difficulty')
+    level = request.GET.get('level', 1)
+    try:
+        level = int(level)
+    except ValueError:
+        level = 1
+        
+    piece = pieces.filter(difficulty=level).first()
+    if not piece:
+        piece = pieces.first()
     
     context = {
         'game': game,
@@ -260,7 +270,9 @@ def trainer_lectura_musical(request):
         'incorrect_answers': stats_data['incorrect_answers'],
         'avg_time': stats_data['avg_time'],
         'hardest': stats_data['hardest'],
-        'piece': piece
+        'pieces': pieces,
+        'piece': piece,
+        'current_level': level
     }
     return render(request, 'trainer/trainer_lectura_musical.html', context)
 

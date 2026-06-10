@@ -59,12 +59,13 @@
         cursor: not-allowed;
     }
 
-    .tempo-selector {
+    .select-styled {
         padding: 0.5rem;
         border-radius: 8px;
         border: 1px solid var(--border);
         font-weight: bold;
         color: var(--primary);
+        background: var(--surface);
     }
 
     #osmdCanvas {
@@ -72,43 +73,53 @@
         overflow-x: auto;
     }
 
-    /* Director Visual / Conductor */
+    /* Rediseño del Director Visual / Conductor (Glassmorphism + Neón) */
     #conductor-widget {
         position: fixed;
         left: 20px;
         top: 50%;
         transform: translateY(-50%);
-        width: 100px;
-        height: 100px;
-        background: white;
+        width: 110px;
+        height: 110px;
+        background: rgba(10, 15, 30, 0.75);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
         border-radius: 50%;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        border: 4px solid var(--border);
+        box-shadow: 0 8px 32px 0 rgba(0, 255, 150, 0.1), inset 0 0 10px rgba(255,255,255,0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         display: flex;
         justify-content: center;
         align-items: center;
-        transition: border-color 0.1s;
+        transition: box-shadow 0.1s, transform 0.1s;
+        z-index: 100;
+    }
+
+    #conductor-widget.beat-pulse {
+        box-shadow: 0 8px 32px 0 rgba(0, 255, 150, 0.4), inset 0 0 15px rgba(255,255,255,0.1);
+        transform: translateY(-50%) scale(1.02);
     }
 
     .beat-dot {
-        width: 20px;
-        height: 20px;
+        width: 16px;
+        height: 16px;
         border-radius: 50%;
-        background: var(--border);
+        background: rgba(255, 255, 255, 0.2);
         position: absolute;
-        transition: background-color 0.1s, transform 0.1s;
+        transition: all 0.15s ease-out;
+        box-shadow: 0 0 5px rgba(0,0,0,0.5);
     }
 
     .beat-dot.active {
-        background: var(--primary);
-        transform: scale(1.3);
-        box-shadow: 0 0 10px var(--primary);
+        background: #00ffaa;
+        transform: scale(1.6);
+        box-shadow: 0 0 15px #00ffaa, 0 0 30px #00ffaa;
+        z-index: 2;
     }
 
-    .pos-down { bottom: 10px; left: 40px; }
-    .pos-left { top: 40px; left: 10px; }
-    .pos-right { top: 40px; right: 10px; }
-    .pos-up { top: 10px; left: 40px; }
+    .pos-down { bottom: 15px; left: 47px; }
+    .pos-left { top: 47px; left: 15px; }
+    .pos-right { top: 47px; right: 15px; }
+    .pos-up { top: 15px; left: 47px; }
 
     /* Debug Panel */
     #debug-panel {
@@ -150,9 +161,20 @@
 </div>
 
 <div class="trainer-container">
-    <div style="text-align: center;">
-        <h1 style="margin-bottom: 0.5rem;">{{ piece.title }}</h1>
-        <p style="color: var(--text-secondary);">Autor: {{ piece.author }} | Compás: {{ piece.time_signature }}</p>
+    <div class="toolbar" style="margin-bottom: -1rem;">
+        <div class="controls-group">
+            <h2 style="margin: 0; color: var(--primary);">Nivel:</h2>
+            <select id="level-selector" class="select-styled" onchange="window.location.href='?level=' + this.value">
+                {% for p in pieces %}
+                    <option value="{{ p.difficulty }}" {% if p.difficulty == current_level %}selected{% endif %}>
+                        Nivel {{ p.difficulty }}: {{ p.title }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <p style="margin:0; font-weight:bold; color:var(--text-secondary);">Firma: {{ piece.time_signature }} | Tonalidad: {{ piece.key_signature }}</p>
+        </div>
     </div>
 
     <div class="toolbar">
@@ -165,7 +187,7 @@
         <div class="controls-group">
             <button id="btn-debug" class="btn-control" style="background: #555;">🐛 Debug</button>
             <label style="font-weight: bold; color: var(--text-secondary);">Velocidad:</label>
-            <select id="tempo-selector" class="tempo-selector">
+            <select id="tempo-selector" class="select-styled">
                 <option value="0.5">50% Lento</option>
                 <option value="0.75">75% Práctica</option>
                 <option value="1.0" selected>100% Original</option>
@@ -235,7 +257,6 @@
             addBeatDot(1, 'pos-down');
             addBeatDot(2, 'pos-up');
         } else {
-            // Fallback genérico a 1
             addBeatDot(1, 'pos-down');
         }
     }
@@ -261,7 +282,6 @@
         osmd.render();
         osmd.cursor.show();
 
-        // Extraer Time Signature (Ej: 4/4)
         if (osmd.sheet && osmd.sheet.SourceMeasures && osmd.sheet.SourceMeasures.length > 0) {
             let ts = osmd.sheet.SourceMeasures[0].ActiveTimeSignature;
             if (ts) {
@@ -270,25 +290,17 @@
         }
     }
 
+    // Extracción de Notas Indestructible (Usando HalfTone absoluto)
     function parsePitch(osmdNote) {
-        if (!osmdNote.Pitch) return null;
-        let fn = osmdNote.Pitch.FundamentalNote;
-        let step = "";
-        if (typeof fn === "string") {
-            step = fn;
-        } else {
-            step = ["C", "D", "E", "F", "G", "A", "B"][fn];
-        }
+        if (!osmdNote.Pitch || osmdNote.Pitch.halfTone === undefined) return null;
         
-        if (!step) return null;
-
-        let alter = "";
-        if (osmdNote.Pitch.Alteration === 1) alter = "#";
-        if (osmdNote.Pitch.Alteration === -1) alter = "b";
+        // OSMD halfTone 48 = C4 (MIDI 60)
+        let midi = osmdNote.Pitch.halfTone + 12;
+        const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        const octave = Math.floor(midi / 12) - 1;
+        const note = notes[midi % 12];
         
-        // OSMD's Octave 1 == MIDI Octave 4 (Middle C)
-        const octave = osmdNote.Pitch.Octave + 3;
-        return `${step}${alter}${octave}`;
+        return note + octave;
     }
 
     function buildSequence() {
@@ -299,24 +311,28 @@
             let ts = osmd.cursor.iterator.currentTimeStamp;
             if(!ts) break;
             
-            let realValue = ts.RealValue; // Fracción de redonda
-            let beats = realValue * 4;    // Tiempo absoluto en cuartos (beats)
+            let realValue = ts.RealValue; 
+            let beats = realValue * 4;
 
             let notesToPlay = [];
             let maxDuration = 0;
             let measureIndex = osmd.cursor.iterator.CurrentMeasureIndex;
 
-            let notes = osmd.cursor.NotesUnderCursor();
-            if (notes) {
-                notes.forEach(n => {
-                    let pitch = parsePitch(n);
-                    let durVal = n.Length ? n.Length.RealValue : 0;
-                    if (durVal > maxDuration) maxDuration = durVal;
+            let voices = osmd.cursor.iterator.CurrentVoiceEntries;
+            if (voices) {
+                voices.forEach(v => {
+                    if (v && v.Notes) {
+                        v.Notes.forEach(n => {
+                            let pitch = parsePitch(n);
+                            let durVal = n.Length ? n.Length.RealValue : 0;
+                            if (durVal > maxDuration) maxDuration = durVal;
 
-                    if(pitch) {
-                        notesToPlay.push({
-                            pitch: pitch,
-                            durationRealValue: durVal
+                            if(pitch) {
+                                notesToPlay.push({
+                                    pitch: pitch,
+                                    durationRealValue: durVal
+                                });
+                            }
                         });
                     }
                 });
@@ -340,10 +356,16 @@
     }
 
     async function startPlayback() {
+        if (window.Tone) {
+            if (Tone.context.state !== 'running') {
+                await Tone.start();
+                // Esperar a que el hilo de Web Audio se estabilice tras despertar
+                await new Promise(r => setTimeout(r, 150)); 
+            }
+        }
+        initSynth();
+        
         try {
-            if (window.Tone) await Tone.start();
-            initSynth();
-            
             if (!isPlaying && Tone.Transport.state !== "started") {
                 const events = buildSequence();
                 console.log("Built sequence:", events);
@@ -361,16 +383,14 @@
 
                 const isMuted = AudioEngine && AudioEngine.isMuted;
                 if(isMuted) clickSynth.volume.value = -Infinity;
-                else clickSynth.volume.value = (AudioEngine.volume === -Infinity) ? -Infinity : 0;
+                else clickSynth.volume.value = (AudioEngine.volume === -Infinity) ? -Infinity : -12;
 
-                // Programar Notas y Sincronización Visual
                 events.forEach((evt, idx) => {
                     let ticks = Math.round(evt.time * Tone.Transport.PPQ);
                     let transportId = Tone.Transport.schedule((time) => {
                         Tone.Draw.schedule(() => {
                             if(idx > 0) osmd.cursor.next();
                             
-                            // Debug Panel
                             document.getElementById('dbg-measure').innerText = evt.measureIndex;
                             let durBeats = (evt.maxDuration * 4).toFixed(2);
                             document.getElementById('dbg-duration').innerText = `${durBeats} beats`;
@@ -380,7 +400,6 @@
                             
                         }, time);
 
-                        // Reproducir con DURACIÓN EXACTA
                         evt.notes.forEach(note => {
                             if(AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
                                 let durationTicks = Math.round(note.durationRealValue * 4 * Tone.Transport.PPQ);
@@ -388,12 +407,11 @@
                             }
                         });
 
-                    }, ticks + "i"); // Agendado absoluto en Ticks del Reloj Maestro
+                    }, ticks + "i");
                     
                     transportEvents.push(transportId);
                 });
 
-                // Programar Metrónomo y Director Visual
                 let lastEvent = events[events.length - 1];
                 let totalBeats = Math.ceil(lastEvent.time + (lastEvent.maxDuration * 4));
                 
@@ -409,7 +427,7 @@
                         else clickSynth.triggerAttackRelease("G2", "16n", time);
                     }
 
-                    const currentTick = tickCount; // Capturar el valor exacto para el Draw
+                    const currentTick = tickCount;
                     Tone.Draw.schedule(() => {
                         let beatNum = (currentTick % timeNumerator) + 1;
                         document.getElementById('dbg-beat').innerText = beatNum;
@@ -418,15 +436,15 @@
                         let dot = document.getElementById(`beat-${beatNum}`);
                         if(dot) dot.classList.add('active');
                         
-                        conductorWidget.style.borderColor = 'var(--primary)';
-                        setTimeout(() => conductorWidget.style.borderColor = 'var(--border)', 100);
+                        // Animación Glow del Glassmorphism
+                        conductorWidget.classList.add('beat-pulse');
+                        setTimeout(() => conductorWidget.classList.remove('beat-pulse'), 150);
                     }, time);
 
                     tickCount++;
                 }, "4n");
                 transportEvents.push(repeatId);
 
-                // Finalizar
                 let finalTicks = Math.round(totalBeats * Tone.Transport.PPQ);
                 Tone.Transport.schedule((time) => {
                     Tone.Draw.schedule(() => {
@@ -444,7 +462,7 @@
                     }, time);
                 }, finalTicks + "i");
 
-                Tone.Transport.start();
+                Tone.Transport.start("+0.2"); // Lookahead extendido para evitar jitter
                 isPlaying = true;
                 btnPlay.disabled = true;
                 btnPause.disabled = false;
