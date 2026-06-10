@@ -9,7 +9,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Avg
 from django.contrib import messages
-from .models import Game, Score, Attempt, UserProfile, Achievement, UserAchievement, Piece
+from .models import Game, Score, Attempt, UserProfile, Achievement, UserAchievement, Piece, SheetMusic
 
 def register(request):
     if request.method == 'POST':
@@ -275,6 +275,17 @@ def trainer_lectura_musical(request):
         'current_level': level
     }
     return render(request, 'trainer/trainer_lectura_musical.html', context)
+
+@login_required
+def biblioteca_list(request):
+    scores = SheetMusic.objects.all().order_by('-created_at')
+    return render(request, 'trainer/biblioteca_list.html', {'scores': scores})
+
+@login_required
+def biblioteca_play(request, score_id):
+    score = get_object_or_404(SheetMusic, id=score_id)
+    return render(request, 'trainer/biblioteca_play.html', {'score': score})
+
 
 @login_required
 @csrf_exempt

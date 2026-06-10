@@ -88,3 +88,13 @@ class Piece(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.author}"
+
+class SheetMusic(models.Model):
+    title = models.CharField(max_length=100, blank=True, help_text="Se puede extraer automáticamente del MusicXML")
+    composer = models.CharField(max_length=100, blank=True, help_text="Se puede extraer automáticamente del MusicXML")
+    difficulty = models.IntegerField(default=1)
+    xml_file = models.FileField(upload_to='partituras/')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title or self.xml_file.name
