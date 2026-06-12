@@ -1,144 +1,168 @@
 {% extends 'base.html' %}
+{% load static %}
+{% block title %}Inicio - Música Digital{% endblock %}
 
 {% block extra_css %}
 <style>
-    .level-card {
-        display: flex;
-        align-items: center;
-        background: var(--surface);
-        border-radius: 1rem;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        border: 2px solid var(--border);
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    /* El gran fondo de piano para toda la página */
+    .main-content {
         position: relative;
-    }
-    .level-card.locked {
-        background: rgba(0,0,0,0.02);
-        opacity: 0.7;
-    }
-    .level-card.completed {
-        border-color: var(--success);
-    }
-    .level-icon {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
         display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        margin-right: 1.5rem;
-        background: var(--bg);
-    }
-    .level-card.completed .level-icon {
-        background: rgba(16, 185, 129, 0.1);
-        color: var(--success);
-    }
-    .level-card.locked .level-icon {
-        background: rgba(0,0,0,0.05);
-        color: var(--text-secondary);
-    }
-    .level-info {
+        flex-direction: column;
         flex: 1;
     }
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 1rem;
-        margin-bottom: 2rem;
+
+    .main-content::before {
+        content: '';
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-image: url('{% static "img/hero_bg.png" %}');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        z-index: -2;
     }
-    .stat-box {
-        background: var(--surface);
-        padding: 1rem;
-        border-radius: 1rem;
-        border: 1px solid var(--border);
+
+    /* Oscurecimiento general para que la UI flote */
+    .main-content::after {
+        content: '';
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(5px);
+        z-index: -1;
+    }
+
+    .action-card {
+        background: rgba(30, 41, 59, 0.4);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1.5rem;
+        padding: 2.5rem 2rem;
+        transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
         text-align: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        text-decoration: none;
+    }
+
+    .action-card:hover {
+        transform: translateY(-5px);
+        background: rgba(30, 41, 59, 0.6);
+    }
+
+    .ac-icon {
+        width: 50px;
+        height: 50px;
+        margin: 0 auto 1.5rem auto;
+    }
+    
+    .ac-title { font-size: 1.5rem; font-weight: 800; color: white; margin-bottom: 0.5rem; }
+    .ac-desc { color: #cbd5e1; font-size: 0.9rem; line-height: 1.5; font-weight: 500; margin-bottom: 2rem; flex-grow: 1; }
+    
+    .ac-btn {
+        display: inline-block;
+        padding: 0.75rem 2rem;
+        border-radius: 9999px; /* Botón píldora más estilizado */
+        font-weight: 700;
+        text-align: center;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    /* Variantes */
+    .card-blue:hover { border-color: rgba(59, 130, 246, 0.5); box-shadow: 0 10px 30px rgba(59, 130, 246, 0.15); }
+    .card-blue .ac-btn { background: #3b82f6; color: white; border: 1px solid #2563eb; }
+    .card-blue:hover .ac-btn { background: #2563eb; }
+
+    .card-emerald:hover { border-color: rgba(16, 185, 129, 0.5); box-shadow: 0 10px 30px rgba(16, 185, 129, 0.15); }
+    .card-emerald .ac-btn { background: #10b981; color: white; border: 1px solid #059669; }
+    .card-emerald:hover .ac-btn { background: #059669; }
+
+    .card-purple:hover { border-color: rgba(168, 85, 247, 0.5); box-shadow: 0 10px 30px rgba(168, 85, 247, 0.15); }
+    .card-purple .ac-btn { background: #a855f7; color: white; border: 1px solid #9333ea; }
+    .card-purple:hover .ac-btn { background: #9333ea; }
+
+    /* Goal Widget */
+    .goal-widget {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 1rem 1.25rem;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div style="text-align: center; margin-bottom: 2rem;">
-    <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">Mi Progreso</h1>
-    <p style="color: var(--text-secondary);">Sigue la Ruta de Aprendizaje para dominar la lectura musical.</p>
-</div>
-
-{% if messages %}
-    {% for message in messages %}
-        <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; font-weight: 600; text-align: center;">
-            {{ message }}
-        </div>
-    {% endfor %}
-{% endif %}
-
-<div class="stats-grid">
-    <div class="stat-box">
-        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Nivel Global</div>
-        <div style="font-size: 2rem; font-weight: 800; color: var(--primary);">{{ profile.user_level }}</div>
-        <div style="font-size: 0.85rem; color: var(--text-secondary);">{{ profile.total_xp }} XP</div>
-    </div>
-    <div class="stat-box">
-        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Racha Diaria</div>
-        <div style="font-size: 2rem; font-weight: 800; color: #F59E0B;">{{ profile.current_daily_streak }} 🔥</div>
-        <div style="font-size: 0.85rem; color: var(--text-secondary);">Mejor: {{ profile.max_daily_streak }}</div>
-    </div>
-    <div class="stat-box">
-        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Actividad Hoy</div>
-        <div style="font-size: 1.5rem; font-weight: 800; color: var(--text); margin-top: 0.5rem;">{{ games_played_today }}</div>
-    </div>
-    <div class="stat-box">
-        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Precisión General</div>
-        <div style="font-size: 1.5rem; font-weight: 800; color: var(--success); margin-top: 0.5rem;">{{ global_acc }}%</div>
-    </div>
-</div>
-
-<div style="max-width: 800px; margin: 0 auto;">
-    <h2 style="margin-bottom: 1.5rem;">⭐ Ruta Recomendada</h2>
+<div class="container mx-auto px-4 py-12 max-w-6xl">
     
-    {% for p in progress %}
-        <div class="level-card {% if p.completed %}completed{% endif %}">
-            <div class="level-icon">
-                {% if p.completed %}
-                    ✅
-                {% else %}
-                    ▶
-                {% endif %}
+    <!-- Mensaje de Bienvenida -->
+    <div class="text-center mb-12">
+        <h1 class="text-5xl md:text-6xl font-black text-white mb-4 drop-shadow-lg tracking-tight">
+            Bienvenido, <span class="text-blue-400">{{ user.username }}</span>
+        </h1>
+        <p class="text-lg text-gray-300 max-w-2xl mx-auto font-medium drop-shadow">
+            ¿Qué vas a practicar hoy?
+        </p>
+    </div>
+
+    <!-- Quick Action Cards Limpias -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Tarjeta 1: Biblioteca -->
+        <a href="{% url 'biblioteca_list' %}" class="action-card card-blue">
+            <svg class="ac-icon text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+            <div class="ac-title">Estudio Digital</div>
+            <div class="ac-desc">Toca partituras reales y usa el metrónomo.</div>
+            <div><span class="ac-btn">Ir a Tocar</span></div>
+        </a>
+
+        <!-- Tarjeta 2: Entrenador -->
+        <a href="{% url 'trainer_intervalos' %}" class="action-card card-emerald">
+            <svg class="ac-icon text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            <div class="ac-title">Entrenador</div>
+            <div class="ac-desc">Juegos rápidos para leer más rápido.</div>
+            <div><span class="ac-btn">Entrenar</span></div>
+        </a>
+
+        <!-- Tarjeta 3: Perfil -->
+        <a href="{% url 'perfil' %}" class="action-card card-purple">
+            <svg class="ac-icon text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            <div class="ac-title">Tu Progreso</div>
+            <div class="ac-desc">Revisa tus medallas y minutos de estudio.</div>
+            <div><span class="ac-btn">Ver Stats</span></div>
+        </a>
+
+    </div>
+</div>
+
+<!-- Widget de Meta Diaria Flotante -->
+{% for ug in today_goals %}
+    <div class="goal-widget">
+        <div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/50">
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </div>
+        <div>
+            <div class="flex justify-between items-end w-40 mb-1">
+                <span class="text-white text-xs font-bold">{{ ug.goal.title }}</span>
+                <span class="text-blue-400 text-[10px] font-bold">{{ ug.current_value }}/{{ ug.goal.target_value }}m</span>
             </div>
-            <div class="level-info">
-                <div style="font-size: 0.85rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Etapa {{ p.game.order }}</div>
-                <h3 style="font-size: 1.25rem; margin-bottom: 0.25rem;">{{ p.game.name }}</h3>
-                <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 0.5rem;">{{ p.game.description }}</p>
-                
-                <div style="display: flex; gap: 1.5rem; font-size: 0.85rem; font-weight: 600;">
-                    <span style="color: {% if p.accuracy >= p.game.recommended_accuracy %}var(--success){% else %}var(--text-secondary){% endif %};">Precisión: {{ p.accuracy }}% / {{ p.game.recommended_accuracy }}%</span>
-                    <span style="color: {% if p.score.total_answers >= p.game.recommended_attempts %}var(--success){% else %}var(--text-secondary){% endif %};">Ejercicios: {{ p.score.total_answers }} / {{ p.game.recommended_attempts }}</span>
-                </div>
-            </div>
-            
-            <div style="margin-left: 1rem; text-align: center;">
-                {% if p.completed %}
-                    <div style="font-size: 0.85rem; font-weight: 800; color: var(--success); margin-bottom: 0.5rem;">¡Objetivo Alcanzado!</div>
-                {% elif p.score.total_answers > 0 %}
-                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--primary); margin-bottom: 0.5rem;">En progreso</div>
-                {% else %}
-                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem;">Disponible</div>
-                {% endif %}
-                
-                {% if p.game.slug == 'notas' %}
-                    <a href="{% url 'trainer_notas' %}" class="btn btn-primary">Entrenar</a>
-                {% elif p.game.slug == 'intervalos' %}
-                    <a href="{% url 'trainer_intervalos' %}" class="btn btn-primary">Entrenar</a>
-                {% elif p.game.slug == 'intervalos-auditivos' %}
-                    <a href="{% url 'trainer_intervalos_auditivos' %}" class="btn btn-primary">Entrenar</a>
-                {% elif p.game.slug == 'dictado-melodico' %}
-                    <a href="{% url 'trainer_dictado_melodico' %}" class="btn btn-primary">Entrenar</a>
-                {% elif p.game.slug == 'lectura-musical' %}
-                    <a href="{% url 'trainer_lectura_musical' %}" class="btn btn-primary">Entrenar</a>
-                {% endif %}
+            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                <div class="h-full {% if ug.is_completed %}bg-emerald-500{% else %}bg-blue-500{% endif %}" style="width: {% widthratio ug.current_value ug.goal.target_value 100 %}%;"></div>
             </div>
         </div>
-    {% endfor %}
-</div>
+    </div>
+{% endfor %}
+
 {% endblock %}

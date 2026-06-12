@@ -1,147 +1,104 @@
 {% extends 'base.html' %}
-{% block title %}Biblioteca: {{ score.title|default:"Partitura" }}{% endblock %}
+{% load static %}
+{% block title %}{{ score.title|default:score.xml_file.name }} - Modo Estudio{% endblock %}
 
 {% block extra_css %}
 <style>
-    .trainer-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 2rem;
-        max-width: 1000px;
-        margin: 0 auto;
-    }
-
+    /* Estilos del Pentagrama */
     #playback-area {
         background: white;
-        border-radius: 1rem;
-        padding: 2rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        border: 2px solid var(--border);
-        width: 100%;
-        position: relative;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+        overflow-x: auto;
+        min-height: 400px;
     }
-
-    .toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        width: 100%;
-        background: var(--surface);
-        padding: 1rem 2rem;
-        border-radius: 1rem;
-        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
-        border: 1px solid var(--border);
-    }
-
-    .controls-group {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-    }
-
-    .btn-control {
-        background: var(--primary);
-        color: white;
-        border: none;
-        padding: 0.75rem 1.5rem;
-        border-radius: 8px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: transform 0.1s;
-    }
-
-    .btn-control:hover:not(:disabled) {
-        transform: translateY(-2px);
-    }
-
-    .btn-control:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .select-styled {
-        padding: 0.5rem;
-        border-radius: 8px;
-        border: 1px solid var(--border);
-        font-weight: bold;
-        color: var(--primary);
-        background: var(--surface);
-    }
-
+    
     #osmdCanvas {
         width: 100%;
-        overflow-x: auto;
+        min-width: 800px;
     }
 
-    /* Rediseño del Director Visual / Conductor (Glassmorphism + Neón) */
+    /* Brújula (Conductor) */
     #conductor-widget {
         position: fixed;
-        left: 20px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 110px;
-        height: 110px;
-        background: rgba(10, 15, 30, 0.75);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+        bottom: 30px;
+        right: 30px;
+        width: 120px;
+        height: 120px;
+        background: rgba(20, 30, 48, 0.85);
+        border: 2px solid rgba(255, 255, 255, 0.1);
         border-radius: 50%;
-        box-shadow: 0 8px 32px 0 rgba(0, 255, 150, 0.1), inset 0 0 10px rgba(255,255,255,0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(59, 130, 246, 0.2);
+        z-index: 50;
         display: flex;
         justify-content: center;
         align-items: center;
-        transition: box-shadow 0.1s, transform 0.1s;
-        z-index: 100;
+        transition: all 0.3s ease;
     }
 
-    #conductor-widget.beat-pulse {
-        box-shadow: 0 8px 32px 0 rgba(0, 255, 150, 0.4), inset 0 0 15px rgba(255,255,255,0.1);
-        transform: translateY(-50%) scale(1.02);
+    .beat-pulse {
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 40px rgba(59, 130, 246, 0.6) !important;
+        border-color: rgba(59, 130, 246, 0.8) !important;
     }
 
     .beat-dot {
+        position: absolute;
         width: 16px;
         height: 16px;
+        background: #4b5563;
         border-radius: 50%;
-        background: rgba(255, 255, 255, 0.2);
-        position: absolute;
-        transition: all 0.15s ease-out;
+        transition: all 0.1s ease;
         box-shadow: 0 0 5px rgba(0,0,0,0.5);
     }
-
+    
     .beat-dot.active {
-        background: #00ffaa;
-        transform: scale(1.6);
-        box-shadow: 0 0 15px #00ffaa, 0 0 30px #00ffaa;
-        z-index: 2;
+        background: #3b82f6;
+        transform: scale(1.5);
+        box-shadow: 0 0 15px #3b82f6, 0 0 30px #3b82f6;
     }
 
-    .pos-down { bottom: 15px; left: 47px; }
-    .pos-left { top: 47px; left: 15px; }
-    .pos-right { top: 47px; right: 15px; }
-    .pos-up { top: 15px; left: 47px; }
+    .pos-down { bottom: 15px; left: 50%; transform: translateX(-50%); }
+    .pos-left { top: 50%; left: 15px; transform: translateY(-50%); }
+    .pos-right { top: 50%; right: 15px; transform: translateY(-50%); }
+    .pos-up { top: 15px; left: 50%; transform: translateX(-50%); }
 
-    /* Debug Panel */
-    #debug-panel {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: rgba(0, 0, 0, 0.85);
-        color: #0f0;
-        padding: 1.5rem;
-        border-radius: 12px;
-        font-family: 'Courier New', Courier, monospace;
-        z-index: 1000;
-        min-width: 250px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    }
-    .debug-row {
+    /* Custom Controls */
+    .btn-control {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: transform 0.1s, box-shadow 0.1s;
         display: flex;
-        justify-content: space-between;
-        margin-bottom: 0.5rem;
-        border-bottom: 1px solid rgba(0, 255, 0, 0.2);
-        padding-bottom: 0.25rem;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    
+    .btn-control:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+    }
+    
+    .btn-control:disabled {
+        background: #374151;
+        color: #9ca3af;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .panel-box {
+        background: rgba(31, 41, 55, 0.7);
+        border: 1px solid rgba(75, 85, 99, 0.6);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
     }
 
 </style>
@@ -152,52 +109,97 @@
     <!-- Renderizado dinámicamente -->
 </div>
 
-<div id="debug-panel" style="display: none;">
-    <h3 style="margin-top:0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">🛠 Debug Sync</h3>
-    <div class="debug-row"><span>Compás:</span> <strong id="dbg-measure">0</strong></div>
-    <div class="debug-row"><span>Tiempo:</span> <strong id="dbg-beat">0</strong></div>
-    <div class="debug-row"><span>Nota(s):</span> <strong id="dbg-notes">-</strong></div>
-    <div class="debug-row"><span>Duración:</span> <strong id="dbg-duration">0</strong></div>
-    <div class="debug-row"><span>Master TS:</span> <strong id="dbg-time">0.000</strong></div>
-</div>
-
-<div class="container mx-auto px-4 py-8 max-w-6xl">
-    <!-- Header Area -->
-    <div class="flex flex-col md:flex-row justify-between items-center mb-6 bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700">
+<div class="container mx-auto px-4 py-8 max-w-7xl">
+    
+    <!-- Cabecera -->
+    <div class="flex justify-between items-center mb-6">
         <div>
-            <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
                 {{ score.title|default:score.xml_file.name }}
             </h1>
-            <p class="text-gray-400 mt-1">Compositor: {{ score.composer|default:"Desconocido" }}</p>
+            <p class="text-gray-400 mt-2 text-lg">Modo Estudio | Compositor: {{ score.composer|default:"Desconocido" }}</p>
         </div>
-        <div class="mt-4 md:mt-0">
-            <a href="{% url 'biblioteca_list' %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                Volver a Biblioteca
+        <div>
+            <a href="{% url 'biblioteca_list' %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-lg">
+                🔙 Volver a Biblioteca
             </a>
         </div>
     </div>
 
-    <div class="toolbar">
-        <div class="controls-group">
-            <button id="btn-play" class="btn-control" disabled>▶ Reproducir</button>
-            <button id="btn-pause" class="btn-control" disabled>⏸ Pausar</button>
-            <button id="btn-stop" class="btn-control" disabled>⏹ Detener</button>
-        </div>
+    <!-- Grid Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
         
-        <div class="controls-group">
-            <button id="btn-debug" class="btn-control" style="background: #555;">🐛 Debug</button>
-            <label style="font-weight: bold; color: var(--text-secondary);">Velocidad:</label>
-            <select id="tempo-selector" class="select-styled">
-                <option value="0.5">50% Lento</option>
-                <option value="0.75">75% Práctica</option>
-                <option value="1.0" selected>100% Original</option>
-                <option value="1.25">125% Rápido</option>
-            </select>
+        <!-- Área Principal (Pentagrama) -->
+        <div class="lg:col-span-3">
+            <div id="playback-area">
+                <div id="osmdCanvas"></div>
+            </div>
+            
+            <div id="debug-panel" style="display: none; margin-top: 10px; background: #222; color: #0f0; padding: 10px; font-family: monospace; border-radius: 8px;">
+                <div class="flex justify-between">
+                    <div>Compás: <strong id="dbg-measure">0</strong></div>
+                    <div>Tiempo: <strong id="dbg-beat">0</strong></div>
+                    <div>CursorIdx: <strong id="dbg-cursor">0</strong></div>
+                </div>
+            </div>
         </div>
-    </div>
 
-    <div id="playback-area">
-        <div id="osmdCanvas"></div>
+        <!-- Panel Lateral (Modo Estudio) -->
+        <div class="lg:col-span-1">
+            
+            <!-- Stats Sesión -->
+            <div class="panel-box text-center">
+                <h3 class="text-gray-400 uppercase text-xs font-bold tracking-wider mb-2">⏱️ Tiempo de Sesión</h3>
+                <div id="session-timer" class="text-4xl font-mono text-emerald-400 font-bold tracking-widest mb-2">00:00</div>
+                <div class="text-gray-500 text-sm">Repeticiones: <span id="session-plays" class="text-white font-bold">0</span></div>
+            </div>
+
+            <!-- Controles Principales -->
+            <div class="panel-box flex flex-col gap-3">
+                <button id="btn-play" class="btn-control bg-emerald-600 hover:bg-emerald-500" disabled>▶ Reproducir</button>
+                <button id="btn-pause" class="btn-control bg-amber-600 hover:bg-amber-500" disabled>⏸ Pausar</button>
+                <button id="btn-stop" class="btn-control bg-red-600 hover:bg-red-500" disabled>⏹ Detener</button>
+            </div>
+
+            <!-- Velocidad -->
+            <div class="panel-box">
+                <label class="block text-gray-400 text-sm font-bold mb-2">⚡ Velocidad (BPM)</label>
+                <select id="tempo-selector" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-2 focus:outline-none focus:border-blue-500">
+                    <option value="0.5">50% (Muy Lento)</option>
+                    <option value="0.6">60%</option>
+                    <option value="0.7">70%</option>
+                    <option value="0.8">80%</option>
+                    <option value="0.9">90%</option>
+                    <option value="1.0" selected>100% (Original)</option>
+                    <option value="1.1">110%</option>
+                    <option value="1.2">120% (Rápido)</option>
+                </select>
+            </div>
+
+            <!-- Loop por Compases -->
+            <div class="panel-box">
+                <div class="flex justify-between items-center mb-3">
+                    <label class="text-gray-400 text-sm font-bold">🔁 Repetir Sección</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="loop-toggle" class="sr-only peer">
+                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                    </label>
+                </div>
+                
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="block text-xs text-gray-500 mb-1">Del Compás:</label>
+                        <input type="number" id="loop-start" min="1" value="1" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-2 text-center">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-xs text-gray-500 mb-1">Al Compás:</label>
+                        <input type="number" id="loop-end" min="1" value="4" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-2 text-center">
+                    </div>
+                </div>
+            </div>
+
+            <button id="btn-debug" class="w-full py-2 text-xs text-gray-500 hover:text-white transition-colors">Modo Debug</button>
+        </div>
     </div>
 </div>
 
@@ -211,7 +213,12 @@
     const btnPause = document.getElementById('btn-pause');
     const btnStop = document.getElementById('btn-stop');
     const btnDebug = document.getElementById('btn-debug');
+    
     const tempoSelector = document.getElementById('tempo-selector');
+    const loopToggle = document.getElementById('loop-toggle');
+    const loopStart = document.getElementById('loop-start');
+    const loopEnd = document.getElementById('loop-end');
+    
     const conductorWidget = document.getElementById('conductor-widget');
     const debugPanel = document.getElementById('debug-panel');
 
@@ -222,6 +229,44 @@
     let timeNumerator = 4;
     let clickSynth = null;
     let currentCursorIdx = 0;
+    let events = []; // Array global para loop calculations
+
+    // Timer de Sesión
+    let totalSessionSeconds = 0;
+    let playCount = 0;
+    let sessionDurationInterval = null;
+
+    function startSessionTimer() {
+        if(!sessionDurationInterval) {
+            sessionDurationInterval = setInterval(() => {
+                totalSessionSeconds++;
+                let m = Math.floor(totalSessionSeconds / 60).toString().padStart(2, '0');
+                let s = (totalSessionSeconds % 60).toString().padStart(2, '0');
+                document.getElementById('session-timer').innerText = `${m}:${s}`;
+            }, 1000);
+        }
+    }
+
+    function stopSessionTimer() {
+        if(sessionDurationInterval) {
+            clearInterval(sessionDurationInterval);
+            sessionDurationInterval = null;
+        }
+    }
+
+    // Registrar sesión al cerrar ventana o salir
+    window.addEventListener('beforeunload', () => {
+        if (totalSessionSeconds > 5 || playCount > 0) {
+            let data = {
+                score_id: {{ score.id }},
+                duration_seconds: totalSessionSeconds,
+                bpm_used: Math.round(baseBpm * parseFloat(tempoSelector.value)),
+                play_count: playCount
+            };
+            // Usamos beacon para asegurar que se envíe al cerrar la pestaña
+            navigator.sendBeacon('/api/log_study_session/', JSON.stringify(data));
+        }
+    });
 
     btnDebug.addEventListener('click', () => {
         debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
@@ -308,7 +353,7 @@
     }
 
     function buildSequence() {
-        let events = [];
+        let localEvents = [];
         osmd.cursor.reset();
 
         while (!osmd.cursor.iterator.EndReached) {
@@ -344,7 +389,7 @@
 
             if (maxDuration === 0) maxDuration = 0.25;
 
-            events.push({
+            localEvents.push({
                 time: beats, 
                 timeRealValue: realValue,
                 measureIndex: measureIndex,
@@ -356,31 +401,32 @@
         }
         
         osmd.cursor.reset();
-        return events;
+        return localEvents;
     }
 
     async function startPlayback() {
         if (window.Tone) {
             if (Tone.context.state !== 'running') {
                 await Tone.start();
-                // Esperar a que el hilo de Web Audio se estabilice tras despertar
                 await new Promise(r => setTimeout(r, 150)); 
             }
         }
         initSynth();
+        startSessionTimer();
         
         try {
             if (!isPlaying && Tone.Transport.state !== "started") {
-                const events = buildSequence();
-                console.log("Built sequence:", events);
-                
                 if (events.length === 0) {
-                    console.error("No events found in sequence!");
-                    return;
+                    events = buildSequence();
                 }
+                
+                if (events.length === 0) return;
                 
                 Tone.Transport.cancel();
                 transportEvents = [];
+                currentCursorIdx = 0;
+                playCount++;
+                document.getElementById('session-plays').innerText = playCount;
 
                 let speedMult = parseFloat(tempoSelector.value);
                 Tone.Transport.bpm.value = baseBpm * speedMult;
@@ -389,22 +435,25 @@
                 if(isMuted) clickSynth.volume.value = -Infinity;
                 else clickSynth.volume.value = (AudioEngine.volume === -Infinity) ? -Infinity : -12;
 
-                currentCursorIdx = 0;
+                // 1. Programar Notas y Cursor Visual
                 events.forEach((evt, idx) => {
                     let ticks = Math.round(evt.time * Tone.Transport.PPQ);
                     let transportId = Tone.Transport.schedule((time) => {
                         Tone.Draw.schedule(() => {
+                            // Detección de Loop (Viaje en el tiempo hacia atrás)
+                            if (idx < currentCursorIdx) {
+                                osmd.cursor.reset();
+                                currentCursorIdx = 0;
+                            }
+                            
+                            // Avance Absoluto para evitar desincronización
                             while(currentCursorIdx < idx) {
                                 osmd.cursor.next();
                                 currentCursorIdx++;
                             }
                             
                             document.getElementById('dbg-measure').innerText = evt.measureIndex;
-                            let durBeats = (evt.maxDuration * 4).toFixed(2);
-                            document.getElementById('dbg-duration').innerText = `${durBeats} beats`;
-                            let pitchStrs = evt.notes.map(n => n.pitch).join(', ');
-                            document.getElementById('dbg-notes').innerText = pitchStrs || 'Silencio';
-                            document.getElementById('dbg-time').innerText = time.toFixed(3);
+                            document.getElementById('dbg-cursor').innerText = currentCursorIdx;
                             
                         }, time);
 
@@ -416,55 +465,76 @@
                         });
 
                     }, ticks + "i");
-                    
                     transportEvents.push(transportId);
                 });
 
+                // 2. Lógica de Loop y Fin de Reproducción
                 let lastEvent = events[events.length - 1];
                 let totalBeats = Math.ceil(lastEvent.time + (lastEvent.maxDuration * 4));
-                
-                let tickCount = 0;
-                let repeatId = Tone.Transport.scheduleRepeat((time) => {
-                    if (tickCount >= totalBeats) {
-                        Tone.Transport.clear(repeatId);
-                        return;
-                    }
+
+                let isLoop = loopToggle.checked;
+                let sMeasure = parseInt(loopStart.value) || 1;
+                let eMeasure = parseInt(loopEnd.value) || 1;
+
+                if (isLoop) {
+                    let startEv = events.find(e => e.measureIndex === sMeasure);
+                    let endEv = events.find(e => e.measureIndex === (eMeasure + 1));
                     
-                    if (!isMuted) {
-                        if (tickCount % timeNumerator === 0) clickSynth.triggerAttackRelease("C3", "16n", time);
-                        else clickSynth.triggerAttackRelease("G2", "16n", time);
+                    let startTime = startEv ? startEv.time : 0;
+                    let endTime = endEv ? endEv.time : totalBeats;
+
+                    Tone.Transport.loop = true;
+                    Tone.Transport.loopStart = (startTime * Tone.Transport.PPQ) + "i";
+                    Tone.Transport.loopEnd = (endTime * Tone.Transport.PPQ) + "i";
+                    
+                    // Aseguramos que el cursor comience en la posición correcta al inicio manual
+                    if(startEv) {
+                        Tone.Transport.position = (startTime * Tone.Transport.PPQ) + "i";
+                        let startIdx = events.indexOf(startEv);
+                        while(currentCursorIdx < startIdx) {
+                            osmd.cursor.next();
+                            currentCursorIdx++;
+                        }
                     }
+                } else {
+                    Tone.Transport.loop = false;
+                    let finalTicks = Math.round(totalBeats * Tone.Transport.PPQ);
+                    Tone.Transport.schedule((time) => {
+                        Tone.Draw.schedule(() => {
+                            stopPlayback();
+                        }, time);
+                    }, finalTicks + "i");
+                }
 
-                    const currentTick = tickCount;
-                    Tone.Draw.schedule(() => {
-                        let beatNum = (currentTick % timeNumerator) + 1;
-                        document.getElementById('dbg-beat').innerText = beatNum;
-                        
-                        document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
-                        let dot = document.getElementById(`beat-${beatNum}`);
-                        if(dot) dot.classList.add('active');
-                        
-                        // Animación Glow del Glassmorphism
-                        conductorWidget.classList.add('beat-pulse');
-                        setTimeout(() => conductorWidget.classList.remove('beat-pulse'), 150);
-                    }, time);
+                // 3. Programar Metrónomo explícitamente para que soporte Loop nativo de Tone.js
+                for (let b = 0; b < totalBeats; b++) {
+                    let ticks = Math.round(b * Tone.Transport.PPQ);
+                    let clickId = Tone.Transport.schedule((time) => {
+                        if (!isMuted) {
+                            if (b % timeNumerator === 0) clickSynth.triggerAttackRelease("C3", "16n", time);
+                            else clickSynth.triggerAttackRelease("G2", "16n", time);
+                        }
+                        Tone.Draw.schedule(() => {
+                            let beatNum = (b % timeNumerator) + 1;
+                            document.getElementById('dbg-beat').innerText = beatNum;
+                            
+                            document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
+                            let dot = document.getElementById(`beat-${beatNum}`);
+                            if(dot) dot.classList.add('active');
+                            
+                            conductorWidget.classList.add('beat-pulse');
+                            setTimeout(() => conductorWidget.classList.remove('beat-pulse'), 150);
+                        }, time);
+                    }, ticks + "i");
+                    transportEvents.push(clickId);
+                }
 
-                    tickCount++;
-                }, "4n");
-                transportEvents.push(repeatId);
-
-                let finalTicks = Math.round(totalBeats * Tone.Transport.PPQ);
-                Tone.Transport.schedule((time) => {
-                    Tone.Draw.schedule(() => {
-                        stopPlayback();
-                    }, time);
-                }, finalTicks + "i");
-
-                Tone.Transport.start("+0.4"); // Lookahead extendido para evitar caída de primera nota
+                Tone.Transport.start("+0.4");
                 isPlaying = true;
                 btnPlay.disabled = true;
                 btnPause.disabled = false;
                 btnStop.disabled = false;
+                
             } else if (Tone.Transport.state === "paused") {
                 Tone.Transport.start();
                 isPlaying = true;
@@ -479,6 +549,7 @@
 
     function pausePlayback() {
         Tone.Transport.pause();
+        stopSessionTimer();
         isPlaying = false;
         btnPlay.disabled = false;
         btnPause.disabled = true;
@@ -487,6 +558,7 @@
     function stopPlayback() {
         Tone.Transport.stop();
         Tone.Transport.cancel();
+        stopSessionTimer();
         isPlaying = false;
         btnPlay.disabled = false;
         btnPause.disabled = true;
@@ -497,7 +569,7 @@
     }
 
     tempoSelector.addEventListener('change', () => {
-        if(isPlaying) {
+        if(isPlaying || Tone.Transport.state === "paused") {
             Tone.Transport.bpm.value = baseBpm * parseFloat(tempoSelector.value);
         }
     });

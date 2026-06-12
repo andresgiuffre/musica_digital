@@ -9,7 +9,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Avg
 from django.contrib import messages
-from .models import Game, Score, Attempt, UserProfile, Achievement, UserAchievement, Piece, SheetMusic
+from .models import Game, Score, Attempt, UserProfile, Achievement, UserAchievement, Piece, SheetMusic, Collection, Favorite, StudySession, SheetMusicProgress, DailyGoal, UserDailyGoal
 
 def register(request):
     if request.method == 'POST':
@@ -80,6 +80,7 @@ def get_user_progress(user):
                 
         progress.append({
             'game': game,
+            'url_name': f"trainer_{game.slug.replace('-', '_')}",
             'score': score,
             'unlocked': True,  # Everyone is unlocked now
             'completed': completed,
@@ -101,21 +102,22 @@ def dashboard(request):
             profile.current_daily_streak = 0
             profile.save()
             
-    progress = get_user_progress(request.user)
+    today = timezone.now().date()
     
-    completed_today = Attempt.objects.filter(user=request.user, timestamp__date=today).count()
-    games_played_today_str = "Sí" if completed_today > 0 else "No"
-    
-    scores = Score.objects.filter(user=request.user)
-    total_ans = sum(s.total_answers for s in scores)
-    total_corr = sum(s.correct_answers for s in scores)
-    global_acc = round((total_corr / total_ans) * 100) if total_ans > 0 else 0
+    # Goals check for quick UI summary
+    today_goals = UserDailyGoal.objects.filter(user=request.user, date=today)
+    if not today_goals.exists():
+        default_goal, _ = DailyGoal.objects.get_or_create(title="Práctica Diaria Básica", goal_type="TIME", target_value=15)
+        try:
+            from django.db import IntegrityError
+            UserDailyGoal.objects.get_or_create(user=request.user, goal=default_goal, date=today)
+        except IntegrityError:
+            pass
+        today_goals = UserDailyGoal.objects.filter(user=request.user, date=today)
 
     context = {
         'profile': profile,
-        'progress': progress,
-        'games_played_today': games_played_today_str,
-        'global_acc': global_acc,
+        'today_goals': today_goals,
     }
     return render(request, 'trainer/dashboard.html', context)
 
@@ -137,11 +139,24 @@ def perfil(request):
     total_corr = sum(s.correct_answers for s in scores)
     global_acc = round((total_corr / total_ans) * 100) if total_ans > 0 else 0
     
+    # Progress and Study Sessions
+    progress = get_user_progress(request.user)
+    study_sessions = StudySession.objects.filter(user=request.user)
+    total_study_seconds = sum(s.duration_seconds for s in study_sessions)
+    total_study_minutes = total_study_seconds // 60
+
+    # Goals
+    today = timezone.now().date()
+    today_goals = UserDailyGoal.objects.filter(user=request.user, date=today)
+    
     context = {
         'profile': profile,
         'achievements': all_achievements,
         'global_acc': global_acc,
         'total_answers': total_ans,
+        'progress': progress,
+        'total_study_minutes': total_study_minutes,
+        'today_goals': today_goals,
     }
     return render(request, 'trainer/perfil.html', context)
 
@@ -278,8 +293,92 @@ def trainer_lectura_musical(request):
 
 @login_required
 def biblioteca_list(request):
+    col_slug = request.GET.get('collection')
+    favorites_only = request.GET.get('favorites') == 'true'
+
     scores = SheetMusic.objects.all().order_by('-created_at')
-    return render(request, 'trainer/biblioteca_list.html', {'scores': scores})
+    
+    if col_slug:
+        scores = scores.filter(collections__slug=col_slug)
+        
+    if favorites_only:
+        scores = scores.filter(favorited_by__user=request.user)
+
+    collections = Collection.objects.all()
+    user_favorites = Favorite.objects.filter(user=request.user).values_list('sheet_music_id', flat=True)
+    user_progress = {
+        p.sheet_music_id: p.completion_percentage 
+        for p in SheetMusicProgress.objects.filter(user=request.user)
+    }
+
+    context = {
+        'scores': scores,
+        'collections': collections,
+        'user_favorites': user_favorites,
+        'user_progress': user_progress,
+        'current_collection': col_slug,
+        'favorites_only': favorites_only
+    }
+    return render(request, 'trainer/biblioteca_list.html', context)
+
+@login_required
+@csrf_exempt
+def toggle_favorite(request, score_id):
+    if request.method == 'POST':
+        score = get_object_or_404(SheetMusic, id=score_id)
+        fav, created = Favorite.objects.get_or_create(user=request.user, sheet_music=score)
+        if not created:
+            fav.delete()
+            return JsonResponse({'status': 'removed'})
+        return JsonResponse({'status': 'added'})
+    return JsonResponse({'error': 'Invalid method'}, status=400)
+
+@login_required
+@csrf_exempt
+def log_study_session(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            score_id = data.get('score_id')
+            duration_sec = data.get('duration_seconds', 0)
+            bpm = data.get('bpm_used', 100)
+            plays = data.get('play_count', 1)
+
+            score = get_object_or_404(SheetMusic, id=score_id)
+            
+            # 1. Registrar sesión
+            StudySession.objects.create(
+                user=request.user,
+                sheet_music=score,
+                duration_seconds=duration_sec,
+                bpm_used=bpm,
+                play_count=plays
+            )
+
+            # 2. Actualizar Progreso Individual
+            progress, _ = SheetMusicProgress.objects.get_or_create(user=request.user, sheet_music=score)
+            progress.total_time_seconds += duration_sec
+            progress.total_plays += plays
+            
+            # Simple cálculo: 10 plays = 100% o 10 minutos = 100%
+            time_perc = min((progress.total_time_seconds / 600) * 100, 100)
+            play_perc = min((progress.total_plays / 10) * 100, 100)
+            progress.completion_percentage = int(max(time_perc, play_perc))
+            progress.save()
+
+            # 3. Actualizar Objetivos Diarios (Simple lógica global para TIME)
+            today_goals = UserDailyGoal.objects.filter(user=request.user, date=timezone.now().date())
+            for ug in today_goals:
+                if ug.goal.goal_type == 'TIME' and not ug.is_completed:
+                    ug.current_value += duration_sec // 60
+                    if ug.current_value >= ug.goal.target_value:
+                        ug.is_completed = True
+                    ug.save()
+
+            return JsonResponse({'status': 'ok'})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'error': 'Invalid method'}, status=400)
 
 @login_required
 def biblioteca_play(request, score_id):

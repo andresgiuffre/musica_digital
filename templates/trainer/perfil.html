@@ -1,50 +1,156 @@
 {% extends 'base.html' %}
+{% block title %}Centro de Comando - Mi Perfil{% endblock %}
+
+{% block extra_css %}
+<style>
+    .perfil-card {
+        background: rgba(31, 41, 55, 0.7);
+        border: 1px solid rgba(75, 85, 99, 0.6);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    
+    .level-card {
+        display: flex;
+        align-items: center;
+        background: var(--surface);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border: 2px solid var(--border);
+    }
+    .level-card.completed { border-color: var(--success); }
+    .level-card.locked { opacity: 0.5; }
+    
+    .level-icon {
+        width: 50px; height: 50px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.5rem; background: var(--bg); margin-right: 1.5rem;
+    }
+    .level-card.completed .level-icon { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+    
+    .stat-value { font-size: 2.5rem; font-weight: 900; line-height: 1; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div style="max-width: 800px; margin: 0 auto;">
-    <div class="card" style="display: flex; align-items: center; gap: 2rem; margin-bottom: 2rem; border-top: 4px solid var(--primary);">
-        <div style="width: 100px; height: 100px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 3rem;">
-            👤
+<div class="container mx-auto px-4 py-8 max-w-7xl">
+    
+    <!-- Header del Perfil -->
+    <div class="flex items-center gap-6 mb-8 relative overflow-hidden p-8 rounded-2xl border border-gray-700 shadow-2xl" style="background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(17, 24, 39, 0.98) 100%);">
+        
+        <!-- Efecto de Luz de Fondo -->
+        <div class="absolute -top-24 -right-24 w-64 h-64 bg-blue-500 rounded-full mix-blend-screen filter blur-[80px] opacity-20"></div>
+
+        <div class="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center border-2 border-blue-500/50 shadow-[0_0_30px_rgba(59,130,246,0.3)] z-10">
+            <svg class="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
         </div>
-        <div>
-            <h1 style="margin-bottom: 0.25rem;">{{ user.username }}</h1>
-            <div style="color: var(--text-secondary); font-size: 1.1rem; font-weight: 600;">Nivel {{ profile.user_level }}</div>
+        <div class="z-10">
+            <h1 class="text-4xl font-extrabold text-white mb-1 drop-shadow-md">{{ user.username }}</h1>
+            <div class="text-blue-400 font-black tracking-widest text-sm uppercase drop-shadow">Músico Nivel {{ profile.user_level }}</div>
         </div>
-        <div style="margin-left: auto; text-align: right;">
-            <div style="font-size: 2rem; font-weight: 800; color: var(--primary);">{{ profile.total_xp }}</div>
-            <div style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 600;">XP TOTAL</div>
+        <div class="ml-auto text-right z-10">
+            <div class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400" style="letter-spacing: -0.05em;">{{ profile.total_xp }}</div>
+            <div class="text-gray-400 font-bold text-xs tracking-widest mt-1">PUNTOS DE EXPERIENCIA</div>
         </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 3rem;">
-        <div class="card" style="text-align: center;">
-            <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 0.5rem;">Precisión Histórica</div>
-            <div style="font-size: 2rem; font-weight: 800; color: var(--success);">{{ global_acc }}%</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">De {{ total_answers }} ejercicios</div>
-        </div>
-        <div class="card" style="text-align: center;">
-            <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 0.5rem;">Mejor Racha Diaria</div>
-            <div style="font-size: 2rem; font-weight: 800; color: #F59E0B;">{{ profile.max_daily_streak }} 🔥</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Días seguidos</div>
-        </div>
-    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Columna Izquierda: Stats Rápidas -->
+        <div class="space-y-6">
+            <div class="perfil-card text-center border-t-4 border-t-amber-500">
+                <div class="text-sm text-gray-400 font-bold uppercase mb-2">Mejor Racha</div>
+                <div class="stat-value text-amber-500">{{ profile.max_daily_streak }} 🔥</div>
+                <div class="text-xs text-gray-500 mt-2">Días consecutivos practicando</div>
+            </div>
 
-    <h2 style="margin-bottom: 1.5rem;">Logros</h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
-        {% for a in achievements %}
-        <div class="card" style="text-align: center; padding: 1.5rem 1rem; {% if not a.unlocked %}opacity: 0.4; filter: grayscale(100%);{% else %}border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.02);{% endif %}">
-            <div style="font-size: 3rem; margin-bottom: 0.5rem;">{{ a.obj.icon }}</div>
-            <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem; color: var(--text);">{{ a.obj.name }}</h3>
-            <p style="font-size: 0.85rem; color: var(--text-secondary);">{{ a.obj.description }}</p>
-            {% if not a.unlocked %}
-                <div style="margin-top: 0.5rem; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">🔒 Bloqueado</div>
-            {% else %}
-                <div style="margin-top: 0.5rem; font-size: 0.75rem; font-weight: 800; color: var(--success);">✅ Obtenido</div>
-            {% endif %}
+            <div class="perfil-card text-center border-t-4 border-t-emerald-500">
+                <div class="text-sm text-gray-400 font-bold uppercase mb-2">Precisión Histórica</div>
+                <div class="stat-value text-emerald-500">{{ global_acc }}%</div>
+                <div class="text-xs text-gray-500 mt-2">De {{ total_answers }} ejercicios realizados</div>
+            </div>
+
+            <div class="perfil-card text-center border-t-4 border-t-blue-500">
+                <div class="text-sm text-gray-400 font-bold uppercase mb-2">Tiempo Estudiado</div>
+                <div class="stat-value text-blue-400">{{ total_study_minutes }}<span class="text-2xl text-blue-800">m</span></div>
+                <div class="text-xs text-gray-500 mt-2">Minutos en Modo Estudio</div>
+            </div>
+            
+            <!-- Objetivos Diarios -->
+            <div class="perfil-card">
+                <h3 class="text-blue-400 font-bold mb-4 flex items-center gap-2">🎯 Objetivos Diarios</h3>
+                <div class="flex flex-col gap-4">
+                    {% for ug in today_goals %}
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-white font-bold text-sm">{{ ug.goal.title }}</span>
+                                <span class="text-{% if ug.is_completed %}emerald{% else %}gray{% endif %}-400 font-bold text-sm">
+                                    {{ ug.current_value }} / {{ ug.goal.target_value }}
+                                </span>
+                            </div>
+                            <div class="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                                <div class="h-full {% if ug.is_completed %}bg-emerald-500{% else %}bg-blue-500{% endif %}" style="width: {% widthratio ug.current_value ug.goal.target_value 100 %}%;"></div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <p class="text-gray-500 text-sm">No hay objetivos hoy.</p>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
-        {% empty %}
-        <p>No hay logros disponibles aún.</p>
-        {% endfor %}
+
+        <!-- Columna Central/Derecha: Ruta y Logros -->
+        <div class="lg:col-span-2 space-y-8">
+            
+            <!-- Ruta Recomendada -->
+            <div>
+                <h2 class="text-2xl font-bold text-white mb-4">Ruta de Entrenamiento</h2>
+                {% for p in progress %}
+                    <div class="level-card {% if p.completed %}completed{% endif %}">
+                        <div class="level-icon">
+                            {% if p.completed %}✅{% else %}▶{% endif %}
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-xs font-bold text-blue-500 uppercase tracking-widest mb-1">Etapa {{ p.game.order }}</div>
+                            <h3 class="text-xl font-bold text-white">{{ p.game.name }}</h3>
+                            <p class="text-gray-400 text-sm mb-2">{{ p.game.description }}</p>
+                            
+                            <div class="flex gap-6 text-sm font-bold">
+                                <span class="{% if p.accuracy >= p.game.recommended_accuracy %}text-emerald-500{% else %}text-gray-500{% endif %}">
+                                    Precisión: {{ p.accuracy }}% / {{ p.game.recommended_accuracy }}%
+                                </span>
+                                <span class="{% if p.score.total_answers >= p.game.recommended_attempts %}text-emerald-500{% else %}text-gray-500{% endif %}">
+                                    Ejercicios: {{ p.score.total_answers }} / {{ p.game.recommended_attempts }}
+                                </span>
+                            </div>
+                        </div>
+                        <div>
+                            <a href="{% url p.url_name %}" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+                                Entrar
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Logros -->
+            <div>
+                <h2 class="text-2xl font-bold text-white mb-4">Medallas y Logros</h2>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {% for a in achievements %}
+                    <div class="perfil-card text-center {% if not a.unlocked %}opacity-40 grayscale{% else %}border-emerald-500/50 bg-emerald-900/10{% endif %}">
+                        <div class="text-5xl mb-2 drop-shadow-lg">{{ a.obj.icon }}</div>
+                        <h3 class="font-bold text-white text-sm mb-1">{{ a.obj.name }}</h3>
+                        <p class="text-xs text-gray-400">{{ a.obj.description }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
     </div>
 </div>
 {% endblock %}
