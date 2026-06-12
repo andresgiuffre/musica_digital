@@ -3,28 +3,100 @@
 
 {% block content %}
 <div class="container mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-8">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <h1 class="text-4xl font-bold text-white">Biblioteca de Partituras</h1>
+        
+        <!-- Filtros -->
+        <div class="flex gap-2 flex-wrap">
+            <a href="{% url 'biblioteca_list' %}" class="px-4 py-2 rounded-full font-bold text-sm {% if not current_collection and not favorites_only %}bg-blue-600 text-white{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
+                Todas
+            </a>
+            <a href="?favorites=true" class="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-1 {% if favorites_only %}bg-yellow-500 text-black{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
+                ⭐ Mis Favoritos
+            </a>
+            {% for col in collections %}
+            <a href="?collection={{ col.slug }}" class="px-4 py-2 rounded-full font-bold text-sm {% if current_collection == col.slug %}bg-blue-600 text-white{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
+                {{ col.name }}
+            </a>
+            {% endfor %}
+        </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {% for score in scores %}
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-blue-500 transition-colors">
-            <h2 class="text-2xl font-bold text-white mb-2">{{ score.title|default:score.xml_file.name }}</h2>
-            <p class="text-gray-400 mb-4">Compositor: {{ score.composer|default:"Desconocido" }}</p>
-            <div class="flex justify-between items-center">
-                <span class="bg-blue-900 text-blue-200 text-xs font-bold px-3 py-1 rounded-full">Dificultad {{ score.difficulty }}</span>
-                <a href="{% url 'biblioteca_play' score.id %}" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                    Practicar
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-blue-500 transition-colors relative flex flex-col justify-between">
+            
+            <!-- Botón Favorito -->
+            <button onclick="toggleFavorite({{ score.id }}, this)" class="absolute top-4 right-4 text-2xl transition-transform hover:scale-110 focus:outline-none">
+                {% if score.id in user_favorites %}
+                    <span class="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]">⭐</span>
+                {% else %}
+                    <span class="text-gray-500 opacity-50 hover:opacity-100">☆</span>
+                {% endif %}
+            </button>
+
+            <div>
+                <h2 class="text-2xl font-bold text-white mb-1 pr-8">{{ score.title|default:score.xml_file.name }}</h2>
+                <p class="text-gray-400 mb-4 text-sm">Compositor: {{ score.composer|default:"Desconocido" }}</p>
+                
+                <div class="flex flex-wrap gap-2 mb-4">
+                    <span class="bg-gray-700 text-gray-300 text-xs font-bold px-2 py-1 rounded">Dif. {{ score.difficulty }}</span>
+                    {% for c in score.collections.all %}
+                        <span class="bg-indigo-900 text-indigo-200 text-xs font-bold px-2 py-1 rounded">{{ c.name }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Progreso -->
+            <div class="mt-4 mb-4">
+                <div class="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>Progreso de Estudio</span>
+                    <span>
+                        {% for pid, perc in user_progress.items %}
+                            {% if pid == score.id %}{{ perc }}%{% endif %}
+                        {% empty %}
+                            0%
+                        {% endfor %}
+                    </span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2">
+                    <div class="bg-emerald-500 h-2 rounded-full" style="width: {% for pid, perc in user_progress.items %}{% if pid == score.id %}{{ perc }}{% endif %}{% endfor %}%;"></div>
+                </div>
+            </div>
+
+            <div class="flex justify-end mt-2">
+                <a href="{% url 'biblioteca_play' score.id %}" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
+                    ▶ Practicar
                 </a>
             </div>
         </div>
         {% empty %}
-        <div class="col-span-full text-center py-12">
-            <p class="text-gray-400 text-lg">No hay partituras en la biblioteca todavía.</p>
-            <p class="text-gray-500 text-sm mt-2">Sube archivos .musicxml desde el panel de administración.</p>
+        <div class="col-span-full text-center py-16 bg-gray-800 rounded-2xl border border-gray-700">
+            <span class="text-6xl mb-4 block">🎼</span>
+            <p class="text-gray-300 text-xl font-bold">No se encontraron partituras</p>
+            <p class="text-gray-500 mt-2">Intenta cambiar los filtros o sube nuevas partituras desde la administración.</p>
         </div>
         {% endfor %}
     </div>
 </div>
+
+<script>
+function toggleFavorite(scoreId, btn) {
+    fetch(`/api/toggle_favorite/${scoreId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'added') {
+            btn.innerHTML = '<span class="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]">⭐</span>';
+        } else if (data.status === 'removed') {
+            btn.innerHTML = '<span class="text-gray-500 opacity-50 hover:opacity-100">☆</span>';
+        }
+    });
+}
+</script>
 {% endblock %}

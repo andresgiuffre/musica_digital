@@ -12,5 +12,7 @@ urlpatterns = [
     path('biblioteca/', views.biblioteca_list, name='biblioteca_list'),
     path('biblioteca/<int:score_id>/', views.biblioteca_play, name='biblioteca_play'),
     path('api/record_attempt/<str:game_slug>/', views.record_attempt, name='record_attempt'),
+    path('api/toggle_favorite/<int:score_id>/', views.toggle_favorite, name='toggle_favorite'),
+    path('api/log_study_session/', views.log_study_session, name='log_study_session'),
     path('register/', views.register, name='register'),
 ]

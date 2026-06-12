@@ -5,25 +5,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Música Digital</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
-            --primary: #4F46E5;
-            --primary-hover: #4338CA;
-            --bg: #F9FAFB;
-            --surface: #FFFFFF;
-            --text: #111827;
-            --text-secondary: #6B7280;
-            --success: #10B981;
-            --danger: #EF4444;
-            --border: #E5E7EB;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --text-secondary: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --border: #334155;
         }
 
         body {
@@ -36,153 +31,112 @@
             flex-direction: column;
         }
 
-        nav {
-            background-color: var(--surface);
-            border-bottom: 1px solid var(--border);
+        /* Navbar Moderna con Glassmorphism */
+        .navbar {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
             padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-        }
-
-        nav a {
-            text-decoration: none;
-            color: var(--text);
-            font-weight: 600;
         }
 
         .nav-brand {
-            font-size: 1.25rem;
-            color: var(--primary);
-            font-weight: 800;
-        }
-
-        .container {
-            flex: 1;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-            width: 100%;
-        }
-
-        .card {
-            background: var(--surface);
-            border-radius: 1rem;
-            padding: 2rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(10px);
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: transparent;
+            background-clip: text;
+            background-image: linear-gradient(to right, #60a5fa, #34d399);
             text-decoration: none;
-            font-size: 1rem;
+            letter-spacing: -0.05em;
         }
 
-        .btn-primary {
-            background-color: var(--primary);
+        .nav-menu {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: #cbd5e1;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-link:hover {
             color: white;
         }
 
-        .btn-primary:hover {
-            background-color: var(--primary-hover);
-            transform: translateY(-1px);
+        .nav-user {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding-left: 2rem;
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .btn-large {
-            padding: 1rem 2rem;
-            font-size: 1.125rem;
-        }
-
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            color: var(--text);
-        }
-
-        .form-group input {
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
             width: 100%;
-            padding: 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 0.5rem;
-            font-family: inherit;
-            font-size: 1rem;
-            transition: border-color 0.2s;
         }
 
-        .form-group input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-        }
+        /* Estilos Legados para compatibilidad con las vistas de entrenamiento que no usan Tailwind aún */
+        .container-legacy { max-width: 1200px; margin: 0 auto; padding: 2rem; width: 100%; }
+        .card { background: var(--surface); border-radius: 1rem; padding: 2rem; border: 1px solid rgba(255,255,255,0.1); }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; text-decoration: none; font-size: 1rem; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <nav>
-        <a href="{% url 'dashboard' %}" class="nav-brand">🎵 Música Digital</a>
-        <div>
+
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="{% url 'dashboard' %}" class="nav-brand">MÚSICA DIGITAL</a>
+            
             {% if user.is_authenticated %}
-                <button id="audio-settings-btn" class="btn" style="background:transparent; font-size:1.2rem; margin-right: 1.5rem; cursor:pointer; border:none;" title="Configuración de Audio">⚙️</button>
-                <a href="{% url 'biblioteca_list' %}" style="margin-right: 1.5rem; color: var(--primary);">📚 Biblioteca</a>
-                <a href="{% url 'dashboard' %}" style="margin-right: 1.5rem;">Mi Progreso</a>
-                <a href="{% url 'perfil' %}" style="margin-right: 1.5rem;">Mi Perfil</a>
-                <span style="margin-right: 1rem;">Hola, {{ user.username }}</span>
-                <form action="{% url 'logout' %}" method="post" style="display:inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn" style="background:transparent; border:1px solid var(--border);">Salir</button>
-                </form>
-            {% else %}
-                <a href="{% url 'login' %}" style="margin-right: 1rem;">Entrar</a>
-                <a href="{% url 'register' %}" class="btn btn-primary">Registrarse</a>
+            <div class="nav-menu">
+                <a href="{% url 'dashboard' %}" class="nav-link">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                    Inicio
+                </a>
+                <a href="{% url 'biblioteca_list' %}" class="nav-link">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                    Biblioteca
+                </a>
+                
+                <div class="nav-user">
+                    <a href="{% url 'perfil' %}" class="nav-link !text-blue-400 hover:!text-blue-300">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        Mi Perfil
+                    </a>
+                </div>
+            </div>
             {% endif %}
         </div>
     </nav>
 
-    <main style="padding: 2rem;">
+    <main class="main-content">
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Audio Settings Modal -->
-    <div id="audio-settings-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-        <div style="background:var(--surface); padding:2rem; border-radius:1rem; min-width:300px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
-            <h3 style="margin-bottom:1.5rem;">Configuración de Audio</h3>
-            <div style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
-                <label for="audio-mute-toggle" style="font-weight:600;">Sonido Activado</label>
-                <input type="checkbox" id="audio-mute-toggle" checked style="width:20px; height:20px;">
-            </div>
-            <div style="margin-bottom:1.5rem;">
-                <label for="audio-volume-slider" style="display:block; margin-bottom:0.5rem; font-weight:600;">Volumen</label>
-                <input type="range" id="audio-volume-slider" min="0" max="100" value="80" style="width:100%;">
-            </div>
-            <button onclick="document.getElementById('audio-settings-modal').style.display='none'" class="btn btn-primary" style="width:100%;">Cerrar</button>
-        </div>
-    </div>
-    
-    <script>
-        const settingsBtn = document.getElementById('audio-settings-btn');
-        if(settingsBtn) {
-            settingsBtn.addEventListener('click', () => {
-                document.getElementById('audio-settings-modal').style.display = 'flex';
-            });
-        }
-    </script>
-    <script src="{% static 'js/audio_engine.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

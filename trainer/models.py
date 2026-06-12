@@ -89,12 +89,72 @@ class Piece(models.Model):
     def __str__(self):
         return f"{self.title} - {self.author}"
 
+class Collection(models.Model):
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(unique=True)
+
+    def __str__(self):
+        return self.name
+
 class SheetMusic(models.Model):
     title = models.CharField(max_length=100, blank=True, help_text="Se puede extraer automáticamente del MusicXML")
     composer = models.CharField(max_length=100, blank=True, help_text="Se puede extraer automáticamente del MusicXML")
     difficulty = models.IntegerField(default=1)
     xml_file = models.FileField(upload_to='partituras/')
+    collections = models.ManyToManyField(Collection, blank=True, related_name='sheet_musics')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.title or self.xml_file.name
+
+class Favorite(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorites')
+    sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE, related_name='favorited_by')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'sheet_music')
+
+class StudySession(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='study_sessions')
+    sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE)
+    date = models.DateTimeField(auto_now_add=True)
+    duration_seconds = models.IntegerField(default=0)
+    bpm_used = models.IntegerField(default=100)
+    play_count = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.user.username} estudió {self.sheet_music.title}"
+
+class SheetMusicProgress(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sheet_progress')
+    sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE)
+    total_time_seconds = models.IntegerField(default=0)
+    total_plays = models.IntegerField(default=0)
+    completion_percentage = models.IntegerField(default=0)
+    last_practiced = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'sheet_music')
+
+class DailyGoal(models.Model):
+    GOAL_TYPES = (
+        ('TIME', 'Tiempo de Estudio'),
+        ('PIECES', 'Partituras Completadas'),
+    )
+    title = models.CharField(max_length=100)
+    goal_type = models.CharField(max_length=20, choices=GOAL_TYPES)
+    target_value = models.IntegerField(help_text="Ej: 10 para 10 minutos")
+
+    def __str__(self):
+        return self.title
+
+class UserDailyGoal(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='daily_goals')
+    goal = models.ForeignKey(DailyGoal, on_delete=models.CASCADE)
+    date = models.DateField(auto_now_add=True)
+    current_value = models.IntegerField(default=0)
+    is_completed = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ('user', 'goal', 'date')
