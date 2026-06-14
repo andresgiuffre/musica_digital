@@ -1,0 +1,448 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Identificación de Acordes MIDI{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-4xl relative min-h-[80vh] flex flex-col justify-center">
+    
+    <!-- Header Oculto o Pequeño -->
+    <div class="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
+        <a href="{% url 'midi_trainer_hub' %}" class="text-gray-400 hover:text-white font-bold transition-colors">
+            🔙 Salir del Juego
+        </a>
+        <div class="flex items-center gap-3">
+            <select id="midi-device-select" class="bg-gray-800 text-white border border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-purple-500 hidden"></select>
+            <div id="midi-conn-indicator" class="flex items-center gap-2 text-red-500 font-bold text-sm">
+                <div class="w-3 h-3 rounded-full bg-red-500"></div> Sin conexión MIDI
+            </div>
+        </div>
+    </div>
+
+    <!-- Pantalla Inicial -->
+    <div id="screen-start" class="text-center">
+        <h1 class="text-6xl font-black text-white mb-6 drop-shadow-lg">Identificación de <span class="text-purple-400">Acordes</span></h1>
+        <p class="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+            La plataforma te pedirá un acorde. Tócalo en tu controlador MIDI lo más rápido posible.
+            Tienes <strong class="text-white">60 segundos</strong>. ¡Prepárate!
+        </p>
+        <button id="btn-start" class="bg-purple-600 hover:bg-purple-500 text-white font-black py-4 px-12 rounded-full text-2xl shadow-[0_0_30px_rgba(168,85,247,0.5)] transition-transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+            EMPEZAR JUEGO
+        </button>
+        <p id="msg-waiting-midi" class="text-red-400 mt-4 font-bold">Por favor, conecta un controlador MIDI para jugar.</p>
+    </div>
+
+    <!-- Pantalla de Juego -->
+    <div id="screen-game" class="hidden flex-col items-center justify-center w-full">
+        <!-- Top HUD -->
+        <div class="flex justify-between w-full mb-12">
+            <div class="bg-gray-800 rounded-xl px-6 py-3 border border-gray-700">
+                <span class="text-gray-400 text-sm font-bold block">TIEMPO</span>
+                <span id="game-time" class="text-3xl font-black text-white">60</span><span class="text-gray-500">s</span>
+            </div>
+            <div class="bg-gray-800 rounded-xl px-6 py-3 border border-gray-700 text-right">
+                <span class="text-gray-400 text-sm font-bold block">PUNTOS</span>
+                <span id="game-score" class="text-3xl font-black text-emerald-400">0</span>
+            </div>
+        </div>
+
+        <!-- Pregunta Central -->
+        <div class="text-center mb-8 relative w-full max-w-2xl">
+            <h2 class="text-2xl text-gray-400 font-bold mb-2 tracking-widest uppercase">TOCA EL ACORDE:</h2>
+            <div id="target-chord" class="text-8xl md:text-[150px] font-black text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.2)] transition-colors duration-300">
+                C Maj7
+            </div>
+            <!-- Feedback Overlay -->
+            <div id="feedback-overlay" class="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 pointer-events-none">
+                <span id="feedback-icon" class="text-[200px] drop-shadow-2xl">✅</span>
+            </div>
+        </div>
+
+        <!-- Monitor en vivo pequeño -->
+        <div class="mt-12 h-16 flex gap-2 justify-center w-full" id="live-notes-monitor">
+            <!-- Notas tocadas aparecen aquí -->
+        </div>
+    </div>
+
+    <!-- Pantalla de Resultados -->
+    <div id="screen-result" class="hidden text-center">
+        <h2 class="text-5xl font-black text-white mb-8">¡Tiempo Terminado!</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+            <div class="bg-gray-800 rounded-2xl p-6 border border-emerald-500/30">
+                <span class="text-gray-400 text-sm font-bold block mb-1">PUNTUACIÓN</span>
+                <span id="res-score" class="text-4xl font-black text-emerald-400">0</span>
+            </div>
+            <div class="bg-gray-800 rounded-2xl p-6 border border-purple-500/30">
+                <span class="text-gray-400 text-sm font-bold block mb-1">XP OBTENIDA</span>
+                <span id="res-xp" class="text-4xl font-black text-purple-400">+0</span>
+            </div>
+            <div class="bg-gray-800 rounded-2xl p-6 border border-blue-500/30">
+                <span class="text-gray-400 text-sm font-bold block mb-1">ACORDES CORRECTOS</span>
+                <span id="res-correct" class="text-4xl font-black text-blue-400">0</span>
+            </div>
+            <div class="bg-gray-800 rounded-2xl p-6 border border-red-500/30">
+                <span class="text-gray-400 text-sm font-bold block mb-1">ERRORES</span>
+                <span id="res-incorrect" class="text-4xl font-black text-red-400">0</span>
+            </div>
+        </div>
+        <div class="flex gap-4 justify-center">
+            <button onclick="startGame()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">
+                Jugar de Nuevo
+            </button>
+            <a href="{% url 'midi_trainer_hub' %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-xl transition-colors">
+                Volver al Hub
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // --- ESTADO Y DATOS DEL JUEGO ---
+    const GAME_DURATION = 60; // segundos
+    let timeLeft = GAME_DURATION;
+    let score = 0;
+    let timerInterval = null;
+    let isPlaying = false;
+    
+    // Lista de acordes base para probar
+    const CHORD_POOL = [
+        "CM", "Cm", "Cmaj7", "Cm7", "C7",
+        "DM", "Dm", "Dmaj7", "Dm7", "D7",
+        "EM", "Em", "Emaj7", "Em7", "E7",
+        "FM", "Fm", "Fmaj7", "Fm7", "F7",
+        "GM", "Gm", "Gmaj7", "Gm7", "G7",
+        "AM", "Am", "Amaj7", "Am7", "A7",
+        "BM", "Bm", "Bm7b5"
+    ];
+
+    let currentTargetChord = "";
+    let chordStartTime = 0;
+    let statsLog = []; // { chord: "C M", correct: true, time_ms: 1200 }
+    let isEvaluating = false; // Bloquear lectura mientras animamos
+
+    // DOM Elements
+    const screenStart = document.getElementById('screen-start');
+    const screenGame = document.getElementById('screen-game');
+    const screenResult = document.getElementById('screen-result');
+    const btnStart = document.getElementById('btn-start');
+    const msgWaiting = document.getElementById('msg-waiting-midi');
+    const connIndicator = document.getElementById('midi-conn-indicator');
+    const elTime = document.getElementById('game-time');
+    const elScore = document.getElementById('game-score');
+    const elTargetChord = document.getElementById('target-chord');
+    const feedbackOverlay = document.getElementById('feedback-overlay');
+    const feedbackIcon = document.getElementById('feedback-icon');
+    const monitorDisplay = document.getElementById('live-notes-monitor');
+
+    // MIDI State
+    const activeNotes = new Set(); // Guarda los pitches
+    
+    const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    function getNotePC(pitch) {
+        return NOTE_NAMES[pitch % 12];
+    }
+    
+    // --- SINTETIZADOR DE PIANO ---
+    let samplerLoaded = false;
+    const pianoSampler = new Tone.Sampler({
+        urls: {
+            "A0": "A0.mp3", "C1": "C1.mp3", "D#1": "Ds1.mp3", "F#1": "Fs1.mp3",
+            "A1": "A1.mp3", "C2": "C2.mp3", "D#2": "Ds2.mp3", "F#2": "Fs2.mp3",
+            "A2": "A2.mp3", "C3": "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3",
+            "A3": "A3.mp3", "C4": "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3",
+            "A4": "A4.mp3", "C5": "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3",
+            "A5": "A5.mp3", "C6": "C6.mp3", "D#6": "Ds6.mp3", "F#6": "Fs6.mp3",
+            "A6": "A6.mp3", "C7": "C7.mp3", "D#7": "Ds7.mp3", "F#7": "Fs7.mp3",
+            "A7": "A7.mp3", "C8": "C8.mp3"
+        },
+        release: 1,
+        baseUrl: "https://tonejs.github.io/audio/salamander/",
+        onload: () => {
+            samplerLoaded = true;
+        }
+    }).toDestination();
+    
+    let hasMidiConnection = false;
+    let midiInputs = [];
+    let selectedInputId = null;
+    const deviceSelect = document.getElementById('midi-device-select');
+
+    // --- LÓGICA WEB MIDI ---
+    function initMIDI() {
+        if (navigator.requestMIDIAccess) {
+            navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+        } else {
+            msgWaiting.innerText = "Tu navegador no soporta Web MIDI API.";
+        }
+    }
+
+    function onMIDISuccess(midiAccess) {
+        updateDeviceList(midiAccess);
+        midiAccess.onstatechange = (e) => {
+            updateDeviceList(midiAccess);
+        };
+    }
+
+    function updateDeviceList(midiAccess) {
+        midiInputs = Array.from(midiAccess.inputs.values());
+        
+        if(midiInputs.length > 0) {
+            updateConnectionState(true);
+            deviceSelect.classList.remove('hidden');
+            deviceSelect.innerHTML = '';
+            
+            midiInputs.forEach(input => {
+                let option = document.createElement('option');
+                option.value = input.id;
+                option.text = input.name;
+                deviceSelect.appendChild(option);
+                input.onmidimessage = null; // Clear old
+            });
+
+            // Restore from localStorage
+            let savedId = localStorage.getItem('selectedMidiInputId');
+            if (savedId && midiInputs.some(i => i.id === savedId)) {
+                deviceSelect.value = savedId;
+                selectedInputId = savedId;
+            } else {
+                selectedInputId = midiInputs[0].id;
+                deviceSelect.value = selectedInputId;
+            }
+
+            // Bind listener to selected
+            let activeInput = midiInputs.find(i => i.id === selectedInputId);
+            if(activeInput) activeInput.onmidimessage = onMIDIMessage;
+
+            deviceSelect.onchange = (e) => {
+                let oldInput = midiInputs.find(i => i.id === selectedInputId);
+                if(oldInput) oldInput.onmidimessage = null;
+                
+                selectedInputId = e.target.value;
+                localStorage.setItem('selectedMidiInputId', selectedInputId);
+                
+                let newInput = midiInputs.find(i => i.id === selectedInputId);
+                if(newInput) newInput.onmidimessage = onMIDIMessage;
+            };
+        } else {
+            updateConnectionState(false);
+            deviceSelect.classList.add('hidden');
+        }
+    }
+
+    function onMIDIFailure() {
+        msgWaiting.innerText = "Permiso MIDI denegado.";
+        updateConnectionState(false);
+    }
+
+    function updateConnectionState(isConnected) {
+        hasMidiConnection = isConnected;
+        if(isConnected) {
+            connIndicator.innerHTML = `<div class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]"></div> MIDI Conectado`;
+            connIndicator.classList.remove('text-red-500');
+            connIndicator.classList.add('text-emerald-500');
+            btnStart.disabled = false;
+            msgWaiting.style.display = 'none';
+        } else {
+            connIndicator.innerHTML = `<div class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444]"></div> Sin MIDI`;
+            connIndicator.classList.remove('text-emerald-500');
+            connIndicator.classList.add('text-red-500');
+            btnStart.disabled = true;
+            msgWaiting.style.display = 'block';
+        }
+    }
+
+    function onMIDIMessage(event) {
+        let status = event.data[0];
+        let pitch = event.data[1] || 0;
+        let velocity = (event.data.length > 2) ? event.data[2] : 0;
+        let cmd = status >> 4;
+        
+        // Iniciar Tone.js context
+        if (Tone.context.state !== 'running') {
+            Tone.start();
+        }
+        
+        if (cmd === 9 || cmd === 8) {
+            try {
+                if (cmd === 9 && velocity > 0) {
+                    if(samplerLoaded) {
+                        let noteName = NOTE_NAMES[pitch % 12] + (Math.floor(pitch / 12) - 1);
+                        pianoSampler.triggerAttack(noteName, Tone.context.currentTime, velocity / 127);
+                    }
+                    activeNotes.add(pitch);
+                    renderMonitor();
+                    if(isPlaying && !isEvaluating) evaluateChord();
+                } else if (cmd === 8 || (cmd === 9 && velocity === 0)) {
+                    if(samplerLoaded) {
+                        let noteName = NOTE_NAMES[pitch % 12] + (Math.floor(pitch / 12) - 1);
+                        pianoSampler.triggerRelease(noteName, Tone.context.currentTime);
+                    }
+                    activeNotes.delete(pitch);
+                    renderMonitor();
+                    if(isPlaying && !isEvaluating) evaluateChord();
+                }
+            } catch(e) {
+                console.error("MIDI Processing Error:", e);
+            }
+        }
+    }
+
+    // --- GAME LÓGICA ---
+
+    btnStart.addEventListener('click', startGame);
+
+    function startGame() {
+        screenStart.classList.add('hidden');
+        screenResult.classList.add('hidden');
+        screenGame.classList.remove('hidden');
+        screenGame.style.display = 'flex'; // override hidden util just in case
+
+        timeLeft = GAME_DURATION;
+        score = 0;
+        statsLog = [];
+        isPlaying = true;
+        updateHUD();
+
+        nextChord();
+
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            updateHUD();
+            if(timeLeft <= 0) {
+                endGame();
+            }
+        }, 1000);
+    }
+
+    function nextChord() {
+        // Pick random chord
+        currentTargetChord = CHORD_POOL[Math.floor(Math.random() * CHORD_POOL.length)];
+        
+        let displayChord = currentTargetChord;
+        if(displayChord.endsWith("M")) displayChord = displayChord.slice(0, -1); // CM -> C
+        displayChord = displayChord.replace("maj7", "Maj7");
+        
+        elTargetChord.innerText = displayChord;
+        elTargetChord.className = "text-8xl md:text-[150px] font-black text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.2)] transition-colors duration-300";
+        chordStartTime = Date.now();
+        activeNotes.clear();
+        renderMonitor();
+    }
+
+    function evaluateChord() {
+        let notesArr = Array.from(activeNotes).map(p => getNotePC(p));
+        if(notesArr.length < 3) return;
+
+        try {
+            let detected = Tonal.Chord.detect(notesArr);
+            let isCorrect = detected.includes(currentTargetChord);
+            
+            if(isCorrect) {
+                triggerFeedback(true);
+            } else if (notesArr.length >= 4) {
+                // Posible error
+            }
+        } catch(e) {
+            console.error("Tonal error in game:", e);
+        }
+    }
+
+    // Como el usuario puede tocar notas escalonadas, daremos como correcto si detecta, 
+    // y si pulsan un botón "Paso" pueden saltar, pero añadiremos un auto-fail si pasan 5 segundos? 
+    // Para no bloquear, un botón de "Saltar" (Skip) sería bueno. Pero por ahora, el usuario sigue intentando hasta que acierte.
+
+    function triggerFeedback(isCorrect) {
+        isEvaluating = true;
+        let timeTaken = Date.now() - chordStartTime;
+        
+        if(isCorrect) {
+            score += 10;
+            elTargetChord.classList.add('text-emerald-400');
+            elTargetChord.classList.remove('text-white');
+            feedbackIcon.innerText = "✅";
+            statsLog.push({ chord: currentTargetChord, correct: true, time_ms: timeTaken });
+        } else {
+            elTargetChord.classList.add('text-red-400');
+            elTargetChord.classList.remove('text-white');
+            feedbackIcon.innerText = "❌";
+            statsLog.push({ chord: currentTargetChord, correct: false, time_ms: timeTaken });
+        }
+
+        updateHUD();
+        feedbackOverlay.classList.remove('opacity-0');
+        
+        setTimeout(() => {
+            feedbackOverlay.classList.add('opacity-0');
+            elTargetChord.classList.remove('text-emerald-400', 'text-red-400');
+            elTargetChord.classList.add('text-white');
+            if(isPlaying) {
+                isEvaluating = false;
+                nextChord();
+            }
+        }, 800);
+    }
+
+    // Agregar listener de teclado para "Skip" con barra espaciadora
+    document.addEventListener('keydown', (e) => {
+        if(e.code === 'Space' && isPlaying && !isEvaluating) {
+            e.preventDefault();
+            triggerFeedback(false); // Falla y pasa al siguiente
+        }
+    });
+
+    function updateHUD() {
+        elTime.innerText = timeLeft;
+        elScore.innerText = score;
+    }
+
+    function renderMonitor() {
+        monitorDisplay.innerHTML = '';
+        Array.from(activeNotes).sort((a,b) => a - b).forEach(pitch => {
+            let noteName = NOTE_NAMES[pitch % 12] + (Math.floor(pitch / 12) - 1);
+            monitorDisplay.innerHTML += `
+                <div class="bg-gray-800 text-gray-300 px-3 py-1 rounded border border-gray-600 font-bold">
+                    ${noteName}
+                </div>
+            `;
+        });
+    }
+
+    function endGame() {
+        isPlaying = false;
+        clearInterval(timerInterval);
+        screenGame.classList.add('hidden');
+        screenGame.style.display = 'none';
+        screenResult.classList.remove('hidden');
+
+        // Stats calculation
+        let correctCnt = statsLog.filter(s => s.correct).length;
+        let incorrectCnt = statsLog.filter(s => !s.correct).length;
+        let xpGained = score * 2;
+
+        document.getElementById('res-score').innerText = score;
+        document.getElementById('res-xp').innerText = "+" + xpGained;
+        document.getElementById('res-correct').innerText = correctCnt;
+        document.getElementById('res-incorrect').innerText = incorrectCnt;
+
+        // Enviar a la base de datos
+        fetch('/api/log_midi_game/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                score: score,
+                xp: xpGained,
+                duration_seconds: GAME_DURATION,
+                game_type: 'chord_identification',
+                chord_stats: statsLog
+            })
+        }).then(r => console.log("Partida registrada", r));
+    }
+
+    // Init
+    initMIDI();
+</script>
+{% endblock %}

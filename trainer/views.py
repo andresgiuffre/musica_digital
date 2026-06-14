@@ -103,21 +103,40 @@ def dashboard(request):
             profile.save()
             
     today = timezone.now().date()
+    profile, created = UserProfile.objects.get_or_create(user=request.user)
     
-    # Goals check for quick UI summary
+    # Check current daily goal
+    today = timezone.now().date()
     today_goals = UserDailyGoal.objects.filter(user=request.user, date=today)
-    if not today_goals.exists():
-        default_goal, _ = DailyGoal.objects.get_or_create(title="Práctica Diaria Básica", goal_type="TIME", target_value=15)
-        try:
-            from django.db import IntegrityError
-            UserDailyGoal.objects.get_or_create(user=request.user, goal=default_goal, date=today)
-        except IntegrityError:
-            pass
-        today_goals = UserDailyGoal.objects.filter(user=request.user, date=today)
+    
+    # 1. Update personal records on load just in case
+    from .services import update_personal_records, get_weekly_summary, get_study_recommendations
+    update_personal_records(request.user)
+    
+    # 2. Get recommendations and weekly summary
+    recommendations = get_study_recommendations(request.user)
+    weekly_summary = get_weekly_summary(request.user)
+    
+    # 3. GitHub Calendar Data
+    from .models import StudySession
+    import datetime
+    from django.db.models import Sum
+    one_year_ago = today - datetime.timedelta(days=365)
+    sessions = StudySession.objects.filter(user=request.user, date__gte=one_year_ago).values('date__date').annotate(
+        duration=Sum('duration_seconds')
+    )
+    # Create dict mapping 'YYYY-MM-DD' to duration in minutes
+    calendar_data = {
+        s['date__date'].strftime('%Y-%m-%d'): s['duration'] // 60
+        for s in sessions
+    }
 
     context = {
         'profile': profile,
         'today_goals': today_goals,
+        'recommendations': recommendations,
+        'weekly_summary': weekly_summary,
+        'calendar_data': json.dumps(calendar_data)
     }
     return render(request, 'trainer/dashboard.html', context)
 
@@ -382,9 +401,33 @@ def log_study_session(request):
 
 @login_required
 def biblioteca_play(request, score_id):
-    score = get_object_or_404(SheetMusic, id=score_id)
-    return render(request, 'trainer/biblioteca_play.html', {'score': score})
-
+    sheet = get_object_or_404(SheetMusic, id=score_id)
+    is_favorite = Favorite.objects.filter(user=request.user, sheet_music=sheet).exists()
+    
+    from .models import SheetMarker, SheetNote, Playlist, RehearsalConfig, MusicalProject, ProjectSection
+    markers = SheetMarker.objects.filter(user=request.user, sheet_music=sheet)
+    notes = SheetNote.objects.filter(user=request.user, sheet_music=sheet).order_by('-created_at')
+    playlists = Playlist.objects.filter(user=request.user)
+    rehearsal_configs = RehearsalConfig.objects.filter(user=request.user, sheet_music=sheet)
+    
+    project_id = request.GET.get('project_id')
+    active_project = None
+    project_sections = []
+    if project_id:
+        active_project = MusicalProject.objects.filter(id=project_id, user=request.user, sheet_music=sheet).first()
+        if active_project:
+            project_sections = ProjectSection.objects.filter(project=active_project)
+    
+    return render(request, 'trainer/biblioteca_play.html', {
+        'sheet': sheet,
+        'is_favorite': is_favorite,
+        'markers': markers,
+        'notes': notes,
+        'playlists': playlists,
+        'rehearsal_configs': rehearsal_configs,
+        'active_project': active_project,
+        'project_sections': project_sections,
+    })
 
 @login_required
 @csrf_exempt
@@ -470,3 +513,254 @@ def record_attempt(request, game_slug):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     return JsonResponse({'status': 'error', 'message': 'Invalid method'}, status=405)
+
+@csrf_exempt
+@login_required
+def add_sheet_marker(request, score_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            sheet = get_object_or_404(SheetMusic, id=score_id)
+            measure = data.get('measure')
+            text = data.get('text')
+            
+            from .models import SheetMarker
+            SheetMarker.objects.create(
+                user=request.user,
+                sheet_music=sheet,
+                measure=measure,
+                text=text
+            )
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+
+@csrf_exempt
+@login_required
+def add_sheet_note(request, score_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            sheet = get_object_or_404(SheetMusic, id=score_id)
+            text = data.get('text')
+            
+            from .models import SheetNote
+            SheetNote.objects.create(
+                user=request.user,
+                sheet_music=sheet,
+                text=text
+            )
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+
+@login_required
+def playlists_list(request):
+    from .models import Playlist
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        if name:
+            Playlist.objects.create(user=request.user, name=name)
+        return redirect('playlists_list')
+        
+    playlists = Playlist.objects.filter(user=request.user)
+    return render(request, 'trainer/playlists_list.html', {'playlists': playlists})
+
+@csrf_exempt
+@login_required
+def playlist_add_sheet(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            playlist_id = data.get('playlist_id')
+            score_id = data.get('score_id')
+            
+            from .models import Playlist, PlaylistSheet
+            playlist = get_object_or_404(Playlist, id=playlist_id, user=request.user)
+            sheet = get_object_or_404(SheetMusic, id=score_id)
+            
+            last_order = playlist.items.count()
+            PlaylistSheet.objects.create(playlist=playlist, sheet_music=sheet, order=last_order + 1)
+            
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+
+@csrf_exempt
+@login_required
+def save_rehearsal_config(request, score_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            from .models import RehearsalConfig, SheetMusic
+            sheet = get_object_or_404(SheetMusic, id=score_id)
+            config = RehearsalConfig.objects.create(
+                user=request.user,
+                sheet_music=sheet,
+                name=data.get('name', 'Mi Ensayo'),
+                start_measure=int(data.get('start_measure', 1)),
+                end_measure=int(data.get('end_measure', 1)),
+                start_bpm=int(data.get('start_bpm', 60)),
+                end_bpm=int(data.get('end_bpm', 100)),
+                bpm_step=int(data.get('bpm_step', 5))
+            )
+            return JsonResponse({'status': 'success', 'config_id': config.id})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error'}, status=400)
+
+@csrf_exempt
+@login_required
+def log_rehearsal_session(request, score_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            from .models import RehearsalLog, RehearsalConfig, SheetMusic
+            sheet = get_object_or_404(SheetMusic, id=score_id)
+            config_id = data.get('config_id')
+            config = RehearsalConfig.objects.filter(id=config_id).first() if config_id else None
+            
+            RehearsalLog.objects.create(
+                user=request.user,
+                sheet_music=sheet,
+                rehearsal_config=config,
+                repetitions_done=int(data.get('repetitions', 0)),
+                time_spent_seconds=int(data.get('time_spent', 0)),
+                max_bpm_reached=int(data.get('max_bpm', 0))
+            )
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error'}, status=400)
+
+@login_required
+def proyectos_list(request):
+    from .models import MusicalProject
+    proyectos = MusicalProject.objects.filter(user=request.user).order_by('-last_practice')
+    return render(request, 'trainer/proyectos_list.html', {'proyectos': proyectos})
+
+@login_required
+def proyecto_detail(request, project_id):
+    from .models import MusicalProject
+    proyecto = get_object_or_404(MusicalProject, id=project_id, user=request.user)
+    return render(request, 'trainer/proyecto_detail.html', {'proyecto': proyecto})
+
+@csrf_exempt
+@login_required
+def api_create_project(request, score_id):
+    if request.method == 'POST':
+        try:
+            from .models import MusicalProject, SheetMusic
+            sheet = get_object_or_404(SheetMusic, id=score_id)
+            proyecto, created = MusicalProject.objects.get_or_create(
+                user=request.user,
+                sheet_music=sheet,
+                defaults={'status': 'ACTIVE'}
+            )
+            return JsonResponse({'status': 'success', 'project_id': proyecto.id})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error'}, status=400)
+
+@csrf_exempt
+@login_required
+def api_update_project_state(request, project_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            from .models import MusicalProject
+            proyecto = get_object_or_404(MusicalProject, id=project_id, user=request.user)
+            if 'last_measure' in data:
+                proyecto.last_measure = int(data['last_measure'])
+            if 'last_tempo' in data:
+                proyecto.last_tempo = int(data['last_tempo'])
+            proyecto.save()
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error'}, status=400)
+
+@csrf_exempt
+@login_required
+def api_update_project_section(request, project_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            from .models import MusicalProject, ProjectSection
+            proyecto = get_object_or_404(MusicalProject, id=project_id, user=request.user)
+            start_m = int(data.get('start_measure', 1))
+            end_m = int(data.get('end_measure', 1))
+            status = data.get('status', 'IN_PROGRESS')
+            
+            section, created = ProjectSection.objects.update_or_create(
+                project=proyecto, start_measure=start_m, end_measure=end_m,
+                defaults={'status': status}
+            )
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error'}, status=400)
+
+@login_required
+def midi_trainer_hub(request):
+    return render(request, 'trainer/midi_hub.html')
+
+@login_required
+def midi_game_chords(request):
+    return render(request, 'trainer/midi_game_chords.html')
+
+@csrf_exempt
+@login_required
+def api_log_midi_game(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            from .models import MidiGameSession, MidiChordStat
+            
+            # Registrar sesión
+            score = data.get('score', 0)
+            xp = data.get('xp', 0)
+            duration = data.get('duration_seconds', 0)
+            game_type = data.get('game_type', 'chord_identification')
+            
+            MidiGameSession.objects.create(
+                user=request.user,
+                game_type=game_type,
+                score=score,
+                xp_earned=xp,
+                duration_seconds=duration
+            )
+
+            # Actualizar stats de acordes
+            stats = data.get('chord_stats', [])
+            for stat in stats:
+                chord_name = stat.get('chord')
+                is_correct = stat.get('correct', False)
+                time_ms = stat.get('time_ms', 0)
+                
+                c_stat, _ = MidiChordStat.objects.get_or_create(user=request.user, chord_name=chord_name)
+                if is_correct:
+                    c_stat.correct_count += 1
+                else:
+                    c_stat.incorrect_count += 1
+                
+                # Simple moving average for time
+                total_plays = c_stat.correct_count + c_stat.incorrect_count
+                c_stat.avg_response_time_ms = ((c_stat.avg_response_time_ms * (total_plays - 1)) + time_ms) // total_plays
+                
+                if c_stat.correct_count > 10 and (c_stat.correct_count / total_plays) > 0.8:
+                    c_stat.is_mastered = True
+                    c_stat.is_problematic = False
+                elif c_stat.incorrect_count > 5 and (c_stat.incorrect_count / total_plays) > 0.5:
+                    c_stat.is_mastered = False
+                    c_stat.is_problematic = True
+                    
+                c_stat.save()
+
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error'}, status=400)
