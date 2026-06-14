@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}MIDI Trainer Hub{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <div>
+            <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 drop-shadow-lg mb-2">
+                MIDI Trainer
+            </h1>
+            <p class="text-gray-400 text-lg">Conecta tu teclado MIDI y empieza a interactuar.</p>
+        </div>
+        <a href="{% url 'dashboard' %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+            🔙 Volver al Inicio
+        </a>
+    </div>
+
+    <!-- Estado de Conexión MIDI -->
+    <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 mb-8 shadow-xl flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <div id="midi-status-icon" class="w-12 h-12 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-all duration-300">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <div>
+                <h3 class="text-xl font-bold text-white mb-1">Controlador MIDI</h3>
+                <select id="midi-device-select" class="bg-gray-700 text-white border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-purple-500 w-full min-w-[200px]">
+                    <option>Buscando dispositivos...</option>
+                </select>
+            </div>
+        </div>
+        <div>
+            <button id="btn-request-midi" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded-lg transition-colors hidden">
+                Permitir Acceso MIDI
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+        <!-- Monitor de Notas -->
+        <div class="bg-gray-900 rounded-2xl p-6 border border-gray-700 shadow-inner relative overflow-hidden flex flex-col">
+            <div class="flex justify-between w-full">
+                <h3 class="text-lg font-bold text-gray-400 mb-4 uppercase tracking-wider">Monitor MIDI</h3>
+            </div>
+            <div id="midi-monitor-display" class="flex-1 flex flex-wrap content-start gap-2 min-h-[150px]">
+                <p class="text-gray-600 w-full text-center mt-8">Toca una tecla en tu controlador</p>
+            </div>
+        </div>
+
+        <!-- Análisis Armónico -->
+        <div class="bg-gray-900/80 rounded-2xl p-6 border border-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.1)] flex flex-col items-center justify-center text-center min-h-[250px]">
+            <h3 class="text-sm font-bold text-purple-400 mb-2 uppercase tracking-wider w-full text-left">Análisis Armónico</h3>
+            <div class="flex-1 flex flex-col justify-center w-full">
+                <h2 id="detected-chord-name" class="text-6xl font-black text-white drop-shadow-lg mb-4">-</h2>
+                <div class="flex flex-col gap-2">
+                    <p class="text-gray-400">Notas: <span id="detected-chord-notes" class="font-bold text-gray-200">Ninguna</span></p>
+                    <p class="text-gray-400 text-sm" id="detected-chord-aliases"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Juegos -->
+    <div>
+        <h2 class="text-2xl font-black text-white mb-6 border-b border-gray-700 pb-2">Juegos y Ejercicios</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Juego: Identificación de Acordes -->
+            <a href="{% url 'midi_game_chords' %}" class="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-purple-500 hover:shadow-[0_0_20px_rgba(168,85,247,0.2)] transition-all hover:-translate-y-1 block">
+                <div class="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center text-2xl mb-4">🎹</div>
+                <h3 class="text-xl font-bold text-white mb-2">Identificación de Acordes</h3>
+                <p class="text-gray-400 text-sm mb-4">Practica tocando los acordes que te pida la plataforma lo más rápido posible.</p>
+                <span class="bg-purple-600 text-white text-xs font-bold px-3 py-1 rounded-full">Jugar</span>
+            </a>
+            
+            <div class="bg-gray-800/50 rounded-xl p-6 border border-gray-700/50 opacity-60">
+                <div class="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center text-2xl mb-4">🎵</div>
+                <h3 class="text-xl font-bold text-white mb-2">Progresiones (Próximamente)</h3>
+                <p class="text-gray-400 text-sm">Entrena tocando progresiones armónicas populares en diferentes tonalidades.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // --- LÓGICA DE WEB MIDI API & TONAL.JS ---
+    // Set global para mantener las notas activas (guardamos el pitch MIDI directamente)
+    const activeNotes = new Set(); // Guarda los pitches (ej: 60, 64, 67)
+    const activeNotesDict = {}; // Guarda la velocidad { 60: 100 }
+    
+    const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    
+    function getNoteName(pitch) {
+        return NOTE_NAMES[pitch % 12] + (Math.floor(pitch / 12) - 1);
+    }
+    
+    function getNotePC(pitch) {
+        return NOTE_NAMES[pitch % 12];
+    }
+
+    let midiInputs = [];
+    let selectedInputId = null;
+
+    const statusIcon = document.getElementById('midi-status-icon');
+    const deviceSelect = document.getElementById('midi-device-select');
+    const btnRequest = document.getElementById('btn-request-midi');
+    const monitorDisplay = document.getElementById('midi-monitor-display');
+    const chordNameEl = document.getElementById('detected-chord-name');
+    const chordNotesEl = document.getElementById('detected-chord-notes');
+    const chordAliasesEl = document.getElementById('detected-chord-aliases');
+    
+    // --- SINTETIZADOR DE PIANO ---
+    let samplerLoaded = false;
+    const pianoSampler = new Tone.Sampler({
+        urls: {
+            "A0": "A0.mp3", "C1": "C1.mp3", "D#1": "Ds1.mp3", "F#1": "Fs1.mp3",
+            "A1": "A1.mp3", "C2": "C2.mp3", "D#2": "Ds2.mp3", "F#2": "Fs2.mp3",
+            "A2": "A2.mp3", "C3": "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3",
+            "A3": "A3.mp3", "C4": "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3",
+            "A4": "A4.mp3", "C5": "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3",
+            "A5": "A5.mp3", "C6": "C6.mp3", "D#6": "Ds6.mp3", "F#6": "Fs6.mp3",
+            "A6": "A6.mp3", "C7": "C7.mp3", "D#7": "Ds7.mp3", "F#7": "Fs7.mp3",
+            "A7": "A7.mp3", "C8": "C8.mp3"
+        },
+        release: 1,
+        baseUrl: "https://tonejs.github.io/audio/salamander/",
+        onload: () => {
+            samplerLoaded = true;
+        }
+    }).toDestination();
+
+    function updateConnectionUI(connected) {
+        if(connected) {
+            statusIcon.className = "w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all duration-300";
+            statusIcon.innerHTML = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
+            deviceSelect.classList.add('border-emerald-500/50');
+            deviceSelect.classList.remove('border-red-500/50', 'border-gray-600');
+        } else {
+            statusIcon.className = "w-12 h-12 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-all duration-300";
+            statusIcon.innerHTML = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
+            deviceSelect.classList.add('border-red-500/50');
+            deviceSelect.classList.remove('border-emerald-500/50', 'border-gray-600');
+        }
+    }
+
+    function onMIDIMessage(event) {
+        let status = event.data[0];
+        let pitch = event.data[1] || 0;
+        let velocity = (event.data.length > 2) ? event.data[2] : 0;
+        
+        let cmd = status >> 4; // Los 4 bits más significativos
+        
+        // Iniciar Tone.js context si está suspendido
+        if (Tone.context.state !== 'running') {
+            Tone.start();
+        }
+        
+        // Ignorar mensajes que no sean notas para no saturar
+        if(cmd === 9 || cmd === 8) {
+            try {
+                if (cmd === 9 && velocity > 0) { // Note ON
+                    noteOn(pitch, velocity);
+                } else if (cmd === 8 || (cmd === 9 && velocity === 0)) { // Note OFF
+                    noteOff(pitch);
+                }
+            } catch (e) {
+                console.error("MIDI Processing Error:", e);
+            }
+        }
+    }
+
+    function noteOn(pitch, velocity) {
+        let noteName = getNoteName(pitch);
+        if (samplerLoaded) {
+            pianoSampler.triggerAttack(noteName, Tone.context.currentTime, velocity / 127);
+        }
+        activeNotes.add(pitch);
+        activeNotesDict[pitch] = velocity;
+        renderMonitor();
+        analyzeHarmony();
+    }
+
+    function noteOff(pitch) {
+        let noteName = getNoteName(pitch);
+        if (samplerLoaded) {
+            pianoSampler.triggerRelease(noteName, Tone.context.currentTime);
+        }
+        activeNotes.delete(pitch);
+        delete activeNotesDict[pitch];
+        renderMonitor();
+        analyzeHarmony();
+    }
+
+    function renderMonitor() {
+        if(activeNotes.size === 0) {
+            monitorDisplay.innerHTML = `<p class="text-gray-600 w-full text-center mt-8">Toca una tecla en tu controlador</p>`;
+            return;
+        }
+
+        monitorDisplay.innerHTML = '';
+        Array.from(activeNotes).sort((a,b) => a - b).forEach(pitch => {
+            let vel = activeNotesDict[pitch];
+            let noteName = getNoteName(pitch);
+            let opacity = Math.max(0.3, vel / 127);
+            monitorDisplay.innerHTML += `
+                <div class="bg-blue-600 text-white px-3 py-2 rounded shadow-lg border border-blue-400" style="opacity: ${opacity};">
+                    <span class="font-bold text-lg">${noteName}</span>
+                    <span class="text-xs ml-2 text-blue-200">v${vel}</span>
+                </div>
+            `;
+        });
+    }
+
+    function analyzeHarmony() {
+        let sortedPitches = Array.from(activeNotes).sort((a,b) => a - b);
+        
+        if(sortedPitches.length === 0) {
+            chordNameEl.innerText = "-";
+            chordNameEl.className = "text-6xl font-black text-gray-700 drop-shadow-lg mb-4";
+            chordNotesEl.innerText = "Ninguna";
+            chordAliasesEl.innerText = "";
+            return;
+        }
+
+        let noteNames = sortedPitches.map(p => getNoteName(p));
+
+        if(sortedPitches.length < 3) {
+            // Unísono o Intervalo
+            chordNameEl.innerText = "?";
+            chordNameEl.className = "text-6xl font-black text-gray-500 drop-shadow-lg mb-4";
+            chordNotesEl.innerText = noteNames.join(" - ");
+            chordAliasesEl.innerText = sortedPitches.length === 2 ? "Intervalo" : "Nota simple";
+            return;
+        }
+
+        // Tonal.js chord detection
+        try {
+            let pcNotes = sortedPitches.map(p => getNotePC(p));
+            let detected = Tonal.Chord.detect(pcNotes);
+
+            if(detected && detected.length > 0) {
+                chordNameEl.innerText = detected[0];
+                chordNameEl.className = "text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500 drop-shadow-lg mb-4";
+                chordNotesEl.innerText = noteNames.join(" - ");
+                if(detected.length > 1) {
+                    chordAliasesEl.innerText = "También: " + detected.slice(1).join(", ");
+                } else {
+                    chordAliasesEl.innerText = "";
+                }
+            } else {
+                chordNameEl.innerText = "Acorde no común";
+                chordNameEl.className = "text-3xl font-black text-yellow-500 drop-shadow-lg mb-4";
+                chordNotesEl.innerText = noteNames.join(" - ");
+                chordAliasesEl.innerText = "";
+            }
+        } catch (e) {
+            console.error("Tonal error", e);
+        }
+    }
+
+    function initMIDI() {
+        if (navigator.requestMIDIAccess) {
+            navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+        } else {
+            updateConnectionUI(false, "Tu navegador no soporta Web MIDI API");
+        }
+    }
+
+    function onMIDISuccess(midiAccess) {
+        updateDeviceList(midiAccess);
+        midiAccess.onstatechange = (e) => {
+            updateDeviceList(midiAccess);
+        };
+    }
+
+    function updateDeviceList(midiAccess) {
+        midiInputs = Array.from(midiAccess.inputs.values());
+        
+        if(midiInputs.length > 0) {
+            updateConnectionUI(true);
+            deviceSelect.innerHTML = '';
+            
+            midiInputs.forEach(input => {
+                let option = document.createElement('option');
+                option.value = input.id;
+                option.text = input.name;
+                deviceSelect.appendChild(option);
+                
+                // Clear old listeners
+                input.onmidimessage = null;
+            });
+
+            // Restore selection from localStorage if valid
+            let savedId = localStorage.getItem('selectedMidiInputId');
+            if (savedId && midiInputs.some(i => i.id === savedId)) {
+                deviceSelect.value = savedId;
+                selectedInputId = savedId;
+            } else {
+                selectedInputId = midiInputs[0].id;
+                deviceSelect.value = selectedInputId;
+            }
+
+            // Assign listener only to the selected input
+            let activeInput = midiInputs.find(i => i.id === selectedInputId);
+            if(activeInput) activeInput.onmidimessage = onMIDIMessage;
+
+            // Handle manual change
+            deviceSelect.onchange = (e) => {
+                // Remove listener from previous
+                let oldInput = midiInputs.find(i => i.id === selectedInputId);
+                if(oldInput) oldInput.onmidimessage = null;
+                
+                selectedInputId = e.target.value;
+                localStorage.setItem('selectedMidiInputId', selectedInputId);
+                
+                // Add listener to new
+                let newInput = midiInputs.find(i => i.id === selectedInputId);
+                if(newInput) newInput.onmidimessage = onMIDIMessage;
+            };
+        } else {
+            updateConnectionUI(false);
+            deviceSelect.innerHTML = '<option>Ningún dispositivo conectado</option>';
+        }
+    }
+
+    function onMIDIFailure() {
+        updateConnectionUI(false, "Permiso MIDI denegado");
+    }
+
+    // Inicializar al cargar
+    initMIDI();
+
+</script>
+{% endblock %}

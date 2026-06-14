@@ -53,6 +53,8 @@ class UserProfile(models.Model):
     current_daily_streak = models.IntegerField(default=0)
     max_daily_streak = models.IntegerField(default=0)
     last_active_date = models.DateField(null=True, blank=True)
+    max_study_time_day = models.IntegerField(default=0)
+    max_sessions_day = models.IntegerField(default=0)
 
     def __str__(self):
         return f"Perfil de {self.user.username}"
@@ -119,12 +121,39 @@ class StudySession(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='study_sessions')
     sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE)
     date = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(null=True, blank=True)
     duration_seconds = models.IntegerField(default=0)
     bpm_used = models.IntegerField(default=100)
     play_count = models.IntegerField(default=0)
 
     def __str__(self):
-        return f"{self.user.username} estudió {self.sheet_music.title}"
+        return f"{self.user.username} - {self.sheet_music} - {self.start_time}"
+
+class RehearsalConfig(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='rehearsal_configs')
+    sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE)
+    name = models.CharField(max_length=200)
+    start_measure = models.IntegerField(default=1)
+    end_measure = models.IntegerField(default=1)
+    start_bpm = models.IntegerField(default=60)
+    end_bpm = models.IntegerField(default=100)
+    bpm_step = models.IntegerField(default=5)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.sheet_music})"
+
+class RehearsalLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='rehearsal_logs')
+    sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE)
+    rehearsal_config = models.ForeignKey(RehearsalConfig, on_delete=models.SET_NULL, null=True, blank=True)
+    repetitions_done = models.IntegerField(default=0)
+    time_spent_seconds = models.IntegerField(default=0)
+    max_bpm_reached = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Ensayo de {self.user.username} - {self.repetitions_done} reps"
 
 class SheetMusicProgress(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sheet_progress')
@@ -158,3 +187,116 @@ class UserDailyGoal(models.Model):
 
     class Meta:
         unique_together = ('user', 'goal', 'date')
+
+class Playlist(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='playlists')
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+class PlaylistSheet(models.Model):
+    playlist = models.ForeignKey(Playlist, on_delete=models.CASCADE, related_name='items')
+    sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE)
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+class SheetMarker(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sheet_markers')
+    sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE)
+    measure = models.IntegerField()
+    text = models.CharField(max_length=200)
+    color = models.CharField(max_length=20, default='blue')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class SheetNote(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sheet_notes')
+    sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE)
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class SessionAudio(models.Model):
+    session = models.OneToOneField(StudySession, on_delete=models.CASCADE, related_name='audio_eval')
+    audio_file = models.FileField(upload_to='session_audio/', blank=True, null=True)
+    evaluation_score = models.IntegerField(null=True, blank=True)
+    feedback_notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class MusicalProject(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='projects')
+    sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE)
+    start_date = models.DateTimeField(auto_now_add=True)
+    last_practice = models.DateTimeField(auto_now=True)
+    time_invested_seconds = models.IntegerField(default=0)
+    max_bpm_reached = models.IntegerField(default=0)
+    progress_percentage = models.IntegerField(default=0)
+    last_measure = models.IntegerField(default=1)
+    last_tempo = models.IntegerField(default=60)
+    STATUS_CHOICES = (
+        ('ACTIVE', 'Activo'),
+        ('COMPLETED', 'Completado'),
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
+
+    def __str__(self):
+        return f"Proyecto: {self.sheet_music.title} - {self.user.username}"
+
+class ProjectGoal(models.Model):
+    project = models.ForeignKey(MusicalProject, on_delete=models.CASCADE, related_name='goals')
+    GOAL_TYPES = (
+        ('BPM', 'Llegar a BPM Objetivo'),
+        ('TIME', 'Practicar Tiempo (min)'),
+        ('COMPLETE', 'Completar Obra'),
+    )
+    goal_type = models.CharField(max_length=20, choices=GOAL_TYPES)
+    target_value = models.IntegerField()
+    is_completed = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.get_goal_type_display()} - {self.target_value}"
+
+class ProjectSection(models.Model):
+    project = models.ForeignKey(MusicalProject, on_delete=models.CASCADE, related_name='sections')
+    start_measure = models.IntegerField()
+    end_measure = models.IntegerField()
+    STATUS_CHOICES = (
+        ('MASTERED', 'Dominado'),
+        ('IN_PROGRESS', 'En Progreso'),
+        ('NEEDS_PRACTICE', 'Necesita Práctica'),
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='IN_PROGRESS')
+
+    class Meta:
+        ordering = ['start_measure']
+
+    def __str__(self):
+        return f"Compases {self.start_measure}-{self.end_measure} ({self.get_status_display()})"
+
+class MidiChordStat(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='midi_chord_stats')
+    chord_name = models.CharField(max_length=50) # ej: "C Maj7"
+    correct_count = models.IntegerField(default=0)
+    incorrect_count = models.IntegerField(default=0)
+    avg_response_time_ms = models.IntegerField(default=0)
+    is_mastered = models.BooleanField(default=False)
+    is_problematic = models.BooleanField(default=False)
+    last_played = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.chord_name}"
+
+class MidiGameSession(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='midi_game_sessions')
+    game_type = models.CharField(max_length=50, default='chord_identification')
+    score = models.IntegerField(default=0)
+    xp_earned = models.IntegerField(default=0)
+    duration_seconds = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.game_type} - {self.score} pts"

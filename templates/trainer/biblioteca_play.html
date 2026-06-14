@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}{{ score.title|default:score.xml_file.name }} - Modo Estudio{% endblock %}
+{% block title %}{{ sheet.title|default:sheet.xml_file.name }} - Modo Estudio{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -114,12 +114,21 @@
     <!-- Cabecera -->
     <div class="flex justify-between items-center mb-6">
         <div>
-            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-                {{ score.title|default:score.xml_file.name }}
+            <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 drop-shadow-lg mb-2">
+                {{ sheet.title|default:sheet.xml_file.name }}
             </h1>
-            <p class="text-gray-400 mt-2 text-lg">Modo Estudio | Compositor: {{ score.composer|default:"Desconocido" }}</p>
+            <p class="text-gray-400 mt-2 text-lg">Modo Estudio | Compositor: {{ sheet.composer|default:"Desconocido" }}</p>
         </div>
-        <div>
+        <div class="flex gap-4">
+            {% if active_project %}
+            <a href="{% url 'proyecto_detail' active_project.id %}" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-lg flex items-center gap-2">
+                Ver Proyecto
+            </a>
+            {% else %}
+            <button onclick="convertToProject()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-lg flex items-center gap-2">
+                Convertir a Proyecto
+            </button>
+            {% endif %}
             <a href="{% url 'biblioteca_list' %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-lg">
                 🔙 Volver a Biblioteca
             </a>
@@ -198,7 +207,107 @@
                 </div>
             </div>
 
-            <button id="btn-debug" class="w-full py-2 text-xs text-gray-500 hover:text-white transition-colors">Modo Debug</button>
+            <button id="btn-debug" class="w-full py-2 text-xs text-gray-500 hover:text-white transition-colors mb-4">Modo Debug</button>
+
+            <!-- Marcadores y Notas -->
+            <div class="panel-box mb-4">
+                <h3 class="text-white text-sm font-bold mb-2">📌 Marcadores (Compás)</h3>
+                <div class="flex gap-2 mb-3">
+                    <input type="number" id="marker-measure" placeholder="Compás" class="w-1/3 bg-gray-800 text-white border border-gray-600 rounded p-2 text-xs">
+                    <input type="text" id="marker-text" placeholder="Ej: Difícil" class="w-2/3 bg-gray-800 text-white border border-gray-600 rounded p-2 text-xs">
+                </div>
+                <button onclick="addMarker()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-1 px-2 rounded text-xs mb-3 transition">Agregar Marcador</button>
+                <div id="markers-list" class="space-y-2 max-h-32 overflow-y-auto">
+                    {% for marker in markers %}
+                        <div class="text-xs bg-gray-800 p-2 rounded flex justify-between border-l-2 border-blue-500">
+                            <span class="text-gray-300 font-bold">C.{{ marker.measure }}</span>
+                            <span class="text-white">{{ marker.text }}</span>
+                        </div>
+                    {% empty %}
+                        <div class="text-xs text-gray-500 text-center">No hay marcadores.</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Playlists -->
+            <div class="panel-box mb-4">
+                <h3 class="text-white text-sm font-bold mb-2">🎵 Añadir a Playlist</h3>
+                <div class="flex gap-2">
+                    <select id="playlist-select" class="w-2/3 bg-gray-800 text-white border border-gray-600 rounded p-2 text-xs">
+                        <option value="">Selecciona...</option>
+                        {% for pl in playlists %}
+                            <option value="{{ pl.id }}">{{ pl.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button onclick="addToPlaylist()" class="w-1/3 bg-purple-600 hover:bg-purple-500 text-white font-bold py-1 px-2 rounded text-xs transition">Añadir</button>
+                </div>
+            </div>
+
+            <!-- MODO ENSAYO -->
+            <div class="panel-box mb-4 border-l-4 border-amber-500 bg-amber-900/20">
+                <h3 class="text-white text-sm font-bold mb-2 flex items-center justify-between">
+                    <span>🔥 Modo Ensayo</span>
+                    <span id="rehearsal-status" class="text-xs text-amber-400 hidden font-mono">Inactivo</span>
+                </h3>
+                
+                <div class="space-y-2 text-xs text-gray-300 mb-3" id="rehearsal-setup">
+                    <div class="flex justify-between items-center gap-2">
+                        <span>Compases:</span>
+                        <input type="number" id="rehearsal-start" placeholder="Inicio" class="w-12 bg-gray-800 text-white border border-gray-600 rounded p-1 text-center" value="1">
+                        <span>a</span>
+                        <input type="number" id="rehearsal-end" placeholder="Fin" class="w-12 bg-gray-800 text-white border border-gray-600 rounded p-1 text-center" value="4">
+                    </div>
+                    <div class="flex justify-between items-center gap-2">
+                        <span>BPM Inicial:</span>
+                        <input type="number" id="rehearsal-bpm-start" class="w-16 bg-gray-800 text-white border border-gray-600 rounded p-1 text-center" value="60">
+                    </div>
+                    <div class="flex justify-between items-center gap-2">
+                        <span>BPM Final:</span>
+                        <input type="number" id="rehearsal-bpm-end" class="w-16 bg-gray-800 text-white border border-gray-600 rounded p-1 text-center" value="100">
+                    </div>
+                    <div class="flex justify-between items-center gap-2">
+                        <span>Incremento (+BPM):</span>
+                        <input type="number" id="rehearsal-bpm-step" class="w-16 bg-gray-800 text-white border border-gray-600 rounded p-1 text-center" value="5">
+                    </div>
+                    <button onclick="startRehearsal()" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-2 rounded text-xs transition mt-2">🚀 Iniciar Ensayo</button>
+                    <button onclick="saveRehearsalConfig()" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-xs transition">💾 Guardar Configuración</button>
+                </div>
+                
+                <div id="rehearsal-active-ui" class="hidden text-xs text-gray-300">
+                    <div class="flex justify-between mb-1"><span>BPM Actual:</span> <span id="rehearsal-current-bpm" class="font-bold text-white">60</span></div>
+                    <div class="flex justify-between mb-1"><span>Meta:</span> <span id="rehearsal-target-bpm" class="font-bold text-emerald-400">100</span></div>
+                    <div class="flex justify-between mb-3"><span>Vuelta:</span> <span id="rehearsal-rep" class="font-bold text-white">1</span></div>
+                    <button onclick="stopRehearsal()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-2 rounded text-xs transition">🛑 Detener Ensayo</button>
+                </div>
+                
+                {% if rehearsal_configs %}
+                <div class="mt-3 border-t border-white/10 pt-2" id="rehearsal-presets">
+                    <label class="block text-xs text-gray-500 mb-1">Cargar Guardado:</label>
+                    <select id="rehearsal-presets-select" onchange="loadRehearsalPreset()" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-1 text-xs">
+                        <option value="">Selecciona...</option>
+                        {% for cfg in rehearsal_configs %}
+                            <option value="{{ cfg.id }}" data-sm="{{ cfg.start_measure }}" data-em="{{ cfg.end_measure }}" data-sb="{{ cfg.start_bpm }}" data-eb="{{ cfg.end_bpm }}" data-step="{{ cfg.bpm_step }}">{{ cfg.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="panel-box">
+                <h3 class="text-white text-sm font-bold mb-2">📝 Anotaciones</h3>
+                <textarea id="note-text" placeholder="Anota algo sobre esta obra..." class="w-full bg-gray-800 text-white border border-gray-600 rounded p-2 text-xs mb-2 h-16"></textarea>
+                <button onclick="addNote()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1 px-2 rounded text-xs mb-3 transition">Guardar Nota</button>
+                <div id="notes-list" class="space-y-2 max-h-32 overflow-y-auto">
+                    {% for note in notes %}
+                        <div class="text-xs bg-gray-800 p-2 rounded text-gray-300">
+                            {{ note.text }}
+                        </div>
+                    {% empty %}
+                        <div class="text-xs text-gray-500 text-center">No hay notas.</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
         </div>
     </div>
 </div>
@@ -231,6 +340,12 @@
     let currentCursorIdx = 0;
     let events = []; // Array global para loop calculations
 
+    // Variables Modo Ensayo
+    let isRehearsalActive = false;
+    let rehearsalCurrentRep = 1;
+    let rehearsalConfigId = null;
+    let rehearsalJustStarted = false;
+
     // Timer de Sesión
     let totalSessionSeconds = 0;
     let playCount = 0;
@@ -257,16 +372,37 @@
     // Registrar sesión al cerrar ventana o salir
     window.addEventListener('beforeunload', () => {
         if (totalSessionSeconds > 5 || playCount > 0) {
-            let data = {
-                score_id: {{ score.id }},
+            const payload = {
+                score_id: {{ sheet.id }},
                 duration_seconds: totalSessionSeconds,
-                bpm_used: Math.round(baseBpm * parseFloat(tempoSelector.value)),
+                bpm_used: baseBpm,
                 play_count: playCount
             };
-            // Usamos beacon para asegurar que se envíe al cerrar la pestaña
-            navigator.sendBeacon('/api/log_study_session/', JSON.stringify(data));
+            navigator.sendBeacon('/api/log_study_session/', JSON.stringify(payload));
         }
+        {% if active_project %}
+        const measure = osmd && osmd.cursor && osmd.cursor.iterator ? osmd.cursor.iterator.currentMeasureIndex + 1 : 1;
+        const statePayload = {
+            last_measure: measure,
+            last_tempo: baseBpm
+        };
+        navigator.sendBeacon('/api/update_project_state/{{ active_project.id }}/', JSON.stringify(statePayload));
+        {% endif %}
     });
+
+    function convertToProject() {
+        fetch('/api/create_project/{{ sheet.id }}/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(r => r.json()).then(data => {
+            if(data.status === 'success') {
+                window.location.href = `/proyectos/${data.project_id}/`;
+            }
+        });
+    }
 
     btnDebug.addEventListener('click', () => {
         debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
@@ -321,7 +457,7 @@
         });
         
         try {
-            var xmlUrl = `{{ score.xml_file.url }}`;
+            var xmlUrl = `{{ sheet.xml_file.url }}`;
             const response = await fetch(xmlUrl);
             if (!response.ok) throw new Error("No se pudo cargar el archivo MusicXML.");
             const xmlContent = await response.text();
@@ -331,6 +467,22 @@
             
             osmd.cursor.show();
             btnPlay.disabled = false;
+
+            {% if active_project %}
+            // Restore last measure and tempo
+            baseBpm = {{ active_project.last_tempo|default:60 }};
+            tempoSelector.value = "1.0";
+            updateTempoUI();
+            Tone.Transport.bpm.value = baseBpm;
+            
+            let lastMeasure = {{ active_project.last_measure|default:1 }};
+            if(lastMeasure > 1) {
+                // Advance cursor to last measure
+                for(let i = 1; i < lastMeasure; i++) {
+                    if(!osmd.cursor.iterator.EndReached) osmd.cursor.next();
+                }
+            }
+            {% endif %}
 
             if (osmd.sheet && osmd.sheet.SourceMeasures && osmd.sheet.SourceMeasures.length > 0) {
                 let ts = osmd.sheet.SourceMeasures[0].ActiveTimeSignature;
@@ -487,6 +639,20 @@
                     Tone.Transport.loopStart = (startTime * Tone.Transport.PPQ) + "i";
                     Tone.Transport.loopEnd = (endTime * Tone.Transport.PPQ) + "i";
                     
+                    if (isRehearsalActive) {
+                        // Evento para detectar la repetición
+                        let startTicks = Math.round(startTime * Tone.Transport.PPQ);
+                        Tone.Transport.schedule((time) => {
+                            Tone.Draw.schedule(() => {
+                                if(rehearsalJustStarted) {
+                                    rehearsalJustStarted = false; // Ignorar la primera pasada (inicio)
+                                } else {
+                                    handleRehearsalIteration();
+                                }
+                            }, time);
+                        }, startTicks + "i");
+                    }
+                    
                     // Aseguramos que el cursor comience en la posición correcta al inicio manual
                     if(startEv) {
                         Tone.Transport.position = (startTime * Tone.Transport.PPQ) + "i";
@@ -581,5 +747,171 @@
     document.addEventListener("DOMContentLoaded", () => {
         initOSMD();
     });
+
+    // Marcadores y Notas JS
+    function addMarker() {
+        const measure = document.getElementById('marker-measure').value;
+        const text = document.getElementById('marker-text').value;
+        if(!measure || !text) return alert('Completa compás y texto');
+        
+        fetch(`/api/add_sheet_marker/{{ sheet.id }}/`, {
+            method: 'POST',
+            body: JSON.stringify({ measure: measure, text: text }),
+            headers: {'Content-Type': 'application/json'}
+        }).then(res => res.json()).then(data => {
+            if(data.status === 'success') location.reload();
+        });
+    }
+
+    function addNote() {
+        const text = document.getElementById('note-text').value;
+        if(!text) return alert('Escribe una nota');
+        
+        fetch(`/api/add_sheet_note/{{ sheet.id }}/`, {
+            method: 'POST',
+            body: JSON.stringify({ text: text }),
+            headers: {'Content-Type': 'application/json'}
+        }).then(res => res.json()).then(data => {
+            if(data.status === 'success') location.reload();
+        });
+    }
+
+    function addToPlaylist() {
+        const plId = document.getElementById('playlist-select').value;
+        if(!plId) return alert('Selecciona una playlist');
+        
+        fetch('/api/playlist_add_sheet/', {
+            method: 'POST',
+            body: JSON.stringify({ playlist_id: plId, score_id: {{ sheet.id }} }),
+            headers: {'Content-Type': 'application/json'}
+        }).then(res => res.json()).then(data => {
+            if(data.status === 'success') alert('Añadido exitosamente!');
+            else alert('Error: ' + data.message);
+        });
+    }
+
+    // Modo Ensayo JS
+    function loadRehearsalPreset() {
+        const select = document.getElementById('rehearsal-presets-select');
+        const opt = select.options[select.selectedIndex];
+        if(!opt || !opt.value) return;
+        
+        document.getElementById('rehearsal-start').value = opt.dataset.sm;
+        document.getElementById('rehearsal-end').value = opt.dataset.em;
+        document.getElementById('rehearsal-bpm-start').value = opt.dataset.sb;
+        document.getElementById('rehearsal-bpm-end').value = opt.dataset.eb;
+        document.getElementById('rehearsal-bpm-step').value = opt.dataset.step;
+        rehearsalConfigId = opt.value;
+    }
+
+    function saveRehearsalConfig() {
+        const name = prompt("Nombre para este ensayo:", "Mi Ensayo");
+        if(!name) return;
+        
+        const payload = {
+            name: name,
+            start_measure: document.getElementById('rehearsal-start').value,
+            end_measure: document.getElementById('rehearsal-end').value,
+            start_bpm: document.getElementById('rehearsal-bpm-start').value,
+            end_bpm: document.getElementById('rehearsal-bpm-end').value,
+            bpm_step: document.getElementById('rehearsal-bpm-step').value
+        };
+        
+        fetch('/api/save_rehearsal_config/{{ sheet.id }}/', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: {'Content-Type': 'application/json'}
+        }).then(res => res.json()).then(data => {
+            if(data.status === 'success') {
+                alert('Configuración guardada!');
+                location.reload();
+            } else {
+                alert('Error al guardar.');
+            }
+        });
+    }
+
+    function startRehearsal() {
+        const startBpm = parseInt(document.getElementById('rehearsal-bpm-start').value);
+        const endBpm = parseInt(document.getElementById('rehearsal-bpm-end').value);
+        const startM = document.getElementById('rehearsal-start').value;
+        const endM = document.getElementById('rehearsal-end').value;
+        
+        isRehearsalActive = true;
+        rehearsalCurrentRep = 1;
+        rehearsalJustStarted = true;
+        
+        // UI
+        document.getElementById('rehearsal-setup').classList.add('hidden');
+        document.getElementById('rehearsal-active-ui').classList.remove('hidden');
+        document.getElementById('rehearsal-status').innerText = 'ACTIVO';
+        document.getElementById('rehearsal-status').classList.remove('hidden');
+        if(document.getElementById('rehearsal-presets')) document.getElementById('rehearsal-presets').classList.add('hidden');
+        
+        document.getElementById('rehearsal-current-bpm').innerText = startBpm;
+        document.getElementById('rehearsal-target-bpm').innerText = endBpm;
+        document.getElementById('rehearsal-rep').innerText = rehearsalCurrentRep;
+        
+        // Settings override
+        loopToggle.checked = true;
+        loopStart.value = startM;
+        loopEnd.value = endM;
+        tempoSelector.value = "1.0"; // Ignorar selector global
+        baseBpm = startBpm;
+        
+        btnPlay.click();
+    }
+
+    function handleRehearsalIteration() {
+        rehearsalCurrentRep++;
+        document.getElementById('rehearsal-rep').innerText = rehearsalCurrentRep;
+        
+        const endBpm = parseInt(document.getElementById('rehearsal-bpm-end').value);
+        const stepBpm = parseInt(document.getElementById('rehearsal-bpm-step').value);
+        
+        let currentBpm = Math.round(Tone.Transport.bpm.value);
+        let nextBpm = currentBpm + stepBpm;
+        
+        if (currentBpm >= endBpm) {
+            // Ensayo Terminado Exitosamente
+            stopRehearsal(true);
+            return;
+        }
+        
+        if (nextBpm > endBpm) nextBpm = endBpm;
+        
+        Tone.Transport.bpm.value = nextBpm;
+        document.getElementById('rehearsal-current-bpm').innerText = nextBpm;
+    }
+
+    function stopRehearsal(completed = false) {
+        if(!isRehearsalActive) return;
+        
+        btnStop.click();
+        isRehearsalActive = false;
+        
+        const payload = {
+            config_id: rehearsalConfigId,
+            repetitions: rehearsalCurrentRep,
+            time_spent: totalSessionSeconds,
+            max_bpm: parseInt(document.getElementById('rehearsal-current-bpm').innerText)
+        };
+        
+        fetch('/api/log_rehearsal_session/{{ sheet.id }}/', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        // Reset UI
+        document.getElementById('rehearsal-setup').classList.remove('hidden');
+        document.getElementById('rehearsal-active-ui').classList.add('hidden');
+        document.getElementById('rehearsal-status').classList.add('hidden');
+        if(document.getElementById('rehearsal-presets')) document.getElementById('rehearsal-presets').classList.remove('hidden');
+        
+        if(completed) {
+            alert("¡Ensayo Completado! Has alcanzado el BPM objetivo con éxito. ¡Gran trabajo!");
+        }
+    }
 </script>
 {% endblock %}
