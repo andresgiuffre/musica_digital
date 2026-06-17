@@ -58,7 +58,7 @@
         margin: 0 auto 1.5rem auto;
     }
     
-    .ac-title { font-size: 1.5rem; font-weight: 800; color: white; margin-bottom: 0.5rem; }
+    .ac-title { font-size: 1.5rem; font-weight: 800; color: white; margin-bottom: 0.5rem; text-shadow: 0 4px 6px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3); }
     .ac-desc { color: #cbd5e1; font-size: 0.9rem; line-height: 1.5; font-weight: 500; margin-bottom: 2rem; flex-grow: 1; }
     
     .ac-btn {
@@ -141,31 +141,31 @@
         
         <!-- Tarjeta 1: Biblioteca -->
         <a href="{% url 'biblioteca_list' %}" class="action-card card-blue">
-            <svg class="ac-icon text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+            <img src="{% static 'img/icon_estudio.png' %}" alt="Estudio Digital" class="ac-icon object-contain rounded-xl drop-shadow-md">
             <div class="ac-title">Estudio Digital</div>
             <div class="ac-desc">Toca partituras reales y usa el metrónomo.</div>
             <div><span class="ac-btn">Ir a Tocar</span></div>
         </a>
 
         <!-- Tarjeta 2: Entrenador -->
-        <a href="{% url 'trainer_intervalos' %}" class="action-card card-emerald">
-            <svg class="ac-icon text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        <a href="{% url 'entrenador_index' %}" class="action-card card-emerald">
+            <img src="{% static 'img/icon_entrenador.png' %}" alt="Entrenador" class="ac-icon object-contain rounded-xl drop-shadow-md">
             <div class="ac-title">Entrenador</div>
             <div class="ac-desc">Juegos rápidos para leer más rápido.</div>
             <div><span class="ac-btn">Entrenar</span></div>
         </a>
 
-        <!-- Tarjeta 3: Perfil -->
-        <a href="{% url 'perfil' %}" class="action-card card-purple">
-            <svg class="ac-icon text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-            <div class="ac-title">Tu Progreso</div>
-            <div class="ac-desc">Revisa tus medallas y minutos de estudio.</div>
-            <div><span class="ac-btn">Ver Stats</span></div>
+        <!-- Tarjeta 3: Estudio MIDI -->
+        <a href="{% url 'midi_trainer_hub' %}" class="action-card card-purple">
+            <img src="{% static 'img/icon_midi.png' %}" alt="Estudio MIDI" class="ac-icon object-contain rounded-xl drop-shadow-md" style="mix-blend-mode: screen;">
+            <div class="ac-title">Estudio MIDI</div>
+            <div class="ac-desc">Conecta tu teclado y mejora tu lectura al piano.</div>
+            <div><span class="ac-btn">Ir al Piano</span></div>
         </a>
 
         <!-- Tarjeta 4: Proyectos -->
         <a href="{% url 'proyectos_list' %}" class="action-card card-emerald" style="border-color: rgba(16, 185, 129, 0.3);">
-            <svg class="ac-icon text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+            <img src="{% static 'img/icon_proyectos.png' %}" alt="Proyectos" class="ac-icon object-contain rounded-xl drop-shadow-md">
             <div class="ac-title">Proyectos</div>
             <div class="ac-desc">Tus obras en estudio a largo plazo.</div>
             <div><span class="ac-btn">Mis Obras</span></div>
@@ -210,14 +210,7 @@
         </div>
     </div>
 
-    <!-- Calendario GitHub -->
-    <div class="bg-gray-900/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-12">
-        <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            Historial Anual
-        </h3>
-        <div class="gh-calendar" id="github-calendar"></div>
-    </div>
+
 
 </div>
 
@@ -233,7 +226,12 @@
                 <span class="text-blue-400 text-[10px] font-bold">{{ ug.current_value }}/{{ ug.goal.target_value }}m</span>
             </div>
             <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                <div class="h-full {% if ug.is_completed %}bg-emerald-500{% else %}bg-blue-500{% endif %}" style="width: {% widthratio ug.current_value ug.goal.target_value 100 %}%;"></div>
+                {% widthratio ug.current_value ug.goal.target_value 100 as progress_percent %}
+                {% if ug.is_completed %}
+                <div class="h-full bg-emerald-500" style="width: {{ progress_percent }}%;"></div>
+                {% else %}
+                <div class="h-full bg-blue-500" style="width: {{ progress_percent }}%;"></div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -242,32 +240,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const calData = JSON.parse('{{ calendar_data|escapejs }}');
-        const container = document.getElementById('github-calendar');
-        
-        // Render last 365 days
-        const today = new Date();
-        const oneYearAgo = new Date(today);
-        oneYearAgo.setDate(today.getDate() - 364);
-        
-        for (let d = new Date(oneYearAgo); d <= today; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            const minutes = calData[dateStr] || 0;
-            
-            let level = 0;
-            if (minutes > 0) level = 1;
-            if (minutes >= 15) level = 2;
-            if (minutes >= 30) level = 3;
-            if (minutes >= 60) level = 4;
-            
-            const dayDiv = document.createElement('div');
-            dayDiv.className = 'gh-day';
-            dayDiv.dataset.level = level;
-            dayDiv.title = `${dateStr}: ${minutes} minutos`;
-            container.appendChild(dayDiv);
-        }
-    });
-</script>
+
 {% endblock %}
