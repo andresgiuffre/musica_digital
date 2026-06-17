@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('perfil/', views.perfil, name='perfil'),
+    path('entrenador/', views.entrenador_index, name='entrenador_index'),
     path('juego/notas/', views.trainer_notas, name='trainer_notas'),
     path('juego/intervalos/', views.trainer_intervalos, name='trainer_intervalos'),
     path('juego/intervalos-auditivos/', views.trainer_intervalos_auditivos, name='trainer_intervalos_auditivos'),

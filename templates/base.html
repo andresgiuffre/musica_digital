@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Música Digital</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <!-- Tonal.js para análisis armónico MIDI -->
     <script src="https://cdn.jsdelivr.net/npm/tonal/browser/tonal.min.js"></script>
@@ -53,13 +54,14 @@
         }
 
         .nav-brand {
-            font-size: 1.5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.8rem;
             font-weight: 900;
-            color: transparent;
-            background-clip: text;
-            background-image: linear-gradient(to right, #60a5fa, #34d399);
+            color: #fff;
+            text-shadow: 0 0 5px #f97316, 0 0 10px #f97316, 0 0 20px #ea580c, 0 0 40px #ea580c;
             text-decoration: none;
-            letter-spacing: -0.05em;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
         }
 
         .nav-menu {
@@ -111,7 +113,10 @@
 
     <nav class="navbar">
         <div class="nav-container">
-            <a href="{% url 'dashboard' %}" class="nav-brand">MÚSICA DIGITAL</a>
+            <a href="{% url 'dashboard' %}" class="nav-brand flex items-center gap-2">
+                <img src="{% static 'img/logo.png' %}" alt="Logo Música Digital" class="h-12 w-auto" style="mix-blend-mode: screen;">
+                MÚSICA DIGITAL
+            </a>
             
             {% if user.is_authenticated %}
             <div class="nav-menu">

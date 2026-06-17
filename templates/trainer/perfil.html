@@ -11,26 +11,6 @@
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
     
-    .level-card {
-        display: flex;
-        align-items: center;
-        background: var(--surface);
-        border-radius: 1rem;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        border: 2px solid var(--border);
-    }
-    .level-card.completed { border-color: var(--success); }
-    .level-card.locked { opacity: 0.5; }
-    
-    .level-icon {
-        width: 50px; height: 50px;
-        border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 1.5rem; background: var(--bg); margin-right: 1.5rem;
-    }
-    .level-card.completed .level-icon { background: rgba(16, 185, 129, 0.1); color: var(--success); }
-    
     .stat-value { font-size: 2.5rem; font-weight: 900; line-height: 1; }
 </style>
 {% endblock %}
@@ -57,10 +37,10 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="space-y-12">
         
-        <!-- Columna Izquierda: Stats Rápidas -->
-        <div class="space-y-6">
+        <!-- Sección Superior: Stats Rápidas -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div class="perfil-card text-center border-t-4 border-t-amber-500">
                 <div class="text-sm text-gray-400 font-bold uppercase mb-2">Mejor Racha</div>
                 <div class="stat-value text-amber-500">{{ profile.max_daily_streak }} 🔥</div>
@@ -92,7 +72,12 @@
                                 </span>
                             </div>
                             <div class="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                                <div class="h-full {% if ug.is_completed %}bg-emerald-500{% else %}bg-blue-500{% endif %}" style="width: {% widthratio ug.current_value ug.goal.target_value 100 %}%;"></div>
+                                {% widthratio ug.current_value ug.goal.target_value 100 as progress_percent %}
+                                {% if ug.is_completed %}
+                                <div class="h-full bg-emerald-500" style="width: {{ progress_percent }}%;"></div>
+                                {% else %}
+                                <div class="h-full bg-blue-500" style="width: {{ progress_percent }}%;"></div>
+                                {% endif %}
                             </div>
                         </div>
                     {% empty %}
@@ -102,55 +87,20 @@
             </div>
         </div>
 
-        <!-- Columna Central/Derecha: Ruta y Logros -->
-        <div class="lg:col-span-2 space-y-8">
-            
-            <!-- Ruta Recomendada -->
-            <div>
-                <h2 class="text-2xl font-bold text-white mb-4">Ruta de Entrenamiento</h2>
-                {% for p in progress %}
-                    <div class="level-card {% if p.completed %}completed{% endif %}">
-                        <div class="level-icon">
-                            {% if p.completed %}✅{% else %}▶{% endif %}
-                        </div>
-                        <div class="flex-1">
-                            <div class="text-xs font-bold text-blue-500 uppercase tracking-widest mb-1">Etapa {{ p.game.order }}</div>
-                            <h3 class="text-xl font-bold text-white">{{ p.game.name }}</h3>
-                            <p class="text-gray-400 text-sm mb-2">{{ p.game.description }}</p>
-                            
-                            <div class="flex gap-6 text-sm font-bold">
-                                <span class="{% if p.accuracy >= p.game.recommended_accuracy %}text-emerald-500{% else %}text-gray-500{% endif %}">
-                                    Precisión: {{ p.accuracy }}% / {{ p.game.recommended_accuracy }}%
-                                </span>
-                                <span class="{% if p.score.total_answers >= p.game.recommended_attempts %}text-emerald-500{% else %}text-gray-500{% endif %}">
-                                    Ejercicios: {{ p.score.total_answers }} / {{ p.game.recommended_attempts }}
-                                </span>
-                            </div>
-                        </div>
-                        <div>
-                            <a href="{% url p.url_name %}" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">
-                                Entrar
-                            </a>
-                        </div>
-                    </div>
+        <!-- Sección Inferior: Logros -->
+        <div>
+            <h2 class="text-2xl font-bold text-white mb-6">Medallas y Logros</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+                {% for a in achievements %}
+                <div class="perfil-card text-center {% if not a.unlocked %}opacity-40 grayscale{% else %}border-emerald-500/50 bg-emerald-900/10{% endif %}">
+                    <div class="text-5xl mb-2 drop-shadow-lg">{{ a.obj.icon }}</div>
+                    <h3 class="font-bold text-white text-sm mb-1">{{ a.obj.name }}</h3>
+                    <p class="text-xs text-gray-400">{{ a.obj.description }}</p>
+                </div>
                 {% endfor %}
             </div>
-
-            <!-- Logros -->
-            <div>
-                <h2 class="text-2xl font-bold text-white mb-4">Medallas y Logros</h2>
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {% for a in achievements %}
-                    <div class="perfil-card text-center {% if not a.unlocked %}opacity-40 grayscale{% else %}border-emerald-500/50 bg-emerald-900/10{% endif %}">
-                        <div class="text-5xl mb-2 drop-shadow-lg">{{ a.obj.icon }}</div>
-                        <h3 class="font-bold text-white text-sm mb-1">{{ a.obj.name }}</h3>
-                        <p class="text-xs text-gray-400">{{ a.obj.description }}</p>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-
         </div>
+
     </div>
 </div>
 {% endblock %}

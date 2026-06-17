@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Rutas de Entrenamiento{% endblock %}
+
+{% block extra_css %}
+<style>
+    .level-card {
+        display: flex;
+        align-items: center;
+        background: var(--surface);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border: 2px solid var(--border);
+    }
+    .level-card.completed { border-color: var(--success); }
+    .level-card.locked { opacity: 0.5; }
+    
+    .level-icon {
+        width: 50px; height: 50px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.5rem; background: var(--bg); margin-right: 1.5rem;
+    }
+    .level-card.completed .level-icon { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-4xl">
+    
+    <div class="mb-8">
+        <h1 class="text-4xl font-extrabold text-white mb-2 drop-shadow-md">Entrenador Musical</h1>
+        <p class="text-gray-400">Selecciona una ruta de entrenamiento para mejorar tus habilidades.</p>
+    </div>
+
+    <!-- Ruta Recomendada -->
+    <div>
+        {% for p in progress %}
+            <div class="level-card {% if p.completed %}completed{% endif %}">
+                <div class="level-icon">
+                    {% if p.completed %}✅{% else %}▶{% endif %}
+                </div>
+                <div class="flex-1">
+                    <div class="text-xs font-bold text-blue-500 uppercase tracking-widest mb-1">Etapa {{ p.game.order }}</div>
+                    <h3 class="text-xl font-bold text-white">{{ p.game.name }}</h3>
+                    <p class="text-gray-400 text-sm mb-2">{{ p.game.description }}</p>
+                    
+                    <div class="flex gap-6 text-sm font-bold">
+                        <span class="{% if p.accuracy >= p.game.recommended_accuracy %}text-emerald-500{% else %}text-gray-500{% endif %}">
+                            Precisión: {{ p.accuracy }}% / {{ p.game.recommended_accuracy }}%
+                        </span>
+                        <span class="{% if p.score.total_answers >= p.game.recommended_attempts %}text-emerald-500{% else %}text-gray-500{% endif %}">
+                            Ejercicios: {{ p.score.total_answers }} / {{ p.game.recommended_attempts }}
+                        </span>
+                    </div>
+                </div>
+                <div>
+                    <a href="{% url p.url_name %}" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+                        Entrar
+                    </a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}

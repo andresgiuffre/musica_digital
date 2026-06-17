@@ -158,8 +158,7 @@ def perfil(request):
     total_corr = sum(s.correct_answers for s in scores)
     global_acc = round((total_corr / total_ans) * 100) if total_ans > 0 else 0
     
-    # Progress and Study Sessions
-    progress = get_user_progress(request.user)
+    # Study Sessions
     study_sessions = StudySession.objects.filter(user=request.user)
     total_study_seconds = sum(s.duration_seconds for s in study_sessions)
     total_study_minutes = total_study_seconds // 60
@@ -173,11 +172,15 @@ def perfil(request):
         'achievements': all_achievements,
         'global_acc': global_acc,
         'total_answers': total_ans,
-        'progress': progress,
         'total_study_minutes': total_study_minutes,
         'today_goals': today_goals,
     }
     return render(request, 'trainer/perfil.html', context)
+
+@login_required
+def entrenador_index(request):
+    progress = get_user_progress(request.user)
+    return render(request, 'trainer/entrenador_index.html', {'progress': progress})
 
 @login_required
 def trainer_notas(request):
