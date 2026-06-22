@@ -31,6 +31,34 @@ class Score(models.Model):
             return 0
         return round((self.correct_answers / self.total_answers) * 100)
 
+    @property
+    def level_info(self):
+        thresholds = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500]
+        xp = self.total_points
+        level = 1
+        for i, threshold in enumerate(thresholds):
+            if xp < threshold:
+                break
+            level = i + 1
+        
+        if level <= len(thresholds) - 1:
+            current_level_base = thresholds[level - 1]
+            next_level_base = thresholds[level]
+        else:
+            current_level_base = thresholds[-1] + (level - len(thresholds)) * 1000
+            next_level_base = current_level_base + 1000
+            
+        xp_in_level = xp - current_level_base
+        xp_needed = next_level_base - current_level_base
+        progress_percentage = min(100, int((xp_in_level / xp_needed) * 100))
+        
+        return {
+            'level': level,
+            'xp_in_level': xp_in_level,
+            'xp_needed': xp_needed,
+            'progress_percentage': progress_percentage
+        }
+
     def __str__(self):
         return f"{self.user.username} - {self.game.name} (Level {self.level})"
 

@@ -6,7 +6,13 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 2rem;
+        gap: 1.5rem;
+    }
+
+    .top-nav {
+        width: 100%;
+        max-width: 600px;
+        margin-bottom: -1rem;
     }
 
     #staff-container {
@@ -25,25 +31,63 @@
         max-width: 600px;
         font-weight: 600;
         color: var(--text-secondary);
+        margin-bottom: -0.5rem;
     }
 
-    .notes-grid {
+    /* Progress bar */
+    .progress-container {
+        width: 100%;
+        max-width: 600px;
+        background: var(--surface);
+        padding: 1rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+    }
+    
+    .progress-labels {
+        display: flex;
+        justify-content: space-between;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+        font-size: 0.9rem;
+    }
+    
+    .progress-track {
+        width: 100%;
+        background: var(--bg);
+        height: 8px;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: var(--primary);
+        transition: width 0.3s ease;
+    }
+
+    /* Note input grid */
+    .accidental-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 1rem;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 0.5rem;
         max-width: 600px;
         width: 100%;
     }
 
-    .notes-grid:last-child {
-        grid-template-columns: repeat(3, 1fr);
-        margin-top: -1rem;
+    .notes-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.5rem;
+        max-width: 600px;
+        width: 100%;
     }
-    
-    .btn-note {
-        padding: 1.5rem;
-        font-size: 1.5rem;
-        border-radius: 1rem;
+
+    .btn-input {
+        padding: 1rem 0.5rem;
+        font-size: 1.1rem;
+        border-radius: 0.75rem;
         background: var(--surface);
         border: 2px solid var(--border);
         color: var(--text);
@@ -51,36 +95,24 @@
         cursor: pointer;
         transition: all 0.1s;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        text-align: center;
     }
 
-    .btn-note:hover {
+    .btn-input:hover {
         transform: translateY(-2px);
         border-color: var(--primary);
-        box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2);
     }
 
-    .btn-note:active {
-        transform: translateY(2px);
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    .btn-input.selected {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
     }
 
-    .flash-correct {
-        border-color: var(--success) !important;
-        background-color: rgba(16, 185, 129, 0.1);
-    }
+    .flash-correct { border-color: var(--success) !important; background-color: rgba(16, 185, 129, 0.1); }
+    .flash-incorrect { border-color: var(--danger) !important; background-color: rgba(239, 68, 68, 0.1); animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
 
-    .flash-incorrect {
-        border-color: var(--danger) !important;
-        background-color: rgba(239, 68, 68, 0.1);
-        animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
-    }
-
-    #feedback-msg {
-        height: 1.5rem;
-        font-weight: 600;
-        text-align: center;
-        width: 100%;
-    }
+    #feedback-msg { height: 1.5rem; font-weight: 600; text-align: center; width: 100%; }
 
     @keyframes shake {
       10%, 90% { transform: translate3d(-1px, 0, 0); }
@@ -93,40 +125,62 @@
 
 {% block content %}
 <div class="trainer-container">
+    <div class="top-nav">
+        <a href="{% url 'entrenador_index' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+            </svg>
+            Volver al Menú
+        </a>
+    </div>
+
     <div style="text-align: center;">
         <h2 style="margin-bottom: 0.5rem;">{{ game.name }}</h2>
         <div id="feedback-msg"></div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-container">
+        <div class="progress-labels">
+            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
+        </div>
+        <div class="progress-track">
+            <div id="ui-progress-bar" class="progress-fill" style="width: {{ score.level_info.progress_percentage }}%;"></div>
+        </div>
     </div>
 
     <div class="status-bar" style="align-items: center;">
         <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
         <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem;">
             <input type="checkbox" id="autoplay-audio" style="cursor: pointer; width: 1.1rem; height: 1.1rem;">
-            <label for="autoplay-audio" style="cursor: pointer; font-weight: 600; color: var(--text-secondary); user-select: none;">🔊 Auto-reproducir</label>
+            <label for="autoplay-audio" style="cursor: pointer; font-weight: 600; user-select: none;">🔊 Auto-reproducir</label>
         </div>
-        <div>Nivel: <span id="level-counter">{{ score.level }}</span></div>
     </div>
 
     <div style="position: relative;">
-        <div id="staff-container">
-            <!-- VexFlow will render here -->
-        </div>
+        <div id="staff-container"></div>
         <button id="btn-replay-note" class="btn" style="position: absolute; bottom: 12px; right: 12px; padding: 0; border-radius: 50%; background: var(--surface); border: 2px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; z-index: 10; font-size: 1.25rem; transition: all 0.2s;" title="Escuchar nota" onmouseover="this.style.borderColor='var(--primary)'; this.style.transform='scale(1.05)';" onmouseout="this.style.borderColor='var(--border)'; this.style.transform='scale(1)';">
             🔊
         </button>
     </div>
 
-    <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%; max-width: 600px;">
-        <div class="notes-grid">
-            <button class="btn-note" data-note="c">Do</button>
-            <button class="btn-note" data-note="d">Re</button>
-            <button class="btn-note" data-note="e">Mi</button>
-            <button class="btn-note" data-note="f">Fa</button>
+    <div style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%; max-width: 600px;">
+        <div class="accidental-grid">
+            <button class="btn-input btn-acc" data-acc="n">Nat</button>
+            <button class="btn-input btn-acc" data-acc="#">♯ Sost</button>
+            <button class="btn-input btn-acc" data-acc="b">♭ Bemol</button>
+            <button class="btn-input btn-acc" data-acc="##">𝄪 Dob S</button>
+            <button class="btn-input btn-acc" data-acc="bb">𝄫 Dob B</button>
         </div>
-        <div class="notes-grid" style="grid-template-columns: repeat(3, 1fr);">
-            <button class="btn-note" data-note="g">Sol</button>
-            <button class="btn-note" data-note="a">La</button>
-            <button class="btn-note" data-note="b">Si</button>
+        <div class="notes-grid">
+            <button class="btn-input btn-note" data-note="c">Do</button>
+            <button class="btn-input btn-note" data-note="d">Re</button>
+            <button class="btn-input btn-note" data-note="e">Mi</button>
+            <button class="btn-input btn-note" data-note="f">Fa</button>
+            <button class="btn-input btn-note" data-note="g">Sol</button>
+            <button class="btn-input btn-note" data-note="a">La</button>
+            <button class="btn-input btn-note" data-note="b">Si</button>
         </div>
     </div>
 </div>
@@ -141,20 +195,49 @@
         const feedbackMsg = document.getElementById("feedback-msg");
         const autoPlayCheck = document.getElementById("autoplay-audio");
         const btnReplay = document.getElementById("btn-replay-note");
+        
+        // Progress UI
+        const uiLevel = document.getElementById("ui-level");
+        const uiXp = document.getElementById("ui-xp");
+        const uiXpNeeded = document.getElementById("ui-xp-needed");
+        const uiProgressBar = document.getElementById("ui-progress-bar");
+        const streakCounter = document.getElementById("streak-counter");
+
         let renderer, context, stave;
         
-        const possibleNotes = ['c/4', 'd/4', 'e/4', 'f/4', 'g/4', 'a/4', 'b/4', 'c/5', 'd/5', 'e/5', 'f/5', 'g/5'];
-        const noteNames = { 'c': 'Do', 'd': 'Re', 'e': 'Mi', 'f': 'Fa', 'g': 'Sol', 'a': 'La', 'b': 'Si' };
+        let currentLevel = parseInt("{{ score.level_info.level }}");
         
-        let currentNoteStr = "";
-        let currentNoteLetter = "";
-        let startTime = 0;
+        // Notes generation logic
+        const noteScale = ['c', 'd', 'e', 'f', 'g', 'a', 'b'];
+        const accidentalsOptions = {
+            1: ['n'], // L1: Natural
+            2: ['n'], // L2: Natural extended
+            3: ['n', '#', 'b'], // L3: Sharps and flats
+            4: ['n', '#', 'b', '##', 'bb'] // L4+: Double accidentals
+        };
 
-        // Auto-play settings persistence
+        const getRegisterRange = (level) => {
+            if (level === 1) return { min: 4, max: 4 }; // C4 to B4
+            if (level === 2) return { min: 3, max: 5 }; // C3 to B5
+            if (level === 3) return { min: 3, max: 5 }; 
+            return { min: 3, max: 6 }; // C3 to B6
+        };
+
+        const noteNames = { 'c': 'Do', 'd': 'Re', 'e': 'Mi', 'f': 'Fa', 'g': 'Sol', 'a': 'La', 'b': 'Si' };
+        const accNames = { 'n': '', '#': '♯', 'b': '♭', '##': '𝄪', 'bb': '𝄫' };
+        
+        let currentNoteStr = ""; 
+        let currentNoteLetter = "";
+        let currentAccidental = "";
+        let startTime = 0;
+        
+        let selectedAccidental = "n"; // Default
+
+        // Auto-play settings
         if (localStorage.getItem("autoplay_notas") === "false") {
             autoPlayCheck.checked = false;
         } else {
-            autoPlayCheck.checked = true; // default to true
+            autoPlayCheck.checked = true;
         }
 
         autoPlayCheck.addEventListener("change", () => {
@@ -163,9 +246,31 @@
 
         btnReplay.addEventListener("click", () => {
             if (currentNoteStr) {
-                AudioEngine.playNote(currentNoteStr);
+                // AudioEngine needs standard format (e.g., C#4)
+                let audioAcc = currentAccidental === 'n' ? '' : currentAccidental;
+                let audioStr = currentNoteStr.replace('/', audioAcc + '/');
+                AudioEngine.playNote(audioStr);
             }
         });
+
+        function updateAccidentalSelection() {
+            document.querySelectorAll('.btn-acc').forEach(btn => {
+                if (btn.getAttribute('data-acc') === selectedAccidental) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
+                }
+            });
+        }
+
+        document.querySelectorAll('.btn-acc').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                selectedAccidental = e.target.getAttribute('data-acc');
+                updateAccidentalSelection();
+            });
+        });
+
+        updateAccidentalSelection();
 
         function initVexFlow() {
             div.innerHTML = "";
@@ -182,10 +287,21 @@
         function drawNote() {
             initVexFlow();
             
-            currentNoteStr = possibleNotes[Math.floor(Math.random() * possibleNotes.length)];
-            currentNoteLetter = currentNoteStr.charAt(0);
+            // Determine possible notes and accidentals based on current level
+            let levelOpts = Math.min(currentLevel, 4);
+            let range = getRegisterRange(levelOpts);
+            let accs = accidentalsOptions[levelOpts];
 
+            let oct = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+            currentNoteLetter = noteScale[Math.floor(Math.random() * noteScale.length)];
+            currentAccidental = accs[Math.floor(Math.random() * accs.length)];
+            
+            currentNoteStr = currentNoteLetter + "/" + oct;
+            
             const note = new VF.StaveNote({ clef: "treble", keys: [currentNoteStr], duration: "q" });
+            if (currentAccidental !== 'n') {
+                note.addModifier(0, new VF.Accidental(currentAccidental));
+            }
             
             const voice = new VF.Voice({ num_beats: 1, beat_value: 4 });
             voice.addTickables([note]);
@@ -195,17 +311,26 @@
             
             startTime = Date.now();
             feedbackMsg.innerText = "";
+            
+            // Reset selection for next answer
+            selectedAccidental = "n";
+            updateAccidentalSelection();
 
             if (autoPlayCheck.checked) {
                 setTimeout(() => {
-                    AudioEngine.playNote(currentNoteStr);
+                    let audioAcc = currentAccidental === 'n' ? '' : currentAccidental;
+                    let audioStr = currentNoteStr.replace('/', audioAcc + '/');
+                    AudioEngine.playNote(audioStr);
                 }, 50);
             }
         }
 
         function handleGuess(guessedLetter) {
             const responseTime = Date.now() - startTime;
-            const isCorrect = guessedLetter === currentNoteLetter;
+            const isCorrect = (guessedLetter === currentNoteLetter) && (selectedAccidental === currentAccidental);
+
+            let expectedFullName = noteNames[currentNoteLetter] + accNames[currentAccidental];
+            let guessedFullName = noteNames[guessedLetter] + accNames[selectedAccidental];
 
             if (isCorrect) {
                 div.classList.add("flash-correct");
@@ -213,7 +338,7 @@
                 feedbackMsg.style.color = "var(--success)";
             } else {
                 div.classList.add("flash-incorrect");
-                feedbackMsg.innerText = "Incorrecto. La respuesta era " + noteNames[currentNoteLetter] + ".";
+                feedbackMsg.innerText = "Incorrecto. Seleccionaste " + guessedFullName + " pero era " + expectedFullName + ".";
                 feedbackMsg.style.color = "var(--danger)";
             }
 
@@ -222,14 +347,14 @@
                 div.classList.remove("flash-incorrect");
             }, 500);
 
+            // Send attempt
+            let presentedFull = currentNoteLetter + (currentAccidental!=='n'?currentAccidental:'');
             fetch('{% url "record_attempt" game.slug %}', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    presented_question: currentNoteStr,
-                    guessed_answer: guessedLetter,
+                    presented_question: presentedFull,
+                    guessed_answer: guessedFullName,
                     is_correct: isCorrect,
                     response_time_ms: responseTime
                 })
@@ -237,13 +362,31 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    document.getElementById('streak-counter').innerText = data.current_streak;
-                    document.getElementById('level-counter').innerText = data.level;
+                    streakCounter.innerText = data.current_streak;
+                    if (data.level_info) {
+                        currentLevel = data.level_info.level;
+                        uiLevel.innerText = data.level_info.level;
+                        uiXp.innerText = data.level_info.xp_in_level;
+                        uiXpNeeded.innerText = data.level_info.xp_needed;
+                        uiProgressBar.style.width = data.level_info.progress_percentage + "%";
+                    }
                 }
             })
             .catch(err => console.error(err));
 
-            setTimeout(drawNote, 800);
+            const mode = window.getAppMode ? window.getAppMode() : 'eval';
+            const explanation = TheoryKB.getNoteExplanation(currentNoteStr, currentAccidental, mode);
+            const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto (Era ' + expectedFullName + ')';
+            
+            if (window.showTheoryModal) {
+                setTimeout(() => {
+                    window.showTheoryModal(title, explanation, () => {
+                        drawNote();
+                    });
+                }, 500);
+            } else {
+                setTimeout(drawNote, 1000);
+            }
         }
 
         document.querySelectorAll('.btn-note').forEach(btn => {

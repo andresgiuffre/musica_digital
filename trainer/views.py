@@ -314,6 +314,62 @@ def trainer_lectura_musical(request):
     return render(request, 'trainer/trainer_lectura_musical.html', context)
 
 @login_required
+def trainer_tiempos_fuertes_debiles(request):
+    game = get_object_or_404(Game, slug='tiempos-fuertes-debiles')
+    score, _ = Score.objects.get_or_create(user=request.user, game=game)
+    stats_data = get_game_stats(request.user, game)
+    
+    context = {
+        'game': game,
+        'score': score,
+        'incorrect_answers': stats_data['incorrect_answers'],
+        'avg_time': stats_data['avg_time']
+    }
+    return render(request, 'trainer/trainer_tiempos_fuertes.html', context)
+
+@login_required
+def trainer_sincopas_contratiempos(request):
+    game = get_object_or_404(Game, slug='sincopas-contratiempos')
+    score, _ = Score.objects.get_or_create(user=request.user, game=game)
+    stats_data = get_game_stats(request.user, game)
+    
+    context = {
+        'game': game,
+        'score': score,
+        'incorrect_answers': stats_data['incorrect_answers'],
+        'avg_time': stats_data['avg_time']
+    }
+    return render(request, 'trainer/trainer_sincopas.html', context)
+
+@login_required
+def trainer_reconocimiento_acordes(request):
+    game = get_object_or_404(Game, slug='reconocimiento-acordes')
+    score, _ = Score.objects.get_or_create(user=request.user, game=game)
+    stats_data = get_game_stats(request.user, game)
+    
+    context = {
+        'game': game,
+        'score': score,
+        'incorrect_answers': stats_data['incorrect_answers'],
+        'avg_time': stats_data['avg_time']
+    }
+    return render(request, 'trainer/trainer_acordes.html', context)
+
+@login_required
+def trainer_analisis_progresiones(request):
+    game = get_object_or_404(Game, slug='analisis-progresiones')
+    score, _ = Score.objects.get_or_create(user=request.user, game=game)
+    stats_data = get_game_stats(request.user, game)
+    
+    context = {
+        'game': game,
+        'score': score,
+        'incorrect_answers': stats_data['incorrect_answers'],
+        'avg_time': stats_data['avg_time']
+    }
+    return render(request, 'trainer/trainer_progresiones.html', context)
+
+@login_required
 def biblioteca_list(request):
     col_slug = request.GET.get('collection')
     favorites_only = request.GET.get('favorites') == 'true'
@@ -494,6 +550,9 @@ def record_attempt(request, game_slug):
             profile.total_xp += xp_gain
             profile.user_level = get_user_level_for_xp(profile.total_xp)
             
+            lvl_info = score.level_info
+            score.level = lvl_info['level']
+            
             profile.save()
             score.save()
             check_achievements(request.user)
@@ -511,7 +570,8 @@ def record_attempt(request, game_slug):
                 'avg_time': stats_data['avg_time'],
                 'hardest': stats_data['hardest'],
                 'xp_gained': xp_gain,
-                'user_level': profile.user_level
+                'user_level': profile.user_level,
+                'level_info': lvl_info
             })
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)

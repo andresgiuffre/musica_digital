@@ -13,9 +13,7 @@
     }
 
     @media (max-width: 768px) {
-        .grid-layout {
-            grid-template-columns: 1fr;
-        }
+        .grid-layout { grid-template-columns: 1fr; }
     }
 
     .trainer-container {
@@ -23,6 +21,11 @@
         flex-direction: column;
         align-items: center;
         gap: 1.5rem;
+    }
+
+    .top-nav {
+        width: 100%;
+        margin-bottom: -1rem;
     }
 
     .status-bar {
@@ -33,56 +36,66 @@
         color: var(--text-secondary);
     }
 
-    .intervals-grid {
+    /* Progress bar */
+    .progress-container {
+        width: 100%;
+        background: var(--surface);
+        padding: 1rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+    }
+    
+    .progress-labels {
+        display: flex;
+        justify-content: space-between;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+        font-size: 0.9rem;
+    }
+    
+    .progress-track {
+        width: 100%;
+        background: var(--bg);
+        height: 8px;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: var(--primary);
+        transition: width 0.3s ease;
+    }
+
+    /* Interval inputs */
+    .qualities-grid, .degrees-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 1rem;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.5rem;
         width: 100%;
     }
 
-    .intervals-grid:last-child {
-        grid-template-columns: repeat(3, 1fr);
-    }
-    
-    .btn-interval {
-        padding: 1.25rem 0.5rem;
-        font-size: 1.15rem;
-        border-radius: 1rem;
+    .btn-input {
+        padding: 1rem 0.25rem;
+        font-size: 0.95rem;
+        border-radius: 0.75rem;
         background: var(--surface);
         border: 2px solid var(--border);
         color: var(--text);
         font-weight: 800;
         cursor: pointer;
-        transition: all 0.15s;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transition: all 0.1s;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        text-align: center;
     }
 
-    .btn-interval:hover:not(:disabled) {
-        transform: translateY(-2px);
-        border-color: var(--primary);
-        box-shadow: 0 8px 12px -3px rgba(79, 70, 229, 0.15);
-    }
+    .btn-input:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--primary); }
+    .btn-input.selected { background: var(--primary); color: white; border-color: var(--primary); }
+    .btn-input:disabled { opacity: 0.6; cursor: not-allowed; }
 
-    .btn-interval:active:not(:disabled) {
-        transform: translateY(1px);
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    }
-
-    .btn-interval:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-
-    .flash-correct {
-        border-color: var(--success) !important;
-        background-color: rgba(16, 185, 129, 0.1) !important;
-    }
-
-    .flash-incorrect {
-        border-color: var(--danger) !important;
-        background-color: rgba(239, 68, 68, 0.1) !important;
-        animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
-    }
+    .flash-correct { border-color: var(--success) !important; background-color: rgba(16, 185, 129, 0.1) !important; }
+    .flash-incorrect { border-color: var(--danger) !important; background-color: rgba(239, 68, 68, 0.1) !important; animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
 
     /* Soundwave animation styles */
     .soundwave-container {
@@ -95,30 +108,16 @@
         opacity: 0.25;
         transition: opacity 0.3s;
     }
-    .soundwave-container.active {
-        opacity: 1;
-    }
-    .soundwave-container .bar {
-        width: 6px;
-        height: 12px;
-        background-color: var(--primary);
-        border-radius: 3px;
-        transition: height 0.2s ease;
-    }
-    .soundwave-container.active .bar {
-        animation: bounce 0.6s ease-in-out infinite alternate;
-    }
+    .soundwave-container.active { opacity: 1; }
+    .soundwave-container .bar { width: 6px; height: 12px; background-color: var(--primary); border-radius: 3px; transition: height 0.2s ease; }
+    .soundwave-container.active .bar { animation: bounce 0.6s ease-in-out infinite alternate; }
     .soundwave-container.active .bar:nth-child(1) { animation-delay: 0.1s; }
     .soundwave-container.active .bar:nth-child(2) { animation-delay: 0.3s; }
     .soundwave-container.active .bar:nth-child(3) { animation-delay: 0.2s; }
     .soundwave-container.active .bar:nth-child(4) { animation-delay: 0.4s; }
     .soundwave-container.active .bar:nth-child(5) { animation-delay: 0.15s; }
 
-    @keyframes bounce {
-        0% { height: 8px; }
-        100% { height: 42px; }
-    }
-
+    @keyframes bounce { 0% { height: 8px; } 100% { height: 42px; } }
     @keyframes shake {
       10%, 90% { transform: translate3d(-1px, 0, 0); }
       20%, 80% { transform: translate3d(2px, 0, 0); }
@@ -126,43 +125,16 @@
       40%, 60% { transform: translate3d(4px, 0, 0); }
     }
 
-    /* Accuracy ring stats styles */
     .accuracy-circle {
-        position: relative;
-        width: 130px;
-        height: 130px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: background 0.4s ease;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        position: relative; width: 130px; height: 130px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.4s ease; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
     }
-
     .accuracy-circle .inner-circle {
-        width: 108px;
-        height: 108px;
-        border-radius: 50%;
-        background-color: var(--surface);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
+        width: 108px; height: 108px; border-radius: 50%; background-color: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
 
-    .pulse-ring-btn {
-        position: relative;
-    }
-
-    .pulse-ring-btn.playing {
-        animation: pulse-ring 1.6s cubic-bezier(0.24, 0, 0.38, 1) infinite;
-    }
-
-    @keyframes pulse-ring {
-        0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.6); }
-        70% { box-shadow: 0 0 0 16px rgba(79, 70, 229, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
-    }
+    .pulse-ring-btn { position: relative; }
+    .pulse-ring-btn.playing { animation: pulse-ring 1.6s cubic-bezier(0.24, 0, 0.38, 1) infinite; }
+    @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.6); } 70% { box-shadow: 0 0 0 16px rgba(79, 70, 229, 0); } 100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); } }
 </style>
 {% endblock %}
 
@@ -170,70 +142,86 @@
 <div class="grid-layout">
     <!-- Main game column -->
     <div class="card trainer-container">
+        <div class="top-nav">
+            <a href="{% url 'entrenador_index' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                </svg>
+                Volver al Menú
+            </a>
+        </div>
+
         <div style="text-align: center; width: 100%;">
             <h2 style="margin-bottom: 0.5rem; font-size: 1.75rem;">👂 {{ game.name }}</h2>
-            <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 0.5rem;">Escucha con atención e identifica la distancia musical.</p>
             <div id="feedback-msg" style="height: 1.5rem; font-weight: 800; text-align: center; width: 100%; font-size: 1.15rem;"></div>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-labels">
+                <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+                <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
+            </div>
+            <div class="progress-track">
+                <div id="ui-progress-bar" class="progress-fill" style="width: {{ score.level_info.progress_percentage }}%;"></div>
+            </div>
         </div>
 
         <div class="status-bar">
             <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
-            <div>Nivel: <span id="level-counter">{{ score.level }}</span></div>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--text);">
+                    <input type="radio" name="play-mode" value="melodic" checked style="accent-color: var(--primary);"> Melódico
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--text);">
+                    <input type="radio" name="play-mode" value="harmonic" style="accent-color: var(--primary);"> Armónico
+                </label>
+            </div>
         </div>
 
         <!-- Central Play Audio Section -->
         <div id="exercise-box" style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; min-height: 200px; background: white; border-radius: 1rem; border: 2px solid var(--border); transition: all 0.3s; position: relative; padding: 1rem;">
+            <div id="staff-container" style="width: 100%; display: flex; justify-content: center; margin-bottom: 0.5rem; display: none;"></div>
             
-            <div id="staff-container" style="width: 100%; display: flex; justify-content: center; margin-bottom: 0.5rem;">
-                <!-- VexFlow will render here -->
-            </div>
-
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <button id="btn-play-interval" class="pulse-ring-btn" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #6366F1); color: white; border: none; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(79, 70, 229, 0.3); transition: all 0.2s;" title="Escuchar Intervalo">
-                    ▶
-                </button>
+                <button id="btn-play-interval" class="pulse-ring-btn" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #6366F1); color: white; border: none; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(79, 70, 229, 0.3); transition: all 0.2s;" title="Escuchar Intervalo">▶</button>
                 <div class="soundwave-container" id="soundwave" style="margin-top: 0;">
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                    <div class="bar"></div>
+                    <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
                 </div>
             </div>
             <div style="margin-top: 0.5rem; font-weight: 600; color: var(--text-secondary); font-size: 0.85rem;" id="audio-btn-desc">Reproducir Intervalo</div>
         </div>
 
         <!-- Answers grid -->
-        <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
-            <div class="intervals-grid">
-                <button class="btn-interval" data-interval="Segunda" disabled>Segunda</button>
-                <button class="btn-interval" data-interval="Tercera" disabled>Tercera</button>
-                <button class="btn-interval" data-interval="Cuarta" disabled>Cuarta</button>
-                <button class="btn-interval" data-interval="Quinta" disabled>Quinta</button>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%;">
+            <div class="qualities-grid">
+                <button class="btn-input btn-qual" data-qual="dd" disabled>dd</button>
+                <button class="btn-input btn-qual" data-qual="d" disabled>d</button>
+                <button class="btn-input btn-qual" data-qual="m" disabled>m</button>
+                <button class="btn-input btn-qual" data-qual="J" disabled>J</button>
+                <button class="btn-input btn-qual" data-qual="M" disabled>M</button>
+                <button class="btn-input btn-qual" data-qual="A" disabled>A</button>
+                <button class="btn-input btn-qual" data-qual="AA" disabled>AA</button>
             </div>
-            <div class="intervals-grid">
-                <button class="btn-interval" data-interval="Sexta" disabled>Sexta</button>
-                <button class="btn-interval" data-interval="Séptima" disabled>Séptima</button>
-                <button class="btn-interval" data-interval="Octava" disabled>Octava</button>
+            <div class="degrees-grid">
+                <button class="btn-input btn-deg" data-deg="2" disabled>2da</button>
+                <button class="btn-input btn-deg" data-deg="3" disabled>3ra</button>
+                <button class="btn-input btn-deg" data-deg="4" disabled>4ta</button>
+                <button class="btn-input btn-deg" data-deg="5" disabled>5ta</button>
+                <button class="btn-input btn-deg" data-deg="6" disabled>6ta</button>
+                <button class="btn-input btn-deg" data-deg="7" disabled>7ma</button>
+                <button class="btn-input btn-deg" data-deg="8" disabled>8va</button>
             </div>
         </div>
 
-        <!-- Post-answer controls -->
         <div id="controls-panel" style="display: none; justify-content: center; gap: 1rem; width: 100%; margin-top: 0.5rem;">
-            <button id="btn-replay" class="btn" style="background: transparent; border: 2px solid var(--border); color: var(--text); display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem;">
-                🔊 Escuchar nuevamente
-            </button>
-            <button id="btn-next" class="btn btn-primary" style="padding: 0.75rem 2rem;">
-                Siguiente →
-            </button>
+            <button id="btn-replay" class="btn" style="background: transparent; border: 2px solid var(--border); color: var(--text); display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem;">🔊 Escuchar nuevamente</button>
+            <button id="btn-next" class="btn btn-primary" style="padding: 0.75rem 2rem;">Siguiente →</button>
         </div>
     </div>
 
     <!-- Stats sidebar column -->
     <div class="card" style="display: flex; flex-direction: column; gap: 1.5rem;">
-        <h3 style="font-size: 1.25rem; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-            📊 Tus Estadísticas
-        </h3>
+        <h3 style="font-size: 1.25rem; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">📊 Tus Estadísticas</h3>
         
         <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
             <div class="accuracy-circle" id="stat-accuracy-circle" style="background: conic-gradient(var(--primary) {{ score.accuracy }}%, var(--border) {{ score.accuracy }}% 100%);">
@@ -262,24 +250,6 @@
                 <div style="font-size: 1.35rem; font-weight: 800; color: var(--text);"><span id="stat-avg-time">{{ avg_time }}</span>s</div>
             </div>
         </div>
-
-        <div>
-            <h4 style="font-size: 0.95rem; margin-bottom: 0.75rem; color: var(--text-secondary); font-weight: 600;">Intervalos más difíciles:</h4>
-            <div id="stat-hardest-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
-                {% if hardest %}
-                    {% for item in hardest %}
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.8rem; background: rgba(239, 68, 68, 0.04); border: 1px solid rgba(239, 68, 68, 0.12); border-radius: 0.5rem; font-size: 0.9rem;">
-                            <span style="font-weight: 700; color: var(--text);">{{ item.interval }}</span>
-                            <span style="font-weight: 800; color: var(--danger);">{{ item.accuracy }}% precisión</span>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <div id="stat-hardest-placeholder" style="font-size: 0.85rem; color: var(--text-secondary); font-style: italic; text-align: center; padding: 0.75rem; border: 1px dashed var(--border); border-radius: 0.5rem;">
-                        Intenta cada intervalo al menos 3 veces para ver su nivel de dificultad.
-                    </div>
-                {% endif %}
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}
@@ -289,71 +259,152 @@
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         const VF = Vex.Flow;
-        const div = document.getElementById("staff-container");
+        const divStaff = document.getElementById("staff-container");
         let renderer, context, stave;
+        
         const btnPlay = document.getElementById("btn-play-interval");
         const wave = document.getElementById("soundwave");
         const btnDesc = document.getElementById("audio-btn-desc");
         const feedbackMsg = document.getElementById("feedback-msg");
         const exerciseBox = document.getElementById("exercise-box");
-        const answerButtons = document.querySelectorAll(".btn-interval");
+        const answerButtons = document.querySelectorAll(".btn-deg");
+        const qualButtons = document.querySelectorAll(".btn-qual");
         const controlsPanel = document.getElementById("controls-panel");
         const btnReplay = document.getElementById("btn-replay");
         const btnNext = document.getElementById("btn-next");
 
-        const noteScale = ['c', 'd', 'e', 'f', 'g', 'a', 'b'];
-        const intervalNames = {
-            2: "Segunda", 3: "Tercera", 4: "Cuarta", 
-            5: "Quinta", 6: "Sexta", 7: "Séptima", 8: "Octava"
-        };
+        // Progress UI
+        const uiLevel = document.getElementById("ui-level");
+        const uiXp = document.getElementById("ui-xp");
+        const uiXpNeeded = document.getElementById("ui-xp-needed");
+        const uiProgressBar = document.getElementById("ui-progress-bar");
+        const streakCounter = document.getElementById("streak-counter");
 
-        let currentIntervalValue = 0;
-        let currentIntervalName = "";
-        let note1 = "";
-        let note2 = "";
-        let startTime = 0;
+        let currentLevel = parseInt("{{ score.level_info.level }}");
         let hasPlayed = false;
         let audioPlayingTimeout = null;
+        let startTime = 0;
+        let selectedQuality = "M"; 
+        
+        const playModeRadios = document.querySelectorAll('input[name="play-mode"]');
+        const savedMode = localStorage.getItem("play_mode_intervalos");
+        if (savedMode) {
+            playModeRadios.forEach(radio => {
+                if (radio.value === savedMode) radio.checked = true;
+            });
+        }
+        playModeRadios.forEach(radio => {
+            radio.addEventListener("change", () => localStorage.setItem("play_mode_intervalos", radio.value));
+        });
+
+        // Theory Engine
+        const notes = ['c', 'd', 'e', 'f', 'g', 'a', 'b'];
+        const semitonesFromC = [0, 2, 4, 5, 7, 9, 11];
+        const perfectIntervals = [1, 4, 5, 8];
+        const majorIntervals = [2, 3, 6, 7];
+        
+        const getMajorPerfectSemitones = (degree) => {
+            if (degree===1) return 0; if (degree===2) return 2; if (degree===3) return 4;
+            if (degree===4) return 5; if (degree===5) return 7; if (degree===6) return 9;
+            if (degree===7) return 11; if (degree===8) return 12; return 0;
+        };
+
+        const accStr = { '-2': 'bb', '-1': 'b', '0': 'n', '1': '#', '2': '##' };
+        let currentInterval = null; 
+
+        function updateQualitySelection() {
+            document.querySelectorAll('.btn-qual').forEach(btn => {
+                if (btn.getAttribute('data-qual') === selectedQuality) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
+                }
+            });
+        }
+
+        qualButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                selectedQuality = e.target.getAttribute('data-qual');
+                updateQualitySelection();
+            });
+        });
+
+        function generateInterval() {
+            let levelOpts = Math.min(currentLevel, 4);
+            let degree = Math.floor(Math.random() * 7) + 2; 
+            
+            let possibleQualities = [];
+            if (majorIntervals.includes(degree)) {
+                if (levelOpts >= 1) possibleQualities.push('M', 'm');
+                if (levelOpts >= 3) possibleQualities.push('A', 'd');
+                if (levelOpts >= 4) possibleQualities.push('AA', 'dd');
+            } else {
+                if (levelOpts >= 1) possibleQualities.push('J'); 
+                if (levelOpts >= 3) possibleQualities.push('A', 'd');
+                if (levelOpts >= 4) possibleQualities.push('AA', 'dd');
+            }
+            if (possibleQualities.length === 0) possibleQualities.push(majorIntervals.includes(degree) ? 'M' : 'J');
+            
+            let quality = possibleQualities[Math.floor(Math.random() * possibleQualities.length)];
+            let baseIdx = Math.floor(Math.random() * 7); 
+            let baseOctave = 4;
+            let baseNote = notes[baseIdx];
+            
+            let baseAccVals = [0];
+            if (levelOpts >= 3) baseAccVals = [-1, 0, 1];
+            let baseAccVal = baseAccVals[Math.floor(Math.random() * baseAccVals.length)];
+            
+            let topIdx = (baseIdx + degree - 1) % 7;
+            let topOctave = baseOctave + Math.floor((baseIdx + degree - 1) / 7);
+            let topNote = notes[topIdx];
+            
+            let baseSemi = baseOctave * 12 + semitonesFromC[baseIdx] + baseAccVal;
+            let expectedSemiDiff = getMajorPerfectSemitones(degree);
+            
+            if (quality === 'm') expectedSemiDiff -= 1;
+            if (quality === 'd') expectedSemiDiff -= perfectIntervals.includes(degree) ? 1 : 2;
+            if (quality === 'dd') expectedSemiDiff -= perfectIntervals.includes(degree) ? 2 : 3;
+            if (quality === 'A') expectedSemiDiff += 1;
+            if (quality === 'AA') expectedSemiDiff += 2;
+            
+            let naturalTopSemi = topOctave * 12 + semitonesFromC[topIdx];
+            let topAccVal = (baseSemi + expectedSemiDiff) - naturalTopSemi;
+            
+            if (topAccVal < -2 || topAccVal > 2) return generateInterval();
+
+            return {
+                baseNote: baseNote, baseOctave: baseOctave, baseAcc: accStr[baseAccVal.toString()],
+                topNote: topNote, topOctave: topOctave, topAcc: accStr[topAccVal.toString()],
+                degree: degree, quality: quality
+            };
+        }
 
         function initVexFlow() {
-            div.innerHTML = "";
-            renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
+            divStaff.innerHTML = "";
+            renderer = new VF.Renderer(divStaff, VF.Renderer.Backends.SVG);
             renderer.resize(300, 150);
             context = renderer.getContext();
             context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
-
             stave = new VF.Stave(10, 20, 280);
             stave.addClef("treble");
             stave.setContext(context).draw();
         }
 
-        function drawStaff(n1, n2, showBoth) {
+        function drawIntervalVisual(cInt) {
             initVexFlow();
-            if (!n1) return;
-            
-            let keys = [n1];
-            if (showBoth && n2) {
-                keys = [n1, n2];
-            }
-            
-            const note = new VF.StaveNote({ clef: "treble", keys: keys, duration: "q" });
+            divStaff.style.display = "block";
+            let k1 = cInt.baseNote + '/' + cInt.baseOctave;
+            let k2 = cInt.topNote + '/' + cInt.topOctave;
+            const note = new VF.StaveNote({ clef: "treble", keys: [k1, k2], duration: "q" });
+            if (cInt.baseAcc !== 'n') note.addModifier(0, new VF.Accidental(cInt.baseAcc));
+            if (cInt.topAcc !== 'n') note.addModifier(1, new VF.Accidental(cInt.topAcc));
             const voice = new VF.Voice({ num_beats: 1, beat_value: 4 });
             voice.addTickables([note]);
-
             new VF.Formatter().joinVoices([voice]).format([voice], 200);
             voice.draw(context, stave);
         }
 
-        function generateInterval() {
-            // C4 (index 28) to A4 (index 33)
-            const baseIndex = 28 + Math.floor(Math.random() * 6);
-            currentIntervalValue = 2 + Math.floor(Math.random() * 7); // 2 to 8
-            const topIndex = baseIndex + currentIntervalValue - 1;
-
-            note1 = getNoteStrByIndex(baseIndex);
-            note2 = getNoteStrByIndex(topIndex);
-            currentIntervalName = intervalNames[currentIntervalValue];
-
+        function resetUI() {
             hasPlayed = false;
             btnPlay.disabled = false;
             btnPlay.innerHTML = "▶";
@@ -361,38 +412,36 @@
             exerciseBox.style.borderColor = "var(--border)";
             feedbackMsg.innerText = "";
             controlsPanel.style.display = "none";
+            divStaff.style.display = "none";
 
-            drawStaff(note1, note2, false);
-
-            answerButtons.forEach(btn => {
-                btn.disabled = true;
-                btn.classList.remove("flash-correct", "flash-incorrect");
-            });
-        }
-
-        function getNoteStrByIndex(absIndex) {
-            const octave = Math.floor(absIndex / 7);
-            const noteChar = noteScale[absIndex % 7];
-            return noteChar + '/' + octave;
+            answerButtons.forEach(btn => { btn.disabled = true; btn.classList.remove("flash-correct", "flash-incorrect"); });
+            qualButtons.forEach(btn => { btn.disabled = true; });
+            
+            if (majorIntervals.includes(currentInterval.degree)) {
+                selectedQuality = "M";
+            } else {
+                selectedQuality = "J";
+            }
+            updateQualitySelection();
         }
 
         function playIntervalAudio() {
-            if (!note1 || !note2) return;
+            if (!currentInterval) return;
 
-            // Clear any previous animations
             clearTimeout(audioPlayingTimeout);
             wave.classList.remove("active");
             btnPlay.classList.remove("playing");
 
-            // Trigger animation
             setTimeout(() => {
                 wave.classList.add("active");
                 btnPlay.classList.add("playing");
             }, 10);
 
-            AudioEngine.playInterval(note1, note2, false, 0.7);
+            const isHarmonic = document.querySelector('input[name="play-mode"]:checked').value === 'harmonic';
+            let n1 = currentInterval.baseNote + (currentInterval.baseAcc==='n'?'':currentInterval.baseAcc) + currentInterval.baseOctave;
+            let n2 = currentInterval.topNote + (currentInterval.topAcc==='n'?'':currentInterval.topAcc) + currentInterval.topOctave;
+            AudioEngine.playInterval(n1, n2, isHarmonic, 0.7);
 
-            // Turn off animation after play duration (0.7s * 2 = 1400ms)
             audioPlayingTimeout = setTimeout(() => {
                 wave.classList.remove("active");
                 btnPlay.classList.remove("playing");
@@ -405,57 +454,50 @@
                 setTimeout(() => {
                     btnDesc.innerText = "Escuchar de nuevo";
                     btnPlay.innerHTML = "🔊";
-                    answerButtons.forEach(btn => {
-                        btn.disabled = false;
-                    });
+                    answerButtons.forEach(btn => { btn.disabled = false; });
+                    qualButtons.forEach(btn => { btn.disabled = false; });
                 }, 1400);
             }
         }
 
-        btnPlay.addEventListener("click", () => {
-            playIntervalAudio();
-        });
+        btnPlay.addEventListener("click", playIntervalAudio);
+        btnReplay.addEventListener("click", playIntervalAudio);
 
-        btnReplay.addEventListener("click", () => {
-            playIntervalAudio();
-        });
-
-        function handleGuess(guessedInterval) {
+        function handleGuess(guessedDegree) {
             const responseTime = Date.now() - startTime;
-            const isCorrect = guessedInterval === currentIntervalName;
+            const isCorrect = (parseInt(guessedDegree) === currentInterval.degree) && (selectedQuality === currentInterval.quality);
+
+            let expectedName = currentInterval.quality + currentInterval.degree;
+            let guessedName = selectedQuality + guessedDegree;
 
             answerButtons.forEach(btn => {
                 btn.disabled = true;
-                if (btn.getAttribute("data-interval") === currentIntervalName) {
-                    btn.classList.add("flash-correct");
-                }
-                if (btn.getAttribute("data-interval") === guessedInterval && !isCorrect) {
-                    btn.classList.add("flash-incorrect");
+                if (btn.getAttribute("data-deg") == guessedDegree) {
+                    btn.classList.add(isCorrect ? "flash-correct" : "flash-incorrect");
                 }
             });
+            qualButtons.forEach(btn => { btn.disabled = true; });
 
             if (isCorrect) {
                 exerciseBox.style.borderColor = "var(--success)";
-                feedbackMsg.innerText = "¡Correcto: " + currentIntervalName + "!";
+                feedbackMsg.innerText = "¡Correcto!";
                 feedbackMsg.style.color = "var(--success)";
             } else {
                 exerciseBox.style.borderColor = "var(--danger)";
-                feedbackMsg.innerText = "Incorrecto. Era una " + currentIntervalName + ".";
+                feedbackMsg.innerText = "Incorrecto. Era " + expectedName + ".";
                 feedbackMsg.style.color = "var(--danger)";
             }
 
-            // Reveal full interval visually
-            drawStaff(note1, note2, true);
+            drawIntervalVisual(currentInterval);
 
-            // Record attempt
+            let presented = currentInterval.baseNote + currentInterval.baseAcc + "-" + currentInterval.topNote + currentInterval.topAcc;
+            
             fetch('{% url "record_attempt" game.slug %}', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    presented_question: currentIntervalName,
-                    guessed_answer: guessedInterval,
+                    presented_question: presented,
+                    guessed_answer: guessedName,
                     is_correct: isCorrect,
                     response_time_ms: responseTime
                 })
@@ -463,60 +505,58 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Update main HUD scores
-                    document.getElementById('streak-counter').innerText = data.current_streak;
-                    document.getElementById('level-counter').innerText = data.level;
+                    streakCounter.innerText = data.current_streak;
+                    if (data.level_info) {
+                        currentLevel = data.level_info.level;
+                        uiLevel.innerText = data.level_info.level;
+                        uiXp.innerText = data.level_info.xp_in_level;
+                        uiXpNeeded.innerText = data.level_info.xp_needed;
+                        uiProgressBar.style.width = data.level_info.progress_percentage + "%";
+                    }
 
-                    // Update real-time stats panel
+                    // Update stats panel
                     document.getElementById('stat-accuracy').innerText = data.accuracy + "%";
-                    document.getElementById('stat-accuracy-circle').style.background = 
-                        `conic-gradient(var(--primary) ${data.accuracy}%, var(--border) ${data.accuracy}% 100%)`;
+                    document.getElementById('stat-accuracy-circle').style.background = `conic-gradient(var(--primary) ${data.accuracy}%, var(--border) ${data.accuracy}% 100%)`;
                     document.getElementById('stat-correct').innerText = parseInt(document.getElementById('stat-correct').innerText, 10) + (isCorrect ? 1 : 0);
                     document.getElementById('stat-incorrect').innerText = data.incorrect_answers;
                     document.getElementById('stat-max-streak').innerText = data.max_streak;
-                    document.getElementById('stat-avg-time').innerText = data.avg_time;
-
-                    // Update hardest intervals list
-                    const listContainer = document.getElementById('stat-hardest-list');
-                    if (data.hardest && data.hardest.length > 0) {
-                        listContainer.innerHTML = '';
-                        data.hardest.forEach(item => {
-                            const divItem = document.createElement('div');
-                            divItem.style.display = 'flex';
-                            divItem.style.justifyContent = 'space-between';
-                            divItem.style.alignItems = 'center';
-                            divItem.style.padding = '0.6rem 0.8rem';
-                            divItem.style.background = 'rgba(239, 68, 68, 0.04)';
-                            divItem.style.border = '1px solid rgba(239, 68, 68, 0.12)';
-                            divItem.style.borderRadius = '0.5rem';
-                            divItem.style.fontSize = '0.9rem';
-                            divItem.innerHTML = `<span style="font-weight: 700; color: var(--text);">${item.interval}</span>
-                                                 <span style="font-weight: 800; color: var(--danger);">${item.accuracy}% precisión</span>`;
-                            listContainer.appendChild(divItem);
-                        });
-                    }
                 }
             })
             .catch(err => console.error(err));
 
-            // Show control panel
-            controlsPanel.style.display = "flex";
-            btnPlay.disabled = true;
+            const mode = window.getAppMode ? window.getAppMode() : 'eval';
+            const explanation = TheoryKB.getIntervalExplanation(currentInterval.degree, currentInterval.quality, mode, true);
+            const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto (Era ' + expectedName + ')';
+            
+            if (window.showTheoryModal) {
+                setTimeout(() => {
+                    window.showTheoryModal(title, explanation, () => {
+                        controlsPanel.style.display = "flex";
+                        btnPlay.disabled = true;
+                    });
+                }, 500);
+            } else {
+                controlsPanel.style.display = "flex";
+                btnPlay.disabled = true;
+            }
         }
 
         answerButtons.forEach(btn => {
             btn.addEventListener("click", (e) => {
-                const guessed = e.target.getAttribute("data-interval");
+                const guessed = e.target.getAttribute("data-deg");
                 handleGuess(guessed);
             });
         });
 
         btnNext.addEventListener("click", () => {
-            generateInterval();
+            currentInterval = generateInterval();
+            resetUI();
+            playIntervalAudio();
         });
 
-        // Initialize first round
-        generateInterval();
+        // Init first round
+        currentInterval = generateInterval();
+        resetUI();
     });
 </script>
 {% endblock %}
