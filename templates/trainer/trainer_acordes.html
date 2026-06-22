@@ -1,0 +1,574 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .trainer-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .top-nav {
+        width: 100%;
+        margin-bottom: -1rem;
+    }
+
+    .status-bar {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .progress-container {
+        width: 100%;
+        background: var(--surface);
+        padding: 1rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+    }
+    
+    .progress-labels {
+        display: flex;
+        justify-content: space-between;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+        font-size: 0.9rem;
+    }
+    
+    .progress-track {
+        width: 100%;
+        background: var(--bg);
+        height: 8px;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: var(--primary);
+        transition: width 0.3s ease;
+    }
+
+    #playback-area {
+        background: white;
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 2px solid var(--border);
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        transition: border-color 0.3s;
+    }
+
+    #staff-container {
+        margin-bottom: 2rem;
+    }
+
+    .btn-submit {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 1rem 3rem;
+        font-size: 1.25rem;
+        font-weight: bold;
+        border-radius: 50px;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+        margin-top: 1.5rem;
+        width: 100%;
+        max-width: 300px;
+    }
+
+    .btn-submit:hover:not(:disabled) {
+        transform: scale(1.05);
+        box-shadow: 0 6px 20px rgba(79, 70, 229, 0.6);
+    }
+    
+    .btn-submit:disabled {
+        background: var(--text-secondary);
+        box-shadow: none;
+        cursor: not-allowed;
+    }
+
+    #feedback-msg {
+        font-size: 1.5rem;
+        font-weight: 800;
+        height: 2rem;
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+    .controls-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        width: 100%;
+        background: var(--surface);
+        padding: 1.5rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+    }
+
+    .button-group-title {
+        font-size: 0.9rem;
+        font-weight: bold;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+        letter-spacing: 1px;
+    }
+
+    .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+    }
+
+    .chord-btn {
+        background: var(--bg);
+        border: 2px solid var(--border);
+        color: var(--text);
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s;
+        flex: 1;
+        min-width: 60px;
+        text-align: center;
+    }
+
+    .chord-btn:hover {
+        border-color: var(--primary);
+        background: rgba(79, 70, 229, 0.1);
+    }
+
+    .chord-btn.active {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+        box-shadow: 0 2px 10px rgba(79, 70, 229, 0.3);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="trainer-container">
+    <div class="top-nav">
+        <a href="{% url 'entrenador_index' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+            </svg>
+            Volver al Menú
+        </a>
+    </div>
+
+    <div style="text-align: center; width: 100%;">
+        <h1 style="margin-bottom: 0.5rem;">🎹 {{ game.name }}</h1>
+        <p style="color: var(--text-secondary);">Identifica la nota fundamental, alteración y cualidad del acorde en el pentagrama.</p>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-container">
+        <div class="progress-labels">
+            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
+        </div>
+        <div class="progress-track">
+            <div id="ui-progress-bar" class="progress-fill" style="width: {{ score.level_info.progress_percentage }}%;"></div>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+    </div>
+
+    <div id="playback-area">
+        <div id="staff-container"></div>
+        
+        <div class="controls-panel">
+            <div>
+                <div class="button-group-title">Nota Fundamental</div>
+                <div class="button-row" id="root-buttons">
+                    <button class="chord-btn root-btn" data-val="C">Do</button>
+                    <button class="chord-btn root-btn" data-val="D">Re</button>
+                    <button class="chord-btn root-btn" data-val="E">Mi</button>
+                    <button class="chord-btn root-btn" data-val="F">Fa</button>
+                    <button class="chord-btn root-btn" data-val="G">Sol</button>
+                    <button class="chord-btn root-btn" data-val="A">La</button>
+                    <button class="chord-btn root-btn" data-val="B">Si</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="button-group-title">Alteración</div>
+                <div class="button-row" id="accidental-buttons">
+                    <button class="chord-btn acc-btn active" data-val="natural">♮ Natural</button>
+                    <button class="chord-btn acc-btn" data-val="flat">♭ Bemol</button>
+                    <button class="chord-btn acc-btn" data-val="sharp">♯ Sostenido</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="button-group-title">Cualidad del Acorde</div>
+                <div class="button-row" id="quality-buttons">
+                    <button class="chord-btn qual-btn active" data-val="Mayor">Mayor</button>
+                    <button class="chord-btn qual-btn" data-val="Menor">Menor</button>
+                    <button class="chord-btn qual-btn" data-val="Disminuido">Disminuido</button>
+                    <button class="chord-btn qual-btn" data-val="Aumentado">Aumentado</button>
+                    <button class="chord-btn qual-btn" data-val="Maj7">Maj7</button>
+                    <button class="chord-btn qual-btn" data-val="7">7</button>
+                    <button class="chord-btn qual-btn" data-val="m7">m7</button>
+                    <button class="chord-btn qual-btn" data-val="mMaj7">mMaj7</button>
+                    <button class="chord-btn qual-btn" data-val="9">9</button>
+                    <button class="chord-btn qual-btn" data-val="11">11</button>
+                    <button class="chord-btn qual-btn" data-val="13">13</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="feedback-msg"></div>
+        <button id="btn-submit" class="btn-submit">Comprobar</button>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/vexflow@3.0.9/releases/vexflow-min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const VF = Vex.Flow;
+        const div = document.getElementById("staff-container");
+        const btnSubmit = document.getElementById("btn-submit");
+        const feedbackMsg = document.getElementById("feedback-msg");
+        const playbackArea = document.getElementById("playback-area");
+        
+        let currentChordInfo = null;
+        let renderer = null;
+        let context = null;
+        let stave = null;
+        let startTime = 0;
+        
+        let currentLevel = parseInt("{{ score.level_info.level }}") || 1;
+        let uiLevel = document.getElementById("ui-level");
+        let uiXp = document.getElementById("ui-xp");
+        let uiXpNeeded = document.getElementById("ui-xp-needed");
+        let uiProgressBar = document.getElementById("ui-progress-bar");
+        let streakCounter = document.getElementById("streak-counter");
+
+        // UI State
+        let selectedRoot = null;
+        let selectedAccidental = 'natural';
+        let selectedQuality = 'Mayor';
+
+        // Button Click Handlers
+        document.querySelectorAll('.root-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.root-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                selectedRoot = e.target.dataset.val;
+            });
+        });
+
+        document.querySelectorAll('.acc-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.acc-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                selectedAccidental = e.target.dataset.val;
+            });
+        });
+
+        document.querySelectorAll('.qual-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.qual-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                selectedQuality = e.target.dataset.val;
+            });
+        });
+
+        const majorScales = {
+            'C': ['c', 'd', 'e', 'f', 'g', 'a', 'b'],
+            'C#': ['c#', 'd#', 'e#', 'f#', 'g#', 'a#', 'b#'],
+            'Db': ['db', 'eb', 'f', 'gb', 'ab', 'bb', 'c'],
+            'D': ['d', 'e', 'f#', 'g', 'a', 'b', 'c#'],
+            'Eb': ['eb', 'f', 'g', 'ab', 'bb', 'c', 'd'],
+            'E': ['e', 'f#', 'g#', 'a', 'b', 'c#', 'd#'],
+            'F': ['f', 'g', 'a', 'bb', 'c', 'd', 'e'],
+            'F#': ['f#', 'g#', 'a#', 'b', 'c#', 'd#', 'e#'],
+            'Gb': ['gb', 'ab', 'bb', 'cb', 'db', 'eb', 'f'],
+            'G': ['g', 'a', 'b', 'c', 'd', 'e', 'f#'],
+            'Ab': ['ab', 'bb', 'c', 'db', 'eb', 'f', 'g'],
+            'A': ['a', 'b', 'c#', 'd', 'e', 'f#', 'g#'],
+            'Bb': ['bb', 'c', 'd', 'eb', 'f', 'g', 'a'],
+            'B': ['b', 'c#', 'd#', 'e', 'f#', 'g#', 'a#']
+        };
+
+        function flatten(note) {
+            if (note.endsWith('#')) return note.slice(0, -1);
+            return note + 'b';
+        }
+        function sharpen(note) {
+            if (note.endsWith('b')) return note.slice(0, -1);
+            return note + '#';
+        }
+
+        function generateChord() {
+            let availableRoots = Object.keys(majorScales);
+            let rootName = availableRoots[Math.floor(Math.random() * availableRoots.length)];
+            
+            let allowedQualities = [];
+            if (currentLevel >= 1) allowedQualities.push('Mayor');
+            if (currentLevel >= 2) allowedQualities.push('Menor');
+            if (currentLevel >= 3) allowedQualities.push('Disminuido', 'Aumentado');
+            if (currentLevel >= 4) allowedQualities.push('Maj7', '7');
+            if (currentLevel >= 5) allowedQualities.push('m7', 'mMaj7');
+            if (currentLevel >= 6) allowedQualities.push('9', '11');
+            if (currentLevel >= 7) allowedQualities.push('13');
+            
+            if (allowedQualities.length === 0) allowedQualities = ['Mayor'];
+            let quality = allowedQualities[Math.floor(Math.random() * allowedQualities.length)];
+
+            let scaleNotes = majorScales[rootName];
+            let extendedScale = [];
+            let currentOctave = 4;
+            
+            for(let loop = 0; loop < 2; loop++){
+                for (let i = 0; i < scaleNotes.length; i++) {
+                    let letter = scaleNotes[i][0];
+                    if (i > 0 || loop > 0) {
+                        let prevLetter = (i === 0) ? scaleNotes[scaleNotes.length-1][0] : scaleNotes[i-1][0];
+                        if (letter === 'c' && prevLetter !== 'c') {
+                            currentOctave++;
+                        }
+                    }
+                    extendedScale.push({ note: scaleNotes[i], oct: currentOctave });
+                }
+            }
+
+            let formulas = {
+                'Mayor': [1, 3, 5],
+                'Menor': [1, 'b3', 5],
+                'Disminuido': [1, 'b3', 'b5'],
+                'Aumentado': [1, 3, '#5'],
+                'Maj7': [1, 3, 5, 7],
+                '7': [1, 3, 5, 'b7'],
+                'm7': [1, 'b3', 5, 'b7'],
+                'mMaj7': [1, 'b3', 5, 7],
+                '9': [1, 3, 5, 'b7', 9],
+                '11': [1, 3, 5, 'b7', 9, 11],
+                '13': [1, 3, 5, 'b7', 9, 13]
+            };
+            
+            let formula = formulas[quality];
+            let keys = [];
+            let notesStrArr = [];
+            
+            formula.forEach(degreeStr => {
+                let isFlat = String(degreeStr).includes('b');
+                let isSharp = String(degreeStr).includes('#');
+                let degreeNum = parseInt(String(degreeStr).replace('b','').replace('#',''));
+                
+                let scaleDegree = extendedScale[degreeNum - 1];
+                let baseNote = scaleDegree.note;
+                
+                if (isFlat) baseNote = flatten(baseNote);
+                if (isSharp) baseNote = sharpen(baseNote);
+                
+                keys.push(`${baseNote}/${scaleDegree.oct}`);
+                
+                let displayNote = baseNote.charAt(0).toUpperCase() + baseNote.slice(1);
+                notesStrArr.push(displayNote);
+            });
+
+            // Handle Inversions for Level 5+
+            if (currentLevel >= 5 && Math.random() > 0.5) {
+                let numInversions = (Math.random() > 0.5) ? 1 : 2;
+                if (keys.length > numInversions) {
+                    for(let k = 0; k < numInversions; k++) {
+                        let bottomNote = keys.shift();
+                        let parts = bottomNote.split('/');
+                        let newOct = parseInt(parts[1]) + 1;
+                        keys.push(parts[0] + '/' + newOct);
+                    }
+                }
+            }
+            
+            let parsedRoot = rootName[0];
+            let parsedAcc = 'natural';
+            if (rootName.length > 1) {
+                parsedAcc = rootName[1] === '#' ? 'sharp' : 'flat';
+            }
+            
+            return {
+                root: parsedRoot,
+                acc: parsedAcc,
+                qual: quality,
+                keys: keys,
+                notesStr: notesStrArr.join(', '),
+                formula: formula.join(' - ')
+            };
+        }
+
+        function drawChord(chordInfo) {
+            try {
+                div.innerHTML = "";
+                feedbackMsg.innerHTML = "";
+                playbackArea.style.borderColor = "var(--border)";
+                btnSubmit.disabled = false;
+                btnSubmit.innerText = "Comprobar";
+                
+                // Clear UI selection except default accidentals and qualities if we want
+                document.querySelectorAll('.root-btn').forEach(b => b.classList.remove('active'));
+                selectedRoot = null;
+                
+                currentChordInfo = chordInfo || generateChord();
+                
+                renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
+                renderer.resize(300, 150);
+                context = renderer.getContext();
+                context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
+
+                stave = new VF.Stave(50, 20, 200);
+                stave.addClef("treble").setContext(context).draw();
+
+                // Parse keys and accidentals
+                let parsedKeys = [];
+                let accidentalsMap = {};
+                
+                currentChordInfo.keys.forEach((keyStr, idx) => {
+                    let parts = keyStr.split('/');
+                    let pitch = parts[0];
+                    let oct = parts[1];
+                    let acc = pitch.length > 1 ? pitch.substring(1) : null;
+                    let cleanPitch = pitch[0] + '/' + oct;
+                    
+                    parsedKeys.push(keyStr); // VexFlow accepts 'c#/4' directly in keys array
+                    if (acc) {
+                        accidentalsMap[idx] = acc;
+                    }
+                });
+
+                let chordNote = new VF.StaveNote({ clef: "treble", keys: parsedKeys, duration: "w" });
+                
+                // Apply accidentals
+                for (let idx in accidentalsMap) {
+                    chordNote.addModifier(new VF.Accidental(accidentalsMap[idx]), parseInt(idx));
+                }
+
+                let voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+                voice.setStrict(false);
+                voice.addTickables([chordNote]);
+
+                new VF.Formatter().joinVoices([voice]).format([voice], 100);
+                voice.draw(context, stave);
+
+                startTime = Date.now();
+            } catch (err) {
+                console.error("Critical error in drawChord:", err);
+                feedbackMsg.innerText = "Reintentando ejercicio...";
+                setTimeout(() => drawChord(), 1000);
+            }
+        }
+
+        btnSubmit.addEventListener("click", () => {
+            if (!selectedRoot) {
+                feedbackMsg.innerText = "Selecciona la nota fundamental primero.";
+                feedbackMsg.style.color = "var(--danger)";
+                return;
+            }
+
+            try {
+                let responseTime = Date.now() - startTime;
+                
+                // Unified verification logic (Prepped for MIDI)
+                // In MIDI we would receive an array of pitches and determine root and quality.
+                // Here we just compare the UI state with the target.
+                let isCorrect = (selectedRoot === currentChordInfo.root && 
+                                 selectedAccidental === currentChordInfo.acc &&
+                                 selectedQuality === currentChordInfo.qual);
+
+                btnSubmit.disabled = true;
+
+                if (isCorrect) {
+                    feedbackMsg.innerText = "¡Correcto!";
+                    feedbackMsg.style.color = "var(--success)";
+                    playbackArea.style.borderColor = "var(--success)";
+                } else {
+                    feedbackMsg.innerText = "Incorrecto.";
+                    feedbackMsg.style.color = "var(--danger)";
+                    playbackArea.style.borderColor = "var(--danger)";
+                }
+
+                // Backend sync
+                let ansStr = `${selectedRoot}-${selectedAccidental}-${selectedQuality}`;
+                let qStr = `${currentChordInfo.root}-${currentChordInfo.acc}-${currentChordInfo.qual}`;
+
+                fetch('{% url "record_attempt" game.slug %}', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        presented_question: qStr,
+                        guessed_answer: ansStr,
+                        is_correct: isCorrect,
+                        response_time_ms: responseTime
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        streakCounter.innerText = data.current_streak;
+                        if (data.level_info) {
+                            currentLevel = data.level_info.level;
+                            uiLevel.innerText = data.level_info.level;
+                            uiXp.innerText = data.level_info.xp_in_level;
+                            uiXpNeeded.innerText = data.level_info.xp_needed;
+                            uiProgressBar.style.width = data.level_info.progress_percentage + "%";
+                        }
+                    }
+                })
+                .catch(err => console.error(err));
+
+                // Pedagogical Explanation
+                let accChar = currentChordInfo.acc === 'sharp' ? '#' : (currentChordInfo.acc === 'flat' ? 'b' : '');
+                let fullChordName = `${currentChordInfo.root}${accChar} ${currentChordInfo.qual}`;
+                
+                let exp = `<div style="text-align: left; padding: 1rem; background: var(--bg); border-radius: 0.5rem; margin-top: 1rem;">`;
+                exp += `<h3 style="margin-top: 0; color: var(--primary);">${fullChordName}</h3>`;
+                exp += `<p><strong>Notas:</strong> ${currentChordInfo.notesStr}</p>`;
+                exp += `<p><strong>Fórmula:</strong> ${currentChordInfo.formula}</p>`;
+                exp += `</div>`;
+
+                const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto';
+                
+                if (window.showTheoryModal) {
+                    setTimeout(() => {
+                        window.showTheoryModal(title, exp, () => drawChord());
+                    }, 1000);
+                } else {
+                    setTimeout(() => drawChord(), 2500);
+                }
+            } catch (err) {
+                console.error("Error on submit:", err);
+                setTimeout(() => drawChord(), 1000);
+            }
+        });
+
+        // Start
+        drawChord();
+    });
+</script>
+{% endblock %}

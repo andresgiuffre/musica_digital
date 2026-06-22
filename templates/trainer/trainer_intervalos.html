@@ -6,7 +6,13 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 2rem;
+        gap: 1.5rem;
+    }
+
+    .top-nav {
+        width: 100%;
+        max-width: 600px;
+        margin-bottom: -1rem;
     }
 
     #staff-container {
@@ -25,25 +31,63 @@
         max-width: 600px;
         font-weight: 600;
         color: var(--text-secondary);
+        margin-bottom: -0.5rem;
     }
 
-    .intervals-grid {
+    /* Progress bar */
+    .progress-container {
+        width: 100%;
+        max-width: 600px;
+        background: var(--surface);
+        padding: 1rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+    }
+    
+    .progress-labels {
+        display: flex;
+        justify-content: space-between;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+        font-size: 0.9rem;
+    }
+    
+    .progress-track {
+        width: 100%;
+        background: var(--bg);
+        height: 8px;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: var(--primary);
+        transition: width 0.3s ease;
+    }
+
+    /* Interval inputs */
+    .qualities-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 1rem;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.5rem;
         max-width: 600px;
         width: 100%;
     }
 
-    .intervals-grid:last-child {
-        grid-template-columns: repeat(3, 1fr);
-        margin-top: -1rem;
+    .degrees-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.5rem;
+        max-width: 600px;
+        width: 100%;
     }
-    
-    .btn-interval {
-        padding: 1.5rem 0.5rem;
-        font-size: 1.25rem;
-        border-radius: 1rem;
+
+    .btn-input {
+        padding: 1rem 0.25rem;
+        font-size: 0.95rem;
+        border-radius: 0.75rem;
         background: var(--surface);
         border: 2px solid var(--border);
         color: var(--text);
@@ -51,36 +95,15 @@
         cursor: pointer;
         transition: all 0.1s;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-
-    .btn-interval:hover {
-        transform: translateY(-2px);
-        border-color: var(--primary);
-        box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2);
-    }
-
-    .btn-interval:active {
-        transform: translateY(2px);
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    }
-
-    .flash-correct {
-        border-color: var(--success) !important;
-        background-color: rgba(16, 185, 129, 0.1);
-    }
-
-    .flash-incorrect {
-        border-color: var(--danger) !important;
-        background-color: rgba(239, 68, 68, 0.1);
-        animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
-    }
-
-    #feedback-msg {
-        height: 1.5rem;
-        font-weight: 600;
         text-align: center;
-        width: 100%;
     }
+
+    .btn-input:hover { transform: translateY(-2px); border-color: var(--primary); }
+    .btn-input.selected { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .flash-correct { border-color: var(--success) !important; background-color: rgba(16, 185, 129, 0.1); }
+    .flash-incorrect { border-color: var(--danger) !important; background-color: rgba(239, 68, 68, 0.1); animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+    #feedback-msg { height: 1.5rem; font-weight: 600; text-align: center; width: 100%; }
 
     @keyframes shake {
       10%, 90% { transform: translate3d(-1px, 0, 0); }
@@ -93,46 +116,67 @@
 
 {% block content %}
 <div class="trainer-container">
+    <div class="top-nav">
+        <a href="{% url 'entrenador_index' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+            </svg>
+            Volver al Menú
+        </a>
+    </div>
+
     <div style="text-align: center;">
         <h2 style="margin-bottom: 0.5rem;">{{ game.name }}</h2>
         <div id="feedback-msg"></div>
     </div>
 
-    <div class="status-bar">
+    <div class="progress-container">
+        <div class="progress-labels">
+            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
+        </div>
+        <div class="progress-track">
+            <div id="ui-progress-bar" class="progress-fill" style="width: {{ score.level_info.progress_percentage }}%;"></div>
+        </div>
+    </div>
+
+    <div class="status-bar" style="align-items: center;">
         <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
-        <div>Nivel: <span id="level-counter">{{ score.level }}</span></div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--text);">
+                <input type="radio" name="play-mode" value="melodic" checked style="accent-color: var(--primary);"> Melódico
+            </label>
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--text);">
+                <input type="radio" name="play-mode" value="harmonic" style="accent-color: var(--primary);"> Armónico
+            </label>
+        </div>
     </div>
 
     <div style="position: relative;">
-        <div id="staff-container">
-            <!-- VexFlow will render here -->
-        </div>
-        <button id="btn-replay-interval" class="btn" style="position: absolute; bottom: 12px; right: 12px; padding: 0; border-radius: 50%; background: var(--surface); border: 2px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; z-index: 10; font-size: 1.25rem; transition: all 0.2s;" title="Escuchar intervalo" onmouseover="this.style.borderColor='var(--primary)'; this.style.transform='scale(1.05)';" onmouseout="this.style.borderColor='var(--border)'; this.style.transform='scale(1)';">
+        <div id="staff-container"></div>
+        <button id="btn-replay-interval" class="btn" style="position: absolute; bottom: 12px; right: 12px; padding: 0; border-radius: 50%; background: var(--surface); border: 2px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; z-index: 10; font-size: 1.25rem; transition: all 0.2s;">
             🔊
         </button>
     </div>
 
-    <div style="display: flex; gap: 1.5rem; justify-content: center; align-items: center; width: 100%; max-width: 600px; background: var(--surface); padding: 0.75rem 1.5rem; border-radius: 1rem; border: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); margin-top: -0.5rem;">
-        <span style="font-weight: 600; font-size: 0.95rem; color: var(--text-secondary);">Modo de Audio:</span>
-        <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--text); user-select: none;">
-            <input type="radio" name="play-mode" value="melodic" checked style="cursor: pointer; width: 1.1rem; height: 1.1rem; accent-color: var(--primary);"> 📈 Melódico
-        </label>
-        <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--text); user-select: none;">
-            <input type="radio" name="play-mode" value="harmonic" style="cursor: pointer; width: 1.1rem; height: 1.1rem; accent-color: var(--primary);"> 🎹 Armónico
-        </label>
-    </div>
-
-    <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%; max-width: 600px; margin-top: 0.5rem;">
-        <div class="intervals-grid">
-            <button class="btn-interval" data-interval="2">Segunda</button>
-            <button class="btn-interval" data-interval="3">Tercera</button>
-            <button class="btn-interval" data-interval="4">Cuarta</button>
-            <button class="btn-interval" data-interval="5">Quinta</button>
+    <div style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%; max-width: 600px;">
+        <div class="qualities-grid">
+            <button class="btn-input btn-qual" data-qual="dd">dd</button>
+            <button class="btn-input btn-qual" data-qual="d">d</button>
+            <button class="btn-input btn-qual" data-qual="m">m</button>
+            <button class="btn-input btn-qual" data-qual="J">J</button>
+            <button class="btn-input btn-qual" data-qual="M">M</button>
+            <button class="btn-input btn-qual" data-qual="A">A</button>
+            <button class="btn-input btn-qual" data-qual="AA">AA</button>
         </div>
-        <div class="intervals-grid" style="grid-template-columns: repeat(3, 1fr);">
-            <button class="btn-interval" data-interval="6">Sexta</button>
-            <button class="btn-interval" data-interval="7">Séptima</button>
-            <button class="btn-interval" data-interval="8">Octava</button>
+        <div class="degrees-grid">
+            <button class="btn-input btn-deg" data-deg="2">2da</button>
+            <button class="btn-input btn-deg" data-deg="3">3ra</button>
+            <button class="btn-input btn-deg" data-deg="4">4ta</button>
+            <button class="btn-input btn-deg" data-deg="5">5ta</button>
+            <button class="btn-input btn-deg" data-deg="6">6ta</button>
+            <button class="btn-input btn-deg" data-deg="7">7ma</button>
+            <button class="btn-input btn-deg" data-deg="8">8va</button>
         </div>
     </div>
 </div>
@@ -146,21 +190,17 @@
         const div = document.getElementById("staff-container");
         const feedbackMsg = document.getElementById("feedback-msg");
         const btnReplay = document.getElementById("btn-replay-interval");
-        let renderer, context, stave;
         
-        const noteScale = ['c', 'd', 'e', 'f', 'g', 'a', 'b'];
-        const intervalNames = {
-            2: "Segunda", 3: "Tercera", 4: "Cuarta", 
-            5: "Quinta", 6: "Sexta", 7: "Séptima", 8: "Octava"
-        };
-        
-        let currentIntervalValue = 0;
-        let currentNote1 = "";
-        let currentNote2 = "";
-        let currentNotesStr = "";
-        let startTime = 0;
+        // Progress UI
+        const uiLevel = document.getElementById("ui-level");
+        const uiXp = document.getElementById("ui-xp");
+        const uiXpNeeded = document.getElementById("ui-xp-needed");
+        const uiProgressBar = document.getElementById("ui-progress-bar");
+        const streakCounter = document.getElementById("streak-counter");
 
-        // Mode settings persistence
+        let renderer, context, stave;
+        let currentLevel = parseInt("{{ score.level_info.level }}");
+        
         const playModeRadios = document.querySelectorAll('input[name="play-mode"]');
         const savedMode = localStorage.getItem("play_mode_intervalos");
         if (savedMode) {
@@ -168,29 +208,116 @@
                 if (radio.value === savedMode) radio.checked = true;
             });
         }
-
         playModeRadios.forEach(radio => {
-            radio.addEventListener("change", () => {
-                localStorage.setItem("play_mode_intervalos", radio.value);
+            radio.addEventListener("change", () => localStorage.setItem("play_mode_intervalos", radio.value));
+        });
+
+        // Theory Engine
+        const notes = ['c', 'd', 'e', 'f', 'g', 'a', 'b'];
+        const semitonesFromC = [0, 2, 4, 5, 7, 9, 11];
+        const perfectIntervals = [1, 4, 5, 8];
+        const majorIntervals = [2, 3, 6, 7];
+        
+        const getMajorPerfectSemitones = (degree) => {
+            if (degree===1) return 0; if (degree===2) return 2; if (degree===3) return 4;
+            if (degree===4) return 5; if (degree===5) return 7; if (degree===6) return 9;
+            if (degree===7) return 11; if (degree===8) return 12;
+            return 0;
+        };
+
+        const accOffset = { 'bb': -2, 'b': -1, 'n': 0, '#': 1, '##': 2 };
+        const accStr = { '-2': 'bb', '-1': 'b', '0': 'n', '1': '#', '2': '##' };
+
+        let currentInterval = null; // { baseNote, baseAcc, topNote, topAcc, degree, quality }
+        let startTime = 0;
+        let selectedQuality = "M"; 
+
+        function updateQualitySelection() {
+            document.querySelectorAll('.btn-qual').forEach(btn => {
+                if (btn.getAttribute('data-qual') === selectedQuality) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
+                }
+            });
+        }
+
+        document.querySelectorAll('.btn-qual').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                selectedQuality = e.target.getAttribute('data-qual');
+                updateQualitySelection();
             });
         });
+        updateQualitySelection();
+
+        function generateInterval() {
+            // Level options
+            let levelOpts = Math.min(currentLevel, 4);
+            let degree = Math.floor(Math.random() * 7) + 2; // 2 to 8
+            
+            let possibleQualities = [];
+            if (majorIntervals.includes(degree)) {
+                if (levelOpts >= 1) possibleQualities.push('M', 'm');
+                if (levelOpts >= 3) possibleQualities.push('A', 'd');
+                if (levelOpts >= 4) possibleQualities.push('AA', 'dd');
+            } else {
+                if (levelOpts >= 1) possibleQualities.push('J'); // Nivel 2 añade Justos, pero mejor permitir si sale
+                if (levelOpts >= 3) possibleQualities.push('A', 'd');
+                if (levelOpts >= 4) possibleQualities.push('AA', 'dd');
+            }
+            if (possibleQualities.length === 0) possibleQualities.push(majorIntervals.includes(degree) ? 'M' : 'J');
+            
+            let quality = possibleQualities[Math.floor(Math.random() * possibleQualities.length)];
+            
+            // Random base note
+            let baseIdx = Math.floor(Math.random() * 7); // C to B
+            let baseOctave = 4;
+            let baseNote = notes[baseIdx];
+            
+            // Limit base accidentals for simplicity
+            let baseAccVals = [0];
+            if (levelOpts >= 3) baseAccVals = [-1, 0, 1];
+            let baseAccVal = baseAccVals[Math.floor(Math.random() * baseAccVals.length)];
+            
+            // Calculate top note
+            let topIdx = (baseIdx + degree - 1) % 7;
+            let topOctave = baseOctave + Math.floor((baseIdx + degree - 1) / 7);
+            let topNote = notes[topIdx];
+            
+            // Calculate required semitones
+            let baseSemi = baseOctave * 12 + semitonesFromC[baseIdx] + baseAccVal;
+            let expectedSemiDiff = getMajorPerfectSemitones(degree);
+            
+            if (quality === 'm') expectedSemiDiff -= 1;
+            if (quality === 'd') expectedSemiDiff -= perfectIntervals.includes(degree) ? 1 : 2;
+            if (quality === 'dd') expectedSemiDiff -= perfectIntervals.includes(degree) ? 2 : 3;
+            if (quality === 'A') expectedSemiDiff += 1;
+            if (quality === 'AA') expectedSemiDiff += 2;
+            
+            let naturalTopSemi = topOctave * 12 + semitonesFromC[topIdx];
+            let topAccVal = (baseSemi + expectedSemiDiff) - naturalTopSemi;
+            
+            // If topAccVal is out of bounds (e.g. 3 or -3), recalculate (recursive)
+            if (topAccVal < -2 || topAccVal > 2) {
+                return generateInterval();
+            }
+
+            return {
+                baseNote: baseNote, baseOctave: baseOctave, baseAcc: accStr[baseAccVal.toString()],
+                topNote: topNote, topOctave: topOctave, topAcc: accStr[topAccVal.toString()],
+                degree: degree, quality: quality
+            };
+        }
 
         function playCurrentInterval() {
-            if (currentNote1 && currentNote2) {
-                const isHarmonic = document.querySelector('input[name="play-mode"]:checked').value === 'harmonic';
-                AudioEngine.playInterval(currentNote1, currentNote2, isHarmonic);
-            }
+            if (!currentInterval) return;
+            const isHarmonic = document.querySelector('input[name="play-mode"]:checked').value === 'harmonic';
+            let n1 = currentInterval.baseNote + (currentInterval.baseAcc==='n'?'':currentInterval.baseAcc) + currentInterval.baseOctave;
+            let n2 = currentInterval.topNote + (currentInterval.topAcc==='n'?'':currentInterval.topAcc) + currentInterval.topOctave;
+            AudioEngine.playInterval(n1, n2, isHarmonic);
         }
 
-        btnReplay.addEventListener("click", () => {
-            playCurrentInterval();
-        });
-
-        function getNoteStrByIndex(absIndex) {
-            const octave = Math.floor(absIndex / 7);
-            const noteChar = noteScale[absIndex % 7];
-            return noteChar + '/' + octave;
-        }
+        btnReplay.addEventListener("click", playCurrentInterval);
 
         function initVexFlow() {
             div.innerHTML = "";
@@ -198,7 +325,6 @@
             renderer.resize(300, 150);
             context = renderer.getContext();
             context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
-
             stave = new VF.Stave(10, 20, 280);
             stave.addClef("treble");
             stave.setContext(context).draw();
@@ -206,47 +332,49 @@
 
         function drawInterval() {
             initVexFlow();
+            currentInterval = generateInterval();
             
-            // Valid base notes from C4 (index 28) to A4 (index 33)
-            const baseIndex = 28 + Math.floor(Math.random() * 6);
+            let k1 = currentInterval.baseNote + '/' + currentInterval.baseOctave;
+            let k2 = currentInterval.topNote + '/' + currentInterval.topOctave;
             
-            // Random interval from 2 to 8
-            currentIntervalValue = 2 + Math.floor(Math.random() * 7);
+            const note = new VF.StaveNote({ clef: "treble", keys: [k1, k2], duration: "q" });
             
-            const topIndex = baseIndex + currentIntervalValue - 1;
-            
-            currentNote1 = getNoteStrByIndex(baseIndex);
-            currentNote2 = getNoteStrByIndex(topIndex);
-            currentNotesStr = currentNote1 + "-" + currentNote2;
-
-            const note = new VF.StaveNote({ clef: "treble", keys: [currentNote1, currentNote2], duration: "q" });
+            if (currentInterval.baseAcc !== 'n') note.addModifier(0, new VF.Accidental(currentInterval.baseAcc));
+            if (currentInterval.topAcc !== 'n') note.addModifier(1, new VF.Accidental(currentInterval.topAcc));
             
             const voice = new VF.Voice({ num_beats: 1, beat_value: 4 });
             voice.addTickables([note]);
-
             const formatter = new VF.Formatter().joinVoices([voice]).format([voice], 200);
             voice.draw(context, stave);
             
             startTime = Date.now();
             feedbackMsg.innerText = "";
+            
+            // Suggest sensible default selection for quality
+            if (majorIntervals.includes(currentInterval.degree)) {
+                selectedQuality = "M";
+            } else {
+                selectedQuality = "J";
+            }
+            updateQualitySelection();
 
-            setTimeout(() => {
-                playCurrentInterval();
-            }, 80);
+            setTimeout(playCurrentInterval, 80);
         }
 
-        function handleGuess(guessedIntervalStr) {
-            const guessedInterval = parseInt(guessedIntervalStr, 10);
+        function handleGuess(guessedDegree) {
             const responseTime = Date.now() - startTime;
-            const isCorrect = guessedInterval === currentIntervalValue;
+            const isCorrect = (parseInt(guessedDegree) === currentInterval.degree) && (selectedQuality === currentInterval.quality);
+
+            let expectedName = currentInterval.quality + currentInterval.degree;
+            let guessedName = selectedQuality + guessedDegree;
 
             if (isCorrect) {
                 div.classList.add("flash-correct");
-                feedbackMsg.innerText = "¡Correcto: " + intervalNames[currentIntervalValue] + "!";
+                feedbackMsg.innerText = "¡Correcto!";
                 feedbackMsg.style.color = "var(--success)";
             } else {
                 div.classList.add("flash-incorrect");
-                feedbackMsg.innerText = "Incorrecto. La respuesta era " + intervalNames[currentIntervalValue] + ".";
+                feedbackMsg.innerText = "Incorrecto. Era " + expectedName + ".";
                 feedbackMsg.style.color = "var(--danger)";
             }
 
@@ -255,14 +383,14 @@
                 div.classList.remove("flash-incorrect");
             }, 500);
 
+            let presented = currentInterval.baseNote + currentInterval.baseAcc + "-" + currentInterval.topNote + currentInterval.topAcc;
+            
             fetch('{% url "record_attempt" game.slug %}', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    presented_question: currentNotesStr,
-                    guessed_answer: guessedInterval.toString(),
+                    presented_question: presented,
+                    guessed_answer: guessedName,
                     is_correct: isCorrect,
                     response_time_ms: responseTime
                 })
@@ -270,20 +398,38 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    document.getElementById('streak-counter').innerText = data.current_streak;
-                    document.getElementById('level-counter').innerText = data.level;
+                    streakCounter.innerText = data.current_streak;
+                    if (data.level_info) {
+                        currentLevel = data.level_info.level;
+                        uiLevel.innerText = data.level_info.level;
+                        uiXp.innerText = data.level_info.xp_in_level;
+                        uiXpNeeded.innerText = data.level_info.xp_needed;
+                        uiProgressBar.style.width = data.level_info.progress_percentage + "%";
+                    }
                 }
             })
             .catch(err => console.error(err));
 
-            setTimeout(drawInterval, 1000);
+            const mode = window.getAppMode ? window.getAppMode() : 'eval';
+            const explanation = TheoryKB.getIntervalExplanation(currentInterval.degree, currentInterval.quality, mode, false);
+            const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto (Era ' + expectedName + ')';
+            
+            if (window.showTheoryModal) {
+                setTimeout(() => {
+                    window.showTheoryModal(title, explanation, () => {
+                        drawInterval();
+                    });
+                }, 500);
+            } else {
+                setTimeout(drawInterval, 1000);
+            }
         }
 
-        document.querySelectorAll('.btn-interval').forEach(btn => {
+        document.querySelectorAll('.btn-deg').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 if (feedbackMsg.innerText !== "") return;
-                const guessedInterval = e.target.getAttribute('data-interval');
-                handleGuess(guessedInterval);
+                const deg = e.target.getAttribute('data-deg');
+                handleGuess(deg);
             });
         });
 

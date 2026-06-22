@@ -11,6 +11,7 @@
     <!-- Tonal.js para análisis armónico MIDI -->
     <script src="https://cdn.jsdelivr.net/npm/tonal/browser/tonal.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{% static 'js/teoria.js' %}?v=2"></script>
     <style>
         :root {
             --primary: #3b82f6;
@@ -106,6 +107,65 @@
         .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; text-decoration: none; font-size: 1rem; }
         .btn-primary { background-color: var(--primary); color: white; }
         .btn-primary:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
+
+        /* Explanation Modal */
+        #theory-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(5px);
+            align-items: center;
+            justify-content: center;
+        }
+        .theory-modal-content {
+            background-color: var(--surface);
+            margin: auto;
+            padding: 2rem;
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            position: relative;
+            text-align: center;
+            transform: translateY(20px);
+            animation: slideUp 0.3s forwards;
+        }
+        @keyframes slideUp { to { transform: translateY(0); } }
+        .theory-modal-close {
+            position: absolute;
+            right: 1.5rem;
+            top: 1rem;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .theory-modal-close:hover { color: var(--text); }
+        .learning-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255,255,255,0.05);
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .toggle-switch {
+            position: relative; width: 40px; height: 20px; background-color: var(--border); border-radius: 20px; cursor: pointer; transition: background-color 0.3s;
+        }
+        .toggle-switch::after {
+            content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background-color: white; border-radius: 50%; transition: transform 0.3s;
+        }
+        .toggle-switch.active { background-color: var(--primary); }
+        .toggle-switch.active::after { transform: translateX(20px); }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -138,6 +198,10 @@
                 </a>
                 
                 <div class="nav-user">
+                    <div class="learning-toggle">
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);" id="mode-label">Evaluación</span>
+                        <div class="toggle-switch" id="global-mode-toggle"></div>
+                    </div>
                     <a href="{% url 'perfil' %}" class="nav-link !text-blue-400 hover:!text-blue-300">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                         Mi Perfil
@@ -151,6 +215,61 @@
     <main class="main-content">
         {% block content %}{% endblock %}
     </main>
+
+    <!-- Theory Modal -->
+    <div id="theory-modal">
+        <div class="theory-modal-content">
+            <span class="theory-modal-close" id="theory-modal-close">&times;</span>
+            <h2 id="theory-modal-title" style="font-size: 1.5rem; font-weight: 800; margin-bottom: 1rem; color: var(--primary);">Explicación Teórica</h2>
+            <div id="theory-modal-body" style="color: var(--text); font-size: 1rem; line-height: 1.6;"></div>
+            <button id="theory-modal-btn" class="btn btn-primary" style="margin-top: 1.5rem; width: 100%;">Continuar</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const toggle = document.getElementById("global-mode-toggle");
+            const label = document.getElementById("mode-label");
+            if(toggle) {
+                const currentMode = localStorage.getItem("app_mode") || "eval";
+                if(currentMode === "learning") {
+                    toggle.classList.add("active");
+                    label.innerText = "Aprendizaje";
+                    label.style.color = "var(--primary)";
+                }
+                toggle.addEventListener("click", () => {
+                    toggle.classList.toggle("active");
+                    if(toggle.classList.contains("active")) {
+                        localStorage.setItem("app_mode", "learning");
+                        label.innerText = "Aprendizaje";
+                        label.style.color = "var(--primary)";
+                    } else {
+                        localStorage.setItem("app_mode", "eval");
+                        label.innerText = "Evaluación";
+                        label.style.color = "var(--text-secondary)";
+                    }
+                });
+            }
+
+            const modal = document.getElementById("theory-modal");
+            const btnClose = document.getElementById("theory-modal-close");
+            const btnCont = document.getElementById("theory-modal-btn");
+            if(btnClose && btnCont) {
+                btnClose.onclick = () => { modal.style.display = "none"; if(window.onTheoryModalClose) window.onTheoryModalClose(); }
+                btnCont.onclick = () => { modal.style.display = "none"; if(window.onTheoryModalClose) window.onTheoryModalClose(); }
+            }
+        });
+        
+        window.showTheoryModal = function(title, content, callback) {
+            document.getElementById("theory-modal-title").innerText = title;
+            document.getElementById("theory-modal-body").innerHTML = content;
+            document.getElementById("theory-modal").style.display = "flex";
+            window.onTheoryModalClose = callback;
+        };
+        window.getAppMode = function() {
+            return localStorage.getItem("app_mode") || "eval";
+        };
+    </script>
 
     {% block extra_js %}{% endblock %}
 </body>

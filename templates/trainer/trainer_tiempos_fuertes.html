@@ -1,0 +1,486 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .trainer-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .top-nav {
+        width: 100%;
+        margin-bottom: -1rem;
+    }
+
+    .status-bar {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    /* Progress bar */
+    .progress-container {
+        width: 100%;
+        background: var(--surface);
+        padding: 1rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+    }
+    
+    .progress-labels {
+        display: flex;
+        justify-content: space-between;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+        font-size: 0.9rem;
+    }
+    
+    .progress-track {
+        width: 100%;
+        background: var(--bg);
+        height: 8px;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: var(--primary);
+        transition: width 0.3s ease;
+    }
+
+    #playback-area {
+        background: white;
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 2px solid var(--border);
+        width: 100%;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        transition: border-color 0.3s;
+    }
+
+    #staff-wrapper {
+        position: relative;
+        display: inline-block; /* Hug the SVG perfectly */
+    }
+
+    #staff-container {
+        position: relative;
+        z-index: 1;
+    }
+
+    #checkbox-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 2;
+    }
+
+    .beat-checkbox {
+        pointer-events: auto;
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        accent-color: var(--primary);
+        margin: 0;
+    }
+    
+    .beat-checkbox-wrapper {
+        position: absolute;
+        pointer-events: auto;
+        transform: translateX(-50%); /* Center exactly on the X coordinate */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-bottom: 4px; /* Room for the border when highlighted */
+    }
+
+    .btn-submit {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 1rem 3rem;
+        font-size: 1.25rem;
+        font-weight: bold;
+        border-radius: 50px;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+        margin-top: 1.5rem;
+    }
+
+    .btn-submit:hover:not(:disabled) {
+        transform: scale(1.05);
+        box-shadow: 0 6px 20px rgba(79, 70, 229, 0.6);
+    }
+    
+    .btn-submit:disabled {
+        background: var(--text-secondary);
+        box-shadow: none;
+        cursor: not-allowed;
+    }
+
+    #feedback-msg {
+        font-size: 1.5rem;
+        font-weight: 800;
+        height: 2rem;
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="trainer-container">
+    <div class="top-nav">
+        <a href="{% url 'entrenador_index' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+            </svg>
+            Volver al Menú
+        </a>
+    </div>
+
+    <div style="text-align: center; width: 100%;">
+        <h1 style="margin-bottom: 0.5rem;">📏 {{ game.name }}</h1>
+        <p style="color: var(--text-secondary);">Marca la casilla debajo de las notas que caen en tiempos FUERTES o SEMIFUERTES.</p>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-container">
+        <div class="progress-labels">
+            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
+        </div>
+        <div class="progress-track">
+            <div id="ui-progress-bar" class="progress-fill" style="width: {{ score.level_info.progress_percentage }}%;"></div>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+    </div>
+
+    <div id="playback-area">
+        <div id="staff-wrapper">
+            <div id="staff-container"></div>
+            <div id="checkbox-container"></div>
+        </div>
+        <div id="feedback-msg"></div>
+        <button id="btn-submit" class="btn-submit">Comprobar</button>
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/vexflow@3.0.9/releases/vexflow-min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const VF = Vex.Flow;
+        const div = document.getElementById("staff-container");
+        const checkboxContainer = document.getElementById("checkbox-container");
+        const btnSubmit = document.getElementById("btn-submit");
+        const feedbackMsg = document.getElementById("feedback-msg");
+        const playbackArea = document.getElementById("playback-area");
+
+        // Progress UI
+        const uiLevel = document.getElementById("ui-level");
+        const uiXp = document.getElementById("ui-xp");
+        const uiXpNeeded = document.getElementById("ui-xp-needed");
+        const uiProgressBar = document.getElementById("ui-progress-bar");
+        const streakCounter = document.getElementById("streak-counter");
+
+        let currentLevel = parseInt("{{ score.level_info.level }}");
+        let renderer, context, stave;
+        
+        let currentMeasureInfo = {};
+        let noteElements = [];
+        let startTime = 0;
+
+        function getLevelConfig() {
+            let config = { timeSignatures: [], noteTypes: [] };
+            let lvl = parseInt(currentLevel) || 1; // Fallback to 1
+            
+            // Provide more variety from Level 1
+            if (lvl >= 1) { config.timeSignatures.push('2/4', '3/4', '4/4'); config.noteTypes.push('q'); }
+            if (lvl >= 2) { config.noteTypes.push('h'); }
+            if (lvl >= 3) { config.noteTypes.push('8'); }
+            if (lvl >= 4) { config.noteTypes.push('qr'); }
+            if (lvl >= 5) { config.noteTypes.push('hr', '8r'); }
+            
+            return config;
+        }
+
+        function isStrongBeat(tick, timeSignature) {
+            let numBeats = parseInt(timeSignature.split('/')[0]);
+            let beat = tick % numBeats;
+            if (numBeats === 4) {
+                return beat === 0 || beat === 2; // 1 and 3 are strong
+            }
+            return beat === 0;
+        }
+
+        function generateMeasure() {
+            let config = getLevelConfig();
+            let ts = config.timeSignatures[Math.floor(Math.random() * config.timeSignatures.length)];
+            let numBeats = parseInt(ts.split('/')[0]);
+            
+            let notesData = [];
+            let currentTick = 0; // in quarter notes
+            let availableTicks = numBeats;
+
+            while (availableTicks > 0) {
+                let possibleTypes = config.noteTypes;
+                
+                // Filter possible types by available ticks
+                let validTypes = possibleTypes.filter(t => {
+                    let duration = 0;
+                    if (t.includes('h')) duration = 2;
+                    else if (t.includes('q')) duration = 1;
+                    else if (t.includes('8')) duration = 0.5;
+                    return duration <= availableTicks;
+                });
+                
+                if (validTypes.length === 0) validTypes = ['q']; // fallback
+                if (validTypes.includes('q') && availableTicks >= 1) validTypes = validTypes; 
+
+                let type = validTypes[Math.floor(Math.random() * validTypes.length)];
+                let duration = 0;
+                let vfDuration = type;
+                
+                if (type.includes('h')) duration = 2;
+                else if (type.includes('q')) duration = 1;
+                else if (type.includes('8')) duration = 0.5;
+
+                // Pick a random pitch for notes (not rests)
+                let keys = ["b/4"];
+                if (!type.includes('r')) {
+                    const pitches = ["c/4", "d/4", "e/4", "f/4", "g/4", "a/4", "b/4", "c/5"];
+                    keys = [pitches[Math.floor(Math.random() * pitches.length)]];
+                }
+
+                notesData.push({
+                    keys: keys,
+                    duration: vfDuration,
+                    tickVal: duration,
+                    startTick: currentTick,
+                    isStrong: isStrongBeat(currentTick, ts)
+                });
+
+                currentTick += duration;
+                availableTicks -= duration;
+            }
+
+            return {
+                timeSignature: ts,
+                notesData: notesData
+            };
+        }
+
+        function drawMeasure() {
+            try {
+                div.innerHTML = "";
+                checkboxContainer.innerHTML = "";
+                feedbackMsg.innerHTML = "";
+                playbackArea.style.borderColor = "var(--border)";
+                btnSubmit.disabled = false;
+                btnSubmit.innerText = "Comprobar";
+                noteElements = [];
+                
+                currentMeasureInfo = generateMeasure();
+                
+                renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
+                renderer.resize(400, 150);
+                context = renderer.getContext();
+                context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
+
+                stave = new VF.Stave(10, 20, 380);
+                stave.addClef("treble").addTimeSignature(currentMeasureInfo.timeSignature);
+                stave.setContext(context).draw();
+
+                let vfNotes = currentMeasureInfo.notesData.map(nd => {
+                    let note = new VF.StaveNote({ clef: "treble", keys: nd.keys, duration: nd.duration });
+                    nd.vfNote = note;
+                    return note;
+                });
+
+                // Handle eighth notes beaming manually or ignore to prevent crashes
+                let numBeats = parseInt(currentMeasureInfo.timeSignature.split('/')[0]);
+                let voice = new VF.Voice({ num_beats: numBeats, beat_value: 4 });
+                voice.setStrict(false); // Extremely important: prevents VexFlow crashes if tick math has precision errors
+                voice.addTickables(vfNotes);
+
+                let formatter = new VF.Formatter().joinVoices([voice]).format([voice], 300);
+                
+                // Draw without beams to avoid isolated 8th note crashes
+                voice.draw(context, stave);
+
+                // After drawing, get bounding boxes and add checkboxes
+                currentMeasureInfo.notesData.forEach((nd, i) => {
+                    let note = nd.vfNote;
+                    
+                    // Get the exact center of the note head
+                    let x = note.getAbsoluteX() + 6; // +6px approximate center of standard notehead
+                    let y = stave.getBottomY() + 10;
+
+                    // Create checkbox wrapper
+                    let wrapper = document.createElement("div");
+                    wrapper.className = "beat-checkbox-wrapper";
+                    wrapper.style.left = x + "px";
+                    wrapper.style.top = y + "px";
+
+                    let cb = document.createElement("input");
+                    cb.type = "checkbox";
+                    cb.className = "beat-checkbox";
+                    cb.dataset.index = i;
+                    
+                    // Don't show checkboxes for rests
+                    if (nd.duration.includes('r')) {
+                        wrapper.style.display = "none";
+                    }
+
+                    wrapper.appendChild(cb);
+                    checkboxContainer.appendChild(wrapper);
+                    
+                    nd.checkbox = cb;
+                });
+
+                startTime = Date.now();
+            } catch (err) {
+                console.error("Critical error in drawMeasure:", err);
+                feedbackMsg.innerText = "Reintentando ejercicio...";
+                setTimeout(() => {
+                    // Force a simple measure to recover
+                    currentMeasureInfo = { timeSignature: '2/4', notesData: [
+                        { keys: ['b/4'], duration: 'q', tickVal: 1, startTick: 0, isStrong: true },
+                        { keys: ['b/4'], duration: 'q', tickVal: 1, startTick: 1, isStrong: false }
+                    ]};
+                    drawMeasure(); // Try again
+                }, 1000);
+            }
+        }
+
+        btnSubmit.addEventListener("click", () => {
+            try {
+                let isAllCorrect = true;
+                let responseTime = Date.now() - startTime;
+                
+                // Validate
+                currentMeasureInfo.notesData.forEach((nd) => {
+                    if (!nd.duration.includes('r')) {
+                        let isChecked = nd.checkbox.checked;
+                        let shouldBeChecked = nd.isStrong;
+                        
+                        if (isChecked !== shouldBeChecked) {
+                            isAllCorrect = false;
+                            // highlight mistake
+                            nd.checkbox.parentElement.style.borderBottom = "3px solid var(--danger)";
+                            nd.checkbox.parentElement.style.paddingBottom = "5px";
+                        } else {
+                            // show correct
+                            nd.checkbox.parentElement.style.borderBottom = "3px solid var(--success)";
+                            nd.checkbox.parentElement.style.paddingBottom = "5px";
+                        }
+                    }
+                    nd.checkbox.disabled = true;
+                });
+
+                btnSubmit.disabled = true;
+
+                if (isAllCorrect) {
+                    feedbackMsg.innerText = "¡Correcto!";
+                    feedbackMsg.style.color = "var(--success)";
+                    playbackArea.style.borderColor = "var(--success)";
+                } else {
+                    feedbackMsg.innerText = "Incorrecto.";
+                    feedbackMsg.style.color = "var(--danger)";
+                    playbackArea.style.borderColor = "var(--danger)";
+                }
+
+                // Backend request
+                fetch('{% url "record_attempt" game.slug %}', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        presented_question: currentMeasureInfo.timeSignature,
+                        guessed_answer: isAllCorrect ? 'correct' : 'incorrect',
+                        is_correct: isAllCorrect,
+                        response_time_ms: responseTime
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        streakCounter.innerText = data.current_streak;
+                        if (data.level_info) {
+                            currentLevel = data.level_info.level;
+                            uiLevel.innerText = data.level_info.level;
+                            uiXp.innerText = data.level_info.xp_in_level;
+                            uiXpNeeded.innerText = data.level_info.xp_needed;
+                            uiProgressBar.style.width = data.level_info.progress_percentage + "%";
+                        }
+                    }
+                })
+                .catch(err => console.error(err));
+
+                // Inline fallback explanation logic to guarantee execution regardless of JS cache
+                let timeSig = currentMeasureInfo.timeSignature;
+                let num = parseInt(timeSig.split('/')[0]);
+                let exp = `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; text-align: left;">`;
+                exp += `<li><strong>Compás utilizado:</strong> ${timeSig}</li>`;
+                let rule = "";
+                if (num === 2) {
+                    exp += `<li><strong>Distribución:</strong> Tiempo 1 = fuerte, Tiempo 2 = débil</li>`;
+                    rule = `Por eso las notas ubicadas en el tiempo 1 son acentuadas.`;
+                } else if (num === 3) {
+                    exp += `<li><strong>Distribución:</strong> Tiempo 1 = fuerte, Tiempos 2 y 3 = débiles</li>`;
+                    rule = `Por eso las notas ubicadas en el tiempo 1 son acentuadas.`;
+                } else if (num === 4) {
+                    exp += `<li><strong>Distribución:</strong> Tiempo 1 = fuerte, Tiempo 2 = débil, Tiempo 3 = semifuerte, Tiempo 4 = débil</li>`;
+                    rule = `Por eso las notas en los tiempos 1 y 3 son acentuadas.`;
+                }
+                exp += `</ul><p style="text-align: left;">${rule}</p>`;
+
+                const title = isAllCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto';
+                
+                if (window.showTheoryModal) {
+                    setTimeout(() => {
+                        window.showTheoryModal(title, exp, () => {
+                            drawMeasure();
+                        });
+                    }, 1000);
+                } else {
+                    setTimeout(drawMeasure, 2000);
+                }
+            } catch (clickErr) {
+                console.error("Critical error in click handler:", clickErr);
+                feedbackMsg.innerText = "Avanzando automáticamente...";
+                setTimeout(drawMeasure, 1000);
+            }
+        });
+
+        // Initialize
+        drawMeasure();
+    });
+</script>
+{% endblock %}
