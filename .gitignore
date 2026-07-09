@@ -1,0 +1,18 @@
+# Django and Python files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Databases
+db.sqlite3
+*.sqlite3-journal
+
+# Django static & media
+staticfiles/
+media/
