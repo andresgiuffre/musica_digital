@@ -137,7 +137,7 @@
     </div>
 
     <!-- Quick Action Cards Limpias -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10 max-w-7xl mx-auto px-4 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 relative z-10 max-w-7xl mx-auto px-4 mb-8">
         
         <!-- Tarjeta 1: Biblioteca -->
         <a href="{% url 'biblioteca_list' %}" class="action-card card-blue">
@@ -169,6 +169,14 @@
             <div class="ac-title">Proyectos</div>
             <div class="ac-desc">Tus obras en estudio a largo plazo.</div>
             <div><span class="ac-btn">Mis Obras</span></div>
+        </a>
+
+        <!-- Tarjeta 5: Analizador -->
+        <a href="{% url 'orquestador_analizar' %}" class="action-card card-blue" style="border-color: rgba(59, 130, 246, 0.3);">
+            <div class="ac-icon flex items-center justify-center text-4xl" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));">🎼</div>
+            <div class="ac-title">Analizador</div>
+            <div class="ac-desc">Analiza la orquestación de archivos MIDI o MusicXML.</div>
+            <div><span class="ac-btn">Analizar</span></div>
         </a>
     </div>
 

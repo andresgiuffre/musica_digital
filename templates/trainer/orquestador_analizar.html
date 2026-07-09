@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .orquestador-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .top-nav {
+        width: 100%;
+        margin-bottom: -1rem;
+    }
+
+    .card {
+        background: white;
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 2px solid var(--border);
+        width: 100%;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .form-group input[type="text"], .form-group input[type="file"] {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 0.5rem;
+        background: var(--bg);
+        color: var(--text);
+    }
+
+    .btn-submit {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 1rem 3rem;
+        font-size: 1.1rem;
+        font-weight: bold;
+        border-radius: 50px;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+        width: 100%;
+    }
+
+    .btn-submit:hover:not(:disabled) {
+        transform: scale(1.02);
+        box-shadow: 0 6px 20px rgba(79, 70, 229, 0.6);
+    }
+    
+    .btn-submit:disabled {
+        background: var(--text-secondary);
+        box-shadow: none;
+        cursor: not-allowed;
+    }
+
+    #loading-indicator {
+        display: none;
+        text-align: center;
+        color: var(--primary);
+        font-weight: bold;
+        margin-top: 1rem;
+    }
+
+    #results-area {
+        display: none;
+        margin-top: 2rem;
+    }
+
+    pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="orquestador-container">
+    <div class="top-nav">
+        <a href="{% url 'entrenador_index' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+            </svg>
+            Volver
+        </a>
+    </div>
+
+    <div style="text-align: center; width: 100%;">
+        <h1 style="margin-bottom: 0.5rem;">🎼 Analizador de Partituras</h1>
+        <p style="color: var(--text-secondary);">Sube un archivo MIDI o MusicXML para analizar su orquestación y estructura.</p>
+    </div>
+
+    <div class="card">
+        <form id="upload-form" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="name">Nombre de la Obra (Opcional)</label>
+                <input type="text" id="name" name="name" placeholder="Ej: Sinfonía No. 5 en Do Menor">
+            </div>
+            <div class="form-group">
+                <label for="score_file">Archivo (.mid, .midi, .musicxml, .mxl)</label>
+                <input type="file" id="score_file" name="score_file" accept=".mid,.midi,.musicxml,.mxl" required>
+            </div>
+            
+            <button type="submit" class="btn-submit" id="btn-submit">Analizar Partitura</button>
+        </form>
+        
+        <div id="loading-indicator">
+            ⏳ Analizando la obra musical... por favor espera.
+        </div>
+        
+        <div id="results-area">
+            <h3>Resultados del Análisis:</h3>
+            <pre id="json-output"></pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById("upload-form");
+    const btnSubmit = document.getElementById("btn-submit");
+    const loading = document.getElementById("loading-indicator");
+    const resultsArea = document.getElementById("results-area");
+    const jsonOutput = document.getElementById("json-output");
+
+    form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        
+        btnSubmit.disabled = true;
+        loading.style.display = "block";
+        resultsArea.style.display = "none";
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            btnSubmit.disabled = false;
+            loading.style.display = "none";
+            
+            if(data.status === 'success') {
+                resultsArea.style.display = "block";
+                jsonOutput.innerText = JSON.stringify(data.data, null, 2);
+            } else {
+                alert("Error al procesar el archivo: " + data.message);
+            }
+        })
+        .catch(err => {
+            btnSubmit.disabled = false;
+            loading.style.display = "none";
+            alert("Error de red al subir el archivo.");
+            console.error(err);
+        });
+    });
+});
+</script>
+{% endblock %}

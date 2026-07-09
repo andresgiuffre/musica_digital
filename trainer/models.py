@@ -328,3 +328,13 @@ class MidiGameSession(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.game_type} - {self.score} pts"
+
+class ScoreAnalysis(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='score_analyses')
+    name = models.CharField(max_length=200)
+    score_file = models.FileField(upload_to='orquestador/scores/', help_text="Formatos: .mid, .midi, .musicxml, .mxl")
+    analysis_data = models.JSONField(blank=True, null=True, help_text="Reporte final estructurado por el agente de IA y music21")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.user.username}"

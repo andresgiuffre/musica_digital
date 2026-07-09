@@ -369,6 +369,81 @@ def trainer_analisis_progresiones(request):
     }
     return render(request, 'trainer/trainer_progresiones.html', context)
 
+import music21
+
+@login_required
+def orquestador_analizar(request):
+    if request.method == 'POST' and request.FILES.get('score_file'):
+        score_file = request.FILES['score_file']
+        name = request.POST.get('name', score_file.name)
+        
+        from .models import ScoreAnalysis
+        analysis = ScoreAnalysis.objects.create(
+            user=request.user,
+            name=name,
+            score_file=score_file
+        )
+        
+        try:
+            file_path = analysis.score_file.path
+            score = music21.converter.parse(file_path)
+            parts = score.parts
+            instrument_names = [p.partName for p in parts if p.partName]
+            
+            try:
+                key_sig = score.analyze('key')
+                key_str = str(key_sig)
+            except:
+                key_str = "Unknown"
+
+            time_sig = score.recurse().getElementsByClass(music21.meter.TimeSignature)
+            ts = time_sig[0].ratioString if time_sig else "Unknown"
+            
+            tempos = score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
+            tempo = tempos[0].number if tempos else "Unknown"
+            
+            measures_data = {}
+            for part in parts:
+                part_name = part.partName or "Instrumento Desconocido"
+                measures = part.getElementsByClass(music21.stream.Measure)
+                
+                part_data = []
+                for m in list(measures)[:8]:
+                    m_dict = {'number': m.number, 'notes': []}
+                    for element in m.recurse().notes:
+                        if isinstance(element, music21.note.Note):
+                            m_dict['notes'].append(f"{element.nameWithOctave} ({element.duration.type})")
+                        elif isinstance(element, music21.chord.Chord):
+                            chord_notes = "-".join([n.nameWithOctave for n in element.notes])
+                            m_dict['notes'].append(f"[{chord_notes}] ({element.duration.type})")
+                    
+                    dynamics = m.recurse().getElementsByClass(music21.dynamics.Dynamic)
+                    for d in dynamics:
+                        m_dict['notes'].append(f"Dinámica: {d.value}")
+                        
+                    part_data.append(m_dict)
+                measures_data[part_name] = part_data
+
+            analysis_data = {
+                'instruments': instrument_names,
+                'key_signature': key_str,
+                'time_signature': ts,
+                'tempo': tempo,
+                'measures_data': measures_data
+            }
+            
+            analysis.analysis_data = analysis_data
+            analysis.save()
+            
+            from django.http import JsonResponse
+            return JsonResponse({'status': 'success', 'data': analysis_data})
+            
+        except Exception as e:
+            from django.http import JsonResponse
+            return JsonResponse({'status': 'error', 'message': str(e)})
+
+    return render(request, 'trainer/orquestador_analizar.html')
+
 @login_required
 def biblioteca_list(request):
     col_slug = request.GET.get('collection')
