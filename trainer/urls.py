@@ -14,6 +14,7 @@ urlpatterns = [
     path('juego/sincopas-contratiempos/', views.trainer_sincopas_contratiempos, name='trainer_sincopas_contratiempos'),
     path('juego/reconocimiento-acordes/', views.trainer_reconocimiento_acordes, name='trainer_reconocimiento_acordes'),
     path('juego/analisis-progresiones/', views.trainer_analisis_progresiones, name='trainer_analisis_progresiones'),
+    path('orquestador/analizar/', views.orquestador_analizar, name='orquestador_analizar'),
     path('biblioteca/', views.biblioteca_list, name='biblioteca_list'),
     path('biblioteca/<int:score_id>/', views.biblioteca_play, name='biblioteca_play'),
     path('api/record_attempt/<str:game_slug>/', views.record_attempt, name='record_attempt'),
