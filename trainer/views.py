@@ -1,6 +1,14 @@
 import json
 import math
+import os
 from django.utils import timezone
+from pydantic import BaseModel, Field
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
+    types = None
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
@@ -371,6 +379,22 @@ def trainer_analisis_progresiones(request):
 
 import music21
 
+class AlertaBalance(BaseModel):
+    compas: str = Field(description="Número de compás o rango")
+    problema: str = Field(description="Descripción técnica del problema (ej. 'Los metales graves en f van a tapar por completo la línea melódica de las maderas medias').")
+    sugerencia: str = Field(description="Solución orquestal concreta (ej. 'Bajar la dinámica de trombones a mp, o duplicar la melodía con violas y cornos al unísono para darle más densidad y cuerpo frente al metal').")
+
+class SugerenciaColorDoblaje(BaseModel):
+    seccion: str = Field(description="Nombre del grupo de instrumentos o pasaje analizado")
+    critica: str = Field(description="Análisis del color actual (ej. 'La melodía principal en flauta sola en el registro medio suena delgada para el carácter épico que busca el acompañamiento de cuerdas en staccato').")
+    alternativas: str = Field(description="Proponer 2 combinaciones avanzadas de doblaje detallando el efecto psicológico de cada una (ej. 'Opción A: Doblar con Oboe al unísono para un color más penetrante y rústico. Opción B: Doblar con Violines I a la octava superior para darle brillo cinematográfico').")
+
+class OrchestrationAnalysis(BaseModel):
+    resumen_estilo: str = Field(description="Breve análisis de la textura general detectada (ej. homofónica, contrapuntística, masiva) y la distribución del mapa orquestal.")
+    alertas_balance: list[AlertaBalance]
+    sugerencias_color_y_doblaje: list[SugerenciaColorDoblaje]
+    ejercicio_practico: str = Field(description="Un ejercicio o restricción compositiva personalizada basada en los errores del usuario para que aplique en su próximo compás (ej. 'Escribí los siguientes 8 compases usando únicamente combinaciones de maderas y cuerdas bajas, sin usar metales ni percusión, para entrenar el balance de texturas blandas').")
+
 @login_required
 def orquestador_analizar(request):
     if request.method == 'POST' and request.FILES.get('score_file'):
@@ -432,11 +456,43 @@ def orquestador_analizar(request):
                 'measures_data': measures_data
             }
             
-            analysis.analysis_data = analysis_data
+            if genai:
+                client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+                
+                system_instruction = (
+                    "Sos un Maestro de Orquestación Clásica y Cinematográfica de élite, con décadas de experiencia "
+                    "analizando partituras de compositores como John Williams, Ravel, Stravinsky, Jeremy Soule y Nobuo Uematsu. "
+                    "Tu objetivo no es enseñar teoría básica (rango de instrumentos o qué es un ostinato), sino auditar el "
+                    "CRITERIO de orquestación, el BALANCE de frecuencias y el COLOR de los doblajes.\n\n"
+                    "Cuando recibas la estructura de datos de una pieza (instrumentos, notas por compás y dinámicas), "
+                    "debés devolver un análisis crítico estructurado estrictamente en formato JSON."
+                )
+                
+                prompt = f"Por favor, analiza la siguiente estructura de datos musicales:\n{json.dumps(analysis_data, ensure_ascii=False)}"
+                
+                response = client.models.generate_content(
+                    model='gemini-2.5-pro',
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=OrchestrationAnalysis,
+                        temperature=0.7,
+                    ),
+                )
+                
+                final_data = json.loads(response.text)
+            else:
+                final_data = {
+                    "error": "El SDK de google-genai no está instalado.",
+                    "raw_music_data": analysis_data
+                }
+
+            analysis.analysis_data = final_data
             analysis.save()
             
             from django.http import JsonResponse
-            return JsonResponse({'status': 'success', 'data': analysis_data})
+            return JsonResponse({'status': 'success', 'data': final_data})
             
         except Exception as e:
             from django.http import JsonResponse
