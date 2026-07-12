@@ -471,7 +471,7 @@ def orquestador_analizar(request):
                 prompt = f"Por favor, analiza la siguiente estructura de datos musicales:\n{json.dumps(analysis_data, ensure_ascii=False)}"
                 
                 response = client.models.generate_content(
-                    model='gemini-2.5-flash',
+                    model='gemini-1.5-flash',
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         system_instruction=system_instruction,
