@@ -11,17 +11,12 @@
         margin: 0 auto;
     }
 
-    .top-nav {
-        width: 100%;
-        margin-bottom: -1rem;
-    }
-
     .card {
-        background: white;
+        background: var(--surface);
         border-radius: 1rem;
         padding: 2rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        border: 2px solid var(--border);
+        box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 24px 46px -30px rgba(0,0,0,0.75);
+        border: 1px solid var(--border);
         width: 100%;
     }
 
@@ -55,13 +50,13 @@
         border-radius: 50px;
         cursor: pointer;
         transition: transform 0.2s, box-shadow 0.2s;
-        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+        box-shadow: 0 4px 15px rgba(47, 184, 255, 0.4);
         width: 100%;
     }
 
     .btn-submit:hover:not(:disabled) {
         transform: scale(1.02);
-        box-shadow: 0 6px 20px rgba(79, 70, 229, 0.6);
+        box-shadow: 0 6px 20px rgba(47, 184, 255, 0.6);
     }
     
     .btn-submit:disabled {

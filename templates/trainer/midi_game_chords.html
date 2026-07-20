@@ -2,8 +2,57 @@
 {% load static %}
 {% block title %}Identificación de Acordes MIDI{% endblock %}
 
+{% block extra_css %}
+<style>
+    #pulso-keyboard-bar {
+        background: linear-gradient(180deg, rgba(11,14,20,0) 0%, #0b0e14 18%);
+        padding: 1.25rem 1.5rem 1.5rem;
+        border-top: 1px solid var(--border);
+    }
+    .pulso-keyboard {
+        position: relative;
+        height: 120px;
+        display: flex;
+        max-width: 900px;
+        margin: 0 auto;
+        user-select: none;
+    }
+    .pulso-key {
+        position: relative;
+        flex: 1;
+        background: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 0 0 5px 5px;
+        transition: background 0.06s ease, box-shadow 0.12s ease;
+    }
+    .pulso-key.black {
+        position: absolute;
+        top: 0;
+        width: 2.6%;
+        height: 60%;
+        background: #05070b;
+        border: 1px solid #000;
+        border-radius: 0 0 4px 4px;
+        z-index: 2;
+    }
+    .pulso-key.pressed {
+        background: var(--pressed-color, var(--primary)) !important;
+        box-shadow: 0 0 18px var(--pressed-color, var(--primary));
+    }
+    .pulso-keyboard-caption {
+        text-align: center;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.7rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin-top: 0.6rem;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mx-auto px-4 py-8 max-w-4xl relative min-h-[80vh] flex flex-col justify-center">
+<div class="container mx-auto px-4 py-8 max-w-4xl relative min-h-[80vh] flex flex-col justify-center pb-40">
     
     <!-- Header Oculto o Pequeño -->
     <div class="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
@@ -20,12 +69,12 @@
 
     <!-- Pantalla Inicial -->
     <div id="screen-start" class="text-center">
-        <h1 class="text-6xl font-black text-white mb-6 drop-shadow-lg">Identificación de <span class="text-purple-400">Acordes</span></h1>
+        <h1 class="text-6xl font-black text-white mb-6 drop-shadow-lg font-display">Identificación de <span class="text-violet">Acordes</span></h1>
         <p class="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
             La plataforma te pedirá un acorde. Tócalo en tu controlador MIDI lo más rápido posible.
             Tienes <strong class="text-white">60 segundos</strong>. ¡Prepárate!
         </p>
-        <button id="btn-start" class="bg-purple-600 hover:bg-purple-500 text-white font-black py-4 px-12 rounded-full text-2xl shadow-[0_0_30px_rgba(168,85,247,0.5)] transition-transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+        <button id="btn-start" class="bg-violet hover:brightness-110 text-white font-black py-4 px-12 rounded-full text-2xl shadow-[0_0_30px_rgba(155,107,255,0.5)] transition-transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
             EMPEZAR JUEGO
         </button>
         <p id="msg-waiting-midi" class="text-red-400 mt-4 font-bold">Por favor, conecta un controlador MIDI para jugar.</p>
@@ -34,21 +83,21 @@
     <!-- Pantalla de Juego -->
     <div id="screen-game" class="hidden flex-col items-center justify-center w-full">
         <!-- Top HUD -->
-        <div class="flex justify-between w-full mb-12">
-            <div class="bg-gray-800 rounded-xl px-6 py-3 border border-gray-700">
-                <span class="text-gray-400 text-sm font-bold block">TIEMPO</span>
-                <span id="game-time" class="text-3xl font-black text-white">60</span><span class="text-gray-500">s</span>
+        <div class="flex justify-between w-full mb-12 font-mono">
+            <div class="bg-surf rounded-xl px-6 py-3 border border-[var(--border)]">
+                <span class="text-gray-400 text-xs font-bold block uppercase tracking-widest">Tiempo</span>
+                <span id="game-time" class="text-3xl font-bold text-ivory">60</span><span class="text-gray-500">s</span>
             </div>
-            <div class="bg-gray-800 rounded-xl px-6 py-3 border border-gray-700 text-right">
-                <span class="text-gray-400 text-sm font-bold block">PUNTOS</span>
-                <span id="game-score" class="text-3xl font-black text-emerald-400">0</span>
+            <div class="bg-surf rounded-xl px-6 py-3 border border-[var(--border)] text-right">
+                <span class="text-gray-400 text-xs font-bold block uppercase tracking-widest">Puntos</span>
+                <span id="game-score" class="text-3xl font-bold text-volt">0</span>
             </div>
         </div>
 
         <!-- Pregunta Central -->
         <div class="text-center mb-8 relative w-full max-w-2xl">
             <h2 class="text-2xl text-gray-400 font-bold mb-2 tracking-widest uppercase">TOCA EL ACORDE:</h2>
-            <div id="target-chord" class="text-8xl md:text-[150px] font-black text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.2)] transition-colors duration-300">
+            <div id="target-chord" class="text-8xl md:text-[150px] font-black text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.2)] transition-colors duration-300 font-display">
                 C Maj7
             </div>
             <!-- Feedback Overlay -->
@@ -58,34 +107,34 @@
         </div>
 
         <!-- Monitor en vivo pequeño -->
-        <div class="mt-12 h-16 flex gap-2 justify-center w-full" id="live-notes-monitor">
+        <div class="mt-12 h-16 flex gap-2 justify-center w-full font-mono" id="live-notes-monitor">
             <!-- Notas tocadas aparecen aquí -->
         </div>
     </div>
 
     <!-- Pantalla de Resultados -->
     <div id="screen-result" class="hidden text-center">
-        <h2 class="text-5xl font-black text-white mb-8">¡Tiempo Terminado!</h2>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+        <h2 class="text-5xl font-black text-white mb-8 font-display">¡Tiempo Terminado!</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 font-mono">
             <div class="bg-gray-800 rounded-2xl p-6 border border-emerald-500/30">
-                <span class="text-gray-400 text-sm font-bold block mb-1">PUNTUACIÓN</span>
-                <span id="res-score" class="text-4xl font-black text-emerald-400">0</span>
+                <span class="text-gray-400 text-xs font-bold block mb-1 uppercase tracking-widest">Puntuación</span>
+                <span id="res-score" class="text-4xl font-bold text-emerald-400">0</span>
             </div>
-            <div class="bg-gray-800 rounded-2xl p-6 border border-purple-500/30">
-                <span class="text-gray-400 text-sm font-bold block mb-1">XP OBTENIDA</span>
-                <span id="res-xp" class="text-4xl font-black text-purple-400">+0</span>
+            <div class="bg-gray-800 rounded-2xl p-6 border border-violet/30">
+                <span class="text-gray-400 text-xs font-bold block mb-1 uppercase tracking-widest">XP obtenida</span>
+                <span id="res-xp" class="text-4xl font-bold text-violet">+0</span>
             </div>
-            <div class="bg-gray-800 rounded-2xl p-6 border border-blue-500/30">
-                <span class="text-gray-400 text-sm font-bold block mb-1">ACORDES CORRECTOS</span>
-                <span id="res-correct" class="text-4xl font-black text-blue-400">0</span>
+            <div class="bg-gray-800 rounded-2xl p-6 border border-volt/30">
+                <span class="text-gray-400 text-xs font-bold block mb-1 uppercase tracking-widest">Acordes correctos</span>
+                <span id="res-correct" class="text-4xl font-bold text-volt">0</span>
             </div>
-            <div class="bg-gray-800 rounded-2xl p-6 border border-red-500/30">
-                <span class="text-gray-400 text-sm font-bold block mb-1">ERRORES</span>
-                <span id="res-incorrect" class="text-4xl font-black text-red-400">0</span>
+            <div class="bg-gray-800 rounded-2xl p-6 border border-ember/30">
+                <span class="text-gray-400 text-xs font-bold block mb-1 uppercase tracking-widest">Errores</span>
+                <span id="res-incorrect" class="text-4xl font-bold text-ember">0</span>
             </div>
         </div>
         <div class="flex gap-4 justify-center">
-            <button onclick="startGame()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-8 rounded-xl transition-colors">
+            <button onclick="startGame()" class="bg-violet hover:brightness-110 text-white font-bold py-3 px-8 rounded-xl transition-colors">
                 Jugar de Nuevo
             </button>
             <a href="{% url 'midi_trainer_hub' %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-xl transition-colors">
@@ -93,6 +142,12 @@
             </a>
         </div>
     </div>
+</div>
+
+<!-- Teclado en pantalla: se ilumina en tiempo real con cada nota MIDI recibida (color = velocity) -->
+<div id="pulso-keyboard-bar" class="hidden fixed bottom-0 left-0 right-0 z-20">
+    <div class="pulso-keyboard" id="pulso-keyboard"></div>
+    <p class="pulso-keyboard-caption">Lo que tocás en tu controlador se enciende acá — azul suave, naranja fuerte</p>
 </div>
 {% endblock %}
 
@@ -134,15 +189,67 @@
     const feedbackOverlay = document.getElementById('feedback-overlay');
     const feedbackIcon = document.getElementById('feedback-icon');
     const monitorDisplay = document.getElementById('live-notes-monitor');
+    const keyboardBar = document.getElementById('pulso-keyboard-bar');
+    const keyboardEl = document.getElementById('pulso-keyboard');
 
     // MIDI State
     const activeNotes = new Set(); // Guarda los pitches
-    
+
     const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     function getNotePC(pitch) {
         return NOTE_NAMES[pitch % 12];
     }
-    
+
+    // --- TECLADO EN PANTALLA: iluminación en tiempo real por velocity ---
+    // Construye 4 octavas (C2-B5) para cubrir el rango típico de acordes a mano.
+    (function buildKeyboard() {
+        const whiteSteps = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+        const blackAfter = { C: 'C#', D: 'D#', F: 'F#', G: 'G#', A: 'A#' };
+        const startOctave = 2, numOctaves = 4;
+        const whiteNotes = [];
+        for (let o = 0; o < numOctaves; o++) {
+            whiteSteps.forEach(n => whiteNotes.push(n + (startOctave + o)));
+        }
+        whiteNotes.forEach(name => {
+            const k = document.createElement('div');
+            k.className = 'pulso-key white';
+            k.dataset.note = name;
+            keyboardEl.appendChild(k);
+        });
+        const whiteCount = whiteNotes.length;
+        whiteNotes.forEach((name, i) => {
+            const letter = name[0];
+            if (blackAfter[letter] && i < whiteNotes.length - 1) {
+                const k = document.createElement('div');
+                k.className = 'pulso-key black';
+                k.dataset.note = blackAfter[letter] + name.slice(1);
+                k.style.left = (((i + 1) / whiteCount) * 100 - (100 / whiteCount) * 0.32) + '%';
+                keyboardEl.appendChild(k);
+            }
+        });
+    })();
+
+    function velocityColor(v) {
+        // v: 0 (suave) -> 1 (fuerte). Mismo par volt/ember de toda la interfaz.
+        const volt = [47, 184, 255], ember = [255, 90, 54];
+        const c = volt.map((ch, i) => Math.round(ch + (ember[i] - ch) * v));
+        return `rgb(${c.join(',')})`;
+    }
+
+    function lightKey(pitch, velocity) {
+        const noteName = NOTE_NAMES[pitch % 12] + (Math.floor(pitch / 12) - 1);
+        const key = keyboardEl.querySelector(`[data-note="${noteName}"]`);
+        if (!key) return;
+        key.style.setProperty('--pressed-color', velocityColor(velocity / 127));
+        key.classList.add('pressed');
+    }
+
+    function unlightKey(pitch) {
+        const noteName = NOTE_NAMES[pitch % 12] + (Math.floor(pitch / 12) - 1);
+        const key = keyboardEl.querySelector(`[data-note="${noteName}"]`);
+        if (key) key.classList.remove('pressed');
+    }
+
     // --- SINTETIZADOR DE PIANO ---
     let samplerLoaded = false;
     const pianoSampler = new Tone.Sampler({
@@ -271,6 +378,7 @@
                         pianoSampler.triggerAttack(noteName, Tone.context.currentTime, velocity / 127);
                     }
                     activeNotes.add(pitch);
+                    lightKey(pitch, velocity);
                     renderMonitor();
                     if(isPlaying && !isEvaluating) evaluateChord();
                 } else if (cmd === 8 || (cmd === 9 && velocity === 0)) {
@@ -279,6 +387,7 @@
                         pianoSampler.triggerRelease(noteName, Tone.context.currentTime);
                     }
                     activeNotes.delete(pitch);
+                    unlightKey(pitch);
                     renderMonitor();
                     if(isPlaying && !isEvaluating) evaluateChord();
                 }
@@ -297,6 +406,7 @@
         screenResult.classList.add('hidden');
         screenGame.classList.remove('hidden');
         screenGame.style.display = 'flex'; // override hidden util just in case
+        keyboardBar.classList.remove('hidden');
 
         timeLeft = GAME_DURATION;
         score = 0;
@@ -413,6 +523,7 @@
         clearInterval(timerInterval);
         screenGame.classList.add('hidden');
         screenGame.style.display = 'none';
+        keyboardBar.classList.add('hidden');
         screenResult.classList.remove('hidden');
 
         // Stats calculation

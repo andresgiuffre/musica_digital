@@ -1,252 +1,353 @@
 {% extends 'base.html' %}
-{% load static %}
 {% block title %}Inicio - Música Digital{% endblock %}
 
 {% block extra_css %}
 <style>
-    /* El gran fondo de piano para toda la página */
-    .main-content {
+    .hero {
         position: relative;
-        display: flex;
-        flex-direction: column;
-        flex: 1;
+        margin-top: 1.5rem;
+        border-radius: 1.4rem;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        overflow: hidden;
+        padding: clamp(2rem, 5vw, 3.25rem) clamp(1.5rem, 5vw, 3rem) 0;
+        box-shadow: 0 30px 60px -30px rgba(0,0,0,0.6);
     }
-
-    .main-content::before {
-        content: '';
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background-image: url('{% static "img/hero_bg.png" %}');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-        z-index: -2;
+    .hero-glow {
+        position: absolute; inset: 0; pointer-events: none; z-index: 0;
+        background:
+            radial-gradient(48rem 22rem at 12% -10%, rgba(47,184,255,0.16), transparent 60%),
+            radial-gradient(38rem 22rem at 100% 10%, rgba(155,107,255,0.14), transparent 60%),
+            radial-gradient(34rem 20rem at 70% 110%, rgba(255,90,54,0.10), transparent 60%);
     }
+    .hero-top { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 2rem; align-items: flex-end; justify-content: space-between; }
+    .hero-stats { display: flex; gap: 1.75rem; }
+    .hero-stat { text-align: right; }
+    .hero-stat .n { font-size: 1.7rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+    .hero-stat .l { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-top: 0.2rem; }
 
-    /* Oscurecimiento general para que la UI flote */
-    .main-content::after {
-        content: '';
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(15, 23, 42, 0.75);
-        backdrop-filter: blur(5px);
-        z-index: -1;
+    .hero-strip-wrap { position: relative; z-index: 1; margin-top: 2.25rem; }
+    .hero-strip { height: clamp(64px, 10vw, 96px); display: flex; align-items: flex-end; gap: 3px; cursor: pointer; }
+    .hero-bar {
+        flex: 1 1 auto; min-width: 2px; border-radius: 2px 2px 0 0;
+        background: linear-gradient(180deg, rgba(244,241,234,0.5), rgba(38,43,54,0.9));
+        transition: background 0.15s ease, box-shadow 0.15s ease;
     }
+    .hero-bar.wide { flex-grow: 2.1; }
+    .hero-strip-caption { padding: 0.6rem 0 1.5rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--text-secondary); text-align: right; }
 
-    .action-card {
-        background: rgba(30, 41, 59, 0.4);
-        backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 1.5rem;
-        padding: 2.5rem 2rem;
-        transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
-        text-align: center;
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        text-decoration: none;
+    .continue-card {
+        margin-top: 1.5rem; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+        border-radius: 1.1rem; padding: 1.4rem 1.75rem;
     }
+    .continue-card.reminder { background: linear-gradient(120deg, rgba(255,90,54,0.14), rgba(23,28,39,0.4)); border: 1px solid rgba(255,90,54,0.35); }
+    .continue-card.motivation { background: linear-gradient(120deg, rgba(155,107,255,0.14), rgba(23,28,39,0.4)); border: 1px solid rgba(155,107,255,0.35); }
+    .continue-card.suggestion { background: linear-gradient(120deg, rgba(52,211,153,0.14), rgba(23,28,39,0.4)); border: 1px solid rgba(52,211,153,0.35); }
+    .continue-icon { width: 3rem; height: 3rem; border-radius: 0.8rem; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+    .reminder .continue-icon { background: rgba(255,90,54,0.16); border: 1px solid rgba(255,90,54,0.4); }
+    .motivation .continue-icon { background: rgba(155,107,255,0.16); border: 1px solid rgba(155,107,255,0.4); }
+    .suggestion .continue-icon { background: rgba(52,211,153,0.16); border: 1px solid rgba(52,211,153,0.4); }
+    .continue-body { flex: 1; min-width: 14rem; }
+    .continue-body .k { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.3rem; }
+    .reminder .k { color: var(--danger); }
+    .motivation .k { color: #9b6bff; }
+    .suggestion .k { color: var(--success); }
+    .continue-body p { margin: 0; font-size: 1.02rem; }
 
-    .action-card:hover {
-        transform: translateY(-5px);
-        background: rgba(30, 41, 59, 0.6);
+    .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 3rem 0 1.25rem; gap: 1rem; flex-wrap: wrap; }
+
+    .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1.1rem; }
+    .tile {
+        position: relative; grid-column: span 2; border-radius: 1.1rem; border: 1px solid var(--border);
+        background: var(--surface); padding: 1.6rem; display: flex; flex-direction: column; gap: 0.9rem;
+        overflow: hidden; text-decoration: none; color: inherit;
+        box-shadow: 0 1px 0 rgba(244,241,234,0.06) inset, 0 18px 34px -26px rgba(0,0,0,0.7);
+        transition: transform 0.22s cubic-bezier(.2,.8,.2,1), box-shadow 0.22s ease, border-color 0.22s ease;
     }
+    .tile:hover { transform: translateY(-4px); border-color: var(--tile-accent, var(--primary)); box-shadow: 0 1px 0 rgba(244,241,234,0.06) inset, 0 26px 44px -20px var(--tile-shadow, rgba(47,184,255,0.28)); }
+    .tile.featured { grid-column: span 3; grid-row: span 2; padding: 2rem; }
+    .tile-icon { width: 2.9rem; height: 2.9rem; border-radius: 0.8rem; display: flex; align-items: center; justify-content: center; background: var(--tile-icon-bg); border: 1px solid var(--tile-icon-border); color: var(--tile-accent); }
+    .tile-icon svg { width: 1.4rem; height: 1.4rem; }
+    .tile h3 { font-size: 1.15rem; font-weight: 700; color: #fff; }
+    .tile.featured h3 { font-size: 1.55rem; }
+    .tile p { margin: 0; color: var(--text-secondary); font-size: 0.9rem; flex: 1; }
+    .tile .go { align-self: flex-start; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tile-accent); display: flex; align-items: center; gap: 0.4em; }
+    .tile .go svg { width: 0.9em; height: 0.9em; transition: transform 0.2s ease; }
+    .tile:hover .go svg { transform: translateX(3px); }
 
-    .ac-icon {
-        width: 50px;
-        height: 50px;
-        margin: 0 auto 1.5rem auto;
+    .tile--midi { --tile-accent: #9b6bff; --tile-icon-bg: rgba(155,107,255,0.16); --tile-icon-border: rgba(155,107,255,0.4); --tile-shadow: rgba(155,107,255,0.3); }
+    .tile--midi .mini-keys { display: flex; gap: 2px; height: 34px; margin-top: auto; }
+    .tile--midi .mini-keys i { flex: 1; background: rgba(244,241,234,0.85); border-radius: 0 0 3px 3px; font-style: normal; }
+    .tile--midi .mini-keys i:nth-child(3n) { background: #9b6bff; opacity: 0.8; }
+    .tile--biblio { --tile-accent: #2fb8ff; --tile-icon-bg: rgba(47,184,255,0.14); --tile-icon-border: rgba(47,184,255,0.35); --tile-shadow: rgba(47,184,255,0.28); }
+    .tile--entrenador { --tile-accent: #34d399; --tile-icon-bg: rgba(52,211,153,0.14); --tile-icon-border: rgba(52,211,153,0.35); --tile-shadow: rgba(52,211,153,0.28); }
+    .tile--proyectos { --tile-accent: #34d399; --tile-icon-bg: rgba(52,211,153,0.14); --tile-icon-border: rgba(52,211,153,0.35); --tile-shadow: rgba(52,211,153,0.28); }
+    .tile--analizador { --tile-accent: #ff5a36; --tile-icon-bg: rgba(255,90,54,0.14); --tile-icon-border: rgba(255,90,54,0.35); --tile-shadow: rgba(255,90,54,0.28); }
+
+    .progress-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1.1rem; align-items: start; }
+    @media (max-width: 900px) { .progress-grid { grid-template-columns: 1fr; } }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 1.1rem; padding: 1.6rem 1.75rem; box-shadow: 0 1px 0 rgba(244,241,234,0.06) inset, 0 18px 34px -28px rgba(0,0,0,0.7); }
+    .panel h3 { font-size: 1rem; font-weight: 700; margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem; color: #fff; }
+
+    .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.6rem; }
+    .stat-tile { background: var(--bg); border: 1px solid var(--border); border-radius: 0.8rem; padding: 0.9rem 1rem; }
+    .stat-tile .n { font-family: 'IBM Plex Mono', monospace; font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+    .stat-tile .l { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.15rem; }
+
+    .heat-wrap { overflow-x: auto; padding-bottom: 4px; }
+    .heatmap { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 3px; width: max-content; }
+    .heat-day { width: 11px; height: 11px; border-radius: 2px; background: var(--bg); }
+    .heat-day[data-level="1"] { background: #1d4e68; }
+    .heat-day[data-level="2"] { background: #2385b8; }
+    .heat-day[data-level="3"] { background: #ff8f5e; }
+    .heat-day[data-level="4"] { background: #ff5a36; }
+    .heat-legend { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.7rem; font-size: 0.7rem; color: var(--text-secondary); font-family: 'IBM Plex Mono', monospace; }
+    .heat-legend .heat-day { width: 9px; height: 9px; }
+
+    .rec-list { display: flex; flex-direction: column; gap: 0.7rem; }
+    .rec { display: flex; gap: 0.75rem; align-items: flex-start; background: var(--bg); border-radius: 0.7rem; padding: 0.8rem 1rem; border-left: 3px solid var(--rec-color, var(--primary)); }
+    .rec p { margin: 0; font-size: 0.88rem; color: #d6d9e0; }
+    .rec.reminder { --rec-color: #ff5a36; }
+    .rec.motivation { --rec-color: #9b6bff; }
+    .rec.suggestion { --rec-color: #34d399; }
+
+    .goal-inline { display: flex; align-items: center; gap: 1rem; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+    .goal-ring svg { transform: rotate(-90deg); }
+    .goal-ring circle { fill: none; stroke-width: 4; }
+    .goal-ring .track { stroke: var(--border); }
+    .goal-ring .fill { stroke: var(--primary); stroke-linecap: round; }
+    .goal-text .t { font-size: 0.85rem; font-weight: 600; }
+    .goal-text .v { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.15rem; }
+
+    @media (prefers-reduced-motion: reduce) { .hero-bar { transition: none !important; } }
+    @media (max-width: 720px) {
+        .bento { grid-template-columns: repeat(2, 1fr); }
+        .tile, .tile.featured { grid-column: span 2; }
+        .stat-row { grid-template-columns: repeat(2, 1fr); }
     }
-    
-    .ac-title { font-size: 1.5rem; font-weight: 800; color: white; margin-bottom: 0.5rem; text-shadow: 0 4px 6px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3); }
-    .ac-desc { color: #cbd5e1; font-size: 0.9rem; line-height: 1.5; font-weight: 500; margin-bottom: 2rem; flex-grow: 1; }
-    
-    .ac-btn {
-        display: inline-block;
-        padding: 0.75rem 2rem;
-        border-radius: 9999px; /* Botón píldora más estilizado */
-        font-weight: 700;
-        text-align: center;
-        font-size: 0.85rem;
-        transition: all 0.2s;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    /* Variantes */
-    .card-blue:hover { border-color: rgba(59, 130, 246, 0.5); box-shadow: 0 10px 30px rgba(59, 130, 246, 0.15); }
-    .card-blue .ac-btn { background: #3b82f6; color: white; border: 1px solid #2563eb; }
-    .card-blue:hover .ac-btn { background: #2563eb; }
-
-    .card-emerald:hover { border-color: rgba(16, 185, 129, 0.5); box-shadow: 0 10px 30px rgba(16, 185, 129, 0.15); }
-    .card-emerald .ac-btn { background: #10b981; color: white; border: 1px solid #059669; }
-    .card-emerald:hover .ac-btn { background: #059669; }
-
-    .card-purple:hover { border-color: rgba(168, 85, 247, 0.5); box-shadow: 0 10px 30px rgba(168, 85, 247, 0.15); }
-    .card-purple .ac-btn { background: #a855f7; color: white; border: 1px solid #9333ea; }
-    .card-purple:hover .ac-btn { background: #9333ea; }
-
-    /* Goal Widget */
-    .goal-widget {
-        position: fixed;
-        bottom: 2rem;
-        right: 2rem;
-        background: rgba(15, 23, 42, 0.6);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 1rem;
-        padding: 1rem 1.25rem;
-        z-index: 50;
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    /* GitHub Calendar */
-    .gh-calendar {
-        display: grid;
-        grid-template-columns: repeat(53, 1fr);
-        gap: 3px;
-        overflow-x: auto;
-        padding-bottom: 10px;
-    }
-    .gh-day {
-        width: 12px;
-        height: 12px;
-        border-radius: 2px;
-        background-color: #1e293b;
-    }
-    .gh-day[data-level="1"] { background-color: #0e4429; }
-    .gh-day[data-level="2"] { background-color: #006d32; }
-    .gh-day[data-level="3"] { background-color: #26a641; }
-    .gh-day[data-level="4"] { background-color: #39d353; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-12 max-w-6xl">
-    
-    <!-- Mensaje de Bienvenida -->
-    <div class="text-center mb-12">
-        <h1 class="text-5xl md:text-6xl font-black text-white mb-4 drop-shadow-lg tracking-tight">
-            Bienvenido, <span class="text-blue-400">{{ user.username }}</span>
-        </h1>
-        <p class="text-lg text-gray-300 max-w-2xl mx-auto font-medium drop-shadow">
-            ¿Qué vas a practicar hoy?
-        </p>
+<div class="container-legacy" style="max-width: 1180px;">
+
+    <section class="hero">
+        <div class="hero-glow"></div>
+        <div class="hero-top">
+            <div>
+                <div class="eyebrow" style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--primary);margin-bottom:0.9rem;">Panel de práctica</div>
+                <h1 style="font-size:clamp(2.1rem,4.2vw,3.1rem);font-weight:800;letter-spacing:-0.01em;">Hola, <span style="color:var(--primary);">{{ user.username }}</span></h1>
+                <p style="margin-top:0.6rem;color:var(--text-secondary);font-size:1.02rem;max-width:30rem;">
+                    {% if profile.current_daily_streak > 0 %}
+                        Llevás {{ profile.current_daily_streak }} día{{ profile.current_daily_streak|pluralize }} seguido{{ profile.current_daily_streak|pluralize }} practicando. No cortes la racha hoy.
+                    {% else %}
+                        Empezá hoy una racha nueva — ninguna sesión es demasiado corta para contar.
+                    {% endif %}
+                </p>
+            </div>
+            <div class="hero-stats">
+                <div class="hero-stat"><div class="n" style="color:var(--primary);">{{ profile.current_daily_streak }}</div><div class="l">Racha (días)</div></div>
+                <div class="hero-stat"><div class="n" style="color:#9b6bff;">Nv. {{ profile.user_level }}</div><div class="l">Nivel</div></div>
+                <div class="hero-stat"><div class="n" style="color:#ff5a36;">{{ profile.total_xp }}</div><div class="l">XP total</div></div>
+            </div>
+        </div>
+        <div class="hero-strip-wrap">
+            <div class="hero-strip" id="heroStrip"></div>
+            <div class="hero-strip-caption">pasá el mouse — así se siente tocar</div>
+        </div>
+    </section>
+
+    {% with top_rec=recommendations.0 %}
+    {% if top_rec %}
+    <div class="continue-card {{ top_rec.type }}">
+        <div class="continue-icon">
+            {% if top_rec.type == 'reminder' %}⏰{% elif top_rec.type == 'motivation' %}🔥{% else %}💡{% endif %}
+        </div>
+        <div class="continue-body">
+            <div class="k">{% if top_rec.type == 'reminder' %}Seguí donde dejaste{% elif top_rec.type == 'motivation' %}Vas bien{% else %}Sugerencia de hoy{% endif %}</div>
+            <p>{{ top_rec.message }}</p>
+        </div>
+        <a href="{% url 'biblioteca_list' %}" class="ac-btn" style="background:#ff5a36;color:#fff;border-radius:0.7rem;padding:0.7rem 1.4rem;text-transform:none;letter-spacing:normal;font-size:0.92rem;">Ver biblioteca →</a>
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <div class="section-head"><h2 style="font-size:1.5rem;font-weight:700;">¿Qué vas a practicar hoy?</h2></div>
+    <div class="bento">
+        <a href="{% url 'midi_trainer_hub' %}" class="tile tile--midi featured">
+            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg></div>
+            <h3>Estudio MIDI</h3>
+            <p>Conectá tu teclado y jugá con identificación de acordes en vivo — cada nota que tocás se ve y se escucha al instante.</p>
+            <div class="mini-keys" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <span class="go">Ir al piano <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+        <a href="{% url 'biblioteca_list' %}" class="tile tile--biblio">
+            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg></div>
+            <h3>Estudio Digital</h3>
+            <p>Tocá partituras reales con metrónomo y control de tempo.</p>
+            <span class="go">Ir a tocar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+        <a href="{% url 'entrenador_index' %}" class="tile tile--entrenador">
+            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>
+            <h3>Entrenador</h3>
+            <p>Juegos rápidos de oído y lectura para afilar reflejos.</p>
+            <span class="go">Entrenar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+        <a href="{% url 'proyectos_list' %}" class="tile tile--proyectos">
+            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></div>
+            <h3>Proyectos</h3>
+            <p>Tus obras en estudio a largo plazo, con metas propias.</p>
+            <span class="go">Mis obras <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+        <a href="{% url 'orquestador_analizar' %}" class="tile tile--analizador">
+            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/></svg></div>
+            <h3>Analizador</h3>
+            <p>Subí un MIDI o MusicXML y recibí una crítica de orquestación.</p>
+            <span class="go">Analizar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
     </div>
 
-    <!-- Quick Action Cards Limpias -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 relative z-10 max-w-7xl mx-auto px-4 mb-8">
-        
-        <!-- Tarjeta 1: Biblioteca -->
-        <a href="{% url 'biblioteca_list' %}" class="action-card card-blue">
-            <img src="{% static 'img/icon_estudio.png' %}" alt="Estudio Digital" class="ac-icon object-contain rounded-xl drop-shadow-md">
-            <div class="ac-title">Estudio Digital</div>
-            <div class="ac-desc">Toca partituras reales y usa el metrónomo.</div>
-            <div><span class="ac-btn">Ir a Tocar</span></div>
-        </a>
-
-        <!-- Tarjeta 2: Entrenador -->
-        <a href="{% url 'entrenador_index' %}" class="action-card card-emerald">
-            <img src="{% static 'img/icon_entrenador.png' %}" alt="Entrenador" class="ac-icon object-contain rounded-xl drop-shadow-md">
-            <div class="ac-title">Entrenador</div>
-            <div class="ac-desc">Juegos rápidos para leer más rápido.</div>
-            <div><span class="ac-btn">Entrenar</span></div>
-        </a>
-
-        <!-- Tarjeta 3: Estudio MIDI -->
-        <a href="{% url 'midi_trainer_hub' %}" class="action-card card-purple">
-            <img src="{% static 'img/icon_midi.png' %}" alt="Estudio MIDI" class="ac-icon object-contain rounded-xl drop-shadow-md" style="mix-blend-mode: screen;">
-            <div class="ac-title">Estudio MIDI</div>
-            <div class="ac-desc">Conecta tu teclado y mejora tu lectura al piano.</div>
-            <div><span class="ac-btn">Ir al Piano</span></div>
-        </a>
-
-        <!-- Tarjeta 4: Proyectos -->
-        <a href="{% url 'proyectos_list' %}" class="action-card card-emerald" style="border-color: rgba(16, 185, 129, 0.3);">
-            <img src="{% static 'img/icon_proyectos.png' %}" alt="Proyectos" class="ac-icon object-contain rounded-xl drop-shadow-md">
-            <div class="ac-title">Proyectos</div>
-            <div class="ac-desc">Tus obras en estudio a largo plazo.</div>
-            <div><span class="ac-btn">Mis Obras</span></div>
-        </a>
-
-        <!-- Tarjeta 5: Analizador -->
-        <a href="{% url 'orquestador_analizar' %}" class="action-card card-blue" style="border-color: rgba(59, 130, 246, 0.3);">
-            <div class="ac-icon flex items-center justify-center text-4xl" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));">🎼</div>
-            <div class="ac-title">Analizador</div>
-            <div class="ac-desc">Analiza la orquestación de archivos MIDI o MusicXML.</div>
-            <div><span class="ac-btn">Analizar</span></div>
-        </a>
-    </div>
-
-    <!-- DIRECTOR DE ESTUDIO -->
-    <div class="mt-12 text-center">
-        <h2 class="text-3xl font-black text-white mb-6 drop-shadow-lg">Director de Estudio</h2>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <!-- Resumen Semanal -->
-        <div class="bg-gray-900/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6 col-span-1">
-            <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                Esta Semana
-            </h3>
-            <ul class="space-y-3 text-gray-300">
-                <li class="flex justify-between"><span>Sesiones:</span> <span class="font-bold text-white">{{ weekly_summary.total_sessions }}</span></li>
-                <li class="flex justify-between"><span>Minutos:</span> <span class="font-bold text-white">{{ weekly_summary.total_minutes }}m</span></li>
-                <li class="flex justify-between"><span>Días practicados:</span> <span class="font-bold text-white">{{ weekly_summary.unique_days }}/7</span></li>
-                <li class="flex justify-between"><span>Obras tocadas:</span> <span class="font-bold text-white">{{ weekly_summary.unique_sheets }}</span></li>
-            </ul>
+    <div class="section-head"><h2 style="font-size:1.5rem;font-weight:700;">Director de Estudio</h2></div>
+    <div class="progress-grid">
+        <div class="panel">
+            <h3>Constancia del año</h3>
+            <div class="stat-row">
+                <div class="stat-tile"><div class="n">{{ weekly_summary.total_sessions }}</div><div class="l">Sesiones</div></div>
+                <div class="stat-tile"><div class="n">{{ weekly_summary.total_minutes }}m</div><div class="l">Esta semana</div></div>
+                <div class="stat-tile"><div class="n">{{ weekly_summary.unique_days }}/7</div><div class="l">Días activos</div></div>
+                <div class="stat-tile"><div class="n">{{ weekly_summary.unique_sheets }}</div><div class="l">Obras tocadas</div></div>
+            </div>
+            <div class="heat-wrap"><div class="heatmap" id="heatmap"></div></div>
+            <div class="heat-legend">
+                Menos
+                <div class="heat-day" data-level="0"></div>
+                <div class="heat-day" data-level="1"></div>
+                <div class="heat-day" data-level="2"></div>
+                <div class="heat-day" data-level="3"></div>
+                <div class="heat-day" data-level="4"></div>
+                Más
+            </div>
         </div>
 
-        <!-- Recomendaciones -->
-        <div class="bg-gray-900/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6 col-span-2">
-            <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                Recomendaciones
-            </h3>
-            <div class="space-y-3">
-                {% for rec in recommendations %}
-                <div class="bg-gray-800/80 p-4 rounded-xl border-l-4 {% if rec.type == 'reminder' %}border-red-500{% elif rec.type == 'motivation' %}border-yellow-500{% else %}border-emerald-500{% endif %}">
-                    <p class="text-gray-200">{{ rec.message }}</p>
-                </div>
+        <div class="panel">
+            <h3>Recomendaciones</h3>
+            <div class="rec-list">
+                {% for rec in recommendations|slice:"1:" %}
+                <div class="rec {{ rec.type }}"><p>{{ rec.message }}</p></div>
                 {% empty %}
-                <p class="text-gray-500">Todo en orden. ¡Sigue practicando!</p>
+                <p style="color:var(--text-secondary);font-size:0.9rem;">Sin más recomendaciones por ahora — segui así.</p>
                 {% endfor %}
             </div>
+            {% for ug in today_goals %}
+            {% widthratio ug.current_value ug.goal.target_value 125.6 as filled_len %}
+            <div class="goal-inline">
+                <div class="goal-ring">
+                    <svg width="48" height="48" viewBox="0 0 48 48">
+                        <circle class="track" cx="24" cy="24" r="20"></circle>
+                        <circle class="fill" cx="24" cy="24" r="20" stroke-dasharray="{{ filled_len }} 125.6"></circle>
+                    </svg>
+                </div>
+                <div class="goal-text">
+                    <div class="t">{{ ug.goal.title }}</div>
+                    <div class="v">{{ ug.current_value }} / {{ ug.goal.target_value }}m</div>
+                </div>
+            </div>
+            {% endfor %}
         </div>
     </div>
-
-
-
 </div>
-
-<!-- Widget de Meta Diaria Flotante -->
-{% for ug in today_goals %}
-    <div class="goal-widget">
-        <div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/50">
-            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-        </div>
-        <div>
-            <div class="flex justify-between items-end w-40 mb-1">
-                <span class="text-white text-xs font-bold">{{ ug.goal.title }}</span>
-                <span class="text-blue-400 text-[10px] font-bold">{{ ug.current_value }}/{{ ug.goal.target_value }}m</span>
-            </div>
-            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                {% widthratio ug.current_value ug.goal.target_value 100 as progress_percent %}
-                {% if ug.is_completed %}
-                <div class="h-full bg-emerald-500" style="width: {{ progress_percent }}%;"></div>
-                {% else %}
-                <div class="h-full bg-blue-500" style="width: {{ progress_percent }}%;"></div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-{% endfor %}
-
 {% endblock %}
 
 {% block extra_js %}
+<script>
+(function () {
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+    var strip = document.getElementById('heroStrip');
+    var pattern = [1,0,1,0,1,1,0,1,0,1,0,1];
+    var bars = [];
+    var BAR_COUNT = 60;
+    for (var i = 0; i < BAR_COUNT; i++) {
+        var bar = document.createElement('div');
+        bar.className = 'hero-bar' + (pattern[i % pattern.length] ? ' wide' : '');
+        var base = 22 + Math.random() * 26;
+        bar.dataset.base = base;
+        bar.style.height = base + '%';
+        strip.appendChild(bar);
+        bars.push(bar);
+    }
+    if (!reduceMotion) {
+        var t = 0;
+        setInterval(function () {
+            t += 0.05;
+            for (var i = 0; i < bars.length; i++) {
+                if (bars[i].classList.contains('hot')) continue;
+                var base = parseFloat(bars[i].dataset.base);
+                bars[i].style.height = Math.max(6, base + Math.sin(t + i * 0.4) * 5) + '%';
+            }
+        }, 60);
+    }
+    function velocityColor(v) {
+        var volt = [47,184,255], ember = [255,90,54];
+        var c = volt.map(function (ch, i) { return Math.round(ch + (ember[i]-ch) * v); });
+        return 'rgb(' + c.join(',') + ')';
+    }
+    strip.addEventListener('mousemove', function (e) {
+        var rect = strip.getBoundingClientRect();
+        var relX = (e.clientX - rect.left) / rect.width;
+        var relY = 1 - (e.clientY - rect.top) / rect.height;
+        var idx = Math.round(relX * (bars.length - 1));
+        for (var i = 0; i < bars.length; i++) {
+            var d = Math.abs(i - idx);
+            if (d < 7) {
+                var falloff = 1 - d / 7;
+                var base = parseFloat(bars[i].dataset.base);
+                bars[i].classList.add('hot');
+                bars[i].style.height = Math.min(100, base + relY * 55 * falloff) + '%';
+                bars[i].style.background = velocityColor(relY);
+                bars[i].style.boxShadow = '0 0 ' + (8*falloff) + 'px ' + velocityColor(relY);
+            } else {
+                bars[i].classList.remove('hot');
+                bars[i].style.background = '';
+                bars[i].style.boxShadow = '';
+            }
+        }
+    });
+    strip.addEventListener('mouseleave', function () {
+        bars.forEach(function (b) { b.classList.remove('hot'); b.style.background=''; b.style.boxShadow=''; });
+    });
+
+    // Heatmap real: 53 semanas x 7 días terminando hoy, usando calendar_data del backend (minutos por día)
+    var calendarData = {{ calendar_data|safe }};
+    var heatmap = document.getElementById('heatmap');
+    var today = new Date();
+    today.setHours(0,0,0,0);
+    var totalDays = 53 * 7;
+    var start = new Date(today);
+    start.setDate(start.getDate() - (totalDays - 1) - today.getDay());
+
+    function levelFor(minutes) {
+        if (!minutes) return 0;
+        if (minutes < 15) return 1;
+        if (minutes < 30) return 2;
+        if (minutes < 60) return 3;
+        return 4;
+    }
+
+    for (var w = 0; w < 53; w++) {
+        for (var d = 0; d < 7; d++) {
+            var date = new Date(start);
+            date.setDate(date.getDate() + w * 7 + d);
+            var cell = document.createElement('div');
+            cell.className = 'heat-day';
+            if (date <= today) {
+                var key = date.toISOString().slice(0, 10);
+                cell.dataset.level = levelFor(calendarData[key]);
+                cell.title = key + ': ' + (calendarData[key] || 0) + ' min';
+            }
+            heatmap.appendChild(cell);
+        }
+    }
+})();
+</script>
 {% endblock %}
