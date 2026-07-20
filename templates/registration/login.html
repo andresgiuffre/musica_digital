@@ -1,9 +1,15 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div style="max-width: 400px; margin: 2rem auto;">
-    <div class="card">
-        <h2 style="text-align: center; margin-bottom: 2rem;">Iniciar Sesión</h2>
+<div style="max-width: 400px; margin: 4rem auto; text-align: center;">
+    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--primary); margin-bottom: 0.75rem;">Panel de práctica</div>
+    <div class="card" style="text-align: left;">
+        <h2 style="text-align: center; margin-bottom: 2rem; font-size: 1.8rem;">Bienvenido de nuevo</h2>
+        {% if form.non_field_errors %}
+            <div style="color: var(--danger); background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 0.6rem; padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 0.9rem;">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
         <form method="post">
             {% csrf_token %}
             {% for field in form %}
@@ -20,7 +26,7 @@
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Entrar</button>
         </form>
         <p style="text-align: center; margin-top: 1.5rem; color: var(--text-secondary);">
-            ¿No tienes cuenta? <a href="{% url 'register' %}" style="color: var(--primary);">Regístrate aquí</a>
+            ¿No tenés cuenta? <a href="{% url 'register' %}" style="color: var(--primary);">Registrate acá</a>
         </p>
     </div>
 </div>

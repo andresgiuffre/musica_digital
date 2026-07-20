@@ -9,11 +9,11 @@
         background: white;
         border-radius: 12px;
         padding: 20px;
-        box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+        box-shadow: 0 24px 46px -26px rgba(0,0,0,0.7);
         overflow-x: auto;
         min-height: 400px;
     }
-    
+
     #osmdCanvas {
         width: 100%;
         min-width: 800px;
@@ -26,11 +26,11 @@
         right: 30px;
         width: 120px;
         height: 120px;
-        background: rgba(20, 30, 48, 0.85);
+        background: rgba(11, 14, 20, 0.85);
         border: 2px solid rgba(255, 255, 255, 0.1);
         border-radius: 50%;
         backdrop-filter: blur(10px);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(59, 130, 246, 0.2);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(47, 184, 255, 0.2);
         z-index: 50;
         display: flex;
         justify-content: center;
@@ -39,8 +39,8 @@
     }
 
     .beat-pulse {
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 40px rgba(59, 130, 246, 0.6) !important;
-        border-color: rgba(59, 130, 246, 0.8) !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 40px rgba(47, 184, 255, 0.6) !important;
+        border-color: rgba(47, 184, 255, 0.8) !important;
     }
 
     .beat-dot {
@@ -52,11 +52,11 @@
         transition: all 0.1s ease;
         box-shadow: 0 0 5px rgba(0,0,0,0.5);
     }
-    
+
     .beat-dot.active {
-        background: #3b82f6;
+        background: #2fb8ff;
         transform: scale(1.5);
-        box-shadow: 0 0 15px #3b82f6, 0 0 30px #3b82f6;
+        box-shadow: 0 0 15px #2fb8ff, 0 0 30px #2fb8ff;
     }
 
     .pos-down { bottom: 15px; left: 50%; transform: translateX(-50%); }
@@ -66,8 +66,8 @@
 
     /* Custom Controls */
     .btn-control {
-        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-        color: white;
+        background: linear-gradient(135deg, #2fb8ff 0%, #1596e0 100%);
+        color: #0b0e14;
         border: none;
         padding: 10px 20px;
         border-radius: 8px;
@@ -79,12 +79,12 @@
         justify-content: center;
         gap: 8px;
     }
-    
+
     .btn-control:hover:not(:disabled) {
         transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+        box-shadow: 0 5px 15px rgba(47, 184, 255, 0.4);
     }
-    
+
     .btn-control:disabled {
         background: #374151;
         color: #9ca3af;
@@ -94,11 +94,12 @@
     }
 
     .panel-box {
-        background: rgba(31, 41, 55, 0.7);
-        border: 1px solid rgba(75, 85, 99, 0.6);
+        background: var(--surface);
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 16px;
         margin-bottom: 16px;
+        box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 18px 34px -28px rgba(0,0,0,0.7);
     }
 
 </style>

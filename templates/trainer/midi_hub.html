@@ -2,35 +2,50 @@
 {% load static %}
 {% block title %}MIDI Trainer Hub{% endblock %}
 
+{% block extra_css %}
+<style>
+    .midi-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 1.1rem; box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 18px 34px -28px rgba(0,0,0,0.7); }
+    .harmony-panel { background: var(--surface); border: 1px solid rgba(155,107,255,0.3); box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 0 40px -10px rgba(155,107,255,0.15); }
+    .midi-note-chip { background: rgba(47,184,255,0.14); border: 1px solid rgba(47,184,255,0.4); color: var(--primary); font-family: 'IBM Plex Mono', monospace; }
+    .game-tile {
+        background: var(--surface); border: 1px solid var(--border); border-radius: 1rem; padding: 1.5rem;
+        box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 16px 30px -26px rgba(0,0,0,0.7);
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .game-tile:hover { transform: translateY(-3px); border-color: #9b6bff; box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 22px 40px -22px rgba(155,107,255,0.3); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mx-auto px-4 py-8 max-w-6xl">
     <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
-            <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 drop-shadow-lg mb-2">
-                MIDI Trainer
+            <div class="font-mono text-xs tracking-widest uppercase text-violet mb-2">Estudio MIDI</div>
+            <h1 class="text-5xl font-black text-white drop-shadow-lg mb-2 font-display">
+                Tu teclado, <span class="text-violet">en vivo</span>
             </h1>
-            <p class="text-gray-400 text-lg">Conecta tu teclado MIDI y empieza a interactuar.</p>
+            <p class="text-gray-400 text-lg">Conectá tu controlador y empezá a interactuar en tiempo real.</p>
         </div>
-        <a href="{% url 'dashboard' %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors">
-            🔙 Volver al Inicio
+        <a href="{% url 'dashboard' %}" class="bg-surf hover:bg-slate-700 text-white font-bold py-2 px-6 rounded-lg transition-colors border border-[var(--border)]">
+            ← Volver al Inicio
         </a>
     </div>
 
     <!-- Estado de Conexión MIDI -->
-    <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 mb-8 shadow-xl flex items-center justify-between">
+    <div class="midi-panel p-6 mb-8 flex items-center justify-between">
         <div class="flex items-center gap-4">
             <div id="midi-status-icon" class="w-12 h-12 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-all duration-300">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
             </div>
             <div>
                 <h3 class="text-xl font-bold text-white mb-1">Controlador MIDI</h3>
-                <select id="midi-device-select" class="bg-gray-700 text-white border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-purple-500 w-full min-w-[200px]">
+                <select id="midi-device-select" class="bg-surf text-white border border-[var(--border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:border-violet w-full min-w-[200px]">
                     <option>Buscando dispositivos...</option>
                 </select>
             </div>
         </div>
         <div>
-            <button id="btn-request-midi" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded-lg transition-colors hidden">
+            <button id="btn-request-midi" class="bg-violet hover:brightness-110 text-white font-bold py-2 px-4 rounded-lg transition-colors hidden">
                 Permitir Acceso MIDI
             </button>
         </div>
@@ -38,22 +53,22 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
         <!-- Monitor de Notas -->
-        <div class="bg-gray-900 rounded-2xl p-6 border border-gray-700 shadow-inner relative overflow-hidden flex flex-col">
+        <div class="midi-panel p-6 relative overflow-hidden flex flex-col">
             <div class="flex justify-between w-full">
-                <h3 class="text-lg font-bold text-gray-400 mb-4 uppercase tracking-wider">Monitor MIDI</h3>
+                <h3 class="text-xs font-bold text-gray-400 mb-4 uppercase tracking-wider font-mono">Monitor MIDI</h3>
             </div>
             <div id="midi-monitor-display" class="flex-1 flex flex-wrap content-start gap-2 min-h-[150px]">
-                <p class="text-gray-600 w-full text-center mt-8">Toca una tecla en tu controlador</p>
+                <p class="text-gray-600 w-full text-center mt-8">Tocá una tecla en tu controlador</p>
             </div>
         </div>
 
         <!-- Análisis Armónico -->
-        <div class="bg-gray-900/80 rounded-2xl p-6 border border-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.1)] flex flex-col items-center justify-center text-center min-h-[250px]">
-            <h3 class="text-sm font-bold text-purple-400 mb-2 uppercase tracking-wider w-full text-left">Análisis Armónico</h3>
+        <div class="harmony-panel rounded-[1.1rem] p-6 flex flex-col items-center justify-center text-center min-h-[250px]">
+            <h3 class="text-xs font-bold text-violet mb-2 uppercase tracking-wider w-full text-left font-mono">Análisis Armónico</h3>
             <div class="flex-1 flex flex-col justify-center w-full">
-                <h2 id="detected-chord-name" class="text-6xl font-black text-white drop-shadow-lg mb-4">-</h2>
+                <h2 id="detected-chord-name" class="text-6xl font-black text-white drop-shadow-lg mb-4 font-display">-</h2>
                 <div class="flex flex-col gap-2">
-                    <p class="text-gray-400">Notas: <span id="detected-chord-notes" class="font-bold text-gray-200">Ninguna</span></p>
+                    <p class="text-gray-400">Notas: <span id="detected-chord-notes" class="font-bold text-gray-200 font-mono">Ninguna</span></p>
                     <p class="text-gray-400 text-sm" id="detected-chord-aliases"></p>
                 </div>
             </div>
@@ -62,20 +77,24 @@
 
     <!-- Juegos -->
     <div>
-        <h2 class="text-2xl font-black text-white mb-6 border-b border-gray-700 pb-2">Juegos y Ejercicios</h2>
+        <h2 class="text-2xl font-black text-white mb-6 border-b border-[var(--border)] pb-2 font-display">Juegos y Ejercicios</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <!-- Juego: Identificación de Acordes -->
-            <a href="{% url 'midi_game_chords' %}" class="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-purple-500 hover:shadow-[0_0_20px_rgba(168,85,247,0.2)] transition-all hover:-translate-y-1 block">
-                <div class="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center text-2xl mb-4">🎹</div>
+            <a href="{% url 'midi_game_chords' %}" class="game-tile block">
+                <div class="w-12 h-12 bg-violet/15 border border-violet/40 rounded-lg flex items-center justify-center mb-4 text-violet">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                </div>
                 <h3 class="text-xl font-bold text-white mb-2">Identificación de Acordes</h3>
-                <p class="text-gray-400 text-sm mb-4">Practica tocando los acordes que te pida la plataforma lo más rápido posible.</p>
-                <span class="bg-purple-600 text-white text-xs font-bold px-3 py-1 rounded-full">Jugar</span>
+                <p class="text-gray-400 text-sm mb-4">Practicá tocando los acordes que te pida la plataforma lo más rápido posible.</p>
+                <span class="bg-violet text-white text-xs font-bold px-3 py-1 rounded-full font-mono uppercase tracking-wide">Jugar</span>
             </a>
-            
-            <div class="bg-gray-800/50 rounded-xl p-6 border border-gray-700/50 opacity-60">
-                <div class="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center text-2xl mb-4">🎵</div>
+
+            <div class="game-tile opacity-50" style="cursor: default;">
+                <div class="w-12 h-12 bg-surf border border-[var(--border)] rounded-lg flex items-center justify-center mb-4 text-gray-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </div>
                 <h3 class="text-xl font-bold text-white mb-2">Progresiones (Próximamente)</h3>
-                <p class="text-gray-400 text-sm">Entrena tocando progresiones armónicas populares en diferentes tonalidades.</p>
+                <p class="text-gray-400 text-sm">Entrená tocando progresiones armónicas populares en diferentes tonalidades.</p>
             </div>
         </div>
     </div>

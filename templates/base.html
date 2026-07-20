@@ -5,34 +5,73 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Música Digital</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <!-- Tonal.js para análisis armónico MIDI -->
     <script src="https://cdn.jsdelivr.net/npm/tonal/browser/tonal.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Paleta "Pulso": velocity de MIDI (volt=suave, ember=fuerte) como sistema de color del sitio.
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ink: '#0b0e14',
+                        surf: '#171c27',
+                        ivory: '#f4f1ea',
+                        volt: '#2fb8ff',
+                        ember: '#ff5a36',
+                        violet: '#9b6bff',
+                        // Reafina la paleta stock de Tailwind (blue/purple) hacia volt/violeta,
+                        // asi las plantillas que todavia usan utilidades crudas (bg-blue-600, etc.)
+                        // quedan visualmente consistentes con el resto del sitio sin tocar cada archivo.
+                        blue: {
+                            50: '#eaf8ff', 100: '#d1f0ff', 200: '#a3e2ff', 300: '#6ecfff',
+                            400: '#43bdff', 500: '#2fb8ff', 600: '#1596e0', 700: '#0f77b3',
+                            800: '#0f5c8a', 900: '#123f5c', 950: '#0a2538',
+                        },
+                        purple: {
+                            50: '#f5f1ff', 100: '#ece3ff', 200: '#d6c5ff', 300: '#bd9fff',
+                            400: '#a880ff', 500: '#9b6bff', 600: '#7c4dff', 700: '#6636db',
+                            800: '#502aa8', 900: '#3a1f7a', 950: '#241350',
+                        },
+                    },
+                    fontFamily: {
+                        display: ["'Bricolage Grotesque'", 'system-ui', 'sans-serif'],
+                        body: ["'IBM Plex Sans'", 'system-ui', 'sans-serif'],
+                        mono: ["'IBM Plex Mono'", 'ui-monospace', 'monospace'],
+                    },
+                },
+            },
+        };
+    </script>
     <script src="{% static 'js/teoria.js' %}?v=2"></script>
+    <script src="{% static 'js/audio_engine.js' %}?v=1"></script>
     <style>
         :root {
-            --primary: #3b82f6;
-            --primary-hover: #2563eb;
-            --bg: #0f172a;
-            --surface: #1e293b;
-            --text: #f8fafc;
-            --text-secondary: #94a3b8;
-            --success: #10b981;
+            --primary: #2fb8ff;
+            --primary-hover: #57c6ff;
+            --bg: #0b0e14;
+            --surface: #171c27;
+            --text: #f4f1ea;
+            --text-secondary: #9aa1ae;
+            --success: #34d399;
             --danger: #ef4444;
-            --border: #334155;
+            --border: #262b36;
         }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'IBM Plex Sans', sans-serif;
             background-color: var(--bg);
             color: var(--text);
             line-height: 1.5;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Bricolage Grotesque', sans-serif;
         }
 
         /* Navbar Moderna con Glassmorphism */
@@ -55,13 +94,13 @@
         }
 
         .nav-brand {
-            font-family: 'Orbitron', sans-serif;
+            font-family: 'Bricolage Grotesque', sans-serif;
             font-size: 1.8rem;
-            font-weight: 900;
+            font-weight: 800;
             color: #fff;
-            text-shadow: 0 0 5px #f97316, 0 0 10px #f97316, 0 0 20px #ea580c, 0 0 40px #ea580c;
+            text-shadow: 0 0 8px rgba(47, 184, 255, 0.5), 0 0 22px rgba(255, 90, 54, 0.35);
             text-decoration: none;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.02em;
             text-transform: uppercase;
         }
 
@@ -103,7 +142,7 @@
 
         /* Estilos Legados para compatibilidad con las vistas de entrenamiento que no usan Tailwind aún */
         .container-legacy { max-width: 1200px; margin: 0 auto; padding: 2rem; width: 100%; }
-        .card { background: var(--surface); border-radius: 1rem; padding: 2rem; border: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--surface); border-radius: 1rem; padding: 2rem; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 24px 46px -30px rgba(0,0,0,0.75); }
         .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; text-decoration: none; font-size: 1rem; }
         .btn-primary { background-color: var(--primary); color: white; }
         .btn-primary:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
@@ -166,6 +205,57 @@
         }
         .toggle-switch.active { background-color: var(--primary); }
         .toggle-switch.active::after { transform: translateX(20px); }
+
+        /* --- Formularios Django sin clases (login, registro, etc.) --- */
+        .form-group { margin-bottom: 1.1rem; text-align: left; }
+        .form-group label { display: block; font-weight: 600; font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 0.4rem; }
+        .form-group input, .form-group select, .form-group textarea,
+        input[type="text"], input[type="password"], input[type="email"], input[type="number"], textarea, select {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 0.6rem;
+            padding: 0.7rem 0.9rem;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus,
+        input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focus, input[type="number"]:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(47,184,255,0.18);
+        }
+
+        /* --- Chrome compartido por las pantallas de juego (juego/*) --- */
+        .top-nav { width: 100%; margin-bottom: -0.5rem; }
+        .status-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; font-weight: 600; color: var(--text-secondary); }
+
+        .progress-container { width: 100%; background: var(--surface); padding: 1rem; border-radius: 1rem; border: 1px solid var(--border); box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 14px 26px -22px rgba(0,0,0,0.6); }
+        .progress-labels { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 0.5rem; color: var(--text); font-size: 0.9rem; }
+        .progress-track { width: 100%; background: var(--bg); height: 8px; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #7dd3ff); transition: width 0.3s ease; }
+
+        .btn-input { padding: 1rem 0.5rem; font-size: 1.05rem; border-radius: 0.75rem; background: var(--surface); border: 2px solid var(--border); color: var(--text); font-weight: 800; cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; box-shadow: 0 10px 20px -12px rgba(0,0,0,0.5); text-align: center; }
+        .btn-input:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--primary); box-shadow: 0 14px 24px -12px rgba(47,184,255,0.3); }
+        .btn-input.selected { background: var(--primary); color: #0b0e14; border-color: var(--primary); }
+        .btn-input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .btn-submit { background: var(--primary); color: #0b0e14; border: none; padding: 1rem 3rem; font-size: 1.15rem; font-weight: 800; border-radius: 50px; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 12px 24px -8px rgba(47,184,255,0.45); margin-top: 1rem; }
+        .btn-submit:hover:not(:disabled) { transform: translateY(-2px) scale(1.02); box-shadow: 0 16px 30px -8px rgba(47,184,255,0.6); }
+        .btn-submit:disabled { background: var(--border); color: var(--text-secondary); box-shadow: none; cursor: not-allowed; }
+
+        #feedback-msg { min-height: 1.5rem; font-weight: 700; text-align: center; width: 100%; }
+
+        .flash-correct { border-color: var(--success) !important; background-color: rgba(52,211,153,0.1) !important; }
+        .flash-incorrect { border-color: var(--danger) !important; background-color: rgba(239,68,68,0.1) !important; animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
