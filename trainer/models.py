@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from .storage import EncryptedFileSystemStorage
 
 class Game(models.Model):
     slug = models.SlugField(unique=True)
@@ -83,6 +84,8 @@ class UserProfile(models.Model):
     last_active_date = models.DateField(null=True, blank=True)
     max_study_time_day = models.IntegerField(default=0)
     max_sessions_day = models.IntegerField(default=0)
+    creditos_analisis = models.IntegerField(default=0, help_text="Créditos del analizador de partituras asignados manualmente por el admin. No se otorgan automáticamente.")
+    creditos_bonus = models.IntegerField(default=0, help_text="Créditos adicionales cargados manualmente o comprados. No se resetean ni vencen.")
 
     def __str__(self):
         return f"Perfil de {self.user.username}"
@@ -332,9 +335,20 @@ class MidiGameSession(models.Model):
 class ScoreAnalysis(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='score_analyses')
     name = models.CharField(max_length=200)
-    score_file = models.FileField(upload_to='orquestador/scores/', help_text="Formatos: .mid, .midi, .musicxml, .mxl")
+    score_file = models.FileField(
+        upload_to='orquestador/scores/', storage=EncryptedFileSystemStorage(),
+        help_text="Formatos: .mid, .midi, .musicxml, .mxl. Se cifra en disco con Fernet."
+    )
     analysis_data = models.JSONField(blank=True, null=True, help_text="Reporte final estructurado por el agente de IA y music21")
     created_at = models.DateTimeField(auto_now_add=True)
+    version_de = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='versiones',
+        help_text="Análisis anterior del que este es una nueva versión (marcado explícitamente por el usuario al subir)."
+    )
+    share_token = models.CharField(
+        max_length=43, null=True, blank=True, unique=True, db_index=True,
+        help_text="Token aleatorio para el link público de solo lectura. Null = sin compartir."
+    )
 
     def __str__(self):
         return f"{self.name} - {self.user.username}"

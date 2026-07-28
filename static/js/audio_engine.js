@@ -122,17 +122,38 @@ const AudioEngine = {
     
     playMelody(notes, noteDuration = 0.6, gap = 0.1) {
         if (this.isMuted) return;
-        
+
         if (!this.isReady) {
             this.preload().then(() => this.playMelody(notes, noteDuration, gap));
             return;
         }
-        
+
         const now = Tone.now();
         notes.forEach((note, idx) => {
             const time = now + idx * (noteDuration + gap);
             const midiNote = this.noteToMidiStr(note);
             this.sampler.triggerAttackRelease(midiNote, noteDuration, time);
+        });
+    },
+
+    // events: [{ notes: [...], offset: beatsDesdeElInicio, duration: beats }, ...]
+    // Respeta ritmo real y acordes simultáneos, a diferencia de playMelody (espaciado fijo).
+    playSequence(events, bpm = 100) {
+        if (this.isMuted) return;
+
+        if (!this.isReady) {
+            this.preload().then(() => this.playSequence(events, bpm));
+            return;
+        }
+
+        const secondsPerBeat = 60 / bpm;
+        const now = Tone.now();
+        events.forEach(ev => {
+            if (!ev.notes || !ev.notes.length) return;
+            const midiNotes = ev.notes.map(n => this.noteToMidiStr(n));
+            const time = now + ev.offset * secondsPerBeat;
+            const duration = Math.max(ev.duration * secondsPerBeat, 0.05);
+            this.sampler.triggerAttackRelease(midiNotes, duration, time);
         });
     }
 };

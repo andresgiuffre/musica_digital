@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h1>Agregar créditos bonus</h1>
+<p>Se va a sumar la cantidad indicada al saldo <strong>actual</strong> de cada usuario seleccionado (no lo reemplaza):</p>
+<ul>
+    {% for profile in profiles %}
+        <li>{{ profile.user.username }} — bonus actual: {{ profile.creditos_bonus }}</li>
+    {% endfor %}
+</ul>
+
+<form method="post">
+    {% csrf_token %}
+    {% for profile in profiles %}
+        <input type="hidden" name="{{ action_checkbox_name }}" value="{{ profile.pk }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="agregar_creditos_bonus">
+    {{ form.as_p }}
+    <input type="submit" name="apply" value="Confirmar" class="default">
+    <a href="." class="button cancel-link">Cancelar</a>
+</form>
+{% endblock %}

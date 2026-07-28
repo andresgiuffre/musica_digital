@@ -42,7 +42,7 @@
     <div class="space-y-12">
         
         <!-- Sección Superior: Stats Rápidas -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             <div class="perfil-card text-center border-t-4 border-t-amber-500">
                 <div class="text-sm text-gray-400 font-bold uppercase mb-2">Mejor Racha</div>
                 <div class="stat-value text-amber-500">{{ profile.max_daily_streak }} 🔥</div>
@@ -60,7 +60,18 @@
                 <div class="stat-value text-blue-400">{{ total_study_minutes }}<span class="text-2xl text-blue-800">m</span></div>
                 <div class="text-xs text-gray-500 mt-2">Minutos en Modo Estudio</div>
             </div>
-            
+
+            <div class="perfil-card text-center border-t-4 border-t-ember">
+                <div class="text-sm text-gray-400 font-bold uppercase mb-2">Analizador</div>
+                <div class="stat-value text-ember">{{ profile.creditos_analisis }}</div>
+                <div class="text-xs text-gray-500 mt-2">
+                    {{ profile.creditos_analisis }} análisis disponibles
+                    {% if profile.creditos_bonus > 0 %}
+                        <br><span class="text-emerald-400 font-bold">+ {{ profile.creditos_bonus }} créditos adicionales sin vencimiento</span>
+                    {% endif %}
+                </div>
+            </div>
+
             <!-- Objetivos Diarios -->
             <div class="perfil-card">
                 <h3 class="text-blue-400 font-bold mb-4 flex items-center gap-2">🎯 Objetivos Diarios</h3>
