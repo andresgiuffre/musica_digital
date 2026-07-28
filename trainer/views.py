@@ -669,18 +669,16 @@ def generar_fragmento_comparado(part, compas_desde, compas_hasta, accion_tipo, d
     Extrae (con music21, sin IA) el fragmento de compases [compas_desde, compas_hasta] de una
     parte ya parseada, genera una copia con la transformación mecánica aplicada, y devuelve
     ambos fragmentos como MusicXML (string) para que el frontend los renderice con OSMD.
+
+    Solo 'transponer_octava' genera pentagrama comparado: comparar contra compases de silencio
+    (accion_tipo='silenciar') no aporta nada visualmente, así que esa acción quedó fuera de este
+    camino — sigue siendo una sugerencia válida, pero solo como texto en prosa.
     """
     fragmento_original = part.measures(compas_desde, compas_hasta)
     fragmento_editado = copy.deepcopy(fragmento_original)
 
-    if accion_tipo == 'transponer_octava':
-        semitonos = 12 if direccion == 'arriba' else -12
-        fragmento_editado = fragmento_editado.transpose(semitonos)
-    elif accion_tipo == 'silenciar':
-        for elemento in list(fragmento_editado.recurse().notes):
-            silencio = music21.note.Rest()
-            silencio.duration = elemento.duration
-            fragmento_editado.replace(elemento, silencio, recurse=True)
+    semitonos = 12 if direccion == 'arriba' else -12
+    fragmento_editado = fragmento_editado.transpose(semitonos)
 
     exporter_original = music21.musicxml.m21ToXml.GeneralObjectExporter(fragmento_original)
     exporter_editado = music21.musicxml.m21ToXml.GeneralObjectExporter(fragmento_editado)
@@ -1001,10 +999,10 @@ def orquestador_fragmento_edicion(request, analysis_id):
     except (TypeError, ValueError):
         return JsonResponse({'status': 'error', 'message': 'compas_desde y compas_hasta deben ser enteros.'}, status=400)
 
-    if accion_tipo not in ('transponer_octava', 'silenciar'):
-        return JsonResponse({'status': 'error', 'message': f"accion_tipo inválido: '{accion_tipo}'."}, status=400)
+    if accion_tipo != 'transponer_octava':
+        return JsonResponse({'status': 'error', 'message': f"accion_tipo inválido: '{accion_tipo}'. Solo 'transponer_octava' genera pentagrama comparado."}, status=400)
 
-    if accion_tipo == 'transponer_octava' and direccion not in ('arriba', 'abajo'):
+    if direccion not in ('arriba', 'abajo'):
         return JsonResponse({'status': 'error', 'message': f"direccion inválida para transponer_octava: '{direccion}'. Debe ser 'arriba' o 'abajo'."}, status=400)
 
     try:
