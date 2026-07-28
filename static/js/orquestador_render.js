@@ -164,7 +164,9 @@ function renderEdicionesSugeridas(ediciones, analysisId) {
             </tr>
         `;
 
-        const esEjecutable = analysisId && (e.accion_tipo === 'transponer_octava' || e.accion_tipo === 'silenciar');
+        // Solo transponer_octava tiene pentagrama comparado: comparar contra compases de
+        // silencio (silenciar) no aporta nada visualmente, queda solo como texto.
+        const esEjecutable = analysisId && e.accion_tipo === 'transponer_octava';
         if (!esEjecutable) return filaPrincipal;
 
         contador += 1;
@@ -254,21 +256,39 @@ function cargarFragmentoComparado(btn, contenedor) {
         });
 }
 
+// Referencia a la comparacion actualmente visible (a lo sumo una por vez). OpenSheetMusicDisplay
+// 1.8.x tiene EngravingRules como singleton global compartido entre instancias (ver
+// https://github.com/opensheetmusicdisplay/opensheetmusicdisplay/issues/559) — mantener más de
+// una instancia viva al mismo tiempo en la página es lo que puede hacer que una tarjeta termine
+// mostrando el contenido de otra. Cerramos siempre la anterior antes de abrir una nueva.
+let comparacionAbierta = null;
+
+function cerrarComparacion(contenedor) {
+    contenedor.style.display = 'none';
+    contenedor.querySelector('.analisis-osmd-original').innerHTML = '';
+    contenedor.querySelector('.analisis-osmd-editado').innerHTML = '';
+    delete contenedor.dataset.cargado;
+    if (comparacionAbierta === contenedor) comparacionAbierta = null;
+}
+
 function handleComparacionClick(event) {
     const btn = event.target.closest('.analisis-btn-comparar');
     if (!btn) return;
     const contenedor = document.getElementById(btn.dataset.target);
     if (!contenedor) return;
 
-    if (contenedor.style.display === 'none') {
-        contenedor.style.display = 'flex';
-        if (!contenedor.dataset.cargado) {
-            contenedor.dataset.cargado = '1';
-            cargarFragmentoComparado(btn, contenedor);
-        }
-    } else {
-        contenedor.style.display = 'none';
+    if (contenedor.style.display !== 'none') {
+        cerrarComparacion(contenedor);
+        return;
     }
+
+    if (comparacionAbierta && comparacionAbierta !== contenedor) {
+        cerrarComparacion(comparacionAbierta);
+    }
+
+    contenedor.style.display = 'flex';
+    comparacionAbierta = contenedor;
+    cargarFragmentoComparado(btn, contenedor);
 }
 
 function renderErrorFallback(data, container) {
