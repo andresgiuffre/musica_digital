@@ -1,7 +1,10 @@
+import logging
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Count, Sum, Avg
+from django.db.models import Count, Sum, Avg, F
 from .models import StudySession, SheetMusic, UserProfile
+
+logger = logging.getLogger(__name__)
 
 def get_weekly_summary(user):
     """
@@ -124,3 +127,30 @@ def update_personal_records(user):
             UserAchievement.objects.get_or_create(user=user, achievement=ach)
         except Achievement.DoesNotExist:
             pass
+
+
+def consumir_credito_analisis(profile):
+    """
+    Descuenta 1 crédito de análisis: primero de la pila mensual (creditos_analisis);
+    si esa ya está en 0, de la pila bonus (creditos_bonus). Ambos updates son
+    condicionales sobre el valor real en la base (no en memoria) para evitar que
+    una condición de carrera entre análisis simultáneos deje algún contador negativo.
+    """
+    actualizados = UserProfile.objects.filter(
+        pk=profile.pk, creditos_analisis__gt=0
+    ).update(creditos_analisis=F('creditos_analisis') - 1)
+
+    if actualizados:
+        return
+
+    actualizados = UserProfile.objects.filter(
+        pk=profile.pk, creditos_bonus__gt=0
+    ).update(creditos_bonus=F('creditos_bonus') - 1)
+
+    if not actualizados:
+        logger.warning(
+            "consumir_credito_analisis: usuario %s pasó el chequeo de entrada pero ambas "
+            "pilas (mensual y bonus) ya estaban en 0 al momento de descontar — posible "
+            "condición de carrera entre análisis simultáneos.",
+            profile.user_id,
+        )

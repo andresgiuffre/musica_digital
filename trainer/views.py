@@ -1,20 +1,25 @@
 import json
 import math
 import os
+import io
+import copy
+import pathlib
+import zipfile
+import secrets
+from collections import Counter
 from django.utils import timezone
-from pydantic import BaseModel, Field
-try:
-    from google import genai
-    from google.genai import types
-except ImportError:
-    genai = None
-    types = None
+import anthropic
+from xhtml2pdf import pisa
+from .prompts import GUIA_ESTILO_ORQUESTAL
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib.auth.forms import UserCreationForm
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.core.paginator import Paginator
+from django.template.loader import render_to_string
 from django.db.models import Avg
 from django.contrib import messages
 from .models import Game, Score, Attempt, UserProfile, Achievement, UserAchievement, Piece, SheetMusic, Collection, Favorite, StudySession, SheetMusicProgress, DailyGoal, UserDailyGoal
@@ -379,38 +384,476 @@ def trainer_analisis_progresiones(request):
 
 import music21
 
-class AlertaBalance(BaseModel):
-    compas: str = Field(description="Número de compás o rango")
-    problema: str = Field(description="Descripción técnica del problema (ej. 'Los metales graves en f van a tapar por completo la línea melódica de las maderas medias').")
-    sugerencia: str = Field(description="Solución orquestal concreta (ej. 'Bajar la dinámica de trombones a mp, o duplicar la melodía con violas y cornos al unísono para darle más densidad y cuerpo frente al metal').")
+ORQUESTACION_TOOL = {
+    "name": "reportar_analisis_orquestal",
+    "description": "Registra el análisis de orquestación estructurado por bloques de compases de una partitura.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "resumen_general": {
+                "type": "string",
+                "description": "Resumen general del estilo, textura y distribución orquestal de la obra completa."
+            },
+            "bloques": {
+                "type": "array",
+                "description": "Bloques secuenciales de compases que cubren toda la extensión de la obra.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "rango_compases": {
+                            "type": "string",
+                            "description": "Rango de compases que cubre este bloque (ej. '1-8')."
+                        },
+                        "analisis_cuerdas": {
+                            "type": "string",
+                            "description": "Análisis del plano de cuerdas en este bloque: registro, densidad, articulación."
+                        },
+                        "analisis_maderas": {
+                            "type": "string",
+                            "description": "Análisis del plano de maderas en este bloque."
+                        },
+                        "analisis_metales_percusion": {
+                            "type": "string",
+                            "description": "Análisis de metales y percusión en este bloque, si aplica."
+                        },
+                        "analisis_balance_y_fango": {
+                            "type": "string",
+                            "description": "Análisis del balance general, densidad armónica e interacción de tutti; dónde aparece empastamiento o fango tímbrico."
+                        },
+                        "solucion_prosa": {
+                            "type": "string",
+                            "description": "Solución orquestal en prosa, integrando los hallazgos del bloque."
+                        },
+                        "ediciones_sugeridas": {
+                            "type": "array",
+                            "description": "Instrucciones cortas de edición concretas para este bloque.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "compases": {"type": "string", "description": "Compás o rango de compases al que aplica la edición."},
+                                    "parte": {"type": "string", "description": "Nombre exacto del instrumento tal como aparece en la partitura (partName de music21) — no traducir ni parafrasear, debe poder buscarse literalmente en el archivo original."},
+                                    "accion": {"type": "string", "description": "Acción de edición corta (ej. 'transponer', 'redistribuir voz', 'ajustar dinámica')."},
+                                    "detalle": {"type": "string", "description": "Detalle concreto de la acción, en prosa."},
+                                    "compas_desde": {"type": "integer", "description": "Primer compás (inclusive, número entero) al que aplica la edición."},
+                                    "compas_hasta": {"type": "integer", "description": "Último compás (inclusive, número entero) al que aplica la edición."},
+                                    "accion_tipo": {
+                                        "type": ["string", "null"],
+                                        "enum": ["transponer_octava", "silenciar", None],
+                                        "description": "Tipo de acción mecánicamente ejecutable sobre la partitura original, o null si la sugerencia no encaja en ninguna de las dos (ej. 'redistribuir voz', 'agregar contramelodía') — esas quedan solo con el texto de detalle, sin pentagrama comparado."
+                                    },
+                                    "direccion": {
+                                        "type": ["string", "null"],
+                                        "enum": ["arriba", "abajo", None],
+                                        "description": "Solo si accion_tipo es 'transponer_octava': dirección de la transposición. Null en cualquier otro caso."
+                                    }
+                                },
+                                "required": ["compases", "parte", "accion", "detalle", "compas_desde", "compas_hasta", "accion_tipo", "direccion"],
+                                "additionalProperties": False
+                            }
+                        }
+                    },
+                    "required": [
+                        "rango_compases",
+                        "analisis_cuerdas",
+                        "analisis_maderas",
+                        "analisis_metales_percusion",
+                        "analisis_balance_y_fango",
+                        "solucion_prosa",
+                        "ediciones_sugeridas"
+                    ],
+                    "additionalProperties": False
+                }
+            },
+            "resumen_por_instrumento": {
+                "type": "array",
+                "description": "Traducción a prosa de estadisticas_por_instrumento — no inventar ni recalcular números, solo redactar.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "instrumento": {"type": "string", "description": "Nombre del instrumento/parte."},
+                        "descripcion": {"type": "string", "description": "Frase corta basada únicamente en los números ya calculados para ese instrumento (ámbito, notas totales, compases de silencio, clase de altura más frecuente)."}
+                    },
+                    "required": ["instrumento", "descripcion"],
+                    "additionalProperties": False
+                }
+            }
+        },
+        "required": ["resumen_general", "bloques", "resumen_por_instrumento"],
+        "additionalProperties": False
+    }
+}
 
-class SugerenciaColorDoblaje(BaseModel):
-    seccion: str = Field(description="Nombre del grupo de instrumentos o pasaje analizado")
-    critica: str = Field(description="Análisis del color actual (ej. 'La melodía principal en flauta sola en el registro medio suena delgada para el carácter épico que busca el acompañamiento de cuerdas en staccato').")
-    alternativas: str = Field(description="Proponer 2 combinaciones avanzadas de doblaje detallando el efecto psicológico de cada una (ej. 'Opción A: Doblar con Oboe al unísono para un color más penetrante y rústico. Opción B: Doblar con Violines I a la octava superior para darle brillo cinematográfico').")
+NOMBRES_SOLFEO = {'C': 'Do', 'D': 'Re', 'E': 'Mi', 'F': 'Fa', 'G': 'Sol', 'A': 'La', 'B': 'Si'}
 
-class OrchestrationAnalysis(BaseModel):
-    resumen_estilo: str = Field(description="Breve análisis de la textura general detectada (ej. homofónica, contrapuntística, masiva) y la distribución del mapa orquestal.")
-    alertas_balance: list[AlertaBalance]
-    sugerencias_color_y_doblaje: list[SugerenciaColorDoblaje]
-    ejercicio_practico: str = Field(description="Un ejercicio o restricción compositiva personalizada basada en los errores del usuario para que aplique en su próximo compás (ej. 'Escribí los siguientes 8 compases usando únicamente combinaciones de maderas y cuerdas bajas, sin usar metales ni percusión, para entrenar el balance de texturas blandas').")
+def _a_solfeo(nombre_pitch):
+    """Convierte un nombre de music21 (ej. 'C#4', 'B-3') a solfeo español ('Do#4', 'Si-3')."""
+    letra = nombre_pitch[0]
+    resto = nombre_pitch[1:]
+    return NOMBRES_SOLFEO.get(letra, letra) + resto
+
+def calcular_estadisticas_parte(part):
+    """
+    Calcula de forma determinística (sin IA) estadísticas objetivas de una parte:
+    ámbito realmente tocado, total de notas, compases de silencio total, y la
+    clase de altura más frecuente.
+    """
+    all_pitches = []
+    total_notas = 0
+    for element in part.recurse().notes:
+        if isinstance(element, music21.note.Note):
+            all_pitches.append(element.pitch)
+            total_notas += 1
+        elif isinstance(element, music21.chord.Chord):
+            all_pitches.extend(element.pitches)
+            total_notas += len(element.pitches)
+
+    measures = part.getElementsByClass(music21.stream.Measure)
+    compases_silencio = sum(1 for m in measures if len(m.recurse().notes) == 0)
+
+    if all_pitches:
+        pitch_min = min(all_pitches, key=lambda p: p.ps)
+        pitch_max = max(all_pitches, key=lambda p: p.ps)
+        ambito = f"{_a_solfeo(pitch_min.nameWithOctave)} a {_a_solfeo(pitch_max.nameWithOctave)}"
+        ambito_min_ps = pitch_min.ps
+        ambito_max_ps = pitch_max.ps
+        clase_mas_frecuente = Counter(p.name for p in all_pitches).most_common(1)[0][0]
+        nota_mas_frecuente = _a_solfeo(clase_mas_frecuente)
+    else:
+        ambito = "Sin notas"
+        ambito_min_ps = None
+        ambito_max_ps = None
+        nota_mas_frecuente = "N/A"
+
+    return {
+        'ambito': ambito,
+        'ambito_min_ps': ambito_min_ps,
+        'ambito_max_ps': ambito_max_ps,
+        'total_notas': total_notas,
+        'compases_silencio': compases_silencio,
+        'nota_mas_frecuente': nota_mas_frecuente,
+    }
+
+
+# Rangos prácticos/cómodos de referencia por instrumento (no el extremo teórico),
+# en pitch escrito (igual que estadisticas_por_instrumento, sin transponer a concert pitch).
+# Son aproximados y pensados para ajustarse con el tiempo, no una fuente normativa única.
+RANGOS_COMODOS = {
+    'Flautín': ('D5', 'C8'),
+    'Flauta': ('C4', 'C7'),
+    'Corno Inglés': ('B3', 'C6'),
+    'Oboe': ('Bb3', 'F6'),
+    'Clarinete Bajo': ('D3', 'G5'),
+    'Clarinete': ('E3', 'C6'),
+    'Contrafagot': ('Bb0', 'C4'),
+    'Fagot': ('Bb1', 'D5'),
+    'Corno': ('F2', 'C6'),
+    'Trompeta': ('F#3', 'C6'),
+    'Trombón Bajo': ('Bb1', 'F4'),
+    'Trombón': ('E2', 'Bb4'),
+    'Tuba': ('D1', 'F4'),
+    'Violín': ('G3', 'C7'),
+    'Viola': ('C3', 'E6'),
+    'Violonchelo': ('C2', 'C6'),
+    'Contrabajo': ('C1', 'G4'),
+    'Arpa': ('C1', 'G7'),
+}
+
+# Orden deliberado: las entradas más específicas van antes que las genéricas que
+# las contienen como substring (ej. 'contrafagot' antes que 'fagot', 'trombón bajo'
+# antes que 'trombón'), para que el primer match gane siempre correctamente.
+SINONIMOS_INSTRUMENTOS = [
+    (('piccolo', 'flautín', 'flautin'), 'Flautín'),
+    (('corno inglés', 'corno ingles', 'english horn', 'cor anglais'), 'Corno Inglés'),
+    (('oboe',), 'Oboe'),
+    (('clarinete bajo', 'bass clarinet'), 'Clarinete Bajo'),
+    (('clarinet', 'clarinete'), 'Clarinete'),
+    (('contrafagot', 'contrabassoon'), 'Contrafagot'),
+    (('fagot', 'bassoon'), 'Fagot'),
+    (('horn', 'corno', 'trompa'), 'Corno'),
+    (('trumpet', 'trompeta'), 'Trompeta'),
+    (('trombón bajo', 'trombon bajo', 'bass trombone'), 'Trombón Bajo'),
+    (('trombone', 'trombón', 'trombon'), 'Trombón'),
+    (('tuba',), 'Tuba'),
+    (('violin', 'violín'), 'Violín'),
+    (('viola',), 'Viola'),
+    (('violoncello', 'violonchelo', 'cello'), 'Violonchelo'),
+    (('contrabass', 'contrabajo', 'double bass'), 'Contrabajo'),
+    (('harp', 'arpa'), 'Arpa'),
+    (('flute', 'flauta', 'fl.'), 'Flauta'),
+]
+
+
+def _buscar_rango_comodo(part_name):
+    nombre_norm = (part_name or '').lower()
+    for keywords, canonico in SINONIMOS_INSTRUMENTOS:
+        if any(kw in nombre_norm for kw in keywords):
+            return RANGOS_COMODOS[canonico]
+    return None
+
+
+def evaluar_viabilidad_instrumental(part_name, part):
+    """
+    Compara (con music21, sin IA) el ámbito realmente tocado por una parte contra un
+    rango cómodo/práctico de referencia. Si el instrumento no matchea ninguna entrada
+    conocida de RANGOS_COMODOS, no genera alertas — mejor ninguna alerta que una mal
+    atribuida a un instrumento equivocado.
+    """
+    rango = _buscar_rango_comodo(part_name)
+    if rango is None:
+        return []
+
+    comodo_min = music21.pitch.Pitch(rango[0]).ps
+    comodo_max = music21.pitch.Pitch(rango[1]).ps
+    margen = 2  # semitonos de margen para considerar que una nota "roza" el límite
+    nombre_min = _a_solfeo(music21.pitch.Pitch(rango[0]).nameWithOctave)
+    nombre_max = _a_solfeo(music21.pitch.Pitch(rango[1]).nameWithOctave)
+
+    candidatas_agudas = []
+    candidatas_graves = []
+    for m in part.getElementsByClass(music21.stream.Measure):
+        for element in m.recurse().notes:
+            pitches = element.pitches if isinstance(element, music21.chord.Chord) else [element.pitch]
+            for p in pitches:
+                if p.ps > comodo_max - margen:
+                    candidatas_agudas.append((p.ps, m.number, p))
+                if p.ps < comodo_min + margen:
+                    candidatas_graves.append((p.ps, m.number, p))
+
+    alertas = []
+    if candidatas_agudas:
+        ps, compas, p = max(candidatas_agudas, key=lambda t: t[0])
+        severidad = 'excede' if ps > comodo_max else 'roza'
+        alertas.append({
+            'instrumento': part_name,
+            'compas': compas,
+            'nota': _a_solfeo(p.nameWithOctave),
+            'severidad': severidad,
+            'mensaje': f"Atención: {part_name} {severidad} el registro agudo cómodo ({nombre_min} a {nombre_max}) alcanzando {_a_solfeo(p.nameWithOctave)} en el compás {compas}."
+        })
+    if candidatas_graves:
+        ps, compas, p = min(candidatas_graves, key=lambda t: t[0])
+        severidad = 'excede' if ps < comodo_min else 'roza'
+        alertas.append({
+            'instrumento': part_name,
+            'compas': compas,
+            'nota': _a_solfeo(p.nameWithOctave),
+            'severidad': severidad,
+            'mensaje': f"Atención: {part_name} {severidad} el registro grave cómodo ({nombre_min} a {nombre_max}) descendiendo a {_a_solfeo(p.nameWithOctave)} en el compás {compas}."
+        })
+    return alertas
+
+
+def calcular_densidad_por_compas(parts):
+    """
+    Para cada compás de la obra, cuenta cuántos instrumentos tienen al menos una nota
+    sonando (silencios no cuentan). Determinístico con music21, sin IA.
+    """
+    todos_los_compases = set()
+    activos_por_compas = {}
+
+    for part in parts:
+        for m in part.getElementsByClass(music21.stream.Measure):
+            todos_los_compases.add(m.number)
+            if len(m.recurse().notes) > 0:
+                activos_por_compas[m.number] = activos_por_compas.get(m.number, 0) + 1
+
+    total_instrumentos = len(parts)
+    return [
+        {'compas': n, 'instrumentos_activos': activos_por_compas.get(n, 0), 'total_instrumentos': total_instrumentos}
+        for n in sorted(todos_los_compases)
+    ]
+
+
+def generar_fragmento_comparado(part, compas_desde, compas_hasta, accion_tipo, direccion=None):
+    """
+    Extrae (con music21, sin IA) el fragmento de compases [compas_desde, compas_hasta] de una
+    parte ya parseada, genera una copia con la transformación mecánica aplicada, y devuelve
+    ambos fragmentos como MusicXML (string) para que el frontend los renderice con OSMD.
+    """
+    fragmento_original = part.measures(compas_desde, compas_hasta)
+    fragmento_editado = copy.deepcopy(fragmento_original)
+
+    if accion_tipo == 'transponer_octava':
+        semitonos = 12 if direccion == 'arriba' else -12
+        fragmento_editado = fragmento_editado.transpose(semitonos)
+    elif accion_tipo == 'silenciar':
+        for elemento in list(fragmento_editado.recurse().notes):
+            silencio = music21.note.Rest()
+            silencio.duration = elemento.duration
+            fragmento_editado.replace(elemento, silencio, recurse=True)
+
+    exporter_original = music21.musicxml.m21ToXml.GeneralObjectExporter(fragmento_original)
+    exporter_editado = music21.musicxml.m21ToXml.GeneralObjectExporter(fragmento_editado)
+    return (
+        exporter_original.parse().decode('utf-8'),
+        exporter_editado.parse().decode('utf-8'),
+    )
+
+def _parsear_score_descifrado(score_file_field):
+    """
+    Lee un FileField (el Storage lo descifra automáticamente vía .open()) y lo parsea
+    con music21 completamente en memoria, sin volcar el contenido descifrado a disco
+    ni siquiera transitoriamente. Soporta los 3 formatos que acepta el analizador.
+    """
+    with score_file_field.open('rb') as f:
+        contenido = f.read()
+
+    extension = pathlib.Path(score_file_field.name).suffix.lower()
+
+    if extension == '.mxl':
+        with zipfile.ZipFile(io.BytesIO(contenido)) as zf:
+            xml_bytes = None
+            for nombre_interno in zf.namelist():
+                if 'META-INF' in nombre_interno:
+                    continue
+                if pathlib.Path(nombre_interno).suffix.lower() not in ('.musicxml', '.xml', '.mxl'):
+                    continue
+                xml_bytes = zf.read(nombre_interno)
+                break
+        if xml_bytes is None:
+            raise ValueError('No se encontró el XML dentro del archivo .mxl.')
+        return music21.converter.parseData(xml_bytes.decode('utf-8'))
+
+    if extension in ('.mid', '.midi'):
+        return music21.converter.parseData(contenido, format='midi')
+
+    return music21.converter.parseData(contenido.decode('utf-8'))
+
+
+def comparar_versiones(anterior, nueva_parts):
+    """
+    Compara (con music21, sin IA) las ediciones sugeridas mecánicamente ejecutables del
+    análisis anterior contra el estado real de la nueva versión, para detectar si el
+    problema señalado parece resuelto. Las sugerencias de texto libre (accion_tipo null)
+    no se verifican automáticamente — quedan marcadas como 'sin_verificar'.
+    """
+    anterior_data = anterior.analysis_data or {}
+    resultado = []
+
+    try:
+        score_anterior = _parsear_score_descifrado(anterior.score_file)
+        parts_anterior = {p.partName: p for p in score_anterior.parts}
+    except Exception:
+        parts_anterior = {}
+
+    parts_nueva_por_nombre = {p.partName: p for p in nueva_parts}
+
+    for bloque in anterior_data.get('bloques', []):
+        for edicion in bloque.get('ediciones_sugeridas', []):
+            accion_tipo = edicion.get('accion_tipo')
+            parte = edicion.get('parte')
+            compas_desde = edicion.get('compas_desde')
+            compas_hasta = edicion.get('compas_hasta')
+
+            item = {
+                'parte': parte,
+                'compases': edicion.get('compases'),
+                'accion': edicion.get('accion'),
+                'detalle': edicion.get('detalle'),
+            }
+
+            if accion_tipo not in ('transponer_octava', 'silenciar') or compas_desde is None or compas_hasta is None:
+                item['estado'] = 'sin_verificar'
+                item['motivo'] = 'Sugerencia de texto libre — no se puede verificar automáticamente.'
+                resultado.append(item)
+                continue
+
+            part_nueva = parts_nueva_por_nombre.get(parte)
+            if part_nueva is None:
+                item['estado'] = 'sin_verificar'
+                item['motivo'] = f"La parte '{parte}' no se encontró en la nueva versión."
+                resultado.append(item)
+                continue
+
+            try:
+                fragmento_nuevo = part_nueva.measures(compas_desde, compas_hasta)
+            except Exception:
+                item['estado'] = 'sin_verificar'
+                item['motivo'] = 'No se pudo extraer ese rango de compases en la nueva versión.'
+                resultado.append(item)
+                continue
+
+            if accion_tipo == 'silenciar':
+                sigue_sonando = len(fragmento_nuevo.recurse().notes) > 0
+                item['estado'] = 'no_resuelto' if sigue_sonando else 'resuelto'
+                item['motivo'] = (
+                    'Esa parte sigue sonando en ese rango.' if sigue_sonando
+                    else 'Esa parte ya no suena en ese rango — coincide con lo sugerido.'
+                )
+                resultado.append(item)
+                continue
+
+            # transponer_octava: comparamos el registro promedio de ese rango entre versiones
+            direccion = edicion.get('direccion')
+            pitches_nuevos = [
+                p.ps for n in fragmento_nuevo.recurse().notes
+                for p in (n.pitches if isinstance(n, music21.chord.Chord) else [n.pitch])
+            ]
+
+            part_anterior = parts_anterior.get(parte)
+            pitches_anteriores = []
+            if part_anterior is not None:
+                try:
+                    fragmento_anterior = part_anterior.measures(compas_desde, compas_hasta)
+                    pitches_anteriores = [
+                        p.ps for n in fragmento_anterior.recurse().notes
+                        for p in (n.pitches if isinstance(n, music21.chord.Chord) else [n.pitch])
+                    ]
+                except Exception:
+                    pitches_anteriores = []
+
+            if not pitches_nuevos or not pitches_anteriores:
+                item['estado'] = 'sin_verificar'
+                item['motivo'] = 'No hay suficientes notas para comparar el registro en ese rango.'
+                resultado.append(item)
+                continue
+
+            promedio_anterior = sum(pitches_anteriores) / len(pitches_anteriores)
+            promedio_nuevo = sum(pitches_nuevos) / len(pitches_nuevos)
+            diferencia = promedio_nuevo - promedio_anterior
+            umbral = 6  # semitonos — evita falsos positivos por ajustes menores
+
+            if direccion == 'arriba' and diferencia >= umbral:
+                item['estado'] = 'resuelto'
+                item['motivo'] = f"El registro subió ~{round(diferencia)} semitonos en ese rango."
+            elif direccion == 'abajo' and diferencia <= -umbral:
+                item['estado'] = 'resuelto'
+                item['motivo'] = f"El registro bajó ~{round(abs(diferencia))} semitonos en ese rango."
+            else:
+                item['estado'] = 'no_resuelto'
+                item['motivo'] = 'El registro en ese rango no parece haberse movido lo suficiente en la dirección sugerida.'
+            resultado.append(item)
+
+    return resultado
+
 
 @login_required
 def orquestador_analizar(request):
+    from .services import consumir_credito_analisis
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
     if request.method == 'POST' and request.FILES.get('score_file'):
+        if profile.creditos_analisis + profile.creditos_bonus <= 0:
+            return JsonResponse({'status': 'error', 'message': 'No tenés créditos de análisis disponibles. Contactá al administrador.'}, status=403)
+
         score_file = request.FILES['score_file']
         name = request.POST.get('name', score_file.name)
-        
+
         from .models import ScoreAnalysis
+        version_de = None
+        version_de_id = request.POST.get('version_de_id')
+        if version_de_id:
+            version_de = ScoreAnalysis.objects.filter(id=version_de_id, user=request.user).first()
+
         analysis = ScoreAnalysis.objects.create(
             user=request.user,
             name=name,
-            score_file=score_file
+            score_file=score_file,
+            version_de=version_de,
         )
-        
+
         try:
-            file_path = analysis.score_file.path
-            score = music21.converter.parse(file_path)
+            score = _parsear_score_descifrado(analysis.score_file)
             parts = score.parts
             instrument_names = [p.partName for p in parts if p.partName]
             
@@ -427,12 +870,14 @@ def orquestador_analizar(request):
             tempo = tempos[0].number if tempos else "Unknown"
             
             measures_data = {}
+            estadisticas_por_instrumento = {}
+            alertas_viabilidad = []
             for part in parts:
                 part_name = part.partName or "Instrumento Desconocido"
                 measures = part.getElementsByClass(music21.stream.Measure)
-                
+
                 part_data = []
-                for m in list(measures)[:8]:
+                for m in list(measures):
                     m_dict = {'number': m.number, 'notes': []}
                     for element in m.recurse().notes:
                         if isinstance(element, music21.note.Note):
@@ -440,65 +885,258 @@ def orquestador_analizar(request):
                         elif isinstance(element, music21.chord.Chord):
                             chord_notes = "-".join([n.nameWithOctave for n in element.notes])
                             m_dict['notes'].append(f"[{chord_notes}] ({element.duration.type})")
-                    
+
                     dynamics = m.recurse().getElementsByClass(music21.dynamics.Dynamic)
                     for d in dynamics:
                         m_dict['notes'].append(f"Dinámica: {d.value}")
-                        
+
                     part_data.append(m_dict)
                 measures_data[part_name] = part_data
+                estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part)
+                alertas_viabilidad.extend(evaluar_viabilidad_instrumental(part_name, part))
+
+            densidad_por_compas = calcular_densidad_por_compas(parts)
 
             analysis_data = {
                 'instruments': instrument_names,
                 'key_signature': key_str,
                 'time_signature': ts,
                 'tempo': tempo,
-                'measures_data': measures_data
+                'measures_data': measures_data,
+                'estadisticas_por_instrumento': estadisticas_por_instrumento
             }
             
-            if genai:
-                client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-                
-                system_instruction = (
-                    "Sos un Maestro de Orquestación Clásica y Cinematográfica de élite, con décadas de experiencia "
-                    "analizando partituras de compositores como John Williams, Ravel, Stravinsky, Jeremy Soule y Nobuo Uematsu. "
-                    "Tu objetivo no es enseñar teoría básica (rango de instrumentos o qué es un ostinato), sino auditar el "
-                    "CRITERIO de orquestación, el BALANCE de frecuencias y el COLOR de los doblajes.\n\n"
-                    "Cuando recibas la estructura de datos de una pieza (instrumentos, notas por compás y dinámicas), "
-                    "debés devolver un análisis crítico estructurado estrictamente en formato JSON."
+            api_key = os.environ.get("ANTHROPIC_TEST_API_KEY")
+            if api_key:
+                client = anthropic.Anthropic(api_key=api_key)
+
+                prompt = f"Analizá la siguiente estructura de datos musicales extraída de la partitura:\n{json.dumps(analysis_data, ensure_ascii=False)}"
+
+                message = client.messages.create(
+                    model="claude-sonnet-5",
+                    max_tokens=8000,
+                    system=[
+                        {
+                            "type": "text",
+                            "text": GUIA_ESTILO_ORQUESTAL,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                    tools=[ORQUESTACION_TOOL],
+                    tool_choice={"type": "tool", "name": "reportar_analisis_orquestal"},
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ],
                 )
-                
-                prompt = f"Por favor, analiza la siguiente estructura de datos musicales:\n{json.dumps(analysis_data, ensure_ascii=False)}"
-                
-                response = client.models.generate_content(
-                    model='models/gemini-2.0-flash',
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        response_mime_type="application/json",
-                        response_schema=OrchestrationAnalysis,
-                        temperature=0.7,
-                    ),
+
+                tool_use_block = next(
+                    (block for block in message.content if block.type == "tool_use"),
+                    None
                 )
-                
-                final_data = json.loads(response.text)
+                if tool_use_block:
+                    final_data = tool_use_block.input
+                    final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
+                    final_data['alertas_viabilidad'] = alertas_viabilidad
+                    final_data['densidad_por_compas'] = densidad_por_compas
+                    if version_de is not None:
+                        final_data['comparacion_version_anterior'] = comparar_versiones(version_de, parts)
+                    consumir_credito_analisis(profile)
+                    profile.refresh_from_db()
+                else:
+                    final_data = {
+                        "error": "Claude no devolvió un bloque tool_use.",
+                        "raw_music_data": analysis_data
+                    }
             else:
                 final_data = {
-                    "error": "El SDK de google-genai no está instalado.",
+                    "error": "Falta la variable de entorno ANTHROPIC_TEST_API_KEY.",
                     "raw_music_data": analysis_data
                 }
 
             analysis.analysis_data = final_data
             analysis.save()
-            
-            from django.http import JsonResponse
-            return JsonResponse({'status': 'success', 'data': final_data})
-            
+
+            return JsonResponse({
+                'status': 'success',
+                'data': final_data,
+                'analysis_id': analysis.id,
+                'creditos_analisis': profile.creditos_analisis,
+                'creditos_bonus': profile.creditos_bonus,
+            })
+
         except Exception as e:
-            from django.http import JsonResponse
             return JsonResponse({'status': 'error', 'message': str(e)})
 
-    return render(request, 'trainer/orquestador_analizar.html')
+    from .models import ScoreAnalysis
+    analisis_previos = ScoreAnalysis.objects.filter(user=request.user).order_by('-created_at')[:20]
+
+    return render(request, 'trainer/orquestador_analizar.html', {
+        'creditos_analisis': profile.creditos_analisis,
+        'creditos_bonus': profile.creditos_bonus,
+        'analisis_previos': analisis_previos,
+    })
+
+
+@login_required
+def orquestador_historial(request):
+    from .models import ScoreAnalysis
+    analyses = ScoreAnalysis.objects.filter(user=request.user).order_by('-created_at')
+    paginator = Paginator(analyses, 10)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    return render(request, 'trainer/orquestador_historial.html', {'page_obj': page_obj})
+
+
+@login_required
+def orquestador_fragmento_edicion(request, analysis_id):
+    from .models import ScoreAnalysis
+    analysis = get_object_or_404(ScoreAnalysis, id=analysis_id, user=request.user)
+
+    parte = request.GET.get('parte', '')
+    accion_tipo = request.GET.get('accion_tipo')
+    direccion = request.GET.get('direccion')
+
+    try:
+        compas_desde = int(request.GET.get('compas_desde'))
+        compas_hasta = int(request.GET.get('compas_hasta'))
+    except (TypeError, ValueError):
+        return JsonResponse({'status': 'error', 'message': 'compas_desde y compas_hasta deben ser enteros.'}, status=400)
+
+    if accion_tipo not in ('transponer_octava', 'silenciar'):
+        return JsonResponse({'status': 'error', 'message': f"accion_tipo inválido: '{accion_tipo}'."}, status=400)
+
+    if accion_tipo == 'transponer_octava' and direccion not in ('arriba', 'abajo'):
+        return JsonResponse({'status': 'error', 'message': f"direccion inválida para transponer_octava: '{direccion}'. Debe ser 'arriba' o 'abajo'."}, status=400)
+
+    try:
+        score = _parsear_score_descifrado(analysis.score_file)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'No se pudo volver a leer el archivo original: {e}'}, status=500)
+
+    tempos = score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
+    tempo_bpm = tempos[0].number if tempos else 100
+
+    part = next((p for p in score.parts if p.partName == parte), None)
+    if part is None:
+        return JsonResponse({'status': 'error', 'message': f"La parte '{parte}' no existe en esta partitura."}, status=404)
+
+    numeros_compas = [m.number for m in part.getElementsByClass(music21.stream.Measure)]
+    if not numeros_compas:
+        return JsonResponse({'status': 'error', 'message': f"La parte '{parte}' no tiene compases."}, status=404)
+
+    min_compas, max_compas = min(numeros_compas), max(numeros_compas)
+    if compas_desde > compas_hasta or compas_desde < min_compas or compas_hasta > max_compas:
+        return JsonResponse({
+            'status': 'error',
+            'message': f"Rango de compases {compas_desde}-{compas_hasta} inválido. Esta parte va de {min_compas} a {max_compas}."
+        }, status=400)
+
+    try:
+        original_xml, editado_xml = generar_fragmento_comparado(part, compas_desde, compas_hasta, accion_tipo, direccion)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'No se pudo generar el fragmento: {e}'}, status=500)
+
+    return JsonResponse({
+        'status': 'success',
+        'original_musicxml': original_xml,
+        'editado_musicxml': editado_xml,
+        'tempo_bpm': tempo_bpm,
+    })
+
+
+def _calcular_mapa_registros(estadisticas_por_instrumento):
+    """Versión en Python (sin JS) del mapa de registros, para renderizarlo en el PDF."""
+    entradas = {
+        nombre: v for nombre, v in (estadisticas_por_instrumento or {}).items()
+        if v.get('ambito_min_ps') is not None
+    }
+    if not entradas:
+        return []
+
+    global_min = min(v['ambito_min_ps'] for v in entradas.values())
+    global_max = max(v['ambito_max_ps'] for v in entradas.values())
+    rango = (global_max - global_min) or 1
+
+    mapa = []
+    for nombre, v in entradas.items():
+        left = round(((v['ambito_min_ps'] - global_min) / rango) * 100, 2)
+        width = round(max(((v['ambito_max_ps'] - v['ambito_min_ps']) / rango) * 100, 1.5), 2)
+        width = min(width, 100 - left)
+        resto = round(100 - left - width, 2)
+        mapa.append({'nombre': nombre, 'ambito': v['ambito'], 'left': left, 'width': width, 'resto': resto})
+    return mapa
+
+
+def _preparar_densidad_pdf(densidad_por_compas):
+    """Precalcula la opacidad (0.0-1.0) de cada compás para el mapa de densidad del PDF."""
+    resultado = []
+    for item in (densidad_por_compas or []):
+        total = item.get('total_instrumentos') or 0
+        opacidad = round(item['instrumentos_activos'] / total, 2) if total else 0
+        resultado.append({'compas': item['compas'], 'opacidad': opacidad})
+    return resultado
+
+
+@login_required
+def orquestador_exportar_pdf(request, analysis_id):
+    from .models import ScoreAnalysis
+    analysis = get_object_or_404(ScoreAnalysis, id=analysis_id, user=request.user)
+    data = analysis.analysis_data or {}
+
+    html_string = render_to_string('trainer/orquestador_pdf.html', {
+        'analysis': analysis,
+        'data': data,
+        'mapa_registros': _calcular_mapa_registros(data.get('estadisticas_por_instrumento')),
+        'densidad_pdf': _preparar_densidad_pdf(data.get('densidad_por_compas')),
+    })
+
+    buffer = io.BytesIO()
+    pisa_status = pisa.CreatePDF(html_string, dest=buffer)
+    if pisa_status.err:
+        return JsonResponse({'status': 'error', 'message': 'No se pudo generar el PDF.'}, status=500)
+
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    nombre_archivo = "".join(c for c in analysis.name if c.isalnum() or c in " ._-").strip() or "analisis"
+    response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}.pdf"'
+    return response
+
+
+@login_required
+def orquestador_historial_detalle(request, analysis_id):
+    from .models import ScoreAnalysis
+    analysis = get_object_or_404(ScoreAnalysis, id=analysis_id, user=request.user)
+    return render(request, 'trainer/orquestador_historial_detalle.html', {'analysis': analysis})
+
+
+@csrf_exempt
+@login_required
+def orquestador_generar_link(request, analysis_id):
+    from .models import ScoreAnalysis
+    analysis = get_object_or_404(ScoreAnalysis, id=analysis_id, user=request.user)
+
+    if not analysis.share_token:
+        analysis.share_token = secrets.token_urlsafe(32)
+        analysis.save(update_fields=['share_token'])
+
+    url_publica = request.build_absolute_uri(
+        reverse('orquestador_publico', kwargs={'token': analysis.share_token})
+    )
+    return JsonResponse({'status': 'success', 'url': url_publica})
+
+
+@csrf_exempt
+@login_required
+def orquestador_revocar_link(request, analysis_id):
+    from .models import ScoreAnalysis
+    analysis = get_object_or_404(ScoreAnalysis, id=analysis_id, user=request.user)
+    analysis.share_token = None
+    analysis.save(update_fields=['share_token'])
+    return JsonResponse({'status': 'success'})
+
+
+def orquestador_publico(request, token):
+    from .models import ScoreAnalysis
+    analysis = get_object_or_404(ScoreAnalysis, share_token=token)
+    return render(request, 'trainer/orquestador_publico.html', {'analysis': analysis})
 
 @login_required
 def biblioteca_list(request):

@@ -1,0 +1,337 @@
+/*
+ * Estilos compartidos del Analizador de Partituras: layout de las 3 pantallas
+ * (analizar, historial, detalle de historial) y la presentación del resultado.
+ */
+.orquestador-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    max-width: 900px;
+    margin: 0 auto;
+}
+.card {
+    background: var(--surface);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 24px 46px -30px rgba(0,0,0,0.75);
+    border: 1px solid var(--border);
+    width: 100%;
+}
+.orquestador-tabs { display: flex; gap: 0.5rem; width: 100%; }
+.orquestador-tab {
+    flex: 1;
+    text-align: center;
+    padding: 0.75rem 1rem;
+    border-radius: 0.6rem;
+    font-weight: 600;
+    font-size: 0.92rem;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+.orquestador-tab.active {
+    background: var(--primary);
+    color: #0b0e14;
+    border-color: var(--primary);
+}
+
+.historial-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.historial-row:last-child { border-bottom: none; }
+.historial-nombre { font-weight: 700; color: var(--text); }
+.historial-fecha { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem; }
+.historial-link {
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    text-decoration: none;
+}
+.historial-link:hover { text-decoration: underline; }
+.historial-paginacion {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+.historial-paginacion a { color: var(--primary); text-decoration: none; font-weight: 600; }
+.historial-paginacion a:hover { text-decoration: underline; }
+
+.analisis-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1.5rem 1.75rem;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 20px 38px -26px rgba(0,0,0,0.7);
+}
+.analisis-panel h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+.analisis-panel--error {
+    border-color: rgba(239, 68, 68, 0.4);
+}
+.analisis-prosa {
+    color: var(--text-secondary);
+    line-height: 1.65;
+}
+.analisis-raw-details {
+    margin-top: 1rem;
+}
+.analisis-raw-details summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+}
+.analisis-raw-details pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-top: 0.75rem;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.analisis-tabla-wrap { overflow-x: auto; }
+.analisis-tabla {
+    width: 100%;
+    border-collapse: collapse;
+}
+.analisis-tabla th {
+    text-align: left;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+.analisis-tabla td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    vertical-align: top;
+}
+.analisis-tabla tr:last-child td { border-bottom: none; }
+.analisis-td-instrumento {
+    color: var(--text);
+    font-weight: 700;
+    white-space: nowrap;
+}
+.analisis-tabla--mini th, .analisis-tabla--mini td { font-size: 0.85rem; }
+
+.analisis-bloques { display: flex; flex-direction: column; gap: 0.75rem; }
+.analisis-bloque {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 18px 34px -28px rgba(0,0,0,0.7);
+    overflow: hidden;
+}
+.analisis-bloque-summary {
+    padding: 1rem 1.5rem;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--text);
+    list-style: none;
+}
+.analisis-bloque-summary::-webkit-details-marker { display: none; }
+.analisis-bloque-summary::before {
+    content: '▸';
+    color: var(--primary);
+    margin-right: 0.6em;
+    display: inline-block;
+    transition: transform 0.15s ease;
+}
+.analisis-bloque[open] .analisis-bloque-summary::before { transform: rotate(90deg); }
+.analisis-bloque-body { padding: 0 1.5rem 1.5rem; }
+
+.analisis-bloque-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+@media (max-width: 640px) { .analisis-bloque-grid { grid-template-columns: 1fr; } }
+.analisis-sub { background: var(--bg); border-radius: 0.6rem; padding: 0.9rem 1rem; border-left: 3px solid var(--sub-color, var(--border)); }
+.analisis-sub p { color: var(--text-secondary); font-size: 0.9rem; margin: 0; }
+.analisis-sub--cuerdas { --sub-color: var(--primary); }
+.analisis-sub--maderas { --sub-color: var(--success); }
+.analisis-sub--metales { --sub-color: #ff5a36; }
+.analisis-sub--balance { --sub-color: #9b6bff; }
+
+.analisis-sub-label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 0.35rem;
+}
+
+.analisis-solucion {
+    background: rgba(47, 184, 255, 0.08);
+    border-left: 3px solid var(--primary);
+    border-radius: 0.6rem;
+    padding: 0.9rem 1rem;
+    margin-bottom: 1.25rem;
+}
+.analisis-solucion p { margin: 0; color: var(--text); }
+
+.analisis-ediciones { margin-top: 0.5rem; }
+
+.analisis-descarga { width: 100%; display: flex; justify-content: flex-end; }
+.analisis-btn-pdf {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+.analisis-btn-pdf:hover { border-color: var(--primary); color: var(--primary); }
+
+.analisis-mapa-registros { display: flex; flex-direction: column; gap: 0.9rem; }
+.registro-fila { display: grid; grid-template-columns: 140px 1fr 140px; align-items: center; gap: 0.75rem; }
+.registro-label { font-weight: 700; color: var(--text); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.registro-track { position: relative; height: 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; }
+.registro-barra { position: absolute; top: 0; bottom: 0; background: var(--primary); border-radius: 999px; }
+.registro-ambito { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; text-align: right; }
+@media (max-width: 640px) {
+    .registro-fila { grid-template-columns: 90px 1fr; row-gap: 0.25rem; }
+    .registro-ambito { grid-column: 2; text-align: left; }
+}
+
+.analisis-edicion-comparacion-fila td { padding-top: 0; }
+.analisis-btn-comparar, .btn-compartir {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 0.8rem;
+    padding: 0.4rem 0.9rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+}
+.analisis-btn-comparar:hover, .btn-compartir:hover { border-color: var(--primary); }
+.analisis-comparacion { display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap; }
+.analisis-comparacion-columna {
+    flex: 1;
+    min-width: 280px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    padding: 0.75rem;
+    overflow-x: auto;
+}
+.analisis-comparacion-columna > div:last-child { min-height: 120px; }
+
+.analisis-btn-play {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--success);
+    font-weight: 600;
+    font-size: 0.78rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+}
+.analisis-btn-play:hover { border-color: var(--success); }
+
+.analisis-alertas { display: flex; flex-direction: column; gap: 0.6rem; }
+.analisis-alerta {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: 0.6rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    background: rgba(255, 90, 54, 0.08);
+    border-left: 3px solid #ff5a36;
+    color: var(--text);
+}
+.analisis-alerta--roza {
+    background: rgba(255, 200, 0, 0.08);
+    border-left-color: #ffc800;
+}
+.analisis-alerta-icono { flex-shrink: 0; }
+
+.densidad-tira-wrap { overflow-x: auto; }
+.densidad-tira { display: flex; gap: 1px; height: 1.75rem; min-width: max-content; }
+.densidad-bloque {
+    width: 6px;
+    height: 100%;
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.analisis-version-lista { display: flex; flex-direction: column; gap: 0.6rem; }
+.analisis-version-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: 0.6rem;
+    background: var(--bg);
+    border-left: 3px solid var(--border);
+}
+.analisis-version-item--resuelto { border-left-color: var(--success); }
+.analisis-version-item--no_resuelto { border-left-color: #ff5a36; }
+.analisis-version-item--sin_verificar { border-left-color: var(--text-secondary); }
+.analisis-version-icono { flex-shrink: 0; font-size: 1.1rem; }
+.analisis-version-titulo { font-weight: 700; color: var(--text); font-size: 0.88rem; }
+.analisis-version-motivo { color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.15rem; }
+
+.compartir-box { width: 100%; }
+.compartir-con-link {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    padding: 0.75rem 1rem;
+}
+.compartir-label { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; }
+#compartir-url {
+    flex: 1;
+    min-width: 200px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+}

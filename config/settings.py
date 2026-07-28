@@ -28,6 +28,27 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'ripp76.pythonanywhere.com']
 
+# ==============================================================================
+# CLAVE DE CIFRADO DE ARCHIVOS DEL ANALIZADOR (trainer.storage.EncryptedFileSystemStorage)
+#
+# Cifra en reposo los MusicXML/MIDI que suben los usuarios al Analizador de
+# Partituras. NO tiene (ni debe tener) un valor por defecto: a diferencia de
+# SECRET_KEY, si esta variable falta el analizador debe fallar ruidosamente al
+# guardar/leer un archivo, nunca degradar en silencio a texto plano.
+#
+# ADVERTENCIA — PERDER ESTA CLAVE ES IRREVERSIBLE: sin ella, absolutamente
+# ningún archivo ya cifrado con Fernet se puede volver a leer. No existe
+# recuperación posible, ni por soporte de Anthropic ni de nadie.
+#
+# Generación y manejo (fuera de este repositorio, nunca en código ni en git):
+#   1. Generar una vez:
+#        python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+#   2. Guardar esa clave en un gestor de contraseñas o backup seguro propio.
+#   3. Recién después, cargarla como variable de entorno SCORE_FILE_ENCRYPTION_KEY
+#      (en local y en la configuración de la app web de PythonAnywhere).
+# ==============================================================================
+SCORE_FILE_ENCRYPTION_KEY = os.environ.get('SCORE_FILE_ENCRYPTION_KEY')
+
 
 # Application definition
 

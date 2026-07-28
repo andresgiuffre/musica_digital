@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/orquestador.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="orquestador-container">
+    <div class="top-nav">
+        <a href="{% url 'orquestador_historial' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+            </svg>
+            Volver al historial
+        </a>
+    </div>
+
+    <div style="text-align: center; width: 100%;">
+        <h1 style="margin-bottom: 0.5rem;">{{ analysis.name }}</h1>
+        <p style="color: var(--text-secondary);">Analizado el {{ analysis.created_at|date:"d M Y, H:i" }}</p>
+    </div>
+
+    <div class="compartir-box" id="compartir-box" data-analysis-id="{{ analysis.id }}">
+        <div id="compartir-sin-link" {% if analysis.share_token %}style="display:none;"{% endif %}>
+            <button type="button" id="btn-generar-link" class="btn-compartir">🔗 Generar link para compartir</button>
+        </div>
+        <div id="compartir-con-link" class="compartir-con-link" {% if not analysis.share_token %}style="display:none;"{% endif %}>
+            <span class="compartir-label">Link público (solo lectura):</span>
+            <input type="text" id="compartir-url" readonly value="{% if analysis.share_token %}{{ request.scheme }}://{{ request.get_host }}{% url 'orquestador_publico' analysis.share_token %}{% endif %}">
+            <button type="button" id="btn-copiar-link" class="btn-compartir">Copiar</button>
+            <button type="button" id="btn-revocar-link" class="btn-compartir">Revocar</button>
+        </div>
+    </div>
+
+    <div id="results-container" style="width: 100%;"></div>
+</div>
+
+{{ analysis.analysis_data|json_script:"analysis-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
+<script src="{% static 'js/orquestador_render.js' %}"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const dataEl = document.getElementById("analysis-data");
+    const container = document.getElementById("results-container");
+    if (dataEl) {
+        const data = JSON.parse(dataEl.textContent);
+        renderAnalysisResult(data, container, {{ analysis.id }});
+    }
+
+    const compartirBox = document.getElementById("compartir-box");
+    const sinLink = document.getElementById("compartir-sin-link");
+    const conLink = document.getElementById("compartir-con-link");
+    const inputUrl = document.getElementById("compartir-url");
+    const btnGenerar = document.getElementById("btn-generar-link");
+    const btnCopiar = document.getElementById("btn-copiar-link");
+    const btnRevocar = document.getElementById("btn-revocar-link");
+    const analysisId = compartirBox.dataset.analysisId;
+
+    if (btnGenerar) {
+        btnGenerar.addEventListener("click", () => {
+            fetch(`/api/orquestador/compartir/${analysisId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    inputUrl.value = data.url;
+                    sinLink.style.display = 'none';
+                    conLink.style.display = 'flex';
+                }
+            });
+        });
+    }
+
+    if (btnCopiar) {
+        btnCopiar.addEventListener("click", () => {
+            inputUrl.select();
+            navigator.clipboard.writeText(inputUrl.value).then(() => {
+                btnCopiar.textContent = '¡Copiado!';
+                setTimeout(() => { btnCopiar.textContent = 'Copiar'; }, 1500);
+            });
+        });
+    }
+
+    if (btnRevocar) {
+        btnRevocar.addEventListener("click", () => {
+            fetch(`/api/orquestador/revocar/${analysisId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    conLink.style.display = 'none';
+                    sinLink.style.display = 'block';
+                }
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

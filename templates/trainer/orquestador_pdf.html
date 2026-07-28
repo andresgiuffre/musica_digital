@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    @page { size: A4; margin: 2cm 1.6cm; }
+    body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; color: #1a1a1a; }
+    h1 { font-size: 18pt; margin-bottom: 0.1cm; }
+    h2 { font-size: 13pt; margin-top: 0.7cm; margin-bottom: 0.25cm; border-bottom: 1px solid #ccc; padding-bottom: 0.1cm; }
+    .subtitulo { color: #666; font-size: 9pt; margin-bottom: 0.6cm; }
+    .prosa { line-height: 1.5; text-align: justify; }
+    table.tabla { width: 100%; border-collapse: collapse; margin-bottom: 0.3cm; }
+    table.tabla th { text-align: left; font-size: 8pt; text-transform: uppercase; color: #666; border-bottom: 1px solid #999; padding: 0.15cm 0.2cm; }
+    table.tabla td { padding: 0.15cm 0.2cm; border-bottom: 1px solid #ddd; font-size: 9pt; vertical-align: top; }
+    .instrumento { font-weight: bold; white-space: nowrap; }
+
+    .mapa-fila { margin-bottom: 0.25cm; }
+    .mapa-label { font-weight: bold; font-size: 8.5pt; }
+    .mapa-ambito { font-size: 8pt; color: #666; text-align: right; }
+    table.mapa-track { border: 1px solid #bbb; height: 0.35cm; }
+    table.mapa-track td { padding: 0; height: 0.35cm; }
+    .mapa-barra { background-color: #2fb8ff; }
+
+    .bloque { margin-bottom: 0.6cm; page-break-inside: avoid; }
+    .bloque-titulo { font-weight: bold; font-size: 10.5pt; background-color: #f0f0f0; padding: 0.15cm 0.25cm; }
+    .bloque-sub { margin-top: 0.2cm; }
+    .bloque-sub-label { font-size: 8pt; text-transform: uppercase; color: #666; font-weight: bold; }
+    .bloque-sub p { margin: 0.05cm 0 0.2cm 0; line-height: 1.4; }
+    .solucion { background-color: #eaf6ff; padding: 0.2cm 0.25cm; margin: 0.2cm 0; }
+
+    table.ediciones th { font-size: 7.5pt; }
+    table.ediciones td { font-size: 8pt; }
+
+    table.densidad-tabla td { height: 0.4cm; border: 0.5pt solid #ccc; }
+    .alerta-pdf { padding: 0.2cm 0.3cm; margin-bottom: 0.15cm; background-color: #fff3ec; border-left: 2pt solid #ff5a36; font-size: 9pt; }
+</style>
+</head>
+<body>
+    <h1>{{ analysis.name }}</h1>
+    <p class="subtitulo">Analizado el {{ analysis.created_at|date:"d M Y, H:i" }}</p>
+
+    <h2>Resumen General</h2>
+    <p class="prosa">{{ data.resumen_general }}</p>
+
+    {% if data.resumen_por_instrumento %}
+    <h2>Resumen por Instrumento</h2>
+    <table class="tabla">
+        <tr><th>Instrumento</th><th>Análisis</th></tr>
+        {% for r in data.resumen_por_instrumento %}
+        <tr><td class="instrumento">{{ r.instrumento }}</td><td>{{ r.descripcion }}</td></tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if mapa_registros %}
+    <h2>Mapa de Registros</h2>
+    {% for item in mapa_registros %}
+    <table class="mapa-fila" width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+            <td class="mapa-label" width="22%">{{ item.nombre }}</td>
+            <td width="53%">
+                <table class="mapa-track" width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td width="{{ item.left }}%">&nbsp;</td>
+                        <td width="{{ item.width }}%" class="mapa-barra">&nbsp;</td>
+                        <td width="{{ item.resto }}%">&nbsp;</td>
+                    </tr>
+                </table>
+            </td>
+            <td class="mapa-ambito" width="25%">{{ item.ambito }}</td>
+        </tr>
+    </table>
+    {% endfor %}
+    {% endif %}
+
+    {% if densidad_pdf %}
+    <h2>Mapa de Densidad por Compás</h2>
+    <table class="densidad-tabla" width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+        {% for item in densidad_pdf %}
+            <td style="background-color: rgba(47,184,255,{{ item.opacidad }});"></td>
+        {% endfor %}
+        </tr>
+    </table>
+    {% endif %}
+
+    {% if data.alertas_viabilidad %}
+    <h2>Alertas de Viabilidad Instrumental</h2>
+    {% for a in data.alertas_viabilidad %}
+    <p class="alerta-pdf">{{ a.mensaje }}</p>
+    {% endfor %}
+    {% endif %}
+
+    {% if data.bloques %}
+    <h2>Análisis por Bloques de Compases</h2>
+    {% for bloque in data.bloques %}
+    <div class="bloque">
+        <div class="bloque-titulo">Compases {{ bloque.rango_compases }}</div>
+        <div class="bloque-sub">
+            <div class="bloque-sub-label">Cuerdas</div>
+            <p>{{ bloque.analisis_cuerdas }}</p>
+            <div class="bloque-sub-label">Maderas</div>
+            <p>{{ bloque.analisis_maderas }}</p>
+            <div class="bloque-sub-label">Metales / Percusión</div>
+            <p>{{ bloque.analisis_metales_percusion }}</p>
+            <div class="bloque-sub-label">Balance y Fango</div>
+            <p>{{ bloque.analisis_balance_y_fango }}</p>
+        </div>
+        <div class="solucion">
+            <div class="bloque-sub-label">Solución</div>
+            <p>{{ bloque.solucion_prosa }}</p>
+        </div>
+        {% if bloque.ediciones_sugeridas %}
+        <table class="tabla ediciones">
+            <tr><th>Compás</th><th>Parte</th><th>Acción</th><th>Detalle</th></tr>
+            {% for e in bloque.ediciones_sugeridas %}
+            <tr><td>{{ e.compases }}</td><td>{{ e.parte }}</td><td>{{ e.accion }}</td><td>{{ e.detalle }}</td></tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+</body>
+</html>

@@ -1,0 +1,69 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ analysis.name }} — Análisis compartido</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/orquestador.css' %}">
+    <style>
+        :root {
+            --primary: #2fb8ff;
+            --bg: #0b0e14;
+            --surface: #171c27;
+            --text: #f4f1ea;
+            --text-secondary: #9aa1ae;
+            --success: #34d399;
+            --border: #262b36;
+        }
+        body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+        h1, h2, h3, h4 { font-family: 'Bricolage Grotesque', sans-serif; }
+        .publico-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .publico-badge {
+            display: inline-block;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 0.25rem 0.9rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="orquestador-container">
+        <div class="publico-header">
+            <span class="publico-badge">🔗 Reporte compartido — solo lectura</span>
+            <h1 style="margin-bottom: 0.25rem;">{{ analysis.name }}</h1>
+            <p style="color: var(--text-secondary);">Analizado el {{ analysis.created_at|date:"d M Y, H:i" }}</p>
+        </div>
+        <div id="results-container" style="width: 100%;"></div>
+    </div>
+
+    {{ analysis.analysis_data|json_script:"analysis-data" }}
+    <script src="{% static 'js/orquestador_render.js' %}"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const dataEl = document.getElementById("analysis-data");
+        const container = document.getElementById("results-container");
+        if (dataEl) {
+            const data = JSON.parse(dataEl.textContent);
+            renderAnalysisResult(data, container);
+        }
+    });
+    </script>
+</body>
+</html>
