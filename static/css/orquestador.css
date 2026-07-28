@@ -242,17 +242,29 @@
     cursor: pointer;
 }
 .analisis-btn-comparar:hover, .btn-compartir:hover { border-color: var(--primary); }
-.analisis-comparacion { display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap; }
+.analisis-comparacion { display: flex; flex-direction: column; gap: 1rem; margin-top: 0.75rem; }
 .analisis-comparacion-columna {
-    flex: 1;
-    min-width: 280px;
+    width: 100%;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 0.6rem;
     padding: 0.75rem;
+}
+.analisis-comparacion-rango {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    margin-top: 0.1rem;
+    margin-bottom: 0.4rem;
+}
+.analisis-osmd-original, .analisis-osmd-editado {
+    min-height: 120px;
+    background: #ffffff;
+    border-radius: 0.4rem;
+    padding: 0.75rem;
     overflow-x: auto;
 }
-.analisis-comparacion-columna > div:last-child { min-height: 120px; }
 
 .analisis-btn-play {
     background: none;

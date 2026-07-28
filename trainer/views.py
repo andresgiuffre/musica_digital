@@ -664,27 +664,39 @@ def calcular_densidad_por_compas(parts):
     ]
 
 
-def generar_fragmento_comparado(part, compas_desde, compas_hasta, accion_tipo, direccion=None):
+CONTEXTO_COMPASES = 4  # compases de contexto a mostrar antes/después del rango editado
+
+
+def generar_fragmento_comparado(part, compas_desde, compas_hasta, accion_tipo, direccion, min_compas, max_compas):
     """
     Extrae (con music21, sin IA) el fragmento de compases [compas_desde, compas_hasta] de una
-    parte ya parseada, genera una copia con la transformación mecánica aplicada, y devuelve
-    ambos fragmentos como MusicXML (string) para que el frontend los renderice con OSMD.
+    parte ya parseada, ampliado con CONTEXTO_COMPASES compases antes y después (recortado a los
+    límites reales de la parte), genera una copia con la transformación mecánica aplicada
+    únicamente en el rango original de la edición — el contexto queda idéntico en ambos
+    pentagramas — y devuelve ambos fragmentos como MusicXML (string) para que el frontend los
+    renderice con OSMD.
 
     Solo 'transponer_octava' genera pentagrama comparado: comparar contra compases de silencio
     (accion_tipo='silenciar') no aporta nada visualmente, así que esa acción quedó fuera de este
     camino — sigue siendo una sugerencia válida, pero solo como texto en prosa.
     """
-    fragmento_original = part.measures(compas_desde, compas_hasta)
+    desde_ancho = max(compas_desde - CONTEXTO_COMPASES, min_compas)
+    hasta_ancho = min(compas_hasta + CONTEXTO_COMPASES, max_compas)
+
+    fragmento_original = part.measures(desde_ancho, hasta_ancho)
     fragmento_editado = copy.deepcopy(fragmento_original)
 
     semitonos = 12 if direccion == 'arriba' else -12
-    fragmento_editado = fragmento_editado.transpose(semitonos)
+    for m in fragmento_editado.getElementsByClass(music21.stream.Measure):
+        if compas_desde <= m.number <= compas_hasta:
+            m.transpose(semitonos, inPlace=True)
 
     exporter_original = music21.musicxml.m21ToXml.GeneralObjectExporter(fragmento_original)
     exporter_editado = music21.musicxml.m21ToXml.GeneralObjectExporter(fragmento_editado)
     return (
         exporter_original.parse().decode('utf-8'),
         exporter_editado.parse().decode('utf-8'),
+        (desde_ancho, hasta_ancho),
     )
 
 def _parsear_score_descifrado(score_file_field):
@@ -1029,7 +1041,9 @@ def orquestador_fragmento_edicion(request, analysis_id):
         }, status=400)
 
     try:
-        original_xml, editado_xml = generar_fragmento_comparado(part, compas_desde, compas_hasta, accion_tipo, direccion)
+        original_xml, editado_xml, rango_mostrado = generar_fragmento_comparado(
+            part, compas_desde, compas_hasta, accion_tipo, direccion, min_compas, max_compas
+        )
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': f'No se pudo generar el fragmento: {e}'}, status=500)
 
@@ -1038,6 +1052,8 @@ def orquestador_fragmento_edicion(request, analysis_id):
         'original_musicxml': original_xml,
         'editado_musicxml': editado_xml,
         'tempo_bpm': tempo_bpm,
+        'rango_mostrado_desde': rango_mostrado[0],
+        'rango_mostrado_hasta': rango_mostrado[1],
     })
 
 

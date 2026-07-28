@@ -185,10 +185,12 @@ function renderEdicionesSugeridas(ediciones, analysisId) {
                     <div class="analisis-comparacion" id="${targetId}" style="display:none;">
                         <div class="analisis-comparacion-columna">
                             <span class="analisis-sub-label">Original</span>
+                            <span class="analisis-comparacion-rango"></span>
                             <div class="analisis-osmd-original"></div>
                         </div>
                         <div class="analisis-comparacion-columna">
                             <span class="analisis-sub-label">Editado</span>
+                            <span class="analisis-comparacion-rango"></span>
                             <div class="analisis-osmd-editado"></div>
                         </div>
                     </div>
@@ -237,6 +239,13 @@ function cargarFragmentoComparado(btn, contenedor) {
             }
             originalDiv.textContent = '';
             editadoDiv.textContent = '';
+
+            if (typeof data.rango_mostrado_desde === 'number' && typeof data.rango_mostrado_hasta === 'number') {
+                const textoRango = `Compases ${data.rango_mostrado_desde}-${data.rango_mostrado_hasta} (edición: ${btn.dataset.compasDesde}-${btn.dataset.compasHasta})`;
+                originalCol.querySelector('.analisis-comparacion-rango').textContent = textoRango;
+                editadoCol.querySelector('.analisis-comparacion-rango').textContent = textoRango;
+            }
+
             const osmdOriginal = new opensheetmusicdisplay.OpenSheetMusicDisplay(originalDiv, { autoResize: true, drawTitle: false });
             const osmdEditado = new opensheetmusicdisplay.OpenSheetMusicDisplay(editadoDiv, { autoResize: true, drawTitle: false });
             const bpm = data.tempo_bpm || 100;
@@ -267,6 +276,7 @@ function cerrarComparacion(contenedor) {
     contenedor.style.display = 'none';
     contenedor.querySelector('.analisis-osmd-original').innerHTML = '';
     contenedor.querySelector('.analisis-osmd-editado').innerHTML = '';
+    contenedor.querySelectorAll('.analisis-comparacion-rango').forEach(el => { el.textContent = ''; });
     delete contenedor.dataset.cargado;
     if (comparacionAbierta === contenedor) comparacionAbierta = null;
 }
