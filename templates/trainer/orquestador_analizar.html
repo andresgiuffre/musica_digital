@@ -259,6 +259,39 @@ document.addEventListener("DOMContentLoaded", () => {
         window.removeEventListener("beforeunload", avisarAntesDeSalir);
     }
 
+    // El análisis se manda en streaming NDJSON (una línea JSON por vez) para que la
+    // conexión tenga tráfico constante durante el minuto y medio que puede tardar Claude
+    // en obras grandes, en vez de quedar muda hasta el final — eso fue justo lo que cortó
+    // la conexión en el navegador la última vez, aunque el servidor terminó bien (200).
+    // Los heartbeats ({"heartbeat": true}) se ignoran; la última línea real es el resultado.
+    async function leerRespuestaEnStream(res) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let resultadoFinal = null;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            let indiceSalto;
+            while ((indiceSalto = buffer.indexOf("\n")) >= 0) {
+                const linea = buffer.slice(0, indiceSalto).trim();
+                buffer = buffer.slice(indiceSalto + 1);
+                if (!linea) continue;
+                const obj = JSON.parse(linea);
+                if (obj.heartbeat) continue;
+                resultadoFinal = obj;
+            }
+        }
+
+        if (!resultadoFinal) {
+            throw new Error("La respuesta en streaming terminó sin un resultado final.");
+        }
+        return resultadoFinal;
+    }
+
     form.addEventListener("submit", (e) => {
         e.preventDefault();
 
@@ -275,7 +308,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 'X-Requested-With': 'XMLHttpRequest'
             }
         })
-        .then(res => res.json())
+        .then(res => {
+            const contentType = res.headers.get('Content-Type') || '';
+            if (contentType.includes('application/x-ndjson')) {
+                return leerRespuestaEnStream(res);
+            }
+            return res.json();
+        })
         .then(data => {
             ocultarModalCarga();
 
