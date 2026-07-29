@@ -672,6 +672,12 @@ def _eventos_sonantes_por_compas(part):
     Para una parte, arma {compás: [altura1, altura2, ...]} — la secuencia de alturas (en
     .ps, semitonos) realmente sonando en cada compás, en orden de ataque, ignorando
     silencios. En acordes se usa la nota más aguda como altura representativa del ataque.
+
+    La percusión sin altura definida (music21.note.Unpitched — caja, bombo, platillo, etc.)
+    se ignora igual que los silencios: no tiene .pitch, y no puede compararse por altura
+    con ninguna otra parte, así que simplemente no genera evento sonante. Esa ausencia total
+    de eventos ya alcanza para que ningún par con esa parte produzca una entrada de
+    duplicación, sin necesidad de lógica especial adicional en la comparación.
     """
     resultado = {}
     for m in part.getElementsByClass(music21.stream.Measure):
@@ -680,8 +686,10 @@ def _eventos_sonantes_por_compas(part):
             if isinstance(el, music21.chord.Chord):
                 if el.pitches:
                     eventos.append(max(el.pitches, key=lambda p: p.ps).ps)
-            else:
+            elif isinstance(el, music21.note.Note):
                 eventos.append(el.pitch.ps)
+            # music21.note.Unpitched (percusión sin altura) y cualquier otro tipo
+            # inesperado se ignoran deliberadamente: no aportan una altura comparable.
         if eventos:
             resultado[m.number] = eventos
     return resultado
