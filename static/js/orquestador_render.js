@@ -137,7 +137,7 @@ function extraerEventosOsmd(osmd) {
     return eventos;
 }
 
-function agregarBotonPlay(columna, osmd, bpm) {
+function agregarBotonPlay(columna, osmd, bpm, instrumento) {
     if (!columna || columna.querySelector('.analisis-btn-play')) return;
     const contenedorOsmd = columna.querySelector('div');
     const boton = document.createElement('button');
@@ -146,7 +146,7 @@ function agregarBotonPlay(columna, osmd, bpm) {
     boton.textContent = '▶ Reproducir';
     boton.addEventListener('click', () => {
         const eventos = extraerEventosOsmd(osmd);
-        AudioEngine.playSequence(eventos, bpm);
+        AudioEngine.playSequence(eventos, bpm, instrumento);
     });
     columna.insertBefore(boton, contenedorOsmd);
 }
@@ -254,8 +254,8 @@ function cargarFragmentoComparado(btn, contenedor) {
                 osmdOriginal.load(data.original_musicxml).then(() => osmdOriginal.render()),
                 osmdEditado.load(data.editado_musicxml).then(() => osmdEditado.render()),
             ]).then(() => {
-                agregarBotonPlay(originalCol, osmdOriginal, bpm);
-                agregarBotonPlay(editadoCol, osmdEditado, bpm);
+                agregarBotonPlay(originalCol, osmdOriginal, bpm, btn.dataset.parte);
+                agregarBotonPlay(editadoCol, osmdEditado, bpm, btn.dataset.parte);
             });
         })
         .catch(err => {

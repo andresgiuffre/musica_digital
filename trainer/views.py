@@ -667,7 +667,103 @@ def calcular_densidad_por_compas(parts):
     ]
 
 
-CONTEXTO_COMPASES = 4  # compases de contexto a mostrar antes/después del rango editado
+def _eventos_sonantes_por_compas(part):
+    """
+    Para una parte, arma {compás: [altura1, altura2, ...]} — la secuencia de alturas (en
+    .ps, semitonos) realmente sonando en cada compás, en orden de ataque, ignorando
+    silencios. En acordes se usa la nota más aguda como altura representativa del ataque.
+    """
+    resultado = {}
+    for m in part.getElementsByClass(music21.stream.Measure):
+        eventos = []
+        for el in m.recurse().notes:
+            if isinstance(el, music21.chord.Chord):
+                if el.pitches:
+                    eventos.append(max(el.pitches, key=lambda p: p.ps).ps)
+            else:
+                eventos.append(el.pitch.ps)
+        if eventos:
+            resultado[m.number] = eventos
+    return resultado
+
+
+def _clasificar_relacion(eventos_a, eventos_b):
+    """
+    Compara dos secuencias de alturas (mismo compás, un par de partes) alineadas por
+    orden de ataque. Si la cantidad de ataques difiere, no puede ser doblaje real (el
+    doblaje implica el mismo ritmo, no solo las mismas alturas) — se clasifica directo
+    como 'sin_relacion' sin intentar un matcheo parcial.
+    """
+    if len(eventos_a) != len(eventos_b):
+        return 'sin_relacion'
+    intervalos = [b - a for a, b in zip(eventos_a, eventos_b)]
+    primero = intervalos[0]
+    if not all(abs(iv - primero) < 0.001 for iv in intervalos):
+        return 'sin_relacion'
+    if abs(primero) < 0.001:
+        return 'unísono'
+    if abs(primero % 12) < 0.001:
+        return 'octava'
+    return 'intervalo_fijo'
+
+
+def detectar_duplicaciones_verificadas(parts):
+    """
+    Calcula (con music21, sin IA) qué pares de partes comparten literalmente las mismas
+    alturas (o las mismas a distancia de octava, o a intervalo fijo) en cada compás de la
+    obra, agrupando en rangos contiguos de compases donde la relación se mantiene. Es un
+    reemplazo determinístico de la detección de doblaje que antes dependía de la lectura
+    del modelo de IA — ahora ese cálculo ya viene hecho y verificado.
+    """
+    parts = list(parts)
+    eventos_por_parte = [_eventos_sonantes_por_compas(p) for p in parts]
+    nombres = [p.partName or f"Parte {i+1}" for i, p in enumerate(parts)]
+
+    duplicaciones = []
+    for i in range(len(parts)):
+        for j in range(i + 1, len(parts)):
+            eventos_a, eventos_b = eventos_por_parte[i], eventos_por_parte[j]
+            compases_comunes = sorted(set(eventos_a.keys()) & set(eventos_b.keys()))
+
+            tipo_actual = None
+            desde = None
+            compas_previo = None
+            for c in compases_comunes:
+                tipo = _clasificar_relacion(eventos_a[c], eventos_b[c])
+
+                if tipo == 'sin_relacion':
+                    if tipo_actual:
+                        duplicaciones.append({
+                            'parte_a': nombres[i], 'parte_b': nombres[j],
+                            'compas_desde': desde, 'compas_hasta': compas_previo, 'tipo': tipo_actual,
+                        })
+                    tipo_actual = None
+                    compas_previo = c
+                    continue
+
+                if tipo == tipo_actual and compas_previo is not None and c == compas_previo + 1:
+                    compas_previo = c
+                    continue
+
+                if tipo_actual:
+                    duplicaciones.append({
+                        'parte_a': nombres[i], 'parte_b': nombres[j],
+                        'compas_desde': desde, 'compas_hasta': compas_previo, 'tipo': tipo_actual,
+                    })
+                tipo_actual = tipo
+                desde = c
+                compas_previo = c
+
+            if tipo_actual:
+                duplicaciones.append({
+                    'parte_a': nombres[i], 'parte_b': nombres[j],
+                    'compas_desde': desde, 'compas_hasta': compas_previo, 'tipo': tipo_actual,
+                })
+
+    return duplicaciones
+
+
+CONTEXTO_COMPASES = 2  # compases de contexto a mostrar antes/después del rango editado
 
 
 def generar_fragmento_comparado(part, compas_desde, compas_hasta, accion_tipo, direccion, min_compas, max_compas):
@@ -693,6 +789,10 @@ def generar_fragmento_comparado(part, compas_desde, compas_hasta, accion_tipo, d
     for m in fragmento_editado.getElementsByClass(music21.stream.Measure):
         if compas_desde <= m.number <= compas_hasta:
             m.transpose(semitonos, inPlace=True)
+            # Notas realmente tocadas por la edición, en rojo — los compases de contexto
+            # quedan sin colorear porque no cambiaron.
+            for elemento in m.recurse().notes:
+                elemento.style.color = '#FF0000'
 
     exporter_original = music21.musicxml.m21ToXml.GeneralObjectExporter(fragmento_original)
     exporter_editado = music21.musicxml.m21ToXml.GeneralObjectExporter(fragmento_editado)
@@ -919,6 +1019,7 @@ def orquestador_analizar(request):
                     yield json.dumps({"heartbeat": True}) + "\n"
 
                 densidad_por_compas = calcular_densidad_por_compas(parts)
+                duplicaciones_verificadas = detectar_duplicaciones_verificadas(parts)
 
                 analysis_data = {
                     'instruments': instrument_names,
@@ -926,7 +1027,8 @@ def orquestador_analizar(request):
                     'time_signature': ts,
                     'tempo': tempo,
                     'measures_data': measures_data,
-                    'estadisticas_por_instrumento': estadisticas_por_instrumento
+                    'estadisticas_por_instrumento': estadisticas_por_instrumento,
+                    'duplicaciones_verificadas': duplicaciones_verificadas,
                 }
 
                 api_key = os.environ.get("ANTHROPIC_TEST_API_KEY")
