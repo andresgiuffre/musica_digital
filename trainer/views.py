@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 import os
 import io
@@ -16,13 +17,15 @@ from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib.auth.forms import UserCreationForm
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator
 from django.template.loader import render_to_string
 from django.db.models import Avg
 from django.contrib import messages
 from .models import Game, Score, Attempt, UserProfile, Achievement, UserAchievement, Piece, SheetMusic, Collection, Favorite, StudySession, SheetMusicProgress, DailyGoal, UserDailyGoal
+
+logger = logging.getLogger(__name__)
 
 def register(request):
     if request.method == 'POST':
@@ -862,120 +865,146 @@ def orquestador_analizar(request):
             version_de=version_de,
         )
 
-        try:
-            score = _parsear_score_descifrado(analysis.score_file)
-            parts = score.parts
-            instrument_names = [p.partName for p in parts if p.partName]
-            
+        def generador_analisis():
+            # Heartbeat inicial: que la conexión tenga tráfico desde el primer instante,
+            # antes incluso de arrancar el parseo con music21.
+            yield json.dumps({"heartbeat": True}) + "\n"
+
             try:
-                key_sig = score.analyze('key')
-                key_str = str(key_sig)
-            except:
-                key_str = "Unknown"
+                score = _parsear_score_descifrado(analysis.score_file)
+                parts = score.parts
+                instrument_names = [p.partName for p in parts if p.partName]
 
-            time_sig = score.recurse().getElementsByClass(music21.meter.TimeSignature)
-            ts = time_sig[0].ratioString if time_sig else "Unknown"
-            
-            tempos = score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
-            tempo = tempos[0].number if tempos else "Unknown"
-            
-            measures_data = {}
-            estadisticas_por_instrumento = {}
-            alertas_viabilidad = []
-            for part in parts:
-                part_name = part.partName or "Instrumento Desconocido"
-                measures = part.getElementsByClass(music21.stream.Measure)
+                try:
+                    key_sig = score.analyze('key')
+                    key_str = str(key_sig)
+                except:
+                    key_str = "Unknown"
 
-                part_data = []
-                for m in list(measures):
-                    m_dict = {'number': m.number, 'notes': []}
-                    for element in m.recurse().notes:
-                        if isinstance(element, music21.note.Note):
-                            m_dict['notes'].append(f"{element.nameWithOctave} ({element.duration.type})")
-                        elif isinstance(element, music21.chord.Chord):
-                            chord_notes = "-".join([n.nameWithOctave for n in element.notes])
-                            m_dict['notes'].append(f"[{chord_notes}] ({element.duration.type})")
+                time_sig = score.recurse().getElementsByClass(music21.meter.TimeSignature)
+                ts = time_sig[0].ratioString if time_sig else "Unknown"
 
-                    dynamics = m.recurse().getElementsByClass(music21.dynamics.Dynamic)
-                    for d in dynamics:
-                        m_dict['notes'].append(f"Dinámica: {d.value}")
+                tempos = score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
+                tempo = tempos[0].number if tempos else "Unknown"
 
-                    part_data.append(m_dict)
-                measures_data[part_name] = part_data
-                estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part)
-                alertas_viabilidad.extend(evaluar_viabilidad_instrumental(part_name, part))
+                measures_data = {}
+                estadisticas_por_instrumento = {}
+                alertas_viabilidad = []
+                for part in parts:
+                    part_name = part.partName or "Instrumento Desconocido"
+                    measures = part.getElementsByClass(music21.stream.Measure)
 
-            densidad_por_compas = calcular_densidad_por_compas(parts)
+                    part_data = []
+                    for m in list(measures):
+                        m_dict = {'number': m.number, 'notes': []}
+                        for element in m.recurse().notes:
+                            if isinstance(element, music21.note.Note):
+                                m_dict['notes'].append(f"{element.nameWithOctave} ({element.duration.type})")
+                            elif isinstance(element, music21.chord.Chord):
+                                chord_notes = "-".join([n.nameWithOctave for n in element.notes])
+                                m_dict['notes'].append(f"[{chord_notes}] ({element.duration.type})")
 
-            analysis_data = {
-                'instruments': instrument_names,
-                'key_signature': key_str,
-                'time_signature': ts,
-                'tempo': tempo,
-                'measures_data': measures_data,
-                'estadisticas_por_instrumento': estadisticas_por_instrumento
-            }
-            
-            api_key = os.environ.get("ANTHROPIC_TEST_API_KEY")
-            if api_key:
-                client = anthropic.Anthropic(api_key=api_key)
+                        dynamics = m.recurse().getElementsByClass(music21.dynamics.Dynamic)
+                        for d in dynamics:
+                            m_dict['notes'].append(f"Dinámica: {d.value}")
 
-                prompt = f"Analizá la siguiente estructura de datos musicales extraída de la partitura:\n{json.dumps(analysis_data, ensure_ascii=False)}"
+                        part_data.append(m_dict)
+                    measures_data[part_name] = part_data
+                    estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part)
+                    alertas_viabilidad.extend(evaluar_viabilidad_instrumental(part_name, part))
 
-                message = client.messages.create(
-                    model="claude-sonnet-5",
-                    max_tokens=8000,
-                    system=[
-                        {
-                            "type": "text",
-                            "text": GUIA_ESTILO_ORQUESTAL,
-                            "cache_control": {"type": "ephemeral"},
-                        }
-                    ],
-                    tools=[ORQUESTACION_TOOL],
-                    tool_choice={"type": "tool", "name": "reportar_analisis_orquestal"},
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ],
-                )
+                    # Heartbeat por instrumento: en una obra con muchas partes, el parseo en
+                    # sí puede tardar — esto evita huecos largos de silencio antes de llegar
+                    # siquiera a llamar a Claude.
+                    yield json.dumps({"heartbeat": True}) + "\n"
 
-                tool_use_block = next(
-                    (block for block in message.content if block.type == "tool_use"),
-                    None
-                )
-                if tool_use_block:
-                    final_data = tool_use_block.input
-                    final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
-                    final_data['alertas_viabilidad'] = alertas_viabilidad
-                    final_data['densidad_por_compas'] = densidad_por_compas
-                    if version_de is not None:
-                        final_data['comparacion_version_anterior'] = comparar_versiones(version_de, parts)
-                    consumir_credito_analisis(profile)
-                    profile.refresh_from_db()
-                else:
-                    final_data = {
-                        "error": "Claude no devolvió un bloque tool_use.",
-                        "raw_music_data": analysis_data
-                    }
-            else:
-                final_data = {
-                    "error": "Falta la variable de entorno ANTHROPIC_TEST_API_KEY.",
-                    "raw_music_data": analysis_data
+                densidad_por_compas = calcular_densidad_por_compas(parts)
+
+                analysis_data = {
+                    'instruments': instrument_names,
+                    'key_signature': key_str,
+                    'time_signature': ts,
+                    'tempo': tempo,
+                    'measures_data': measures_data,
+                    'estadisticas_por_instrumento': estadisticas_por_instrumento
                 }
 
-            analysis.analysis_data = final_data
-            analysis.save()
+                api_key = os.environ.get("ANTHROPIC_TEST_API_KEY")
+                if api_key:
+                    client = anthropic.Anthropic(api_key=api_key)
 
-            return JsonResponse({
-                'status': 'success',
-                'data': final_data,
-                'analysis_id': analysis.id,
-                'creditos_analisis': profile.creditos_analisis,
-                'creditos_bonus': profile.creditos_bonus,
-            })
+                    prompt = f"Analizá la siguiente estructura de datos musicales extraída de la partitura:\n{json.dumps(analysis_data, ensure_ascii=False)}"
 
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)})
+                    with client.messages.stream(
+                        model="claude-sonnet-5",
+                        max_tokens=48000,
+                        system=[
+                            {
+                                "type": "text",
+                                "text": GUIA_ESTILO_ORQUESTAL,
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                        ],
+                        tools=[ORQUESTACION_TOOL],
+                        tool_choice={"type": "tool", "name": "reportar_analisis_orquestal"},
+                        messages=[
+                            {"role": "user", "content": prompt}
+                        ],
+                    ) as stream:
+                        for _event in stream:
+                            # Heartbeat por cada evento del stream de Claude: con max_tokens=48000
+                            # esto da tráfico constante durante todo el minuto y medio que puede
+                            # tardar una obra grande.
+                            yield json.dumps({"heartbeat": True}) + "\n"
+                        message = stream.get_final_message()
+
+                    # TEMPORAL: diagnóstico de un caso real donde el resultado llegó incompleto
+                    # (alertas_viabilidad presente pero bloques ausente) — confirmar si se corta
+                    # por max_tokens. Sacar una vez confirmado.
+                    logger.warning(
+                        "orquestador_analizar: stop_reason=%s, tokens_entrada=%s, tokens_salida=%s",
+                        message.stop_reason, message.usage.input_tokens, message.usage.output_tokens,
+                    )
+
+                    tool_use_block = next(
+                        (block for block in message.content if block.type == "tool_use"),
+                        None
+                    )
+                    if tool_use_block:
+                        final_data = tool_use_block.input
+                        final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
+                        final_data['alertas_viabilidad'] = alertas_viabilidad
+                        final_data['densidad_por_compas'] = densidad_por_compas
+                        if version_de is not None:
+                            final_data['comparacion_version_anterior'] = comparar_versiones(version_de, parts)
+                        consumir_credito_analisis(profile)
+                        profile.refresh_from_db()
+                    else:
+                        final_data = {
+                            "error": "Claude no devolvió un bloque tool_use.",
+                            "raw_music_data": analysis_data
+                        }
+                else:
+                    final_data = {
+                        "error": "Falta la variable de entorno ANTHROPIC_TEST_API_KEY.",
+                        "raw_music_data": analysis_data
+                    }
+
+                analysis.analysis_data = final_data
+                analysis.save()
+
+                yield json.dumps({
+                    'status': 'success',
+                    'data': final_data,
+                    'analysis_id': analysis.id,
+                    'creditos_analisis': profile.creditos_analisis,
+                    'creditos_bonus': profile.creditos_bonus,
+                }) + "\n"
+
+            except Exception as e:
+                yield json.dumps({'status': 'error', 'message': str(e)}) + "\n"
+
+        return StreamingHttpResponse(generador_analisis(), content_type='application/x-ndjson')
 
     from .models import ScoreAnalysis
     analisis_previos = ScoreAnalysis.objects.filter(user=request.user).order_by('-created_at')[:20]
