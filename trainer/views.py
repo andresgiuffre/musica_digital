@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 import os
 import io
@@ -23,6 +24,8 @@ from django.template.loader import render_to_string
 from django.db.models import Avg
 from django.contrib import messages
 from .models import Game, Score, Attempt, UserProfile, Achievement, UserAchievement, Piece, SheetMusic, Collection, Favorite, StudySession, SheetMusicProgress, DailyGoal, UserDailyGoal
+
+logger = logging.getLogger(__name__)
 
 def register(request):
     if request.method == 'POST':
@@ -937,6 +940,14 @@ def orquestador_analizar(request):
                     messages=[
                         {"role": "user", "content": prompt}
                     ],
+                )
+
+                # TEMPORAL: diagnóstico de un caso real donde el resultado llegó incompleto
+                # (alertas_viabilidad presente pero bloques ausente) — confirmar si se corta
+                # por max_tokens. Sacar una vez confirmado.
+                logger.warning(
+                    "orquestador_analizar: stop_reason=%s, tokens_entrada=%s, tokens_salida=%s",
+                    message.stop_reason, message.usage.input_tokens, message.usage.output_tokens,
                 )
 
                 tool_use_block = next(
