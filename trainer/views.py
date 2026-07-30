@@ -1061,7 +1061,14 @@ def orquestador_analizar(request):
                             {"role": "user", "content": prompt}
                         ],
                     ) as stream:
-                        for _event in stream:
+                        json_bruto_tool_use = ""
+                        for event in stream:
+                            # El SDK expone, además del evento crudo, un evento "input_json" con
+                            # el fragmento de texto tal cual llegó — lo acumulamos nosotros mismos
+                            # para poder parsearlo con json.loads estricto al final, en vez de
+                            # confiar en el snapshot que arma el SDK internamente (ver más abajo).
+                            if event.type == "input_json":
+                                json_bruto_tool_use += event.partial_json
                             # Heartbeat por cada evento del stream de Claude: con max_tokens=48000
                             # esto da tráfico constante durante todo el minuto y medio que puede
                             # tardar una obra grande.
@@ -1081,7 +1088,18 @@ def orquestador_analizar(request):
                         None
                     )
                     if tool_use_block:
-                        final_data = tool_use_block.input
+                        try:
+                            # El SDK parsea el JSON del tool_use con partial_mode=True (tolerante
+                            # a datos incompletos) incluso para el resultado final — con
+                            # respuestas muy grandes (max_tokens=48000) esto puede dejar el resto
+                            # del JSON crudo pegado como texto dentro de un campo de string (bug
+                            # real encontrado: resumen_general con ~1000 caracteres y después el
+                            # resto del objeto sin parsear). Usamos json.loads estricto sobre el
+                            # texto crudo que acumulamos nosotros mismos del stream, y solo caemos
+                            # al snapshot del SDK si por algún motivo no es JSON válido.
+                            final_data = json.loads(json_bruto_tool_use)
+                        except (json.JSONDecodeError, ValueError):
+                            final_data = tool_use_block.input
                         final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
                         final_data['alertas_viabilidad'] = alertas_viabilidad
                         final_data['densidad_por_compas'] = densidad_por_compas
