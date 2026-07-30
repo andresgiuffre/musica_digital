@@ -1098,8 +1098,29 @@ def orquestador_analizar(request):
                             # texto crudo que acumulamos nosotros mismos del stream, y solo caemos
                             # al snapshot del SDK si por algún motivo no es JSON válido.
                             final_data = json.loads(json_bruto_tool_use)
-                        except (json.JSONDecodeError, ValueError):
+                        except (json.JSONDecodeError, ValueError) as e:
+                            logger.warning(
+                                "orquestador_analizar: json.loads estricto falló sobre "
+                                "json_bruto_tool_use (%d caracteres): %s. Cayendo a "
+                                "tool_use_block.input del SDK.",
+                                len(json_bruto_tool_use), e,
+                            )
                             final_data = tool_use_block.input
+
+                        # TEMPORAL: diagnóstico del bug de resumen_general con JSON pegado al
+                        # final. Confirma si el marcador ya estaba en el texto crudo del stream
+                        # (bug del lado del modelo/generación) o si aparece recién después de
+                        # nuestro parseo (bug de nuestro lado). Sacar una vez confirmado.
+                        marcador = '"resumen_por_instrumento"'
+                        resumen = final_data.get('resumen_general') if isinstance(final_data, dict) else None
+                        if isinstance(resumen, str) and marcador in resumen:
+                            logger.warning(
+                                "orquestador_analizar: BUG CONFIRMADO - resumen_general (%d "
+                                "caracteres) contiene el marcador %r. ¿Presente también en "
+                                "json_bruto_tool_use crudo (antes de parsear)?: %s",
+                                len(resumen), marcador, marcador in json_bruto_tool_use,
+                            )
+
                         final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
                         final_data['alertas_viabilidad'] = alertas_viabilidad
                         final_data['densidad_por_compas'] = densidad_por_compas
