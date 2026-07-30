@@ -395,7 +395,7 @@ ORQUESTACION_TOOL = {
         "properties": {
             "resumen_general": {
                 "type": "string",
-                "description": "Resumen general del estilo, textura y distribución orquestal de la obra completa."
+                "description": "Resumen general del estilo, textura y distribución orquestal de la obra completa, en prosa exclusivamente. No incluyas datos estructurados, comillas escapadas, ni una copia o fragmento del contenido de bloques o resumen_por_instrumento — cada campo del schema es independiente, no dupliques información entre ellos."
             },
             "bloques": {
                 "type": "array",
@@ -948,6 +948,48 @@ def comparar_versiones(anterior, nueva_parts):
     return resultado
 
 
+CLAVES_SCHEMA_FUGABLES = ('resumen_por_instrumento', 'bloques')
+
+
+def _limpiar_fuga_json_en_resumen(resumen_general):
+    """
+    Defensa contra un comportamiento real del modelo confirmado en producción: en
+    respuestas grandes, Claude a veces escribe (con comillas escapadas, JSON válido) una
+    copia de otro campo del schema dentro del string de resumen_general. Si detectamos
+    ese patrón — una subcadena que empieza con una clave conocida del schema y que,
+    aislada, parsea como JSON válido con esa clave — cortamos el texto ahí, antes de la
+    fuga, en vez de guardar el JSON crudo en el reporte final. En el peor caso el usuario
+    ve un resumen un poco más corto de lo esperado; nunca ve datos sin procesar.
+    """
+    if not isinstance(resumen_general, str):
+        return resumen_general
+
+    mejor_corte = None
+    for clave in CLAVES_SCHEMA_FUGABLES:
+        patron = f'"{clave}"'
+        idx = resumen_general.find(patron)
+        while idx != -1:
+            fragmento = resumen_general[idx:]
+            try:
+                parseado = json.loads("{" + fragmento + "}")
+                if clave in parseado:
+                    corte = idx
+                    # La fuga suele venir precedida por la comilla/coma de cierre del
+                    # string original — la recortamos también para que el texto quede limpio.
+                    while corte > 0 and resumen_general[corte - 1] in '",':
+                        corte -= 1
+                    if mejor_corte is None or corte < mejor_corte:
+                        mejor_corte = corte
+                    break
+            except (json.JSONDecodeError, ValueError):
+                pass
+            idx = resumen_general.find(patron, idx + 1)
+
+    if mejor_corte is not None:
+        return resumen_general[:mejor_corte].rstrip()
+    return resumen_general
+
+
 @login_required
 def orquestador_analizar(request):
     from .services import consumir_credito_analisis
@@ -1120,6 +1162,18 @@ def orquestador_analizar(request):
                                 "json_bruto_tool_use crudo (antes de parsear)?: %s",
                                 len(resumen), marcador, marcador in json_bruto_tool_use,
                             )
+
+                        # Limpieza defensiva: pase lo que pase con el ajuste de prompt, ningún
+                        # usuario final debe ver una fuga de JSON crudo en su reporte.
+                        if isinstance(resumen, str):
+                            resumen_limpio = _limpiar_fuga_json_en_resumen(resumen)
+                            if resumen_limpio != resumen:
+                                logger.warning(
+                                    "orquestador_analizar: se recortó una fuga de JSON dentro de "
+                                    "resumen_general (de %d a %d caracteres).",
+                                    len(resumen), len(resumen_limpio),
+                                )
+                                final_data['resumen_general'] = resumen_limpio
 
                         final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
                         final_data['alertas_viabilidad'] = alertas_viabilidad
