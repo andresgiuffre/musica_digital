@@ -1017,6 +1017,25 @@ def _limpiar_fuga_json_en_resumen(resumen_general):
 
 PATRON_VERIFICADO = re.compile(r'verificad[oa]s?', re.IGNORECASE)
 CAMPOS_PROSA_BLOQUE = ('analisis_cuerdas', 'analisis_maderas', 'analisis_metales_percusion', 'analisis_balance_y_fango', 'solucion_prosa')
+LIMITES_CLAUSULA = re.compile(r'[.,;]')
+NEGACIONES_VERIFICADO = ('sin', 'no')
+
+
+def _hay_negacion_cercana(texto, inicio_match):
+    """
+    Busca una negación ('sin'/'no' — cubre también 'sin que', 'no hay', 'no está') en
+    toda la cláusula que contiene esta aparición de 'verificado'/'verificada',
+    delimitada hacia atrás por el punto, coma o punto y coma más cercano (o el inicio
+    del texto si no hay ninguno) — no una cantidad fija de palabras. La negación en
+    español rige sobre la cláusula, no sobre N palabras, así que esto se ajusta mejor
+    que una ventana arbitraria. Heurística, no un parser real: no captura negación al
+    100%, solo reduce falsos positivos obvios (ej. "sin ser doblaje verificado").
+    """
+    antes = texto[:inicio_match]
+    limites = [m.end() for m in LIMITES_CLAUSULA.finditer(antes)]
+    clausula = antes[limites[-1]:] if limites else antes
+    palabras = re.findall(r"\w+", clausula, re.UNICODE)
+    return any(p.lower() in NEGACIONES_VERIFICADO for p in palabras)
 
 
 def _auditar_citas_duplicaciones(bloques, duplicaciones_verificadas):
@@ -1031,7 +1050,10 @@ def _auditar_citas_duplicaciones(bloques, duplicaciones_verificadas):
         citas = bloque.get('duplicaciones_citadas') or []
         texto = ' '.join(bloque.get(c, '') or '' for c in CAMPOS_PROSA_BLOQUE)
         texto += ' ' + ' '.join(e.get('detalle', '') or '' for e in bloque.get('ediciones_sugeridas', []))
-        usa_verificado = bool(PATRON_VERIFICADO.search(texto))
+        usa_verificado = any(
+            not _hay_negacion_cercana(texto, m.start())
+            for m in PATRON_VERIFICADO.finditer(texto)
+        )
 
         if usa_verificado and not citas:
             logger.warning(
