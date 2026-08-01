@@ -964,6 +964,7 @@ def _limpiar_fuga_json_en_resumen(resumen_general):
     if not isinstance(resumen_general, str):
         return resumen_general
 
+    decoder = json.JSONDecoder()
     mejor_corte = None
     for clave in CLAVES_SCHEMA_FUGABLES:
         patron = f'"{clave}"'
@@ -971,8 +972,14 @@ def _limpiar_fuga_json_en_resumen(resumen_general):
         while idx != -1:
             fragmento = resumen_general[idx:]
             try:
-                parseado = json.loads("{" + fragmento + "}")
-                if clave in parseado:
+                # raw_decode (a diferencia de json.loads) parsea un único valor JSON
+                # completo y tolera basura sobrante después. Le agregamos margen generoso
+                # de llaves de cierre: si el fragmento ya trae su propio cierre (como la
+                # fuga real observada en producción, que incluye una llave extra al
+                # final) se detiene ahí solo y el resto queda como sobrante ignorado; si
+                # no lo trae, usa una de las nuestras para cerrar correctamente.
+                parseado, _ = decoder.raw_decode("{" + fragmento + "}}}")
+                if isinstance(parseado, dict) and clave in parseado:
                     corte = idx
                     # La fuga suele venir precedida por la comilla/coma de cierre del
                     # string original — la recortamos también para que el texto quede limpio.
