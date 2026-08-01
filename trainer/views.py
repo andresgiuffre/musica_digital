@@ -1,4 +1,5 @@
 import json
+import re
 import logging
 import math
 import os
@@ -453,6 +454,22 @@ ORQUESTACION_TOOL = {
                                 "required": ["compases", "parte", "accion", "detalle", "compas_desde", "compas_hasta", "accion_tipo", "direccion"],
                                 "additionalProperties": False
                             }
+                        },
+                        "duplicaciones_citadas": {
+                            "type": "array",
+                            "description": "Cada entrada respalda una afirmación de duplicación/doblaje/unísono/octava hecha con la palabra 'verificado' (o variante) en el texto de este bloque. Tiene que coincidir con una entrada real de duplicaciones_verificadas para ese rango. Si el bloque no afirma ninguna duplicación como verificada, este array queda vacío.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "parte_a": {"type": "string", "description": "Nombre exacto de la primera parte, igual que en duplicaciones_verificadas."},
+                                    "parte_b": {"type": "string", "description": "Nombre exacto de la segunda parte, igual que en duplicaciones_verificadas."},
+                                    "compas_desde": {"type": "integer"},
+                                    "compas_hasta": {"type": "integer"},
+                                    "tipo": {"type": "string", "enum": ["unísono", "octava", "intervalo_fijo"]}
+                                },
+                                "required": ["parte_a", "parte_b", "compas_desde", "compas_hasta", "tipo"],
+                                "additionalProperties": False
+                            }
                         }
                     },
                     "required": [
@@ -462,7 +479,8 @@ ORQUESTACION_TOOL = {
                         "analisis_metales_percusion",
                         "analisis_balance_y_fango",
                         "solucion_prosa",
-                        "ediciones_sugeridas"
+                        "ediciones_sugeridas",
+                        "duplicaciones_citadas"
                     ],
                     "additionalProperties": False
                 }
@@ -997,6 +1015,49 @@ def _limpiar_fuga_json_en_resumen(resumen_general):
     return resumen_general
 
 
+PATRON_VERIFICADO = re.compile(r'verificad[oa]s?', re.IGNORECASE)
+CAMPOS_PROSA_BLOQUE = ('analisis_cuerdas', 'analisis_maderas', 'analisis_metales_percusion', 'analisis_balance_y_fango', 'solucion_prosa')
+
+
+def _auditar_citas_duplicaciones(bloques, duplicaciones_verificadas):
+    """
+    Auditoría determinística (sin IA, solo logging) de que cada uso de la palabra
+    "verificado"/"verificada" en el texto de un bloque esté respaldado por una entrada
+    real en duplicaciones_verificadas, citada en duplicaciones_citadas de ese mismo
+    bloque. No modifica final_data ni bloquea nada — solo deja registro para juntar
+    casos reales antes de decidir si hace falta rechazar/reintentar la respuesta.
+    """
+    for bloque in bloques or []:
+        citas = bloque.get('duplicaciones_citadas') or []
+        texto = ' '.join(bloque.get(c, '') or '' for c in CAMPOS_PROSA_BLOQUE)
+        texto += ' ' + ' '.join(e.get('detalle', '') or '' for e in bloque.get('ediciones_sugeridas', []))
+        usa_verificado = bool(PATRON_VERIFICADO.search(texto))
+
+        if usa_verificado and not citas:
+            logger.warning(
+                "auditoria_duplicaciones: bloque %r usa 'verificado'/'verificada' en el "
+                "texto pero duplicaciones_citadas está vacío. Texto: %.300s",
+                bloque.get('rango_compases'), texto,
+            )
+            continue
+
+        for cita in citas:
+            existe = any(
+                {cita.get('parte_a'), cita.get('parte_b')} == {v['parte_a'], v['parte_b']}
+                and cita.get('tipo') == v['tipo']
+                and cita.get('compas_desde') is not None and cita.get('compas_hasta') is not None
+                and cita['compas_desde'] <= v['compas_hasta']
+                and cita['compas_hasta'] >= v['compas_desde']
+                for v in duplicaciones_verificadas
+            )
+            if not existe:
+                logger.warning(
+                    "auditoria_duplicaciones: bloque %r citó una duplicación inventada: %r "
+                    "— no coincide con ninguna entrada real de duplicaciones_verificadas.",
+                    bloque.get('rango_compases'), cita,
+                )
+
+
 @login_required
 def orquestador_analizar(request):
     from .services import consumir_credito_analisis
@@ -1181,6 +1242,9 @@ def orquestador_analizar(request):
                                     len(resumen), len(resumen_limpio),
                                 )
                                 final_data['resumen_general'] = resumen_limpio
+
+                        if isinstance(final_data, dict):
+                            _auditar_citas_duplicaciones(final_data.get('bloques'), duplicaciones_verificadas)
 
                         final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
                         final_data['alertas_viabilidad'] = alertas_viabilidad
