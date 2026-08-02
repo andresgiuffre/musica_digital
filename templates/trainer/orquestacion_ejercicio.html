@@ -395,6 +395,10 @@
         const entry = resolverNotaDeClick(ev, el);
         if (!entry) return;
 
+        // TEMPORAL: diagnóstico del caso de grace notes — permite ver, click a click,
+        // exactamente qué nota (id/pitch/ps) resolvió cada click. Sacar una vez confirmado.
+        console.log(`[orquestacion] Click resuelto -> id=${entry.id} pitch=${entry.pitch} ps=${entry.ps} compas=${entry.compas} offset=${entry.offset}`);
+
         if (asignaciones[entry.id] === pincelActivo) {
             delete asignaciones[entry.id];
         } else {
