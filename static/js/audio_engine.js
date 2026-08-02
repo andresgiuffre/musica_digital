@@ -61,6 +61,7 @@ const AudioEngine = {
         for (const [keywords, familia] of this.FAMILIAS_INSTRUMENTO) {
             if (keywords.some(kw => n.includes(kw))) return familia;
         }
+        console.warn(`AudioEngine: "${nombre}" no matchea ninguna familia conocida — va a sonar piano.`);
         return null;
     },
 

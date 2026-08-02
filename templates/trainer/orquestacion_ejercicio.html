@@ -3,70 +3,96 @@
 
 {% block extra_css %}
 <style>
-    .ej-orq-zona {
+    #ej-orq-error-timbre {
+        display: none;
+        background: rgba(239, 68, 68, 0.12);
+        border: 1px solid var(--danger);
+        color: var(--danger);
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.85rem;
+    }
+    .ej-orq-osmd-wrap {
+        overflow-x: auto;
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .ej-orq-osmd-wrap .nota-clickeable { cursor: pointer; }
+    .ej-orq-paleta {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+    .ej-orq-instrumento {
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 0.75rem;
-        padding: 1rem;
+        padding: 0.75rem;
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
     }
+    .ej-orq-pincel {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 2px solid transparent;
+        border-radius: 0.5rem;
+        padding: 0.4rem 0.5rem;
+        color: var(--text);
+        font-weight: 600;
+        cursor: pointer;
+        text-align: left;
+        transition: border-color 0.15s, background 0.15s;
+    }
+    .ej-orq-pincel:hover { background: rgba(255,255,255,0.05); }
+    .ej-orq-pincel.ej-orq-pincel-activo {
+        border-color: var(--zona-color);
+        background: color-mix(in srgb, var(--zona-color) 15%, transparent);
+    }
+    .ej-orq-pincel-punto {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--zona-color);
+        flex-shrink: 0;
+    }
     .ej-orq-registro-track {
         position: relative;
-        height: 10px;
-        border-radius: 5px;
+        height: 8px;
+        border-radius: 4px;
         background: rgba(255,255,255,0.08);
-        overflow: visible;
     }
     .ej-orq-registro-barra {
         position: absolute;
         top: 0;
         height: 100%;
-        border-radius: 5px;
-        background: rgba(47, 184, 255, 0.35);
-        border: 1px solid var(--primary);
+        border-radius: 4px;
+        background: var(--zona-color);
+        opacity: 0.55;
     }
-    .ej-orq-drop {
-        min-height: 64px;
-        border: 2px dashed var(--border);
-        border-radius: 0.5rem;
-        padding: 0.5rem;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.4rem;
-        align-content: flex-start;
-        transition: border-color 0.15s, background 0.15s;
-    }
-    .ej-orq-drop.ej-orq-drop-activa {
-        border-color: var(--primary);
-        background: rgba(47, 184, 255, 0.08);
-    }
-    .ej-orq-chip {
-        touch-action: none;
-        user-select: none;
-        cursor: grab;
-        background: var(--ink, #0b0e14);
-        border: 1px solid var(--border);
-        border-radius: 0.4rem;
-        padding: 0.3rem 0.6rem;
-        font-family: 'IBM Plex Mono', monospace;
-        font-size: 0.85rem;
-        line-height: 1;
-    }
-    .ej-orq-chip.ej-orq-chip-fuera-de-registro {
-        border-color: var(--danger);
+    .ej-orq-advertencia {
+        font-size: 0.78rem;
         color: var(--danger);
+        min-height: 1em;
     }
-    .ej-orq-chip.ej-orq-chip-arrastrando {
-        position: fixed;
-        z-index: 50;
-        opacity: 0.85;
-        pointer-events: none;
+    .ej-orq-reproducir {
+        align-self: flex-start;
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 0.4rem;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.8rem;
+        cursor: pointer;
     }
-    #ej-orq-banco {
-        min-height: 72px;
-    }
+    .ej-orq-reproducir:hover { border-color: var(--zona-color); }
 </style>
 {% endblock %}
 
@@ -78,212 +104,384 @@
 
     <h1 class="text-2xl font-display mb-1">{{ fragmento.nombre }}</h1>
     <p class="mb-6" style="color: var(--text-secondary);">
-        Arrastrá cada nota del piano al instrumento de cuerdas que le corresponda. La barra debajo de cada
-        instrumento marca su registro cómodo — una nota con borde rojo quedó fuera de ese rango.
+        Elegí un instrumento (el pincel activo) y hacé click sobre cada cabeza de nota de la partitura para
+        asignarla. Click de nuevo con el mismo pincel para desasignarla, o con otro pincel para reasignarla.
+        La barra debajo de cada instrumento marca su registro cómodo — una nota asignada fuera de ese rango
+        se marca con un halo.
     </p>
 
+    <div id="ej-orq-error-timbre"></div>
+
+    <div class="ej-orq-paleta" id="ej-orq-paleta"></div>
+
     <div class="flex items-center justify-between mb-3">
-        <h2 class="text-lg font-semibold">Notas del fragmento</h2>
-        <button id="ej-orq-reiniciar" type="button" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">
+        <button type="button" id="ej-orq-todo" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">
+            ▶ Todo
+        </button>
+        <button type="button" id="ej-orq-reiniciar" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">
             ↺ Reiniciar
         </button>
     </div>
-    <div id="ej-orq-banco" class="ej-orq-drop mb-8" data-zona="__banco__"></div>
 
-    <div id="ej-orq-zonas" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    <div class="ej-orq-osmd-wrap">
+        <div id="ej-orq-osmd"></div>
+    </div>
 
-    <p id="ej-orq-estado" class="mt-6 text-sm" style="color: var(--text-secondary);"></p>
+    <p id="ej-orq-estado" class="text-sm" style="color: var(--text-secondary);"></p>
 </div>
 
 {{ rangos_comodos_data|json_script:"rangos-comodos-data" }}
-{{ zonas_default_data|json_script:"zonas-data" }}
+{{ zonas_data|json_script:"zonas-data" }}
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
 <script>
 (function () {
     const RANGOS_COMODOS = JSON.parse(document.getElementById('rangos-comodos-data').textContent);
-    const ZONAS = JSON.parse(document.getElementById('zonas-data').textContent);
+    const ZONAS = JSON.parse(document.getElementById('zonas-data').textContent); // [{nombre, color, rango_key}]
+    const NOMBRE_ARCHIVO = "{{ fragmento.archivo.name|escapejs }}";
+    const ES_MXL = NOMBRE_ARCHIVO.toLowerCase().endsWith('.mxl');
 
-    const banco = document.getElementById('ej-orq-banco');
-    const contenedorZonas = document.getElementById('ej-orq-zonas');
     const estadoEl = document.getElementById('ej-orq-estado');
+    const contenedorOsmd = document.getElementById('ej-orq-osmd');
 
-    let notas = [];
+    // Autochequeo del bug de timbres: cada zona tiene que resolver a 'cuerda' en
+    // AudioEngine, verificado contra el mapeo real — no asumido. Si alguna no matchea,
+    // se corta acá antes de dejar que algo suene piano en silencio.
+    const zonaSinCuerda = ZONAS.find(z => AudioEngine.familiaInstrumento(z.nombre) !== 'cuerda');
+    if (zonaSinCuerda) {
+        const errEl = document.getElementById('ej-orq-error-timbre');
+        errEl.textContent = `Error de configuración: "${zonaSinCuerda.nombre}" no resuelve a timbre de cuerda en AudioEngine.familiaInstrumento — revisar FAMILIAS_INSTRUMENTO en audio_engine.js. La página no puede continuar así.`;
+        errEl.style.display = 'block';
+        return;
+    }
+
+    let notasBackend = []; // del endpoint de datos, mutado in-place con .logicalNote y .svgEl
     let tempoBpm = 100;
+    let mapaElementoANotas = new Map(); // svgEl -> array de entries (largo 1 si no es acorde)
+    let asignaciones = {}; // notaId -> nombreZona
+    let pincelActivo = ZONAS[0].nombre;
 
-    // Escala compartida para las barras de registro: el mínimo/máximo entre las
-    // zonas de este ejercicio, para que las cuatro barras sean comparables entre sí
-    // (mismo criterio que renderMapaRegistros en orquestador_render.js).
-    const globalMinPs = Math.min(...ZONAS.map(z => RANGOS_COMODOS[z].min_ps));
-    const globalMaxPs = Math.max(...ZONAS.map(z => RANGOS_COMODOS[z].max_ps));
+    const rangoKeysUnicos = [...new Set(ZONAS.map(z => z.rango_key))];
+    const globalMinPs = Math.min(...rangoKeysUnicos.map(k => RANGOS_COMODOS[k].min_ps));
+    const globalMaxPs = Math.max(...rangoKeysUnicos.map(k => RANGOS_COMODOS[k].max_ps));
     const globalRangoPs = (globalMaxPs - globalMinPs) || 1;
 
-    function crearZonas() {
-        ZONAS.forEach(nombre => {
-            const rango = RANGOS_COMODOS[nombre];
+    function mostrarError(msg) {
+        estadoEl.textContent = msg;
+        console.error('[orquestacion]', msg);
+    }
+
+    // --- Paleta / pinceles ---
+
+    function crearPaleta() {
+        const contenedor = document.getElementById('ej-orq-paleta');
+        ZONAS.forEach(zona => {
+            const rango = RANGOS_COMODOS[zona.rango_key];
             const left = ((rango.min_ps - globalMinPs) / globalRangoPs) * 100;
             const width = Math.max(((rango.max_ps - rango.min_ps) / globalRangoPs) * 100, 1.5);
 
-            const zonaEl = document.createElement('div');
-            zonaEl.className = 'ej-orq-zona';
-            zonaEl.innerHTML = `
-                <div class="flex items-center justify-between">
-                    <h3 class="font-semibold">${nombre}</h3>
-                    <button type="button" class="ej-orq-reproducir px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">▶ Reproducir</button>
-                </div>
+            const card = document.createElement('div');
+            card.className = 'ej-orq-instrumento';
+            card.style.setProperty('--zona-color', zona.color);
+            card.innerHTML = `
+                <button type="button" class="ej-orq-pincel" data-zona="${zona.nombre}">
+                    <span class="ej-orq-pincel-punto"></span>${zona.nombre}
+                </button>
                 <div class="ej-orq-registro-track">
                     <div class="ej-orq-registro-barra" style="left:${left.toFixed(2)}%; width:${width.toFixed(2)}%;"></div>
                 </div>
-                <div class="ej-orq-drop" data-zona="${nombre}"></div>
+                <div class="ej-orq-advertencia" data-zona-advertencia="${zona.nombre}"></div>
+                <button type="button" class="ej-orq-reproducir" data-zona="${zona.nombre}">▶ Reproducir</button>
             `;
-            zonaEl.querySelector('.ej-orq-reproducir').addEventListener('click', () => reproducirZona(nombre, zonaEl));
-            contenedorZonas.appendChild(zonaEl);
+            card.querySelector('.ej-orq-pincel').addEventListener('click', () => seleccionarPincel(zona.nombre));
+            card.querySelector('.ej-orq-reproducir').addEventListener('click', () => reproducirZona(zona.nombre));
+            contenedor.appendChild(card);
+        });
+        marcarPincelActivo();
+    }
+
+    function seleccionarPincel(nombre) {
+        pincelActivo = nombre;
+        marcarPincelActivo();
+    }
+
+    function marcarPincelActivo() {
+        document.querySelectorAll('.ej-orq-pincel').forEach(btn => {
+            btn.classList.toggle('ej-orq-pincel-activo', btn.dataset.zona === pincelActivo);
         });
     }
 
-    function crearChip(nota) {
-        const chip = document.createElement('div');
-        chip.className = 'ej-orq-chip';
-        chip.textContent = nota.pitch_solfeo;
-        chip.dataset.id = nota.id;
-        chip.dataset.pitch = nota.pitch;
-        chip.dataset.ps = nota.ps;
-        chip.dataset.offset = nota.offset;
-        chip.dataset.duracion = nota.duracion_ql;
-        chip.addEventListener('pointerdown', onPointerDown);
-        return chip;
-    }
+    // --- Correlación OSMD <-> backend (offset + ps, ver justificación en el plan:
+    // ambos son "beats desde el inicio del fragmento", no hace falta comparar compás) ---
 
-    // --- Drag and drop con Pointer Events (funciona con mouse, touch y pen) ---
-
-    let arrastre = null; // {chip, offsetX, offsetY, zonaActivaEl}
-
-    function onPointerDown(ev) {
-        const chip = ev.currentTarget;
-        chip.setPointerCapture(ev.pointerId);
-        const rect = chip.getBoundingClientRect();
-        arrastre = {
-            chip,
-            offsetX: ev.clientX - rect.left,
-            offsetY: ev.clientY - rect.top,
-            zonaActivaEl: null,
-        };
-        chip.classList.add('ej-orq-chip-arrastrando');
-        chip.style.width = rect.width + 'px';
-        posicionarChip(ev);
-        chip.addEventListener('pointermove', onPointerMove);
-        chip.addEventListener('pointerup', onPointerUp);
-        chip.addEventListener('pointercancel', onPointerUp);
-    }
-
-    function posicionarChip(ev) {
-        const { chip, offsetX, offsetY } = arrastre;
-        chip.style.left = (ev.clientX - offsetX) + 'px';
-        chip.style.top = (ev.clientY - offsetY) + 'px';
-    }
-
-    function onPointerMove(ev) {
-        if (!arrastre) return;
-        ev.preventDefault();
-        posicionarChip(ev);
-
-        // Resalta la zona que está debajo del puntero en este momento.
-        arrastre.chip.style.pointerEvents = 'none';
-        const debajo = document.elementFromPoint(ev.clientX, ev.clientY);
-        arrastre.chip.style.pointerEvents = '';
-        const zonaDrop = debajo ? debajo.closest('.ej-orq-drop') : null;
-
-        if (arrastre.zonaActivaEl && arrastre.zonaActivaEl !== zonaDrop) {
-            arrastre.zonaActivaEl.classList.remove('ej-orq-drop-activa');
+    function recolectarNotasOsmd() {
+        const resultado = [];
+        osmd.cursor.reset();
+        while (!osmd.cursor.iterator.EndReached) {
+            const ts = osmd.cursor.iterator.currentTimeStamp;
+            if (!ts) break;
+            const offsetBeats = ts.RealValue * 4;
+            const voces = osmd.cursor.iterator.CurrentVoiceEntries;
+            if (voces) {
+                voces.forEach(v => {
+                    if (v && v.Notes) {
+                        v.Notes.forEach(n => {
+                            if (!n.Pitch || n.Pitch.halfTone === undefined) return;
+                            resultado.push({ logicalNote: n, offset: offsetBeats, ps: n.Pitch.halfTone + 12 });
+                        });
+                    }
+                });
+            }
+            osmd.cursor.next();
         }
-        if (zonaDrop) {
-            zonaDrop.classList.add('ej-orq-drop-activa');
-        }
-        arrastre.zonaActivaEl = zonaDrop;
+        osmd.cursor.reset();
+        try { osmd.cursor.hide(); } catch (e) { /* cosmético, no bloquea nada */ }
+        return resultado;
     }
 
-    function onPointerUp(ev) {
-        if (!arrastre) return;
-        const { chip, zonaActivaEl } = arrastre;
+    function correlacionarNotas() {
+        const notasOsmd = recolectarNotasOsmd();
+        const usadas = new Set();
+        let sinGrafica = 0;
 
-        chip.removeEventListener('pointermove', onPointerMove);
-        chip.removeEventListener('pointerup', onPointerUp);
-        chip.removeEventListener('pointercancel', onPointerUp);
-        chip.classList.remove('ej-orq-chip-arrastrando');
-        chip.style.position = '';
-        chip.style.left = '';
-        chip.style.top = '';
-        chip.style.width = '';
+        notasBackend.forEach(nb => {
+            const idx = notasOsmd.findIndex((no, i) =>
+                !usadas.has(i) && Math.abs(no.offset - nb.offset) < 0.01 && Math.abs(no.ps - nb.ps) < 0.01
+            );
+            if (idx === -1) {
+                sinGrafica++;
+                console.warn('[orquestacion] Nota del backend sin nota gráfica correspondiente en OSMD:', nb);
+                nb.logicalNote = null;
+            } else {
+                usadas.add(idx);
+                nb.logicalNote = notasOsmd[idx].logicalNote;
+            }
+        });
 
-        const destino = zonaActivaEl || banco;
-        destino.classList.remove('ej-orq-drop-activa');
-        destino.appendChild(chip);
+        const sinBackend = notasOsmd.length - usadas.size;
+        if (sinGrafica > 0 || sinBackend > 0) {
+            console.warn(`[orquestacion] Correlación incompleta: ${sinGrafica} notas del backend sin gráfica, ${sinBackend} notas gráficas sin backend.`);
+        }
+    }
 
-        arrastre = null;
-        actualizarRegistrosFueraDeRango();
+    // --- Etiquetado de elementos SVG (se repite después de CADA render, porque
+    // osmd.render() regenera el SVG entero y las referencias anteriores quedan
+    // huérfanas — confirmado en el prototipo) ---
+
+    function etiquetarNotas() {
+        mapaElementoANotas = new Map();
+        try {
+            osmd.GraphicSheet.MeasureList.forEach(sistema => {
+                sistema.forEach(medida => {
+                    if (!medida || !medida.staffEntries) return;
+                    medida.staffEntries.forEach(staffEntry => {
+                        (staffEntry.graphicalVoiceEntries || []).forEach(gve => {
+                            (gve.notes || []).forEach(gNota => {
+                                const notaLogica = gNota.sourceNote;
+                                const entry = notasBackend.find(n => n.logicalNote === notaLogica);
+                                if (!entry) return;
+
+                                let svgEl = null;
+                                if (typeof gNota.getSVGGElement === 'function') svgEl = gNota.getSVGGElement();
+                                else if (gNota.vfnote && gNota.vfnote[0] && gNota.vfnote[0].attrs) svgEl = gNota.vfnote[0].attrs.el;
+                                if (!svgEl) {
+                                    console.warn('[orquestacion] No se encontró elemento SVG para una nota:', entry);
+                                    return;
+                                }
+
+                                svgEl.setAttribute('data-osmd-nota', '1');
+                                svgEl.classList.add('nota-clickeable');
+                                entry.svgEl = svgEl;
+                                if (!mapaElementoANotas.has(svgEl)) mapaElementoANotas.set(svgEl, []);
+                                mapaElementoANotas.get(svgEl).push(entry);
+                            });
+                        });
+                    });
+                });
+            });
+        } catch (e) {
+            console.error('[orquestacion] Error recorriendo GraphicSheet — el pintado puede no funcionar:', e);
+        }
+        aplicarEstilosNotas();
+    }
+
+    function aplicarEstilosNotas() {
+        notasBackend.forEach(nb => {
+            if (!nb.logicalNote) return;
+            const nombreZona = asignaciones[nb.id];
+            if (nombreZona) {
+                const zona = ZONAS.find(z => z.nombre === nombreZona);
+                nb.logicalNote.NoteheadColor = zona.color;
+                if (nb.svgEl) {
+                    const rango = RANGOS_COMODOS[zona.rango_key];
+                    const fueraDeRango = nb.ps < rango.min_ps || nb.ps > rango.max_ps;
+                    nb.svgEl.style.filter = fueraDeRango ? 'drop-shadow(0 0 2px red) drop-shadow(0 0 4px red)' : '';
+                }
+            } else {
+                nb.logicalNote.NoteheadColor = '#000000';
+                if (nb.svgEl) nb.svgEl.style.filter = '';
+            }
+        });
+    }
+
+    function rerenderYEtiquetar() {
+        osmd.render();
+        etiquetarNotas();
+    }
+
+    // --- Resolución de click, incluida la desambiguación geométrica de acordes
+    // (validada en el prototipo: varias notas pueden compartir un solo glifo SVG) ---
+
+    function encontrarCabezasDeNota(elGrupo) {
+        const vistos = new Set();
+        const cabezas = [];
+        elGrupo.querySelectorAll('*').forEach(hijo => {
+            const rect = hijo.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return;
+            const proporcion = rect.width / rect.height;
+            if (proporcion < 0.4 || proporcion > 2.5) return;
+            const clave = `${rect.left.toFixed(1)},${rect.top.toFixed(1)},${rect.width.toFixed(1)},${rect.height.toFixed(1)}`;
+            if (vistos.has(clave)) return;
+            vistos.add(clave);
+            cabezas.push(rect);
+        });
+        cabezas.sort((a, b) => a.top - b.top);
+        return cabezas;
+    }
+
+    function resolverNotaDeClick(ev, el) {
+        const candidatos = mapaElementoANotas.get(el);
+        if (!candidatos || !candidatos.length) return null;
+        if (candidatos.length === 1) return candidatos[0];
+
+        const ordenados = [...candidatos].sort((a, b) => b.ps - a.ps);
+        const cabezas = encontrarCabezasDeNota(el);
+        if (cabezas.length !== ordenados.length) {
+            console.warn(`[orquestacion] Geometría de acorde no coincide (esperadas ${ordenados.length}, encontradas ${cabezas.length}) — usando respaldo de tercios parejos.`);
+            const rect = el.getBoundingClientRect();
+            const posicionRelativa = rect.height > 0 ? (ev.clientY - rect.top) / rect.height : 0;
+            const indice = Math.min(ordenados.length - 1, Math.max(0, Math.floor(posicionRelativa * ordenados.length)));
+            return ordenados[indice];
+        }
+
+        let mejorIndice = 0;
+        let mejorDistancia = Infinity;
+        cabezas.forEach((rect, i) => {
+            const centroY = rect.top + rect.height / 2;
+            const distancia = Math.abs(ev.clientY - centroY);
+            if (distancia < mejorDistancia) { mejorDistancia = distancia; mejorIndice = i; }
+        });
+        return ordenados[mejorIndice];
+    }
+
+    function onClickPartitura(ev) {
+        const el = ev.target.closest('[data-osmd-nota]');
+        if (!el) return;
+        const entry = resolverNotaDeClick(ev, el);
+        if (!entry) return;
+
+        if (asignaciones[entry.id] === pincelActivo) {
+            delete asignaciones[entry.id];
+        } else {
+            asignaciones[entry.id] = pincelActivo;
+        }
+
+        rerenderYEtiquetar();
+        actualizarContadoresAdvertencia();
         actualizarEstado();
     }
 
-    // --- Validación de registro cómodo (client-side, determinístico) ---
+    // --- Contadores y estado ---
 
-    function actualizarRegistrosFueraDeRango() {
-        ZONAS.forEach(nombre => {
-            const zonaDrop = contenedorZonas.querySelector(`.ej-orq-drop[data-zona="${nombre}"]`);
-            const rango = RANGOS_COMODOS[nombre];
-            Array.from(zonaDrop.children).forEach(chip => {
-                const ps = parseFloat(chip.dataset.ps);
-                const fueraDeRango = ps < rango.min_ps || ps > rango.max_ps;
-                chip.classList.toggle('ej-orq-chip-fuera-de-registro', fueraDeRango);
-            });
+    function actualizarContadoresAdvertencia() {
+        ZONAS.forEach(zona => {
+            const rango = RANGOS_COMODOS[zona.rango_key];
+            const fueraDeRango = notasBackend.filter(nb =>
+                asignaciones[nb.id] === zona.nombre && (nb.ps < rango.min_ps || nb.ps > rango.max_ps)
+            ).length;
+            const el = document.querySelector(`[data-zona-advertencia="${zona.nombre}"]`);
+            if (el) el.textContent = fueraDeRango > 0 ? `⚠ ${fueraDeRango} fuera de registro` : '';
         });
     }
 
     function actualizarEstado() {
-        const sinAsignar = banco.children.length;
+        const sinAsignar = notasBackend.filter(nb => !asignaciones[nb.id]).length;
         estadoEl.textContent = sinAsignar > 0
             ? `${sinAsignar} nota(s) todavía sin asignar.`
             : 'Todas las notas están asignadas a un instrumento.';
     }
 
-    // --- Reproducción por zona, reutilizando AudioEngine.playSequence tal cual ---
+    // --- Reproducción, reutilizando AudioEngine.playSequence tal cual ---
 
-    function reproducirZona(nombre, zonaEl) {
-        const zonaDrop = zonaEl.querySelector('.ej-orq-drop');
-        const events = Array.from(zonaDrop.children).map(chip => ({
-            notes: [chip.dataset.pitch],
-            offset: parseFloat(chip.dataset.offset),
-            duration: parseFloat(chip.dataset.duracion),
-        }));
-        if (!events.length) return;
+    function reproducirZona(nombre) {
+        const notasZona = notasBackend
+            .filter(nb => asignaciones[nb.id] === nombre)
+            .sort((a, b) => a.offset - b.offset);
+        if (!notasZona.length) return;
+        const events = notasZona.map(nb => ({ notes: [nb.pitch], offset: nb.offset, duration: nb.duracion_ql }));
         AudioEngine.playSequence(events, tempoBpm, nombre);
     }
 
+    function reproducirTodo() {
+        ZONAS.forEach(zona => reproducirZona(zona.nombre));
+    }
+
     function reiniciar() {
-        Array.from(contenedorZonas.querySelectorAll('.ej-orq-drop')).forEach(z => z.innerHTML = '');
-        banco.innerHTML = '';
-        notas.forEach(n => banco.appendChild(crearChip(n)));
+        asignaciones = {};
+        rerenderYEtiquetar();
+        actualizarContadoresAdvertencia();
         actualizarEstado();
     }
 
+    // --- Resize manual: autoResize de OSMD queda deliberadamente desactivado (ver
+    // plan) porque su re-render interno invalidaba el etiquetado sin que este código
+    // se enterara — acá el resize se maneja explícitamente con el mismo mecanismo ya
+    // validado de re-render + re-etiquetado. ---
+
+    let resizeTimeout = null;
+    function onResize() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(rerenderYEtiquetar, 250);
+    }
+
+    // --- Arranque ---
+
+    const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(contenedorOsmd, {
+        drawTitle: false,
+        autoResize: false,
+    });
+
+    crearPaleta();
+    document.getElementById('ej-orq-todo').addEventListener('click', reproducirTodo);
     document.getElementById('ej-orq-reiniciar').addEventListener('click', reiniciar);
 
-    crearZonas();
-
-    fetch('{% url "orquestacion_ejercicio_datos" fragmento.id %}')
+    fetch('{% url "orquestacion_ejercicio_archivo" fragmento.id %}')
+        .then(res => {
+            if (!res.ok) throw new Error('No se pudo descargar el archivo (' + res.status + ')');
+            return res.arrayBuffer();
+        })
+        .then(buffer => ES_MXL ? osmd.load(buffer) : osmd.load(new TextDecoder('utf-8').decode(buffer)))
+        .then(() => {
+            osmd.render();
+            return fetch('{% url "orquestacion_ejercicio_datos" fragmento.id %}');
+        })
         .then(res => res.json())
         .then(data => {
             if (data.status !== 'success') {
-                estadoEl.textContent = data.message || 'No se pudo cargar el fragmento.';
+                mostrarError(data.message || 'No se pudo cargar el fragmento.');
                 return;
             }
-            notas = data.notas;
+            notasBackend = data.notas;
             tempoBpm = data.fragmento.tempo_bpm;
-            reiniciar();
+            correlacionarNotas();
+            etiquetarNotas();
+            contenedorOsmd.addEventListener('click', onClickPartitura);
+            window.addEventListener('resize', onResize);
+            actualizarEstado();
         })
-        .catch(() => {
-            estadoEl.textContent = 'Error de red al cargar el fragmento.';
-        });
+        .catch(err => mostrarError('Error cargando el fragmento: ' + err.message));
 })();
 </script>
 {% endblock %}
