@@ -26,6 +26,7 @@ urlpatterns = [
     path('orquestacion/ejercicio/', views.orquestacion_ejercicio_lista, name='orquestacion_ejercicio_lista'),
     path('orquestacion/ejercicio/<int:fragmento_id>/', views.orquestacion_ejercicio, name='orquestacion_ejercicio'),
     path('api/orquestacion/ejercicio/<int:fragmento_id>/', views.orquestacion_ejercicio_datos, name='orquestacion_ejercicio_datos'),
+    path('api/orquestacion/ejercicio/<int:fragmento_id>/archivo/', views.orquestacion_ejercicio_archivo, name='orquestacion_ejercicio_archivo'),
     path('biblioteca/', views.biblioteca_list, name='biblioteca_list'),
     path('biblioteca/<int:score_id>/', views.biblioteca_play, name='biblioteca_play'),
     path('api/record_attempt/<str:game_slug>/', views.record_attempt, name='record_attempt'),

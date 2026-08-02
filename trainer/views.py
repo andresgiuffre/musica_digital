@@ -18,7 +18,7 @@ from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib.auth.forms import UserCreationForm
-from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
+from django.http import JsonResponse, HttpResponse, StreamingHttpResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator
 from django.template.loader import render_to_string
@@ -1680,6 +1680,30 @@ def orquestacion_ejercicio(request, fragmento_id):
         'rangos_comodos_data': _serializar_rangos_comodos(),
         'zonas_default_data': ['Violín', 'Viola', 'Violonchelo', 'Contrabajo'],
     })
+
+
+@login_required
+def orquestacion_ejercicio_archivo(request, fragmento_id):
+    """
+    Sirve el contenido crudo del archivo (.musicxml/.xml/.mxl) para que OSMD lo
+    cargue en el navegador. Deliberadamente NO se resuelve vía MEDIA_URL directo:
+    en PythonAnywhere los archivos de media se sirven por fuera de Django, sin pasar
+    por @login_required — serviría este fragmento "curado" a cualquiera con la URL,
+    inconsistente con que el resto del ejercicio exige sesión. Tampoco se convierte
+    a texto acá — se le pasan los bytes tal cual a OSMD, que ya sabe distinguir XML
+    plano de .mxl comprimido, en vez de duplicar esa lógica en el servidor.
+    """
+    from .models import FragmentoOrquestacion
+    fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
+
+    extension = pathlib.Path(fragmento.archivo.name).suffix.lower()
+    content_type = 'application/vnd.recordare.musicxml' if extension == '.mxl' else 'application/vnd.recordare.musicxml+xml'
+
+    return FileResponse(
+        fragmento.archivo.open('rb'),
+        content_type=content_type,
+        filename=fragmento.archivo.name,
+    )
 
 
 @login_required
