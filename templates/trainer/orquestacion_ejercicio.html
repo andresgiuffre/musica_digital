@@ -304,29 +304,42 @@
         } catch (e) {
             console.error('[orquestacion] Error recorriendo GraphicSheet — el pintado puede no funcionar:', e);
         }
-        aplicarEstilosNotas();
+        aplicarHalosDeRegistro();
     }
 
-    function aplicarEstilosNotas() {
+    // Actualiza NoteheadColor en las notas LÓGICAS (no depende del DOM ni de un render
+    // previo) — tiene que correr ANTES de osmd.render() para que el color del click
+    // actual se vea en el próximo render, no en el siguiente. Separada de los halos de
+    // registro a propósito: el bug real que reportó el usuario era que el color se veía
+    // "un click atrás" porque antes esto corría DESPUÉS del render.
+    function aplicarColoresLogicos() {
         notasBackend.forEach(nb => {
             if (!nb.logicalNote) return;
             const nombreZona = asignaciones[nb.id];
-            if (nombreZona) {
-                const zona = ZONAS.find(z => z.nombre === nombreZona);
-                nb.logicalNote.NoteheadColor = zona.color;
-                if (nb.svgEl) {
-                    const rango = RANGOS_COMODOS[zona.rango_key];
-                    const fueraDeRango = nb.ps < rango.min_ps || nb.ps > rango.max_ps;
-                    nb.svgEl.style.filter = fueraDeRango ? 'drop-shadow(0 0 2px red) drop-shadow(0 0 4px red)' : '';
-                }
-            } else {
-                nb.logicalNote.NoteheadColor = '#000000';
-                if (nb.svgEl) nb.svgEl.style.filter = '';
+            nb.logicalNote.NoteheadColor = nombreZona ? ZONAS.find(z => z.nombre === nombreZona).color : '#000000';
+        });
+    }
+
+    // Los halos de "fuera de registro" sí necesitan el elemento SVG (entry.svgEl), que
+    // solo existe después de etiquetar un render ya hecho — por eso corren al final de
+    // etiquetarNotas(), no antes del render.
+    function aplicarHalosDeRegistro() {
+        notasBackend.forEach(nb => {
+            if (!nb.svgEl) return;
+            const nombreZona = asignaciones[nb.id];
+            if (!nombreZona) {
+                nb.svgEl.style.filter = '';
+                return;
             }
+            const zona = ZONAS.find(z => z.nombre === nombreZona);
+            const rango = RANGOS_COMODOS[zona.rango_key];
+            const fueraDeRango = nb.ps < rango.min_ps || nb.ps > rango.max_ps;
+            nb.svgEl.style.filter = fueraDeRango ? 'drop-shadow(0 0 2px red) drop-shadow(0 0 4px red)' : '';
         });
     }
 
     function rerenderYEtiquetar() {
+        aplicarColoresLogicos();
         osmd.render();
         etiquetarNotas();
     }

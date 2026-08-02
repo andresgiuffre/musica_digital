@@ -1673,7 +1673,7 @@ def orquestacion_ejercicio_lista(request):
 
 ZONAS_EJERCICIO_ORQUESTACION = [
     {'nombre': 'Violín I', 'color': '#2fb8ff', 'rango_key': 'Violín'},
-    {'nombre': 'Violín II', 'color': '#7dd3fc', 'rango_key': 'Violín'},
+    {'nombre': 'Violín II', 'color': '#ec4899', 'rango_key': 'Violín'},
     {'nombre': 'Viola', 'color': '#9b6bff', 'rango_key': 'Viola'},
     {'nombre': 'Violonchelo', 'color': '#ff5a36', 'rango_key': 'Violonchelo'},
     {'nombre': 'Contrabajo', 'color': '#34d399', 'rango_key': 'Contrabajo'},

@@ -3,7 +3,7 @@ const AudioEngine = {
     isMuted: false,
     volume: -5,
     isReady: false,
-    synthsFamilia: {},
+    synthsInstrumento: {},
 
     // Grupos de instrumentos por familia orquestal, para elegir un timbre genérico en
     // playSequence(). Orden deliberado: entradas más específicas antes que las genéricas
@@ -33,7 +33,7 @@ const AudioEngine = {
                 if (this.sampler) {
                     this.sampler.volume.value = this.isMuted ? -Infinity : this.volume;
                 }
-                Object.values(this.synthsFamilia).forEach(s => {
+                Object.values(this.synthsInstrumento).forEach(s => {
                     s.volume.value = this.isMuted ? -Infinity : this.volume;
                 });
             });
@@ -47,7 +47,7 @@ const AudioEngine = {
                     this.sampler.volume.value = this.volume;
                 }
                 if (!this.isMuted) {
-                    Object.values(this.synthsFamilia).forEach(s => { s.volume.value = this.volume; });
+                    Object.values(this.synthsInstrumento).forEach(s => { s.volume.value = this.volume; });
                 }
             });
             volSlider.setAttribute('data-bound', 'true');
@@ -65,24 +65,31 @@ const AudioEngine = {
         return null;
     },
 
-    // Timbres genéricos por familia armados con osciladores básicos de Tone.js — no hay
-    // muestras reales de instrumentos orquestales disponibles, así que esto no busca
-    // fidelidad exacta (un fagot no suena a fagot de verdad), solo diferenciarse
-    // claramente del piano y entre familias. Se crean una sola vez y se reutilizan.
-    obtenerSynthFamilia(familia) {
-        if (this.synthsFamilia[familia]) return this.synthsFamilia[familia];
+    // Configuración de timbre genérico por familia orquestal — no hay muestras reales de
+    // instrumentos disponibles, así que esto no busca fidelidad exacta (un fagot no suena
+    // a fagot de verdad), solo diferenciarse claramente del piano y entre familias.
+    CONFIGS_FAMILIA: {
+        cuerda: { oscillator: { type: 'sawtooth' }, envelope: { attack: 0.15, decay: 0.2, sustain: 0.8, release: 0.6 } },
+        madera: { oscillator: { type: 'triangle8' }, envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.3 } },
+        metal: { oscillator: { type: 'square' }, envelope: { attack: 0.02, decay: 0.15, sustain: 0.6, release: 0.2 } },
+    },
 
-        const configs = {
-            cuerda: { oscillator: { type: 'sawtooth' }, envelope: { attack: 0.15, decay: 0.2, sustain: 0.8, release: 0.6 } },
-            madera: { oscillator: { type: 'triangle8' }, envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.3 } },
-            metal: { oscillator: { type: 'square' }, envelope: { attack: 0.02, decay: 0.15, sustain: 0.6, release: 0.2 } },
-        };
-        const config = configs[familia];
+    // Un sintetizador por INSTRUMENTO (no por familia): varias partes de la misma familia
+    // (ej. Violín I, Violín II, Viola, Violonchelo, Contrabajo son las 5 'cuerda') pueden
+    // sonar simultáneamente — compartir una sola voz de Tone.PolySynth entre todas hacía
+    // que sonaran indistinguibles entre sí y saturaba una única instancia al reproducirlas
+    // juntas (bug real encontrado en el ejercicio de orquestación). La familia solo elige
+    // qué config de oscilador/envelope usar como plantilla; cada nombre de instrumento
+    // recibe su propia instancia, cacheada por nombre.
+    obtenerSynthInstrumento(nombre, familia) {
+        if (this.synthsInstrumento[nombre]) return this.synthsInstrumento[nombre];
+
+        const config = this.CONFIGS_FAMILIA[familia];
         if (!config) return null;
 
         const synth = new Tone.PolySynth(Tone.Synth, config).toDestination();
         synth.volume.value = this.isMuted ? -Infinity : this.volume;
-        this.synthsFamilia[familia] = synth;
+        this.synthsInstrumento[nombre] = synth;
         return synth;
     },
     
@@ -202,7 +209,7 @@ const AudioEngine = {
         }
 
         const familia = this.familiaInstrumento(instrumento);
-        const voz = familia ? (this.obtenerSynthFamilia(familia) || this.sampler) : this.sampler;
+        const voz = familia ? (this.obtenerSynthInstrumento(instrumento, familia) || this.sampler) : this.sampler;
 
         const secondsPerBeat = 60 / bpm;
         const now = Tone.now();
