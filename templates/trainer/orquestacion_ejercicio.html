@@ -1,0 +1,289 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .ej-orq-zona {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .ej-orq-registro-track {
+        position: relative;
+        height: 10px;
+        border-radius: 5px;
+        background: rgba(255,255,255,0.08);
+        overflow: visible;
+    }
+    .ej-orq-registro-barra {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        border-radius: 5px;
+        background: rgba(47, 184, 255, 0.35);
+        border: 1px solid var(--primary);
+    }
+    .ej-orq-drop {
+        min-height: 64px;
+        border: 2px dashed var(--border);
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        align-content: flex-start;
+        transition: border-color 0.15s, background 0.15s;
+    }
+    .ej-orq-drop.ej-orq-drop-activa {
+        border-color: var(--primary);
+        background: rgba(47, 184, 255, 0.08);
+    }
+    .ej-orq-chip {
+        touch-action: none;
+        user-select: none;
+        cursor: grab;
+        background: var(--ink, #0b0e14);
+        border: 1px solid var(--border);
+        border-radius: 0.4rem;
+        padding: 0.3rem 0.6rem;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.85rem;
+        line-height: 1;
+    }
+    .ej-orq-chip.ej-orq-chip-fuera-de-registro {
+        border-color: var(--danger);
+        color: var(--danger);
+    }
+    .ej-orq-chip.ej-orq-chip-arrastrando {
+        position: fixed;
+        z-index: 50;
+        opacity: 0.85;
+        pointer-events: none;
+    }
+    #ej-orq-banco {
+        min-height: 72px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto w-full px-4 py-8">
+    <a href="{% url 'orquestacion_ejercicio_lista' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all mb-6">
+        ← Volver
+    </a>
+
+    <h1 class="text-2xl font-display mb-1">{{ fragmento.nombre }}</h1>
+    <p class="mb-6" style="color: var(--text-secondary);">
+        Arrastrá cada nota del piano al instrumento de cuerdas que le corresponda. La barra debajo de cada
+        instrumento marca su registro cómodo — una nota con borde rojo quedó fuera de ese rango.
+    </p>
+
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">Notas del fragmento</h2>
+        <button id="ej-orq-reiniciar" type="button" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">
+            ↺ Reiniciar
+        </button>
+    </div>
+    <div id="ej-orq-banco" class="ej-orq-drop mb-8" data-zona="__banco__"></div>
+
+    <div id="ej-orq-zonas" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+    <p id="ej-orq-estado" class="mt-6 text-sm" style="color: var(--text-secondary);"></p>
+</div>
+
+{{ rangos_comodos_data|json_script:"rangos-comodos-data" }}
+{{ zonas_default_data|json_script:"zonas-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const RANGOS_COMODOS = JSON.parse(document.getElementById('rangos-comodos-data').textContent);
+    const ZONAS = JSON.parse(document.getElementById('zonas-data').textContent);
+
+    const banco = document.getElementById('ej-orq-banco');
+    const contenedorZonas = document.getElementById('ej-orq-zonas');
+    const estadoEl = document.getElementById('ej-orq-estado');
+
+    let notas = [];
+    let tempoBpm = 100;
+
+    // Escala compartida para las barras de registro: el mínimo/máximo entre las
+    // zonas de este ejercicio, para que las cuatro barras sean comparables entre sí
+    // (mismo criterio que renderMapaRegistros en orquestador_render.js).
+    const globalMinPs = Math.min(...ZONAS.map(z => RANGOS_COMODOS[z].min_ps));
+    const globalMaxPs = Math.max(...ZONAS.map(z => RANGOS_COMODOS[z].max_ps));
+    const globalRangoPs = (globalMaxPs - globalMinPs) || 1;
+
+    function crearZonas() {
+        ZONAS.forEach(nombre => {
+            const rango = RANGOS_COMODOS[nombre];
+            const left = ((rango.min_ps - globalMinPs) / globalRangoPs) * 100;
+            const width = Math.max(((rango.max_ps - rango.min_ps) / globalRangoPs) * 100, 1.5);
+
+            const zonaEl = document.createElement('div');
+            zonaEl.className = 'ej-orq-zona';
+            zonaEl.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold">${nombre}</h3>
+                    <button type="button" class="ej-orq-reproducir px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">▶ Reproducir</button>
+                </div>
+                <div class="ej-orq-registro-track">
+                    <div class="ej-orq-registro-barra" style="left:${left.toFixed(2)}%; width:${width.toFixed(2)}%;"></div>
+                </div>
+                <div class="ej-orq-drop" data-zona="${nombre}"></div>
+            `;
+            zonaEl.querySelector('.ej-orq-reproducir').addEventListener('click', () => reproducirZona(nombre, zonaEl));
+            contenedorZonas.appendChild(zonaEl);
+        });
+    }
+
+    function crearChip(nota) {
+        const chip = document.createElement('div');
+        chip.className = 'ej-orq-chip';
+        chip.textContent = nota.pitch_solfeo;
+        chip.dataset.id = nota.id;
+        chip.dataset.pitch = nota.pitch;
+        chip.dataset.ps = nota.ps;
+        chip.dataset.offset = nota.offset;
+        chip.dataset.duracion = nota.duracion_ql;
+        chip.addEventListener('pointerdown', onPointerDown);
+        return chip;
+    }
+
+    // --- Drag and drop con Pointer Events (funciona con mouse, touch y pen) ---
+
+    let arrastre = null; // {chip, offsetX, offsetY, zonaActivaEl}
+
+    function onPointerDown(ev) {
+        const chip = ev.currentTarget;
+        chip.setPointerCapture(ev.pointerId);
+        const rect = chip.getBoundingClientRect();
+        arrastre = {
+            chip,
+            offsetX: ev.clientX - rect.left,
+            offsetY: ev.clientY - rect.top,
+            zonaActivaEl: null,
+        };
+        chip.classList.add('ej-orq-chip-arrastrando');
+        chip.style.width = rect.width + 'px';
+        posicionarChip(ev);
+        chip.addEventListener('pointermove', onPointerMove);
+        chip.addEventListener('pointerup', onPointerUp);
+        chip.addEventListener('pointercancel', onPointerUp);
+    }
+
+    function posicionarChip(ev) {
+        const { chip, offsetX, offsetY } = arrastre;
+        chip.style.left = (ev.clientX - offsetX) + 'px';
+        chip.style.top = (ev.clientY - offsetY) + 'px';
+    }
+
+    function onPointerMove(ev) {
+        if (!arrastre) return;
+        ev.preventDefault();
+        posicionarChip(ev);
+
+        // Resalta la zona que está debajo del puntero en este momento.
+        arrastre.chip.style.pointerEvents = 'none';
+        const debajo = document.elementFromPoint(ev.clientX, ev.clientY);
+        arrastre.chip.style.pointerEvents = '';
+        const zonaDrop = debajo ? debajo.closest('.ej-orq-drop') : null;
+
+        if (arrastre.zonaActivaEl && arrastre.zonaActivaEl !== zonaDrop) {
+            arrastre.zonaActivaEl.classList.remove('ej-orq-drop-activa');
+        }
+        if (zonaDrop) {
+            zonaDrop.classList.add('ej-orq-drop-activa');
+        }
+        arrastre.zonaActivaEl = zonaDrop;
+    }
+
+    function onPointerUp(ev) {
+        if (!arrastre) return;
+        const { chip, zonaActivaEl } = arrastre;
+
+        chip.removeEventListener('pointermove', onPointerMove);
+        chip.removeEventListener('pointerup', onPointerUp);
+        chip.removeEventListener('pointercancel', onPointerUp);
+        chip.classList.remove('ej-orq-chip-arrastrando');
+        chip.style.position = '';
+        chip.style.left = '';
+        chip.style.top = '';
+        chip.style.width = '';
+
+        const destino = zonaActivaEl || banco;
+        destino.classList.remove('ej-orq-drop-activa');
+        destino.appendChild(chip);
+
+        arrastre = null;
+        actualizarRegistrosFueraDeRango();
+        actualizarEstado();
+    }
+
+    // --- Validación de registro cómodo (client-side, determinístico) ---
+
+    function actualizarRegistrosFueraDeRango() {
+        ZONAS.forEach(nombre => {
+            const zonaDrop = contenedorZonas.querySelector(`.ej-orq-drop[data-zona="${nombre}"]`);
+            const rango = RANGOS_COMODOS[nombre];
+            Array.from(zonaDrop.children).forEach(chip => {
+                const ps = parseFloat(chip.dataset.ps);
+                const fueraDeRango = ps < rango.min_ps || ps > rango.max_ps;
+                chip.classList.toggle('ej-orq-chip-fuera-de-registro', fueraDeRango);
+            });
+        });
+    }
+
+    function actualizarEstado() {
+        const sinAsignar = banco.children.length;
+        estadoEl.textContent = sinAsignar > 0
+            ? `${sinAsignar} nota(s) todavía sin asignar.`
+            : 'Todas las notas están asignadas a un instrumento.';
+    }
+
+    // --- Reproducción por zona, reutilizando AudioEngine.playSequence tal cual ---
+
+    function reproducirZona(nombre, zonaEl) {
+        const zonaDrop = zonaEl.querySelector('.ej-orq-drop');
+        const events = Array.from(zonaDrop.children).map(chip => ({
+            notes: [chip.dataset.pitch],
+            offset: parseFloat(chip.dataset.offset),
+            duration: parseFloat(chip.dataset.duracion),
+        }));
+        if (!events.length) return;
+        AudioEngine.playSequence(events, tempoBpm, nombre);
+    }
+
+    function reiniciar() {
+        Array.from(contenedorZonas.querySelectorAll('.ej-orq-drop')).forEach(z => z.innerHTML = '');
+        banco.innerHTML = '';
+        notas.forEach(n => banco.appendChild(crearChip(n)));
+        actualizarEstado();
+    }
+
+    document.getElementById('ej-orq-reiniciar').addEventListener('click', reiniciar);
+
+    crearZonas();
+
+    fetch('{% url "orquestacion_ejercicio_datos" fragmento.id %}')
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== 'success') {
+                estadoEl.textContent = data.message || 'No se pudo cargar el fragmento.';
+                return;
+            }
+            notas = data.notas;
+            tempoBpm = data.fragmento.tempo_bpm;
+            reiniciar();
+        })
+        .catch(() => {
+            estadoEl.textContent = 'Error de red al cargar el fragmento.';
+        });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto w-full px-4 py-8">
+    <a href="{% url 'dashboard' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all mb-6">
+        ← Volver
+    </a>
+
+    <h1 class="text-2xl font-display mb-2">Ejercicio de orquestación</h1>
+    <p class="mb-6" style="color: var(--text-secondary);">
+        Elegí un fragmento de piano y repartí sus notas entre los instrumentos de cuerdas.
+    </p>
+
+    <div class="flex flex-col gap-3">
+        {% for fragmento in fragmentos %}
+            <a href="{% url 'orquestacion_ejercicio' fragmento.id %}"
+               class="block p-4 rounded-lg border transition-all hover:border-volt"
+               style="background: var(--surface); border-color: var(--border);">
+                <div class="font-semibold">{{ fragmento.nombre }}</div>
+            </a>
+        {% empty %}
+            <p style="color: var(--text-secondary);">Todavía no hay fragmentos disponibles para este ejercicio.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

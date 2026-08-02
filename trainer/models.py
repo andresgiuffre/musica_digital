@@ -350,5 +350,37 @@ class ScoreAnalysis(models.Model):
         help_text="Token aleatorio para el link público de solo lectura. Null = sin compartir."
     )
 
+    # Consumo real reportado por la API de Anthropic al terminar el stream. Solo se
+    # completan cuando el análisis fue exitoso (mismo criterio que el descuento de
+    # crédito: hubo un tool_use_block válido) — nulos en análisis fallidos o viejos.
+    input_tokens = models.IntegerField(null=True, blank=True)
+    output_tokens = models.IntegerField(null=True, blank=True)
+    cache_creation_input_tokens = models.IntegerField(null=True, blank=True)
+    cache_read_input_tokens = models.IntegerField(null=True, blank=True)
+
+    # Puntaje determinístico (instrumentos × compases) calculado antes de llamar a la
+    # API, y créditos realmente cobrados por este análisis (1 o 2). Guardarlos acá
+    # evita tener que re-parsear todo el histórico para calibrar el umbral de
+    # confirmación más adelante con datos reales de (puntaje, tokens).
+    puntaje_obra = models.IntegerField(null=True, blank=True)
+    creditos_cobrados = models.IntegerField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.name} - {self.user.username}"
+
+
+class FragmentoOrquestacion(models.Model):
+    """
+    Fragmento de piano curado por un admin para el ejercicio de orquestación
+    (arrastrar cada nota a un instrumento de cuerdas). Sin cifrar a diferencia de
+    ScoreAnalysis.score_file: es material pedagógico compartido, no contenido
+    privado de un usuario — mismo criterio que SheetMusic.xml_file.
+    """
+    nombre = models.CharField(max_length=200)
+    archivo = models.FileField(upload_to='orquestacion_ejercicios/', help_text="Formatos: .musicxml, .xml, .mxl. Piano (una o dos manos).")
+    activo = models.BooleanField(default=True, help_text="Solo los fragmentos activos aparecen en el listado del ejercicio.")
+    creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='fragmentos_orquestacion')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.nombre

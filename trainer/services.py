@@ -1,4 +1,5 @@
 import logging
+from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Count, Sum, Avg, F
@@ -154,3 +155,44 @@ def consumir_credito_analisis(profile):
             "condición de carrera entre análisis simultáneos.",
             profile.user_id,
         )
+
+
+class CreditosInsuficientesError(Exception):
+    pass
+
+
+def consumir_creditos_analisis_multiple(profile, cantidad):
+    """
+    Descuenta un total fijo de `cantidad` créditos (usado hoy solo para el análisis
+    de obras grandes, cantidad=2), primero de creditos_analisis y el resto de
+    creditos_bonus — misma prioridad que consumir_credito_analisis, pero un
+    mecanismo distinto a propósito: repartir un total fijo entre dos pilas requiere
+    leer el valor actual para decidir cuánto sacar de cada una, y ese
+    leer-decidir-escribir necesita una transacción con lock de fila
+    (select_for_update) para ser atómico — el truco de UPDATE condicional sin
+    transacción que usa consumir_credito_analisis solo alcanza para "restar 1 de
+    quien tenga saldo", no para partir un total entre dos columnas.
+
+    Nota: en SQLite (uso local/dev) select_for_update() es un no-op — Django lo
+    ignora silenciosamente, ver la documentación de QuerySet.select_for_update().
+    No rompe nada porque SQLite ya serializa escrituras a nivel de conexión/archivo,
+    pero el lock de fila real (protección genuina entre requests concurrentes de
+    distintos procesos) recién aplica en un motor que lo soporte de verdad, como
+    MySQL en producción.
+
+    No se usa consumir_credito_analisis(profile) internamente porque cantidad=1
+    ahí es un caso especial de una sola pila, no de reparto — se deja tal cual
+    está, sin tocar, para no arriesgar ese camino ya probado.
+    """
+    with transaction.atomic():
+        p = UserProfile.objects.select_for_update().get(pk=profile.pk)
+        disponibles = p.creditos_analisis + p.creditos_bonus
+        if disponibles < cantidad:
+            raise CreditosInsuficientesError(
+                f"Se necesitan {cantidad} créditos, hay {disponibles} disponibles."
+            )
+        de_analisis = min(p.creditos_analisis, cantidad)
+        de_bonus = cantidad - de_analisis
+        p.creditos_analisis = F('creditos_analisis') - de_analisis
+        p.creditos_bonus = F('creditos_bonus') - de_bonus
+        p.save(update_fields=['creditos_analisis', 'creditos_bonus'])

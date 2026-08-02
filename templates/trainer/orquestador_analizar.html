@@ -127,6 +127,33 @@
         margin-top: 2rem;
         width: 100%;
     }
+
+    .decision-modal-botones {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 0.5rem;
+    }
+    .btn-decision {
+        padding: 0.75rem 2rem;
+        border-radius: 50px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        transition: transform 0.15s;
+    }
+    .btn-decision:hover {
+        transform: scale(1.03);
+    }
+    .btn-decision-continuar {
+        background: var(--primary);
+        color: white;
+        border: none;
+    }
+    .btn-decision-cancelar {
+        background: transparent;
+        color: var(--text-secondary);
+    }
 </style>
 {% endblock %}
 
@@ -200,6 +227,27 @@
         <div class="loading-clock" id="loading-clock">00:00</div>
     </div>
 </div>
+
+<div id="confirm-modal" class="loading-modal">
+    <div class="loading-modal-content">
+        <h2>Obra grande detectada</h2>
+        <p id="confirm-modal-motivo"></p>
+        <div class="decision-modal-botones">
+            <button type="button" id="confirm-modal-cancelar" class="btn-decision btn-decision-cancelar">Cancelar</button>
+            <button type="button" id="confirm-modal-continuar" class="btn-decision btn-decision-continuar">Continuar</button>
+        </div>
+    </div>
+</div>
+
+<div id="insufficient-modal" class="loading-modal">
+    <div class="loading-modal-content">
+        <h2>Créditos insuficientes</h2>
+        <p id="insufficient-modal-motivo"></p>
+        <div class="decision-modal-botones">
+            <button type="button" id="insufficient-modal-cerrar" class="btn-decision btn-decision-continuar">Entendido</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -259,6 +307,48 @@ document.addEventListener("DOMContentLoaded", () => {
         window.removeEventListener("beforeunload", avisarAntesDeSalir);
     }
 
+    // Modal de confirmación para obras grandes: devuelve una Promise<boolean> (true =
+    // el usuario eligió Continuar) en vez de usar confirm() nativo, para que el texto y
+    // el estilo sean consistentes con el resto de la UI.
+    function mostrarModalConfirmacion(motivo) {
+        const modal = document.getElementById("confirm-modal");
+        const btnContinuar = document.getElementById("confirm-modal-continuar");
+        const btnCancelar = document.getElementById("confirm-modal-cancelar");
+        document.getElementById("confirm-modal-motivo").textContent = motivo;
+        modal.classList.add("visible");
+
+        return new Promise((resolve) => {
+            function cerrar(resultado) {
+                modal.classList.remove("visible");
+                btnContinuar.removeEventListener("click", onContinuar);
+                btnCancelar.removeEventListener("click", onCancelar);
+                resolve(resultado);
+            }
+            function onContinuar() { cerrar(true); }
+            function onCancelar() { cerrar(false); }
+            btnContinuar.addEventListener("click", onContinuar);
+            btnCancelar.addEventListener("click", onCancelar);
+        });
+    }
+
+    // Modal informativo (sin opción de continuar) para cuando la obra es grande pero
+    // el saldo no alcanza para los créditos que necesitaría.
+    function mostrarModalCreditosInsuficientes(motivo) {
+        const modal = document.getElementById("insufficient-modal");
+        const btnCerrar = document.getElementById("insufficient-modal-cerrar");
+        document.getElementById("insufficient-modal-motivo").textContent = motivo;
+        modal.classList.add("visible");
+
+        return new Promise((resolve) => {
+            function onCerrar() {
+                modal.classList.remove("visible");
+                btnCerrar.removeEventListener("click", onCerrar);
+                resolve();
+            }
+            btnCerrar.addEventListener("click", onCerrar);
+        });
+    }
+
     // El análisis se manda en streaming NDJSON (una línea JSON por vez) para que la
     // conexión tenga tráfico constante durante el minuto y medio que puede tardar Claude
     // en obras grandes, en vez de quedar muda hasta el final — eso fue justo lo que cortó
@@ -292,6 +382,73 @@ document.addEventListener("DOMContentLoaded", () => {
         return resultadoFinal;
     }
 
+    // Envía un fetch que devuelve el streaming NDJSON de siempre, y procesa el
+    // resultado — incluyendo, si la obra es grande, el ida y vuelta de confirmación
+    // (que vuelve a llamar a esta misma función contra el endpoint de confirmación,
+    // reusando exactamente la misma lectura de stream y el mismo modal de carga).
+    function enviarYProcesar(fetchPromise) {
+        return fetchPromise
+            .then(res => {
+                const contentType = res.headers.get('Content-Type') || '';
+                if (contentType.includes('application/x-ndjson')) {
+                    return leerRespuestaEnStream(res);
+                }
+                return res.json();
+            })
+            .then(async (data) => {
+                if (data.status === 'confirmar') {
+                    ocultarModalCarga();
+                    const continuar = await mostrarModalConfirmacion(data.motivo);
+                    if (!continuar) {
+                        btnSubmit.disabled = false;
+                        return;
+                    }
+                    mostrarModalCarga();
+                    return enviarYProcesar(fetch(`/api/orquestador/analizar/${data.analysis_id}/confirmar/`, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    }));
+                }
+
+                if (data.status === 'creditos_insuficientes') {
+                    ocultarModalCarga();
+                    await mostrarModalCreditosInsuficientes(data.motivo);
+                    btnSubmit.disabled = false;
+                    return;
+                }
+
+                ocultarModalCarga();
+
+                if (data.status === 'success') {
+                    resultsArea.style.display = "block";
+                    renderAnalysisResult(data.data, resultsContainer, data.analysis_id);
+
+                    if (typeof data.creditos_analisis === 'number') {
+                        const bonusTxt = data.creditos_bonus > 0 ? ` · + ${data.creditos_bonus} créditos adicionales` : '';
+                        creditosInfo.textContent = `${data.creditos_analisis} análisis disponibles${bonusTxt}`;
+                        if (data.creditos_analisis <= 0 && data.creditos_bonus <= 0) {
+                            btnSubmit.disabled = true;
+                            btnSubmit.textContent = 'Sin créditos disponibles';
+                        } else {
+                            btnSubmit.disabled = false;
+                            btnSubmit.textContent = 'Analizar Partitura';
+                        }
+                    } else {
+                        btnSubmit.disabled = false;
+                    }
+                } else {
+                    btnSubmit.disabled = false;
+                    alert("Error al procesar el archivo: " + data.message);
+                }
+            })
+            .catch(err => {
+                btnSubmit.disabled = false;
+                ocultarModalCarga();
+                alert("Error de red al subir el archivo.");
+                console.error(err);
+            });
+    }
+
     form.addEventListener("submit", (e) => {
         e.preventDefault();
 
@@ -301,51 +458,13 @@ document.addEventListener("DOMContentLoaded", () => {
         mostrarModalCarga();
         resultsArea.style.display = "none";
 
-        fetch(window.location.href, {
+        enviarYProcesar(fetch(window.location.href, {
             method: 'POST',
             body: formData,
             headers: {
                 'X-Requested-With': 'XMLHttpRequest'
             }
-        })
-        .then(res => {
-            const contentType = res.headers.get('Content-Type') || '';
-            if (contentType.includes('application/x-ndjson')) {
-                return leerRespuestaEnStream(res);
-            }
-            return res.json();
-        })
-        .then(data => {
-            ocultarModalCarga();
-
-            if (data.status === 'success') {
-                resultsArea.style.display = "block";
-                renderAnalysisResult(data.data, resultsContainer, data.analysis_id);
-
-                if (typeof data.creditos_analisis === 'number') {
-                    const bonusTxt = data.creditos_bonus > 0 ? ` · + ${data.creditos_bonus} créditos adicionales` : '';
-                    creditosInfo.textContent = `${data.creditos_analisis} análisis disponibles${bonusTxt}`;
-                    if (data.creditos_analisis <= 0 && data.creditos_bonus <= 0) {
-                        btnSubmit.disabled = true;
-                        btnSubmit.textContent = 'Sin créditos disponibles';
-                    } else {
-                        btnSubmit.disabled = false;
-                        btnSubmit.textContent = 'Analizar Partitura';
-                    }
-                } else {
-                    btnSubmit.disabled = false;
-                }
-            } else {
-                btnSubmit.disabled = false;
-                alert("Error al procesar el archivo: " + data.message);
-            }
-        })
-        .catch(err => {
-            btnSubmit.disabled = false;
-            ocultarModalCarga();
-            alert("Error de red al subir el archivo.");
-            console.error(err);
-        });
+        }));
     });
 });
 </script>
