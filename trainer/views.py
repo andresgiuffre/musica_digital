@@ -612,6 +612,22 @@ def _buscar_rango_comodo(part_name):
     return None
 
 
+def _serializar_rangos_comodos():
+    """
+    RANGOS_COMODOS en formato JSON-friendly (con .ps ya calculado) para el ejercicio
+    de orquestación en el frontend — ahí no hay ningún parser de nombres de nota en
+    JS, así que la altura en semitonos (.ps) se calcula acá, la única fuente de
+    verdad para pitch-math en todo el proyecto.
+    """
+    return {
+        nombre: {
+            'min': lo, 'max': hi,
+            'min_ps': music21.pitch.Pitch(lo).ps, 'max_ps': music21.pitch.Pitch(hi).ps,
+        }
+        for nombre, (lo, hi) in RANGOS_COMODOS.items()
+    }
+
+
 def evaluar_viabilidad_instrumental(part_name, part):
     """
     Compara (con music21, sin IA) el ámbito realmente tocado por una parte contra un
@@ -1080,9 +1096,291 @@ def _auditar_citas_duplicaciones(bloques, duplicaciones_verificadas):
                 )
 
 
+UMBRAL_PUNTAJE_CONFIRMACION = 800  # ver justificación en CLAUDE.md / historial de diseño — punto de partida, no calibrado
+MOTIVO_CONFIRMACION_OBRA_GRANDE = (
+    "Esta obra tiene una escala considerable — un análisis con este nivel de detalle "
+    "va a consumir 2 créditos en lugar de 1. ¿Querés continuar?"
+)
+MOTIVO_CREDITOS_INSUFICIENTES_OBRA_GRANDE = (
+    "Esta obra tiene una escala considerable — un análisis con este nivel de detalle "
+    "necesita 2 créditos, y tu saldo actual no alcanza."
+)
+
+
+def _calcular_puntaje_obra(total_instrumentos, measures_data):
+    """
+    Puntaje determinístico usado para decidir si una obra es lo bastante grande
+    como para pedir confirmación antes de gastar créditos: instrumentos × compases.
+    Reutiliza measures_data ya calculado en el pipeline (no vuelve a recorrer music21)
+    — total_compases es el máximo entre partes, no la suma, porque compases es una
+    propiedad de la obra, no de cada instrumento por separado.
+    """
+    total_compases = max((len(v) for v in measures_data.values()), default=0)
+    return total_instrumentos * total_compases
+
+
+def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omitir_chequeo_tamano=False):
+    """
+    Generador NDJSON compartido por orquestador_analizar (primer intento, 1 crédito,
+    puede terminar pidiendo confirmación si la obra es grande) y
+    orquestador_analizar_confirmado (segundo paso ya confirmado por el usuario, 2
+    créditos, omitir_chequeo_tamano=True salta directo a analizar). Factorizado a
+    función de módulo (en vez de closure) porque ahora tiene dos puntos de entrada.
+    """
+    from .services import consumir_credito_analisis, consumir_creditos_analisis_multiple, CreditosInsuficientesError
+    profile, _ = UserProfile.objects.get_or_create(user=analysis.user)
+
+    # Heartbeat inicial: que la conexión tenga tráfico desde el primer instante,
+    # antes incluso de arrancar el parseo con music21.
+    yield json.dumps({"heartbeat": True}) + "\n"
+
+    try:
+        score = _parsear_score_descifrado(analysis.score_file)
+        parts = score.parts
+        instrument_names = [p.partName for p in parts if p.partName]
+
+        try:
+            key_sig = score.analyze('key')
+            key_str = str(key_sig)
+        except:
+            key_str = "Unknown"
+
+        time_sig = score.recurse().getElementsByClass(music21.meter.TimeSignature)
+        ts = time_sig[0].ratioString if time_sig else "Unknown"
+
+        tempos = score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
+        tempo = tempos[0].number if tempos else "Unknown"
+
+        measures_data = {}
+        estadisticas_por_instrumento = {}
+        alertas_viabilidad = []
+        for part in parts:
+            part_name = part.partName or "Instrumento Desconocido"
+            measures = part.getElementsByClass(music21.stream.Measure)
+
+            part_data = []
+            for m in list(measures):
+                m_dict = {'number': m.number, 'notes': []}
+                for element in m.recurse().notes:
+                    if isinstance(element, music21.note.Note):
+                        m_dict['notes'].append(f"{element.nameWithOctave} ({element.duration.type})")
+                    elif isinstance(element, music21.chord.Chord):
+                        chord_notes = "-".join([n.nameWithOctave for n in element.notes])
+                        m_dict['notes'].append(f"[{chord_notes}] ({element.duration.type})")
+
+                dynamics = m.recurse().getElementsByClass(music21.dynamics.Dynamic)
+                for d in dynamics:
+                    m_dict['notes'].append(f"Dinámica: {d.value}")
+
+                part_data.append(m_dict)
+            measures_data[part_name] = part_data
+            estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part)
+            alertas_viabilidad.extend(evaluar_viabilidad_instrumental(part_name, part))
+
+            # Heartbeat por instrumento: en una obra con muchas partes, el parseo en
+            # sí puede tardar — esto evita huecos largos de silencio antes de llegar
+            # siquiera a llamar a Claude.
+            yield json.dumps({"heartbeat": True}) + "\n"
+
+        # Puntaje de tamaño y chequeo de créditos, antes de gastar nada en la API.
+        # Se calcula siempre (incluso en el camino ya confirmado) porque es gratis y
+        # queda guardado para calibrar el umbral más adelante con datos reales.
+        puntaje_obra = _calcular_puntaje_obra(len(parts), measures_data)
+        analysis.puntaje_obra = puntaje_obra
+        disponibles = profile.creditos_analisis + profile.creditos_bonus
+
+        pide_confirmacion = (not omitir_chequeo_tamano) and (puntaje_obra > UMBRAL_PUNTAJE_CONFIRMACION)
+        if pide_confirmacion:
+            analysis.save(update_fields=['puntaje_obra'])
+            if disponibles < 2:
+                yield json.dumps({
+                    'status': 'creditos_insuficientes',
+                    'analysis_id': analysis.id,
+                    'creditos_estimados': 2,
+                    'creditos_disponibles': disponibles,
+                    'motivo': MOTIVO_CREDITOS_INSUFICIENTES_OBRA_GRANDE,
+                }) + "\n"
+            else:
+                yield json.dumps({
+                    'status': 'confirmar',
+                    'analysis_id': analysis.id,
+                    'creditos_estimados': 2,
+                    'motivo': MOTIVO_CONFIRMACION_OBRA_GRANDE,
+                }) + "\n"
+            return
+
+        if disponibles < creditos_a_cobrar:
+            analysis.save(update_fields=['puntaje_obra'])
+            yield json.dumps({'status': 'creditos_insuficientes', 'analysis_id': analysis.id,
+                               'creditos_estimados': creditos_a_cobrar, 'creditos_disponibles': disponibles,
+                               'motivo': 'No había créditos suficientes para completar este análisis.'}) + "\n"
+            return
+
+        densidad_por_compas = calcular_densidad_por_compas(parts)
+        duplicaciones_verificadas = detectar_duplicaciones_verificadas(parts)
+
+        analysis_data = {
+            'instruments': instrument_names,
+            'key_signature': key_str,
+            'time_signature': ts,
+            'tempo': tempo,
+            'measures_data': measures_data,
+            'estadisticas_por_instrumento': estadisticas_por_instrumento,
+            'duplicaciones_verificadas': duplicaciones_verificadas,
+        }
+
+        api_key = os.environ.get("ANTHROPIC_TEST_API_KEY")
+        if api_key:
+            client = anthropic.Anthropic(api_key=api_key)
+
+            prompt = f"Analizá la siguiente estructura de datos musicales extraída de la partitura:\n{json.dumps(analysis_data, ensure_ascii=False)}"
+
+            with client.messages.stream(
+                model="claude-sonnet-5",
+                max_tokens=48000,
+                system=[
+                    {
+                        "type": "text",
+                        "text": GUIA_ESTILO_ORQUESTAL,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                tools=[ORQUESTACION_TOOL],
+                tool_choice={"type": "tool", "name": "reportar_analisis_orquestal"},
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+            ) as stream:
+                json_bruto_tool_use = ""
+                for event in stream:
+                    # El SDK expone, además del evento crudo, un evento "input_json" con
+                    # el fragmento de texto tal cual llegó — lo acumulamos nosotros mismos
+                    # para poder parsearlo con json.loads estricto al final, en vez de
+                    # confiar en el snapshot que arma el SDK internamente (ver más abajo).
+                    if event.type == "input_json":
+                        json_bruto_tool_use += event.partial_json
+                    # Heartbeat por cada evento del stream de Claude: con max_tokens=48000
+                    # esto da tráfico constante durante todo el minuto y medio que puede
+                    # tardar una obra grande.
+                    yield json.dumps({"heartbeat": True}) + "\n"
+                message = stream.get_final_message()
+
+            # TEMPORAL: diagnóstico de un caso real donde el resultado llegó incompleto
+            # (alertas_viabilidad presente pero bloques ausente) — confirmar si se corta
+            # por max_tokens. Sacar una vez confirmado.
+            logger.warning(
+                "orquestador_analizar: stop_reason=%s, tokens_entrada=%s, tokens_salida=%s",
+                message.stop_reason, message.usage.input_tokens, message.usage.output_tokens,
+            )
+
+            tool_use_block = next(
+                (block for block in message.content if block.type == "tool_use"),
+                None
+            )
+            if tool_use_block:
+                try:
+                    # El SDK parsea el JSON del tool_use con partial_mode=True (tolerante
+                    # a datos incompletos) incluso para el resultado final — con
+                    # respuestas muy grandes (max_tokens=48000) esto puede dejar el resto
+                    # del JSON crudo pegado como texto dentro de un campo de string (bug
+                    # real encontrado: resumen_general con ~1000 caracteres y después el
+                    # resto del objeto sin parsear). Usamos json.loads estricto sobre el
+                    # texto crudo que acumulamos nosotros mismos del stream, y solo caemos
+                    # al snapshot del SDK si por algún motivo no es JSON válido.
+                    final_data = json.loads(json_bruto_tool_use)
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning(
+                        "orquestador_analizar: json.loads estricto falló sobre "
+                        "json_bruto_tool_use (%d caracteres): %s. Cayendo a "
+                        "tool_use_block.input del SDK.",
+                        len(json_bruto_tool_use), e,
+                    )
+                    final_data = tool_use_block.input
+
+                # TEMPORAL: diagnóstico del bug de resumen_general con JSON pegado al
+                # final. Confirma si el marcador ya estaba en el texto crudo del stream
+                # (bug del lado del modelo/generación) o si aparece recién después de
+                # nuestro parseo (bug de nuestro lado). Sacar una vez confirmado.
+                marcador = '"resumen_por_instrumento"'
+                resumen = final_data.get('resumen_general') if isinstance(final_data, dict) else None
+                if isinstance(resumen, str) and marcador in resumen:
+                    logger.warning(
+                        "orquestador_analizar: BUG CONFIRMADO - resumen_general (%d "
+                        "caracteres) contiene el marcador %r. ¿Presente también en "
+                        "json_bruto_tool_use crudo (antes de parsear)?: %s",
+                        len(resumen), marcador, marcador in json_bruto_tool_use,
+                    )
+
+                # Limpieza defensiva: pase lo que pase con el ajuste de prompt, ningún
+                # usuario final debe ver una fuga de JSON crudo en su reporte.
+                if isinstance(resumen, str):
+                    resumen_limpio = _limpiar_fuga_json_en_resumen(resumen)
+                    if resumen_limpio != resumen:
+                        logger.warning(
+                            "orquestador_analizar: se recortó una fuga de JSON dentro de "
+                            "resumen_general (de %d a %d caracteres).",
+                            len(resumen), len(resumen_limpio),
+                        )
+                        final_data['resumen_general'] = resumen_limpio
+
+                if isinstance(final_data, dict):
+                    _auditar_citas_duplicaciones(final_data.get('bloques'), duplicaciones_verificadas)
+
+                final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
+                final_data['alertas_viabilidad'] = alertas_viabilidad
+                final_data['densidad_por_compas'] = densidad_por_compas
+                if version_de is not None:
+                    final_data['comparacion_version_anterior'] = comparar_versiones(version_de, parts)
+
+                try:
+                    if creditos_a_cobrar == 1:
+                        consumir_credito_analisis(profile)
+                    else:
+                        consumir_creditos_analisis_multiple(profile, creditos_a_cobrar)
+                except CreditosInsuficientesError:
+                    # Re-chequeo final por si el saldo cambió entre el aviso y esta
+                    # confirmación (otra pestaña, por ejemplo). Ya se pagó el costo de la
+                    # llamada a Claude, pero no se cobra ni se guarda como éxito.
+                    final_data = {"error": "No había créditos suficientes para completar este análisis.", "raw_music_data": analysis_data}
+                    analysis.analysis_data = final_data
+                    analysis.save()
+                    yield json.dumps({'status': 'error', 'message': 'No había créditos suficientes para completar este análisis.'}) + "\n"
+                    return
+
+                profile.refresh_from_db()
+                analysis.creditos_cobrados = creditos_a_cobrar
+                analysis.input_tokens = message.usage.input_tokens
+                analysis.output_tokens = message.usage.output_tokens
+                analysis.cache_creation_input_tokens = getattr(message.usage, 'cache_creation_input_tokens', None)
+                analysis.cache_read_input_tokens = getattr(message.usage, 'cache_read_input_tokens', None)
+            else:
+                final_data = {
+                    "error": "Claude no devolvió un bloque tool_use.",
+                    "raw_music_data": analysis_data
+                }
+        else:
+            final_data = {
+                "error": "Falta la variable de entorno ANTHROPIC_TEST_API_KEY.",
+                "raw_music_data": analysis_data
+            }
+
+        analysis.analysis_data = final_data
+        analysis.save()
+
+        yield json.dumps({
+            'status': 'success',
+            'data': final_data,
+            'analysis_id': analysis.id,
+            'creditos_analisis': profile.creditos_analisis,
+            'creditos_bonus': profile.creditos_bonus,
+        }) + "\n"
+
+    except Exception as e:
+        yield json.dumps({'status': 'error', 'message': str(e)}) + "\n"
+
+
 @login_required
 def orquestador_analizar(request):
-    from .services import consumir_credito_analisis
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
     if request.method == 'POST' and request.FILES.get('score_file'):
@@ -1105,202 +1403,10 @@ def orquestador_analizar(request):
             version_de=version_de,
         )
 
-        def generador_analisis():
-            # Heartbeat inicial: que la conexión tenga tráfico desde el primer instante,
-            # antes incluso de arrancar el parseo con music21.
-            yield json.dumps({"heartbeat": True}) + "\n"
-
-            try:
-                score = _parsear_score_descifrado(analysis.score_file)
-                parts = score.parts
-                instrument_names = [p.partName for p in parts if p.partName]
-
-                try:
-                    key_sig = score.analyze('key')
-                    key_str = str(key_sig)
-                except:
-                    key_str = "Unknown"
-
-                time_sig = score.recurse().getElementsByClass(music21.meter.TimeSignature)
-                ts = time_sig[0].ratioString if time_sig else "Unknown"
-
-                tempos = score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
-                tempo = tempos[0].number if tempos else "Unknown"
-
-                measures_data = {}
-                estadisticas_por_instrumento = {}
-                alertas_viabilidad = []
-                for part in parts:
-                    part_name = part.partName or "Instrumento Desconocido"
-                    measures = part.getElementsByClass(music21.stream.Measure)
-
-                    part_data = []
-                    for m in list(measures):
-                        m_dict = {'number': m.number, 'notes': []}
-                        for element in m.recurse().notes:
-                            if isinstance(element, music21.note.Note):
-                                m_dict['notes'].append(f"{element.nameWithOctave} ({element.duration.type})")
-                            elif isinstance(element, music21.chord.Chord):
-                                chord_notes = "-".join([n.nameWithOctave for n in element.notes])
-                                m_dict['notes'].append(f"[{chord_notes}] ({element.duration.type})")
-
-                        dynamics = m.recurse().getElementsByClass(music21.dynamics.Dynamic)
-                        for d in dynamics:
-                            m_dict['notes'].append(f"Dinámica: {d.value}")
-
-                        part_data.append(m_dict)
-                    measures_data[part_name] = part_data
-                    estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part)
-                    alertas_viabilidad.extend(evaluar_viabilidad_instrumental(part_name, part))
-
-                    # Heartbeat por instrumento: en una obra con muchas partes, el parseo en
-                    # sí puede tardar — esto evita huecos largos de silencio antes de llegar
-                    # siquiera a llamar a Claude.
-                    yield json.dumps({"heartbeat": True}) + "\n"
-
-                densidad_por_compas = calcular_densidad_por_compas(parts)
-                duplicaciones_verificadas = detectar_duplicaciones_verificadas(parts)
-
-                analysis_data = {
-                    'instruments': instrument_names,
-                    'key_signature': key_str,
-                    'time_signature': ts,
-                    'tempo': tempo,
-                    'measures_data': measures_data,
-                    'estadisticas_por_instrumento': estadisticas_por_instrumento,
-                    'duplicaciones_verificadas': duplicaciones_verificadas,
-                }
-
-                api_key = os.environ.get("ANTHROPIC_TEST_API_KEY")
-                if api_key:
-                    client = anthropic.Anthropic(api_key=api_key)
-
-                    prompt = f"Analizá la siguiente estructura de datos musicales extraída de la partitura:\n{json.dumps(analysis_data, ensure_ascii=False)}"
-
-                    with client.messages.stream(
-                        model="claude-sonnet-5",
-                        max_tokens=48000,
-                        system=[
-                            {
-                                "type": "text",
-                                "text": GUIA_ESTILO_ORQUESTAL,
-                                "cache_control": {"type": "ephemeral"},
-                            }
-                        ],
-                        tools=[ORQUESTACION_TOOL],
-                        tool_choice={"type": "tool", "name": "reportar_analisis_orquestal"},
-                        messages=[
-                            {"role": "user", "content": prompt}
-                        ],
-                    ) as stream:
-                        json_bruto_tool_use = ""
-                        for event in stream:
-                            # El SDK expone, además del evento crudo, un evento "input_json" con
-                            # el fragmento de texto tal cual llegó — lo acumulamos nosotros mismos
-                            # para poder parsearlo con json.loads estricto al final, en vez de
-                            # confiar en el snapshot que arma el SDK internamente (ver más abajo).
-                            if event.type == "input_json":
-                                json_bruto_tool_use += event.partial_json
-                            # Heartbeat por cada evento del stream de Claude: con max_tokens=48000
-                            # esto da tráfico constante durante todo el minuto y medio que puede
-                            # tardar una obra grande.
-                            yield json.dumps({"heartbeat": True}) + "\n"
-                        message = stream.get_final_message()
-
-                    # TEMPORAL: diagnóstico de un caso real donde el resultado llegó incompleto
-                    # (alertas_viabilidad presente pero bloques ausente) — confirmar si se corta
-                    # por max_tokens. Sacar una vez confirmado.
-                    logger.warning(
-                        "orquestador_analizar: stop_reason=%s, tokens_entrada=%s, tokens_salida=%s",
-                        message.stop_reason, message.usage.input_tokens, message.usage.output_tokens,
-                    )
-
-                    tool_use_block = next(
-                        (block for block in message.content if block.type == "tool_use"),
-                        None
-                    )
-                    if tool_use_block:
-                        try:
-                            # El SDK parsea el JSON del tool_use con partial_mode=True (tolerante
-                            # a datos incompletos) incluso para el resultado final — con
-                            # respuestas muy grandes (max_tokens=48000) esto puede dejar el resto
-                            # del JSON crudo pegado como texto dentro de un campo de string (bug
-                            # real encontrado: resumen_general con ~1000 caracteres y después el
-                            # resto del objeto sin parsear). Usamos json.loads estricto sobre el
-                            # texto crudo que acumulamos nosotros mismos del stream, y solo caemos
-                            # al snapshot del SDK si por algún motivo no es JSON válido.
-                            final_data = json.loads(json_bruto_tool_use)
-                        except (json.JSONDecodeError, ValueError) as e:
-                            logger.warning(
-                                "orquestador_analizar: json.loads estricto falló sobre "
-                                "json_bruto_tool_use (%d caracteres): %s. Cayendo a "
-                                "tool_use_block.input del SDK.",
-                                len(json_bruto_tool_use), e,
-                            )
-                            final_data = tool_use_block.input
-
-                        # TEMPORAL: diagnóstico del bug de resumen_general con JSON pegado al
-                        # final. Confirma si el marcador ya estaba en el texto crudo del stream
-                        # (bug del lado del modelo/generación) o si aparece recién después de
-                        # nuestro parseo (bug de nuestro lado). Sacar una vez confirmado.
-                        marcador = '"resumen_por_instrumento"'
-                        resumen = final_data.get('resumen_general') if isinstance(final_data, dict) else None
-                        if isinstance(resumen, str) and marcador in resumen:
-                            logger.warning(
-                                "orquestador_analizar: BUG CONFIRMADO - resumen_general (%d "
-                                "caracteres) contiene el marcador %r. ¿Presente también en "
-                                "json_bruto_tool_use crudo (antes de parsear)?: %s",
-                                len(resumen), marcador, marcador in json_bruto_tool_use,
-                            )
-
-                        # Limpieza defensiva: pase lo que pase con el ajuste de prompt, ningún
-                        # usuario final debe ver una fuga de JSON crudo en su reporte.
-                        if isinstance(resumen, str):
-                            resumen_limpio = _limpiar_fuga_json_en_resumen(resumen)
-                            if resumen_limpio != resumen:
-                                logger.warning(
-                                    "orquestador_analizar: se recortó una fuga de JSON dentro de "
-                                    "resumen_general (de %d a %d caracteres).",
-                                    len(resumen), len(resumen_limpio),
-                                )
-                                final_data['resumen_general'] = resumen_limpio
-
-                        if isinstance(final_data, dict):
-                            _auditar_citas_duplicaciones(final_data.get('bloques'), duplicaciones_verificadas)
-
-                        final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
-                        final_data['alertas_viabilidad'] = alertas_viabilidad
-                        final_data['densidad_por_compas'] = densidad_por_compas
-                        if version_de is not None:
-                            final_data['comparacion_version_anterior'] = comparar_versiones(version_de, parts)
-                        consumir_credito_analisis(profile)
-                        profile.refresh_from_db()
-                    else:
-                        final_data = {
-                            "error": "Claude no devolvió un bloque tool_use.",
-                            "raw_music_data": analysis_data
-                        }
-                else:
-                    final_data = {
-                        "error": "Falta la variable de entorno ANTHROPIC_TEST_API_KEY.",
-                        "raw_music_data": analysis_data
-                    }
-
-                analysis.analysis_data = final_data
-                analysis.save()
-
-                yield json.dumps({
-                    'status': 'success',
-                    'data': final_data,
-                    'analysis_id': analysis.id,
-                    'creditos_analisis': profile.creditos_analisis,
-                    'creditos_bonus': profile.creditos_bonus,
-                }) + "\n"
-
-            except Exception as e:
-                yield json.dumps({'status': 'error', 'message': str(e)}) + "\n"
-
-        return StreamingHttpResponse(generador_analisis(), content_type='application/x-ndjson')
+        return StreamingHttpResponse(
+            _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar=1, omitir_chequeo_tamano=False),
+            content_type='application/x-ndjson',
+        )
 
     from .models import ScoreAnalysis
     analisis_previos = ScoreAnalysis.objects.filter(user=request.user).order_by('-created_at')[:20]
@@ -1310,6 +1416,38 @@ def orquestador_analizar(request):
         'creditos_bonus': profile.creditos_bonus,
         'analisis_previos': analisis_previos,
     })
+
+
+@csrf_exempt
+@login_required
+def orquestador_analizar_confirmado(request, analysis_id):
+    """
+    Segundo paso del flujo de obras grandes: el usuario ya vio el aviso de
+    orquestador_analizar (status='confirmar') y decidió continuar. No recibe ni
+    confía en ningún dato del cliente sobre tamaño/costo — solo el analysis_id, y
+    todo lo demás (puntaje, créditos a cobrar) se re-deriva acá adentro.
+
+    El .update() condicional "reclama" la fila antes de arrancar: si dos pestañas
+    confirman el mismo analysis_id casi al mismo tiempo, solo una va a encontrar
+    analysis_data todavía en NULL y afectar la fila — la otra recibe 0 filas
+    actualizadas y devuelve 409 sin llegar a llamar a Claude ni cobrar nada.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    from .models import ScoreAnalysis
+    reclamado = ScoreAnalysis.objects.filter(
+        id=analysis_id, user=request.user, analysis_data__isnull=True
+    ).update(analysis_data={})
+    if not reclamado:
+        return JsonResponse({'status': 'error', 'message': 'Este análisis ya fue confirmado o no existe.'}, status=409)
+
+    analysis = get_object_or_404(ScoreAnalysis, id=analysis_id, user=request.user)
+
+    return StreamingHttpResponse(
+        _generar_analisis_orquestacion(analysis, analysis.version_de, creditos_a_cobrar=2, omitir_chequeo_tamano=True),
+        content_type='application/x-ndjson',
+    )
 
 
 @login_required
@@ -1348,7 +1486,7 @@ def orquestador_fragmento_edicion(request, analysis_id):
         return JsonResponse({'status': 'error', 'message': f'No se pudo volver a leer el archivo original: {e}'}, status=500)
 
     tempos = score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
-    tempo_bpm = tempos[0].number if tempos else 100
+    tempo_bpm = (tempos[0].number if tempos else None) or 100
 
     part = next((p for p in score.parts if p.partName == parte), None)
     if part is None:
@@ -1476,6 +1614,93 @@ def orquestador_publico(request, token):
     from .models import ScoreAnalysis
     analysis = get_object_or_404(ScoreAnalysis, share_token=token)
     return render(request, 'trainer/orquestador_publico.html', {'analysis': analysis})
+
+
+def _notas_piano_para_ejercicio(score):
+    """
+    Extrae, de todas las partes del score, cada altura sonando: pitch, duración,
+    compás y offset global en beats (necesario para alimentar AudioEngine.playSequence
+    en el frontend). Recorre TODAS las partes, no solo la primera — un piano a dos
+    manos se parsea en music21 como dos PartStaff independientes (uno por mano), no
+    como un único Part; quedarse con parts[0] pierde la mano izquierda entera.
+
+    Simplificaciones deliberadas para v1: las notas ligadas entre compases quedan
+    como chips separados por segmento en vez de fusionarse (fusionar cadenas de
+    ligaduras suma bastante lógica para un beneficio mayormente cosmético — el
+    ejercicio es sobre elegir qué instrumento toca cada altura, no sobre articulación
+    fina). Las grace notes (duración 0) se descartan: no tienen una duración propia
+    real y romperían tanto la barra de registro como la reproducción.
+    """
+    notas = []
+    contador = 0
+    for part in score.parts:
+        for m in part.getElementsByClass(music21.stream.Measure):
+            for el in m.recurse().notes:
+                if isinstance(el, music21.chord.Chord):
+                    pitches = el.pitches
+                elif isinstance(el, music21.note.Note):
+                    pitches = [el.pitch]
+                else:
+                    continue
+
+                duracion = el.duration.quarterLength
+                if duracion == 0:
+                    continue
+
+                offset_global = el.getOffsetInHierarchy(part)
+                for p in pitches:
+                    contador += 1
+                    notas.append({
+                        'id': f'n{contador}',
+                        'compas': m.number,
+                        'offset': offset_global,
+                        'duracion_ql': duracion,
+                        'pitch': p.nameWithOctave,  # nombre en inglés — lo espera AudioEngine.noteToMidiStr
+                        'pitch_solfeo': _a_solfeo(p.nameWithOctave),  # solo para mostrar en el chip
+                        'ps': p.ps,
+                    })
+
+    notas.sort(key=lambda n: (n['offset'], -n['ps']))
+    return notas
+
+
+@login_required
+def orquestacion_ejercicio_lista(request):
+    from .models import FragmentoOrquestacion
+    fragmentos = FragmentoOrquestacion.objects.filter(activo=True).order_by('-created_at')
+    return render(request, 'trainer/orquestacion_ejercicio_lista.html', {'fragmentos': fragmentos})
+
+
+@login_required
+def orquestacion_ejercicio(request, fragmento_id):
+    from .models import FragmentoOrquestacion
+    fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
+    return render(request, 'trainer/orquestacion_ejercicio.html', {
+        'fragmento': fragmento,
+        'rangos_comodos_data': _serializar_rangos_comodos(),
+        'zonas_default_data': ['Violín', 'Viola', 'Violonchelo', 'Contrabajo'],
+    })
+
+
+@login_required
+def orquestacion_ejercicio_datos(request, fragmento_id):
+    from .models import FragmentoOrquestacion
+    fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
+
+    try:
+        score = music21.converter.parse(fragmento.archivo.path)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'No se pudo leer el archivo: {e}'}, status=500)
+
+    tempos = score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
+    tempo_bpm = (tempos[0].number if tempos else None) or 100
+
+    return JsonResponse({
+        'status': 'success',
+        'fragmento': {'nombre': fragmento.nombre, 'tempo_bpm': tempo_bpm},
+        'notas': _notas_piano_para_ejercicio(score),
+    })
+
 
 @login_required
 def biblioteca_list(request):

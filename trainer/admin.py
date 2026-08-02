@@ -7,7 +7,7 @@ from .models import (
     SheetMusicProgress, DailyGoal, UserDailyGoal, Playlist, PlaylistSheet,
     SheetMarker, SheetNote, SessionAudio, RehearsalConfig, RehearsalLog,
     MusicalProject, ProjectGoal, ProjectSection,
-    MidiChordStat, MidiGameSession, UserProfile
+    MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis
 )
 
 class PlaylistSheetInline(admin.TabularInline):
@@ -56,6 +56,19 @@ class UserProfileAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'user__email')
     actions = [agregar_creditos_bonus]
 
+
+@admin.register(ScoreAnalysis)
+class ScoreAnalysisAdmin(admin.ModelAdmin):
+    list_display = (
+        'name', 'user', 'created_at', 'puntaje_obra', 'creditos_cobrados',
+        'input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens',
+    )
+    readonly_fields = (
+        'created_at', 'puntaje_obra', 'creditos_cobrados',
+        'input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens',
+    )
+    search_fields = ('name', 'user__username')
+
 admin.site.register(Game)
 admin.site.register(Score)
 admin.site.register(Attempt)
@@ -76,4 +89,5 @@ admin.site.register(ProjectGoal)
 admin.site.register(ProjectSection)
 admin.site.register(MidiChordStat)
 admin.site.register(MidiGameSession)
+admin.site.register(FragmentoOrquestacion)
 
