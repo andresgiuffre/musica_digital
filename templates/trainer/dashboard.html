@@ -83,6 +83,7 @@
     .tile--entrenador { --tile-accent: #34d399; --tile-icon-bg: rgba(52,211,153,0.14); --tile-icon-border: rgba(52,211,153,0.35); --tile-shadow: rgba(52,211,153,0.28); }
     .tile--proyectos { --tile-accent: #34d399; --tile-icon-bg: rgba(52,211,153,0.14); --tile-icon-border: rgba(52,211,153,0.35); --tile-shadow: rgba(52,211,153,0.28); }
     .tile--analizador { --tile-accent: #ff5a36; --tile-icon-bg: rgba(255,90,54,0.14); --tile-icon-border: rgba(255,90,54,0.35); --tile-shadow: rgba(255,90,54,0.28); }
+    .tile--ejercicio { --tile-accent: #fbbf24; --tile-icon-bg: rgba(251,191,36,0.14); --tile-icon-border: rgba(251,191,36,0.35); --tile-shadow: rgba(251,191,36,0.28); }
 
     .progress-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1.1rem; align-items: start; }
     @media (max-width: 900px) { .progress-grid { grid-template-columns: 1fr; } }
@@ -204,6 +205,12 @@
             <h3>Analizador</h3>
             <p>Subí un MIDI o MusicXML y recibí una crítica de orquestación.</p>
             <span class="go">Analizar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+        <a href="{% url 'orquestacion_ejercicio_lista' %}" class="tile tile--ejercicio">
+            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v8m0 0l4-4m-4 4l-4-4"/></svg></div>
+            <h3>Ejercicio de orquestación</h3>
+            <p>Arrastrá cada nota de un fragmento de piano al instrumento de cuerdas que le corresponda.</p>
+            <span class="go">Practicar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
         </a>
     </div>
 
