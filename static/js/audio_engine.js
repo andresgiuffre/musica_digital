@@ -57,7 +57,11 @@ const AudioEngine = {
     // Instrumento (nombre exacto de music21) -> familia orquestal, o null si no matchea
     // ninguna (queda con el piano por defecto).
     familiaInstrumento(nombre) {
-        const n = (nombre || '').toLowerCase();
+        // nombre nulo/vacío es una señal deliberada de "usar el piano por defecto"
+        // (ej. reproducir el fragmento original) — no es un nombre que falló el
+        // matcheo, así que no amerita advertencia.
+        if (!nombre) return null;
+        const n = nombre.toLowerCase();
         for (const [keywords, familia] of this.FAMILIAS_INSTRUMENTO) {
             if (keywords.some(kw => n.includes(kw))) return familia;
         }
