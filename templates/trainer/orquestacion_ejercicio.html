@@ -391,41 +391,41 @@
 
     // Respaldo cuando el click no cayó sobre ningún elemento etiquetado (blanco real:
     // notas chicas como las grace notes, o el trazo de un stem/barra que VexFlow dibuja
-    // por fuera del grupo de la nota) — busca la nota etiquetada más cercana en pantalla
-    // por distancia real al borde de su recuadro, dentro de un margen razonable, en vez
-    // de descartar el click sin más. UMBRAL_CERCANIA_PX es generoso a propósito: mejor
-    // perdonar un click un poco impreciso que dejar una nota chica imposible de tocar.
+    // por fuera del grupo de la nota) — busca el ELEMENTO etiquetado más cercano en
+    // pantalla (no una nota individual: si ese elemento es un acorde compartido, hace
+    // falta seguir teniendo la desambiguación geométrica de resolverNotaDeClick para
+    // elegir cuál nota del acorde, no cualquiera). UMBRAL_CERCANIA_PX es generoso a
+    // propósito: mejor perdonar un click un poco impreciso que dejar una nota chica
+    // imposible de tocar.
     const UMBRAL_CERCANIA_PX = 20;
 
-    function resolverNotaCercana(ev) {
-        let mejor = null;
+    function elementoEtiquetadoMasCercano(ev) {
+        let mejorEl = null;
         let mejorDistancia = Infinity;
-        notasBackend.forEach(nb => {
-            if (!nb.svgEl) return;
-            const rect = nb.svgEl.getBoundingClientRect();
+        mapaElementoANotas.forEach((_candidatos, elCandidato) => {
+            const rect = elCandidato.getBoundingClientRect();
             const cx = Math.max(rect.left, Math.min(ev.clientX, rect.right));
             const cy = Math.max(rect.top, Math.min(ev.clientY, rect.bottom));
             const distancia = Math.hypot(ev.clientX - cx, ev.clientY - cy);
             if (distancia < mejorDistancia) {
                 mejorDistancia = distancia;
-                mejor = nb;
+                mejorEl = elCandidato;
             }
         });
-        return (mejor && mejorDistancia <= UMBRAL_CERCANIA_PX) ? mejor : null;
+        return (mejorEl && mejorDistancia <= UMBRAL_CERCANIA_PX) ? mejorEl : null;
     }
 
     function onClickPartitura(ev) {
-        const el = ev.target.closest('[data-osmd-nota]');
-        let entry = null;
-        if (el) {
-            entry = resolverNotaDeClick(ev, el);
-        } else {
-            entry = resolverNotaCercana(ev);
-            if (entry) {
-                console.log(`[orquestacion] Click sin blanco directo, resuelto por cercanía -> id=${entry.id} pitch=${entry.pitch}`);
-            }
-        }
+        let el = ev.target.closest('[data-osmd-nota]');
+        const porCercania = !el;
+        if (!el) el = elementoEtiquetadoMasCercano(ev);
+        if (!el) return;
+
+        const entry = resolverNotaDeClick(ev, el);
         if (!entry) return;
+        if (porCercania) {
+            console.log(`[orquestacion] Click sin blanco directo, resuelto por cercanía -> id=${entry.id} pitch=${entry.pitch}`);
+        }
 
         if (asignaciones[entry.id] === pincelActivo) {
             delete asignaciones[entry.id];
