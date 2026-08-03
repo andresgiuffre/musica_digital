@@ -1735,6 +1735,232 @@ def orquestacion_ejercicio_datos(request, fragmento_id):
     })
 
 
+ORDEN_PARTES_ORQUESTACION = ['Violín I', 'Violín II', 'Viola', 'Violonchelo', 'Contrabajo']
+
+CLEFES_EJERCICIO_ORQUESTACION = {
+    'Violín I': music21.clef.TrebleClef,
+    'Violín II': music21.clef.TrebleClef,
+    'Viola': music21.clef.AltoClef,
+    'Violonchelo': music21.clef.BassClef,
+    'Contrabajo': music21.clef.BassClef,
+}
+
+INSTRUMENTOS_EJERCICIO_ORQUESTACION = {
+    'Violín I': music21.instrument.Violin,
+    'Violín II': music21.instrument.Violin,
+    'Viola': music21.instrument.Viola,
+    'Violonchelo': music21.instrument.Violoncello,
+    'Contrabajo': music21.instrument.Contrabass,
+}
+
+OCTAVAS_VALIDAS_EJERCICIO = (-1, 0, 1)
+
+
+def _tiempo_y_armadura_por_compas(partes_originales, compases_totales):
+    """
+    Recorre todas las partes originales (no solo la primera) buscando dónde se declaran
+    explícitamente compás/armadura, y rellena hacia adelante para los compases donde no
+    se vuelven a declarar — soporta cambios de compás a mitad de la obra en vez de asumir
+    un único compás constante.
+    """
+    tiempo_explicito = {}
+    armadura = None
+    for p in partes_originales:
+        for m in p.getElementsByClass(music21.stream.Measure):
+            if m.number not in tiempo_explicito:
+                ts_list = m.getElementsByClass(music21.meter.TimeSignature)
+                if ts_list:
+                    tiempo_explicito[m.number] = ts_list[0]
+            if armadura is None:
+                ks_list = m.getElementsByClass(music21.key.KeySignature)
+                if ks_list:
+                    armadura = ks_list[0]
+
+    resultado = {}
+    actual = tiempo_explicito.get(1) or music21.meter.TimeSignature('4/4')
+    for numero in range(1, compases_totales + 1):
+        if numero in tiempo_explicito:
+            actual = tiempo_explicito[numero]
+        resultado[numero] = actual
+    return resultado, armadura
+
+
+def _offsets_inicio_compas(part):
+    return {m.number: m.offset for m in part.getElementsByClass(music21.stream.Measure)}
+
+
+def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_por_compas, armadura):
+    """
+    eventos_por_compas: {numero_compas: [{'offset_local', 'duracion', 'ps_sonando'}, ...]}.
+    Los compases sin eventos quedan enteramente en silencio. Los silencios se calculan
+    a mano (antes de la primera nota, entre notas, después de la última) — makeRests()
+    de music21 no dio resultados confiables en las pruebas (compases con duración
+    incorrecta o directamente vacíos sin silencio explícito). Varias notas del mismo
+    instrumento en el mismo offset (ej. dobles cuerdas) se combinan en un acorde en vez
+    de insertarse superpuestas.
+    """
+    parte = music21.stream.Part()
+    instr = INSTRUMENTOS_EJERCICIO_ORQUESTACION[nombre]()
+    instr.partName = nombre
+    parte.insert(0, instr)
+
+    for numero in range(1, compases_totales + 1):
+        compas = music21.stream.Measure(number=numero)
+        tiempo_compas = tiempo_por_compas[numero]
+        duracion_compas = tiempo_compas.barDuration.quarterLength
+
+        if numero == 1:
+            # Sin esto music21 no emite NINGÚN <clef> en el XML exportado (verificado) —
+            # queda a criterio del renderizador, que es peor que elegir mal.
+            compas.insert(0, CLEFES_EJERCICIO_ORQUESTACION[nombre]())
+            if armadura is not None:
+                compas.insert(0, copy.deepcopy(armadura))
+            compas.insert(0, copy.deepcopy(tiempo_compas))
+        elif tiempo_compas.ratioString != tiempo_por_compas[numero - 1].ratioString:
+            compas.insert(0, copy.deepcopy(tiempo_compas))
+
+        agrupados = {}
+        for ev in eventos_por_compas.get(numero, []):
+            clave = round(ev['offset_local'], 6)
+            agrupados.setdefault(clave, []).append(ev)
+
+        cursor = 0.0
+        for offset_local in sorted(agrupados.keys()):
+            grupo = agrupados[offset_local]
+            offset_ajustado = min(offset_local, duracion_compas)
+            if offset_ajustado > cursor:
+                compas.insert(cursor, music21.note.Rest(quarterLength=offset_ajustado - cursor))
+            duracion = min(max(e['duracion'] for e in grupo), duracion_compas - offset_ajustado)
+            if duracion <= 0:
+                continue
+            if len(grupo) == 1:
+                elemento = music21.note.Note(music21.pitch.Pitch(ps=grupo[0]['ps_sonando']), quarterLength=duracion)
+            else:
+                elemento = music21.chord.Chord(
+                    [music21.pitch.Pitch(ps=e['ps_sonando']) for e in grupo], quarterLength=duracion
+                )
+            compas.insert(offset_ajustado, elemento)
+            cursor = offset_ajustado + duracion
+
+        if cursor < duracion_compas:
+            compas.insert(cursor, music21.note.Rest(quarterLength=duracion_compas - cursor))
+
+        parte.append(compas)
+
+    parte.makeTies(inPlace=True)
+    return parte
+
+
+def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
+    """
+    Arma un Score de music21 de 5 partes (Violín I, Violín II, Viola, Violonchelo,
+    Contrabajo) a partir de las asignaciones del ejercicio de pintado. Cada nota
+    conserva compás/offset/duración originales; el modificador de octava del pincel se
+    aplica como ±12 semitonos sobre la altura ANTES de armar la nota. El contrabajo,
+    además, es instrumento transpositor real (Contrabass.transposition = P-8 en
+    music21) — se arma el score con las alturas que SUENAN y se marca
+    atSoundingPitch=True + toWrittenPitch() para que la parte de contrabajo salga
+    escrita una octava arriba de lo que suena, como corresponde; las demás partes no
+    tienen transposition y quedan intactas (verificado).
+    """
+    partes_originales = list(score_original.parts)
+    compases_totales = max(len(list(p.getElementsByClass(music21.stream.Measure))) for p in partes_originales)
+    tiempo_por_compas, armadura = _tiempo_y_armadura_por_compas(partes_originales, compases_totales)
+    offsets_inicio = _offsets_inicio_compas(partes_originales[0])
+
+    eventos_por_instrumento = {nombre: {} for nombre in ORDEN_PARTES_ORQUESTACION}
+    for nota_id, asignacion in asignaciones.items():
+        evento = notas_por_id[nota_id]
+        instrumento = asignacion['instrumento']
+        octava = asignacion['octava']
+        compas = evento['compas']
+        offset_local = evento['offset'] - offsets_inicio.get(compas, 0.0)
+        eventos_por_instrumento[instrumento].setdefault(compas, []).append({
+            'offset_local': offset_local,
+            'duracion': evento['duracion_ql'],
+            'ps_sonando': evento['ps'] + 12 * octava,
+        })
+
+    score = music21.stream.Score()
+    for nombre in ORDEN_PARTES_ORQUESTACION:
+        parte = _armar_parte_orquestal(
+            nombre, eventos_por_instrumento[nombre], compases_totales, tiempo_por_compas, armadura
+        )
+        score.insert(0, parte)
+
+    score.atSoundingPitch = True
+    score_escrito = score.toWrittenPitch()
+
+    exporter = music21.musicxml.m21ToXml.GeneralObjectExporter(score_escrito)
+    return exporter.parse().decode('utf-8')
+
+
+@csrf_exempt
+@login_required
+def orquestacion_ejercicio_generar(request, fragmento_id):
+    """
+    Recibe las asignaciones (nota -> instrumento/octava) del ejercicio de pintado y
+    devuelve el MusicXML de la partitura orquestal de 5 partes. No persiste nada en
+    v1 — se genera y se devuelve en la respuesta como string, mismo patrón que
+    original_musicxml/editado_musicxml en orquestador_fragmento_edicion (un futuro
+    botón de descarga sería trivial: crear un Blob del string, sin tocar el backend).
+
+    Nunca confía en pitch/offset/duración del cliente — solo en qué notaId citó y qué
+    instrumento/octava eligió; todo lo demás se re-deriva de _notas_piano_para_ejercicio
+    sobre el archivo real, igual que orquestacion_ejercicio_datos.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    from .models import FragmentoOrquestacion
+    fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
+
+    try:
+        body = json.loads(request.body)
+        asignaciones_crudas = body.get('asignaciones')
+        if not isinstance(asignaciones_crudas, dict):
+            raise ValueError('falta asignaciones')
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'status': 'error', 'message': 'Body inválido: se esperaba JSON con "asignaciones".'}, status=400)
+
+    nombres_validos = {z['nombre'] for z in ZONAS_EJERCICIO_ORQUESTACION}
+    asignaciones = {}
+    for nota_id, valor in asignaciones_crudas.items():
+        if not isinstance(valor, dict):
+            return JsonResponse({'status': 'error', 'message': f'Asignación inválida para "{nota_id}".'}, status=400)
+        instrumento = valor.get('instrumento')
+        octava = valor.get('octava')
+        if instrumento not in nombres_validos:
+            return JsonResponse({'status': 'error', 'message': f'Instrumento inválido: {instrumento!r}.'}, status=400)
+        if octava not in OCTAVAS_VALIDAS_EJERCICIO:
+            return JsonResponse({'status': 'error', 'message': f'Octava inválida: {octava!r}.'}, status=400)
+        asignaciones[nota_id] = {'instrumento': instrumento, 'octava': octava}
+
+    try:
+        score_original = music21.converter.parse(fragmento.archivo.path)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'No se pudo leer el archivo: {e}'}, status=500)
+
+    notas_por_id = {n['id']: n for n in _notas_piano_para_ejercicio(score_original)}
+    ids_desconocidos = [nid for nid in asignaciones if nid not in notas_por_id]
+    if ids_desconocidos:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'{len(ids_desconocidos)} nota(s) no existen en este fragmento (ej. {ids_desconocidos[0]}).',
+        }, status=400)
+
+    if not asignaciones:
+        return JsonResponse({'status': 'error', 'message': 'No hay ninguna nota asignada todavía.'}, status=400)
+
+    try:
+        musicxml = _generar_score_orquestal(score_original, notas_por_id, asignaciones)
+    except Exception as e:
+        logger.exception('orquestacion_ejercicio_generar: fallo armando la partitura orquestal')
+        return JsonResponse({'status': 'error', 'message': f'No se pudo generar la partitura: {e}'}, status=500)
+
+    return JsonResponse({'status': 'success', 'musicxml': musicxml})
+
+
 @login_required
 def biblioteca_list(request):
     col_slug = request.GET.get('collection')

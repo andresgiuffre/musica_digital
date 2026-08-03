@@ -57,11 +57,25 @@
         margin-bottom: 1.5rem;
     }
     .ej-orq-osmd-wrap .nota-clickeable { cursor: pointer; }
+    .ej-orq-indicador-octava {
+        position: absolute;
+        z-index: 150;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #ff5a36;
+        background: rgba(255,255,255,0.92);
+        border-radius: 3px;
+        padding: 0 3px;
+        line-height: 1.3;
+        pointer-events: none;
+        transform: translate(0, -100%);
+    }
     .ej-orq-paleta {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 0.75rem;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
     }
     .ej-orq-instrumento {
         background: var(--surface);
@@ -117,17 +131,93 @@
         color: var(--danger);
         min-height: 1em;
     }
-    .ej-orq-reproducir {
-        align-self: flex-start;
+    .ej-orq-octava-selector {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .ej-orq-octava-label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+    .ej-orq-octava-btn {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 0.4rem;
+        padding: 0.35rem 0.8rem;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.85rem;
+        cursor: pointer;
+    }
+    .ej-orq-octava-btn.ej-orq-octava-activa {
+        border-color: var(--primary);
+        background: rgba(47,184,255,0.15);
+        color: var(--primary);
+        font-weight: 700;
+    }
+    .ej-orq-boton-secundario {
         background: transparent;
         border: 1px solid var(--border);
         color: var(--text);
         border-radius: 0.4rem;
-        padding: 0.25rem 0.6rem;
-        font-size: 0.8rem;
+        padding: 0.4rem 0.9rem;
+        font-size: 0.85rem;
         cursor: pointer;
     }
-    .ej-orq-reproducir:hover { border-color: var(--zona-color); }
+    .ej-orq-boton-secundario:hover { border-color: var(--primary); }
+    .ej-orq-boton-primario {
+        background: var(--primary);
+        border: none;
+        color: #04121d;
+        font-weight: 700;
+        border-radius: 0.4rem;
+        padding: 0.5rem 1.1rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+    .ej-orq-boton-primario:disabled { opacity: 0.6; cursor: not-allowed; }
+    .ej-orq-separador {
+        border-top: 1px solid var(--border);
+        margin: 2rem 0 1.5rem;
+        padding-top: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    #ej-orq-error-orquesta {
+        display: none;
+        background: rgba(239, 68, 68, 0.12);
+        border: 1px solid var(--danger);
+        color: var(--danger);
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        font-size: 0.85rem;
+    }
+    .ej-orq-controles-orquesta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .ej-orq-boton-parte {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 0.4rem;
+        padding: 0.35rem 0.7rem;
+        font-size: 0.8rem;
+        color: var(--text);
+        cursor: pointer;
+    }
+    .ej-orq-boton-parte:hover { border-color: var(--zona-color); }
+    .ej-orq-boton-parte .ej-orq-pincel-punto { width: 10px; height: 10px; }
 </style>
 {% endblock %}
 
@@ -139,21 +229,28 @@
 
     <h1 class="text-2xl font-display mb-1">{{ fragmento.nombre }}</h1>
     <p class="mb-6" style="color: var(--text-secondary);">
-        Elegí un instrumento (el pincel activo) y hacé click sobre cada cabeza de nota de la partitura para
-        asignarla. Click de nuevo con el mismo pincel para desasignarla, o con otro pincel para reasignarla.
-        La barra debajo de cada instrumento marca su registro cómodo — una nota asignada fuera de ese rango
-        se marca con un halo.
+        Elegí un instrumento y una octava (el pincel activo) y hacé click sobre cada cabeza de nota de la
+        reducción de piano para asignarla. Click de nuevo con el mismo pincel y octava para desasignarla, o
+        con otro pincel para reasignarla. La barra debajo de cada instrumento marca su registro cómodo — se
+        evalúa sobre la altura real resultante, ya con la octava aplicada.
     </p>
 
     <div id="ej-orq-error-timbre"></div>
 
     <div class="ej-orq-paleta" id="ej-orq-paleta"></div>
 
+    <div class="ej-orq-octava-selector" id="ej-orq-octava-selector">
+        <span class="ej-orq-octava-label">Octava del pincel:</span>
+        <button type="button" class="ej-orq-octava-btn" data-octava="-1">8vb</button>
+        <button type="button" class="ej-orq-octava-btn ej-orq-octava-activa" data-octava="0">—</button>
+        <button type="button" class="ej-orq-octava-btn" data-octava="1">8va</button>
+    </div>
+
     <div class="flex items-center justify-between mb-3">
-        <button type="button" id="ej-orq-todo" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">
-            ▶ Todo
+        <button type="button" id="ej-orq-original" class="ej-orq-boton-secundario">
+            ▶ Escuchar fragmento original (piano)
         </button>
-        <button type="button" id="ej-orq-reiniciar" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">
+        <button type="button" id="ej-orq-reiniciar" class="ej-orq-boton-secundario">
             ↺ Reiniciar
         </button>
     </div>
@@ -163,6 +260,22 @@
     </div>
 
     <p id="ej-orq-estado" class="text-sm" style="color: var(--text-secondary);"></p>
+
+    <div class="ej-orq-separador">
+        <h2 class="text-xl font-display">Partitura de orquesta</h2>
+        <button type="button" id="ej-orq-ver-orquesta" class="ej-orq-boton-primario">Ver orquestación</button>
+    </div>
+
+    <div id="ej-orq-error-orquesta"></div>
+    <p id="ej-orq-panel-orquesta-vacio" style="color: var(--text-secondary);">
+        Todavía no generaste la orquestación — pintá algunas notas y apretá "Ver orquestación".
+    </p>
+    <div id="ej-orq-panel-orquesta-contenido" style="display: none;">
+        <div class="ej-orq-controles-orquesta" id="ej-orq-controles-orquesta"></div>
+        <div class="ej-orq-osmd-wrap">
+            <div id="ej-orq-osmd-orquesta"></div>
+        </div>
+    </div>
 </div>
 
 {{ rangos_comodos_data|json_script:"rangos-comodos-data" }}
@@ -177,6 +290,7 @@
     const ZONAS = JSON.parse(document.getElementById('zonas-data').textContent); // [{nombre, color, rango_key}]
     const NOMBRE_ARCHIVO = "{{ fragmento.archivo.name|escapejs }}";
     const ES_MXL = NOMBRE_ARCHIVO.toLowerCase().endsWith('.mxl');
+    const URL_GENERAR = '{% url "orquestacion_ejercicio_generar" fragmento.id %}';
 
     const estadoEl = document.getElementById('ej-orq-estado');
     const contenedorOsmd = document.getElementById('ej-orq-osmd');
@@ -195,8 +309,11 @@
     let notasBackend = []; // del endpoint de datos, mutado in-place con .logicalNote y .svgEl
     let tempoBpm = 100;
     let mapaElementoANotas = new Map(); // svgEl -> array de entries (largo 1 si no es acorde)
-    let asignaciones = {}; // notaId -> nombreZona
+    let asignaciones = {}; // notaId -> {instrumento, octava}
     let pincelActivo = ZONAS[0].nombre;
+    let octavaActiva = 0;
+    let indicadoresOctava = [];
+    let osmdOrquesta = null;
 
     const rangoKeysUnicos = [...new Set(ZONAS.map(z => z.rango_key))];
     const globalMinPs = Math.min(...rangoKeysUnicos.map(k => RANGOS_COMODOS[k].min_ps));
@@ -208,7 +325,7 @@
         console.error('[orquestacion]', msg);
     }
 
-    // --- Paleta / pinceles ---
+    // --- Paleta / pinceles / octava ---
 
     function crearPaleta() {
         const contenedor = document.getElementById('ej-orq-paleta');
@@ -228,10 +345,8 @@
                     <div class="ej-orq-registro-barra" style="left:${left.toFixed(2)}%; width:${width.toFixed(2)}%;"></div>
                 </div>
                 <div class="ej-orq-advertencia" data-zona-advertencia="${zona.nombre}"></div>
-                <button type="button" class="ej-orq-reproducir" data-zona="${zona.nombre}">▶ Reproducir</button>
             `;
             card.querySelector('.ej-orq-pincel').addEventListener('click', () => seleccionarPincel(zona.nombre));
-            card.querySelector('.ej-orq-reproducir').addEventListener('click', () => reproducirZona(zona.nombre));
             contenedor.appendChild(card);
         });
         marcarPincelActivo();
@@ -248,8 +363,17 @@
         });
     }
 
-    // --- Correlación OSMD <-> backend (offset + ps, ver justificación en el plan:
-    // ambos son "beats desde el inicio del fragmento", no hace falta comparar compás) ---
+    function crearSelectorOctava() {
+        document.querySelectorAll('.ej-orq-octava-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                octavaActiva = parseInt(btn.dataset.octava, 10);
+                document.querySelectorAll('.ej-orq-octava-btn').forEach(b => b.classList.toggle('ej-orq-octava-activa', b === btn));
+            });
+        });
+    }
+
+    // --- Correlación OSMD <-> backend (offset + ps, ambos "beats desde el inicio del
+    // fragmento" — no hace falta comparar compás) ---
 
     function recolectarNotasOsmd() {
         const resultado = [];
@@ -303,7 +427,7 @@
 
     // --- Etiquetado de elementos SVG (se repite después de CADA render, porque
     // osmd.render() regenera el SVG entero y las referencias anteriores quedan
-    // huérfanas — confirmado en el prototipo) ---
+    // huérfanas) ---
 
     function etiquetarNotas() {
         mapaElementoANotas = new Map();
@@ -340,36 +464,61 @@
             console.error('[orquestacion] Error recorriendo GraphicSheet — el pintado puede no funcionar:', e);
         }
         aplicarHalosDeRegistro();
+        actualizarIndicadoresOctava();
     }
 
     // Actualiza NoteheadColor en las notas LÓGICAS (no depende del DOM ni de un render
     // previo) — tiene que correr ANTES de osmd.render() para que el color del click
-    // actual se vea en el próximo render, no en el siguiente. Separada de los halos de
-    // registro a propósito: el bug real que reportó el usuario era que el color se veía
-    // "un click atrás" porque antes esto corría DESPUÉS del render.
+    // actual se vea en el próximo render, no en el siguiente.
     function aplicarColoresLogicos() {
         notasBackend.forEach(nb => {
             if (!nb.logicalNote) return;
-            const nombreZona = asignaciones[nb.id];
-            nb.logicalNote.NoteheadColor = nombreZona ? ZONAS.find(z => z.nombre === nombreZona).color : '#000000';
+            const asign = asignaciones[nb.id];
+            nb.logicalNote.NoteheadColor = asign ? ZONAS.find(z => z.nombre === asign.instrumento).color : '#000000';
         });
     }
 
     // Los halos de "fuera de registro" sí necesitan el elemento SVG (entry.svgEl), que
-    // solo existe después de etiquetar un render ya hecho — por eso corren al final de
-    // etiquetarNotas(), no antes del render.
+    // solo existe después de etiquetar un render ya hecho. Se evalúan sobre la altura
+    // RESULTANTE (ps + 12*octava), no sobre la escrita en el piano.
     function aplicarHalosDeRegistro() {
         notasBackend.forEach(nb => {
             if (!nb.svgEl) return;
-            const nombreZona = asignaciones[nb.id];
-            if (!nombreZona) {
+            const asign = asignaciones[nb.id];
+            if (!asign) {
                 nb.svgEl.style.filter = '';
                 return;
             }
-            const zona = ZONAS.find(z => z.nombre === nombreZona);
+            const zona = ZONAS.find(z => z.nombre === asign.instrumento);
             const rango = RANGOS_COMODOS[zona.rango_key];
-            const fueraDeRango = nb.ps < rango.min_ps || nb.ps > rango.max_ps;
+            const psEfectivo = nb.ps + 12 * asign.octava;
+            const fueraDeRango = psEfectivo < rango.min_ps || psEfectivo > rango.max_ps;
             nb.svgEl.style.filter = fueraDeRango ? 'drop-shadow(0 0 2px red) drop-shadow(0 0 4px red)' : '';
+        });
+    }
+
+    // Indicador "8↑"/"8↓" sobre cada nota con octava distinta de 0 — overlay HTML
+    // posicionado con getBoundingClientRect() del svgEl ya identificado, no toca el SVG
+    // interno de OSMD. Se recalcula cada vez que se re-etiqueta (clicks Y resize, ambos
+    // pasan por rerenderYEtiquetar -> etiquetarNotas).
+    function limpiarIndicadoresOctava() {
+        indicadoresOctava.forEach(el => el.remove());
+        indicadoresOctava = [];
+    }
+
+    function actualizarIndicadoresOctava() {
+        limpiarIndicadoresOctava();
+        notasBackend.forEach(nb => {
+            const asign = asignaciones[nb.id];
+            if (!asign || asign.octava === 0 || !nb.svgEl) return;
+            const rect = nb.svgEl.getBoundingClientRect();
+            const div = document.createElement('div');
+            div.className = 'ej-orq-indicador-octava';
+            div.textContent = asign.octava > 0 ? '8↑' : '8↓';
+            div.style.left = (rect.right + window.scrollX) + 'px';
+            div.style.top = (rect.top + window.scrollY) + 'px';
+            document.body.appendChild(div);
+            indicadoresOctava.push(div);
         });
     }
 
@@ -379,8 +528,7 @@
         etiquetarNotas();
     }
 
-    // --- Resolución de click, incluida la desambiguación geométrica de acordes
-    // (validada en el prototipo: varias notas pueden compartir un solo glifo SVG) ---
+    // --- Resolución de click, incluida la desambiguación geométrica de acordes ---
 
     function encontrarCabezasDeNota(elGrupo) {
         const vistos = new Set();
@@ -424,12 +572,11 @@
         return ordenados[mejorIndice];
     }
 
-    // Cuando hay varias notas reales muy juntas en pantalla (pasajes densos), ningún
-    // umbral de distancia puede adivinar con confianza cuál se quiso tocar — se probó y
-    // falló repetidas veces. En vez de seguir afinando heurísticas de geometría a
-    // ciegas, se junta la distancia de cada nota candidata (considerando la cabeza
-    // geométrica específica dentro de un acorde si corresponde) y, si el resultado es
-    // ambiguo, se le pregunta al usuario en vez de adivinar.
+    // Cuando hay varias notas reales muy juntas en pantalla, ningún umbral de distancia
+    // puede adivinar con confianza cuál se quiso tocar. En vez de seguir afinando
+    // heurísticas de geometría a ciegas, se junta la distancia de cada nota candidata
+    // (considerando la cabeza geométrica específica dentro de un acorde si corresponde)
+    // y, si el resultado es ambiguo, se le pregunta al usuario en vez de adivinar.
     const RADIO_CONSIDERACION_PX = 60;
     const MARGEN_AMBIGUEDAD_PX = 15;
 
@@ -454,19 +601,22 @@
         return resultado;
     }
 
+    // Toggle: mismo instrumento + misma octava = desasigna; mismo instrumento + octava
+    // distinta = actualiza la octava; instrumento distinto = reasigna directo con el
+    // pincel/octava activos.
     function aplicarSeleccion(entry) {
-        if (asignaciones[entry.id] === pincelActivo) {
+        const actual = asignaciones[entry.id];
+        if (actual && actual.instrumento === pincelActivo && actual.octava === octavaActiva) {
             delete asignaciones[entry.id];
         } else {
-            asignaciones[entry.id] = pincelActivo;
+            asignaciones[entry.id] = { instrumento: pincelActivo, octava: octavaActiva };
         }
         rerenderYEtiquetar();
         actualizarContadoresAdvertencia();
         actualizarEstado();
     }
 
-    // --- Selector de ambigüedad: mini menú junto al click con las notas candidatas,
-    // para no tener que adivinar cuando dos o más están a distancia comparable. ---
+    // --- Selector de ambigüedad ---
 
     let selectorAmbiguedadEl = null;
 
@@ -535,9 +685,12 @@
     function actualizarContadoresAdvertencia() {
         ZONAS.forEach(zona => {
             const rango = RANGOS_COMODOS[zona.rango_key];
-            const fueraDeRango = notasBackend.filter(nb =>
-                asignaciones[nb.id] === zona.nombre && (nb.ps < rango.min_ps || nb.ps > rango.max_ps)
-            ).length;
+            const fueraDeRango = notasBackend.filter(nb => {
+                const asign = asignaciones[nb.id];
+                if (!asign || asign.instrumento !== zona.nombre) return false;
+                const psEfectivo = nb.ps + 12 * asign.octava;
+                return psEfectivo < rango.min_ps || psEfectivo > rango.max_ps;
+            }).length;
             const el = document.querySelector(`[data-zona-advertencia="${zona.nombre}"]`);
             if (el) el.textContent = fueraDeRango > 0 ? `⚠ ${fueraDeRango} fuera de registro` : '';
         });
@@ -550,19 +703,16 @@
             : 'Todas las notas están asignadas a un instrumento.';
     }
 
-    // --- Reproducción, reutilizando AudioEngine.playSequence tal cual ---
+    // --- Panel 1: reproducir el fragmento original completo (piano, sin importar
+    // asignaciones) — reemplaza los viejos botones por-instrumento/Todo, que reproducían
+    // "lo pintado" sobre el piano, algo sin sentido musical una vez que existe el Panel 2. ---
 
-    function reproducirZona(nombre) {
-        const notasZona = notasBackend
-            .filter(nb => asignaciones[nb.id] === nombre)
-            .sort((a, b) => a.offset - b.offset);
-        if (!notasZona.length) return;
-        const events = notasZona.map(nb => ({ notes: [nb.pitch], offset: nb.offset, duration: nb.duracion_ql }));
-        AudioEngine.playSequence(events, tempoBpm, nombre);
-    }
-
-    function reproducirTodo() {
-        ZONAS.forEach(zona => reproducirZona(zona.nombre));
+    function reproducirOriginal() {
+        const eventos = [...notasBackend]
+            .sort((a, b) => a.offset - b.offset)
+            .map(nb => ({ notes: [nb.pitch], offset: nb.offset, duration: nb.duracion_ql }));
+        if (!eventos.length) return;
+        AudioEngine.playSequence(eventos, tempoBpm, null); // null -> timbre de piano
     }
 
     function reiniciar() {
@@ -572,15 +722,132 @@
         actualizarEstado();
     }
 
-    // --- Resize manual: autoResize de OSMD queda deliberadamente desactivado (ver
-    // plan) porque su re-render interno invalidaba el etiquetado sin que este código
-    // se enterara — acá el resize se maneja explícitamente con el mismo mecanismo ya
-    // validado de re-render + re-etiquetado. ---
+    // --- Panel 2: partitura de orquesta ---
+
+    function transportarPitch(pitchStr, octava) {
+        if (!octava) return pitchStr;
+        const m = pitchStr.match(/^([A-Ga-g][#\-]*)(-?\d+)$/);
+        if (!m) return pitchStr;
+        return m[1] + (parseInt(m[2], 10) + octava);
+    }
+
+    // Los eventos de reproducción del Panel 2 se derivan de notasBackend + asignaciones
+    // (ya en memoria en el frontend), no del MusicXML generado — mismo cálculo que ya
+    // existía para el "Todo" del piano, sumando el corrimiento de octava. Evita
+    // depender de que el OSMD del Panel 2 termine de renderizar para poder reproducir,
+    // y no agrega una segunda fuente de verdad.
+    function eventosDeParteOrquesta(nombreInstrumento) {
+        return notasBackend
+            .filter(nb => asignaciones[nb.id] && asignaciones[nb.id].instrumento === nombreInstrumento)
+            .sort((a, b) => a.offset - b.offset)
+            .map(nb => {
+                const octava = asignaciones[nb.id].octava;
+                return { notes: [transportarPitch(nb.pitch, octava)], offset: nb.offset, duration: nb.duracion_ql };
+            });
+    }
+
+    function reproducirParteOrquesta(nombre) {
+        const eventos = eventosDeParteOrquesta(nombre);
+        if (!eventos.length) return;
+        AudioEngine.playSequence(eventos, tempoBpm, nombre);
+    }
+
+    function reproducirTodoOrquesta() {
+        ZONAS.forEach(zona => reproducirParteOrquesta(zona.nombre));
+    }
+
+    function crearControlesOrquesta() {
+        const contenedor = document.getElementById('ej-orq-controles-orquesta');
+        contenedor.innerHTML = '';
+
+        const btnTodo = document.createElement('button');
+        btnTodo.type = 'button';
+        btnTodo.className = 'ej-orq-boton-parte';
+        btnTodo.textContent = '▶ Todo';
+        btnTodo.addEventListener('click', reproducirTodoOrquesta);
+        contenedor.appendChild(btnTodo);
+
+        ZONAS.forEach(zona => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'ej-orq-boton-parte';
+            btn.style.setProperty('--zona-color', zona.color);
+            btn.innerHTML = `<span class="ej-orq-pincel-punto"></span>▶ ${zona.nombre}`;
+            btn.addEventListener('click', () => reproducirParteOrquesta(zona.nombre));
+            contenedor.appendChild(btn);
+        });
+    }
+
+    function mostrarErrorOrquesta(msg) {
+        const el = document.getElementById('ej-orq-error-orquesta');
+        el.textContent = msg;
+        el.style.display = 'block';
+        console.error('[orquestacion]', msg);
+    }
+
+    function renderizarPanelOrquesta(musicxml) {
+        document.getElementById('ej-orq-error-orquesta').style.display = 'none';
+        const contenedorOrquesta = document.getElementById('ej-orq-osmd-orquesta');
+        if (!osmdOrquesta) {
+            osmdOrquesta = new opensheetmusicdisplay.OpenSheetMusicDisplay(contenedorOrquesta, {
+                drawTitle: false,
+                autoResize: false,
+            });
+        }
+        osmdOrquesta.load(musicxml).then(() => {
+            osmdOrquesta.render();
+            document.getElementById('ej-orq-panel-orquesta-vacio').style.display = 'none';
+            document.getElementById('ej-orq-panel-orquesta-contenido').style.display = 'block';
+        }).catch(err => {
+            mostrarErrorOrquesta('Error mostrando la partitura orquestal: ' + err.message);
+        });
+    }
+
+    function verOrquestacion() {
+        if (Object.keys(asignaciones).length === 0) {
+            mostrarErrorOrquesta('Todavía no pintaste ninguna nota.');
+            return;
+        }
+
+        const btn = document.getElementById('ej-orq-ver-orquesta');
+        btn.disabled = true;
+        btn.textContent = 'Generando...';
+
+        fetch(URL_GENERAR, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asignaciones }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.textContent = 'Ver orquestación';
+                if (data.status !== 'success') {
+                    mostrarErrorOrquesta(data.message || 'No se pudo generar la partitura orquestal.');
+                    return;
+                }
+                crearControlesOrquesta();
+                renderizarPanelOrquesta(data.musicxml);
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.textContent = 'Ver orquestación';
+                mostrarErrorOrquesta('Error de red generando la partitura: ' + err.message);
+            });
+    }
+
+    // --- Resize manual: autoResize de OSMD queda deliberadamente desactivado porque su
+    // re-render interno invalidaba el etiquetado sin que este código se enterara — acá
+    // el resize se maneja explícitamente con el mismo mecanismo de re-render +
+    // re-etiquetado ya validado. Cubre ambos paneles. ---
 
     let resizeTimeout = null;
     function onResize() {
         clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(rerenderYEtiquetar, 250);
+        resizeTimeout = setTimeout(() => {
+            rerenderYEtiquetar();
+            if (osmdOrquesta) osmdOrquesta.render();
+        }, 250);
     }
 
     // --- Arranque ---
@@ -591,8 +858,10 @@
     });
 
     crearPaleta();
-    document.getElementById('ej-orq-todo').addEventListener('click', reproducirTodo);
+    crearSelectorOctava();
+    document.getElementById('ej-orq-original').addEventListener('click', reproducirOriginal);
     document.getElementById('ej-orq-reiniciar').addEventListener('click', reiniciar);
+    document.getElementById('ej-orq-ver-orquesta').addEventListener('click', verOrquestacion);
 
     fetch('{% url "orquestacion_ejercicio_archivo" fragmento.id %}')
         .then(res => {
