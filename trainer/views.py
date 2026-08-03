@@ -1628,13 +1628,22 @@ def _notas_piano_para_ejercicio(score):
     como chips separados por segmento en vez de fusionarse (fusionar cadenas de
     ligaduras suma bastante lógica para un beneficio mayormente cosmético — el
     ejercicio es sobre elegir qué instrumento toca cada altura, no sobre articulación
-    fina). Las grace notes (duración 0) se descartan: no tienen una duración propia
-    real y romperían tanto la barra de registro como la reproducción.
+    fina).
+
+    Las grace notes (duration.isGrace, no solo quarterLength==0 — es el atributo
+    explícito de music21 para esto) no se asignan individualmente: ningún orquestador
+    separa un adorno de la nota que decora. En vez de descartarlas, se guardan en un
+    buffer por compás y se adjuntan como campo 'graces' a TODAS las alturas del
+    siguiente grupo de notas reales (si ese grupo es un acorde, así el ornamento viaja
+    sin importar cuál de sus alturas termine asignada). El buffer se reinicia por
+    compás — graces colgando al final de un compás sin nota real que las siga se
+    descartan (caso borde raro).
     """
     notas = []
     contador = 0
     for part in score.parts:
         for m in part.getElementsByClass(music21.stream.Measure):
+            graces_pendientes = []
             for el in m.recurse().notes:
                 if isinstance(el, music21.chord.Chord):
                     pitches = el.pitches
@@ -1643,11 +1652,18 @@ def _notas_piano_para_ejercicio(score):
                 else:
                     continue
 
+                if el.duration.isGrace:
+                    for p in pitches:
+                        graces_pendientes.append({'pitch': p.nameWithOctave, 'ps': p.ps})
+                    continue
+
                 duracion = el.duration.quarterLength
                 if duracion == 0:
                     continue
 
                 offset_global = el.getOffsetInHierarchy(part)
+                graces_para_este_grupo = graces_pendientes
+                graces_pendientes = []
                 for p in pitches:
                     contador += 1
                     notas.append({
@@ -1658,6 +1674,7 @@ def _notas_piano_para_ejercicio(score):
                         'pitch': p.nameWithOctave,  # nombre en inglés — lo espera AudioEngine.noteToMidiStr
                         'pitch_solfeo': _a_solfeo(p.nameWithOctave),  # solo para mostrar en el chip
                         'ps': p.ps,
+                        'graces': graces_para_este_grupo,
                     })
 
     notas.sort(key=lambda n: (n['offset'], -n['ps']))
@@ -1791,13 +1808,16 @@ def _offsets_inicio_compas(part):
 
 def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_por_compas, armadura):
     """
-    eventos_por_compas: {numero_compas: [{'offset_local', 'duracion', 'ps_sonando'}, ...]}.
+    eventos_por_compas: {numero_compas: [{'offset_local', 'duracion', 'ps_sonando', 'graces'}, ...]}.
     Los compases sin eventos quedan enteramente en silencio. Los silencios se calculan
     a mano (antes de la primera nota, entre notas, después de la última) — makeRests()
     de music21 no dio resultados confiables en las pruebas (compases con duración
     incorrecta o directamente vacíos sin silencio explícito). Varias notas del mismo
     instrumento en el mismo offset (ej. dobles cuerdas) se combinan en un acorde en vez
-    de insertarse superpuestas.
+    de insertarse superpuestas — los acordes no llevan graces en v1 (simplificación
+    deliberada: decorar un acorde completo es mucho menos común y complica bastante el
+    agrupamiento). Para una nota individual, sus graces (si tiene) se insertan como
+    Note(...).getGrace() en el mismo offset, justo antes de la nota principal.
     """
     parte = music21.stream.Part()
     instr = INSTRUMENTOS_EJERCICIO_ORQUESTACION[nombre]()
@@ -1834,6 +1854,9 @@ def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_
             if duracion <= 0:
                 continue
             if len(grupo) == 1:
+                for grace_ev in grupo[0].get('graces', []):
+                    grace_note = music21.note.Note(music21.pitch.Pitch(ps=grace_ev['ps_sonando'])).getGrace()
+                    compas.insert(offset_ajustado, grace_note)
                 elemento = music21.note.Note(music21.pitch.Pitch(ps=grupo[0]['ps_sonando']), quarterLength=duracion)
             else:
                 elemento = music21.chord.Chord(
@@ -1854,14 +1877,16 @@ def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_
 def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
     """
     Arma un Score de music21 de 5 partes (Violín I, Violín II, Viola, Violonchelo,
-    Contrabajo) a partir de las asignaciones del ejercicio de pintado. Cada nota
-    conserva compás/offset/duración originales; el modificador de octava del pincel se
-    aplica como ±12 semitonos sobre la altura ANTES de armar la nota. El contrabajo,
-    además, es instrumento transpositor real (Contrabass.transposition = P-8 en
-    music21) — se arma el score con las alturas que SUENAN y se marca
-    atSoundingPitch=True + toWrittenPitch() para que la parte de contrabajo salga
-    escrita una octava arriba de lo que suena, como corresponde; las demás partes no
-    tienen transposition y quedan intactas (verificado).
+    Contrabajo) a partir de las asignaciones del ejercicio de pintado. `asignaciones`
+    es {notaId: [{'instrumento','octava'}, ...]} — una nota puede aparecer en varias
+    partes a la vez (multi-asignación, ej. duplicar en octavas entre Violín I y II).
+    Cada nota conserva compás/offset/duración originales; el modificador de octava de
+    cada asignación se aplica como ±12 semitonos sobre la altura (y sobre sus graces,
+    si tiene) ANTES de armar la nota. El contrabajo, además, es instrumento
+    transpositor real (Contrabass.transposition = P-8 en music21) — se arma el score
+    con las alturas que SUENAN y se marca atSoundingPitch=True + toWrittenPitch() para
+    que la parte de contrabajo salga escrita una octava arriba de lo que suena, como
+    corresponde; las demás partes no tienen transposition y quedan intactas (verificado).
     """
     partes_originales = list(score_original.parts)
     compases_totales = max(len(list(p.getElementsByClass(music21.stream.Measure))) for p in partes_originales)
@@ -1869,17 +1894,23 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
     offsets_inicio = _offsets_inicio_compas(partes_originales[0])
 
     eventos_por_instrumento = {nombre: {} for nombre in ORDEN_PARTES_ORQUESTACION}
-    for nota_id, asignacion in asignaciones.items():
+    for nota_id, lista in asignaciones.items():
         evento = notas_por_id[nota_id]
-        instrumento = asignacion['instrumento']
-        octava = asignacion['octava']
         compas = evento['compas']
         offset_local = evento['offset'] - offsets_inicio.get(compas, 0.0)
-        eventos_por_instrumento[instrumento].setdefault(compas, []).append({
-            'offset_local': offset_local,
-            'duracion': evento['duracion_ql'],
-            'ps_sonando': evento['ps'] + 12 * octava,
-        })
+        for asignacion in lista:
+            instrumento = asignacion['instrumento']
+            octava = asignacion['octava']
+            graces_sonando = [
+                {'ps_sonando': g['ps'] + 12 * octava}
+                for g in evento.get('graces', [])
+            ]
+            eventos_por_instrumento[instrumento].setdefault(compas, []).append({
+                'offset_local': offset_local,
+                'duracion': evento['duracion_ql'],
+                'ps_sonando': evento['ps'] + 12 * octava,
+                'graces': graces_sonando,
+            })
 
     score = music21.stream.Score()
     for nombre in ORDEN_PARTES_ORQUESTACION:
@@ -1925,16 +1956,29 @@ def orquestacion_ejercicio_generar(request, fragmento_id):
 
     nombres_validos = {z['nombre'] for z in ZONAS_EJERCICIO_ORQUESTACION}
     asignaciones = {}
-    for nota_id, valor in asignaciones_crudas.items():
-        if not isinstance(valor, dict):
-            return JsonResponse({'status': 'error', 'message': f'Asignación inválida para "{nota_id}".'}, status=400)
-        instrumento = valor.get('instrumento')
-        octava = valor.get('octava')
-        if instrumento not in nombres_validos:
-            return JsonResponse({'status': 'error', 'message': f'Instrumento inválido: {instrumento!r}.'}, status=400)
-        if octava not in OCTAVAS_VALIDAS_EJERCICIO:
-            return JsonResponse({'status': 'error', 'message': f'Octava inválida: {octava!r}.'}, status=400)
-        asignaciones[nota_id] = {'instrumento': instrumento, 'octava': octava}
+    for nota_id, lista_cruda in asignaciones_crudas.items():
+        if not isinstance(lista_cruda, list) or not lista_cruda:
+            return JsonResponse({'status': 'error', 'message': f'Asignación inválida para "{nota_id}": se esperaba una lista no vacía.'}, status=400)
+
+        lista_validada = []
+        instrumentos_vistos = set()
+        for valor in lista_cruda:
+            if not isinstance(valor, dict):
+                return JsonResponse({'status': 'error', 'message': f'Asignación inválida para "{nota_id}".'}, status=400)
+            instrumento = valor.get('instrumento')
+            octava = valor.get('octava')
+            if instrumento not in nombres_validos:
+                return JsonResponse({'status': 'error', 'message': f'Instrumento inválido: {instrumento!r}.'}, status=400)
+            if octava not in OCTAVAS_VALIDAS_EJERCICIO:
+                return JsonResponse({'status': 'error', 'message': f'Octava inválida: {octava!r}.'}, status=400)
+            if instrumento in instrumentos_vistos:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'"{nota_id}" repite el instrumento {instrumento!r} más de una vez — dato ambiguo.',
+                }, status=400)
+            instrumentos_vistos.add(instrumento)
+            lista_validada.append({'instrumento': instrumento, 'octava': octava})
+        asignaciones[nota_id] = lista_validada
 
     try:
         score_original = music21.converter.parse(fragmento.archivo.path)
