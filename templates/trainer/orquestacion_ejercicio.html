@@ -400,6 +400,24 @@
     const UMBRAL_CERCANIA_PX = 20;
 
     function elementoEtiquetadoMasCercano(ev) {
+        // TEMPORAL: diagnóstico — junta TODOS los candidatos con su distancia, no solo
+        // el ganador, para poder ver qué está compitiendo de verdad. Sacar una vez
+        // resuelto el problema de las grace notes.
+        const todos = [];
+        mapaElementoANotas.forEach((candidatos, elCandidato) => {
+            const rect = elCandidato.getBoundingClientRect();
+            const cx = Math.max(rect.left, Math.min(ev.clientX, rect.right));
+            const cy = Math.max(rect.top, Math.min(ev.clientY, rect.bottom));
+            const distancia = Math.hypot(ev.clientX - cx, ev.clientY - cy);
+            todos.push({ distancia, ids: candidatos.map(c => `${c.id}(${c.pitch})`).join(','), rect });
+        });
+        todos.sort((a, b) => a.distancia - b.distancia);
+        console.log(`[orquestacion] Click en (${ev.clientX.toFixed(0)},${ev.clientY.toFixed(0)}) — 5 candidatos más cercanos:`,
+            todos.slice(0, 5).map(t => `${t.ids} @ dist=${t.distancia.toFixed(1)}px rect=[${t.rect.left.toFixed(0)},${t.rect.top.toFixed(0)},${t.rect.width.toFixed(0)}x${t.rect.height.toFixed(0)}]`));
+
+        const mejor = todos[0];
+        if (!mejor) return null;
+        // Necesito el elemento real, no solo el resumen — vuelvo a buscarlo por distancia mínima.
         let mejorEl = null;
         let mejorDistancia = Infinity;
         mapaElementoANotas.forEach((_candidatos, elCandidato) => {
