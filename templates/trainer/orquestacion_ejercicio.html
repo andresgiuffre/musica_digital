@@ -361,16 +361,48 @@
             if (!ts) break;
             const offsetBeats = ts.RealValue * 4;
             const voces = osmd.cursor.iterator.CurrentVoiceEntries;
+
+            // TEMPORAL: diagnóstico — el filtro por n.Length.RealValue===0 resultó no
+            // detectar las grace notes en el navegador real (no se descartaron). En vez
+            // de probar otro criterio a ciegas, esto vuelca TODAS las propiedades
+            // candidatas para identificar el discriminador real. Sacar una vez confirmado.
+            if (voces) {
+                voces.forEach(v => {
+                    console.log('[diagnóstico grace] voiceEntry:', {
+                        'v.IsGrace': v.IsGrace,
+                        'v.isGrace': v.isGrace,
+                        'v.graceVoiceEntriesBefore': v.graceVoiceEntriesBefore,
+                        'v.GraceVoiceEntriesBefore': v.GraceVoiceEntriesBefore,
+                        'v.ParentVoiceEntry': v.ParentVoiceEntry,
+                        'ParentVoiceEntry.IsGrace': v.ParentVoiceEntry ? v.ParentVoiceEntry.IsGrace : undefined,
+                    });
+                    console.dir(v);
+                });
+            }
+
             if (voces) {
                 voces.forEach(v => {
                     if (v && v.Notes) {
                         v.Notes.forEach(n => {
                             if (!n.Pitch || n.Pitch.halfTone === undefined) return;
+
+                            console.log('[diagnóstico grace] nota:', {
+                                pitch: n.Pitch.fundamentalNote + n.Pitch.octave,
+                                offsetBeats,
+                                'n.Length': n.Length,
+                                'n.Length.RealValue': n.Length ? n.Length.RealValue : undefined,
+                                'n.IsGraceNote': n.IsGraceNote,
+                                'n.isGraceNote': n.isGraceNote,
+                            });
+                            console.dir(n);
+
                             // Mismo criterio que el backend (duración 0 = grace note): si no se
                             // excluyen acá, una grace y su nota principal pueden compartir
                             // exactamente el mismo (offset, ps) y una entrada del Map pisa a la
                             // otra durante la correlación — causa raíz real encontrada en
-                            // producción (mordente E5-F5 antes de una principal E5).
+                            // producción (mordente E5-F5 antes de una principal E5). CONFIRMADO
+                            // ROTO: este criterio no detecta las graces en el navegador real,
+                            // dejado tal cual hasta identificar el discriminador correcto.
                             const duracion = n.Length ? n.Length.RealValue : 0;
                             if (duracion <= 0) {
                                 descartadasPorGrace++;
@@ -385,10 +417,6 @@
         }
         osmd.cursor.reset();
         try { osmd.cursor.hide(); } catch (e) { /* cosmético, no bloquea nada */ }
-        // TEMPORAL: diagnóstico para confirmar en el navegador real que n.Length.RealValue
-        // identifica grace notes igual que el backend (duration.isGrace) — si este número
-        // no coincide con la cantidad real de grace notes del fragmento, el criterio no
-        // sirve y hay que buscar otra propiedad del modelo de OSMD. Sacar una vez confirmado.
         console.warn(`[orquestacion] Notas descartadas del lado OSMD por duración 0 (candidatas a grace note): ${descartadasPorGrace}`);
         return resultado;
     }
