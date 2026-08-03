@@ -527,6 +527,13 @@
         })
         .then(buffer => ES_MXL ? osmd.load(buffer) : osmd.load(new TextDecoder('utf-8').decode(buffer)))
         .then(() => {
+            // Zoom aumentado a propósito: con grupos de notas muy juntas (ej. varias
+            // notas cortas apretadas en pocos píxeles) ninguna tolerancia de click por
+            // cercanía puede adivinar bien cuál tocaste — la causa de fondo es que hay
+            // muy poca separación real en pantalla entre blancos vecinos. No pude probar
+            // el valor exacto (no tengo forma de ver el resultado), así que puede
+            // necesitar ajuste.
+            osmd.zoom = 1.6;
             osmd.render();
             return fetch('{% url "orquestacion_ejercicio_datos" fragmento.id %}');
         })
