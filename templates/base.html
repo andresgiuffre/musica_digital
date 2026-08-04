@@ -55,7 +55,7 @@
         };
     </script>
     <script src="{% static 'js/teoria.js' %}?v=2"></script>
-    <script src="{% static 'js/audio_engine.js' %}?v=3"></script>
+    <script src="{% static 'js/audio_engine.js' %}?v=4"></script>
     <style>
         :root {
             --primary: #2fb8ff;
@@ -197,6 +197,9 @@
             transition: color 0.2s;
         }
         .theory-modal-close:hover { color: var(--text); }
+        .audio-volume-control { display: flex; align-items: center; gap: 0.4rem; }
+        .audio-volume-mute-btn { background: none; border: none; cursor: pointer; font-size: 1.15rem; line-height: 1; padding: 0.2rem; }
+        .audio-volume-range { width: 80px; accent-color: var(--primary); cursor: pointer; }
         .learning-toggle {
             display: flex;
             align-items: center;
@@ -297,6 +300,10 @@
                 </a>
                 
                 <div class="nav-user">
+                    <div class="audio-volume-control" title="Volumen del audio">
+                        <button type="button" id="audio-mute-toggle" class="audio-volume-mute-btn" aria-label="Silenciar sonido">🔊</button>
+                        <input type="range" id="audio-volume-slider" min="0" max="100" value="88" class="audio-volume-range" aria-label="Volumen">
+                    </div>
                     <div class="learning-toggle">
                         <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);" id="mode-label">Evaluación</span>
                         <div class="toggle-switch" id="global-mode-toggle"></div>
