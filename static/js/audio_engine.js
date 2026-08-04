@@ -143,7 +143,16 @@ const AudioEngine = {
         [['violin', 'violín'], 'violin'],
     ],
 
-    CDN_MUESTRAS_CUERDA_BASE_URL: 'https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@622c2f1c32c8cfce4158ddc3eb26e518ddef37e5/samples/',
+    // OJO: NO jsDelivr acá, a propósito -- Tone.js (ToneAudioBuffer.load) arma la URL de
+    // cada muestra con `pathname.split('/').map(encodeURIComponent).join('/')`, que
+    // codifica el '@' del pin de versión de jsDelivr (.../tonejs-instruments@<hash>/...)
+    // a '%40' y rompe el ruteo de jsDelivr (400 confirmado en la práctica). El <script>
+    // del loader en base.html sí puede usar jsDelivr porque un <script src> normal no
+    // pasa por ese código de Tone.js. raw.githubusercontent.com no tiene ningún '@' en
+    // el path (el hash es un segmento más), así que no le afecta el bug, y apunta al
+    // mismo commit pineado -- mismo contenido inmutable, verificado con curl (200,
+    // audio/mpeg, CORS *) en las notas que antes fallaban.
+    CDN_MUESTRAS_CUERDA_BASE_URL: 'https://raw.githubusercontent.com/nbrosowsky/tonejs-instruments/622c2f1c32c8cfce4158ddc3eb26e518ddef37e5/samples/',
     TIMEOUT_CARGA_MUESTRAS_MS: 15000,
 
     samplesInstrumento: {},  // clave (violin/cello/contrabass) -> Tone.Sampler ya cargado

@@ -9,7 +9,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <!-- tonejs-instruments (nbrosowsky), pineado a un commit concreto (no @master) para
          que un cambio futuro ajeno en el repo no rompa el audio en silencio. Define el
-         global SampleLibrary, usado por AudioEngine para las muestras reales de cuerda. -->
+         global SampleLibrary, usado por AudioEngine para las muestras reales de cuerda.
+         Este <script> sí puede usar jsDelivr (@hash) porque la carga la hace el propio
+         navegador -- las descargas de los .mp3 de muestra, en cambio, las hace Tone.js
+         internamente con una URL-sanitización propia incompatible con la sintaxis @hash
+         de jsDelivr, así que esas usan raw.githubusercontent.com en su lugar (mismo
+         commit pineado, ver CDN_MUESTRAS_CUERDA_BASE_URL en audio_engine.js). -->
     <script src="https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@622c2f1c32c8cfce4158ddc3eb26e518ddef37e5/Tonejs-Instruments.js"></script>
     <!-- Tonal.js para análisis armónico MIDI -->
     <script src="https://cdn.jsdelivr.net/npm/tonal/browser/tonal.min.js"></script>
@@ -50,7 +55,7 @@
         };
     </script>
     <script src="{% static 'js/teoria.js' %}?v=2"></script>
-    <script src="{% static 'js/audio_engine.js' %}?v=2"></script>
+    <script src="{% static 'js/audio_engine.js' %}?v=3"></script>
     <style>
         :root {
             --primary: #2fb8ff;
