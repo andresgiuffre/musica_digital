@@ -191,6 +191,7 @@
         cursor: pointer;
     }
     .ej-orq-boton-parte:hover { border-color: var(--zona-color); }
+    .ej-orq-boton-parte:disabled { opacity: 0.6; cursor: not-allowed; }
     .ej-orq-boton-parte .ej-orq-pincel-punto { width: 10px; height: 10px; }
 </style>
 {% endblock %}
@@ -709,14 +710,38 @@
         return eventos;
     }
 
-    function reproducirParteOrquesta(nombre) {
-        const eventos = eventosDeParteOrquesta(nombre);
-        if (!eventos.length) return;
-        AudioEngine.playSequence(eventos, tempoBpm, nombre);
+    // Deshabilita el botón y le muestra un texto de carga; devuelve una función que lo
+    // restaura, para usar con .finally() sobre la promesa de precarga. La descarga real
+    // de muestras es lazy (recién al primer play de cada instrumento) — este es el
+    // indicador visual mientras esa descarga está en curso.
+    function ponerBotonEnCarga(boton, textoCargando) {
+        if (!boton) return () => {};
+        boton.disabled = true;
+        const textoEl = boton.querySelector('.ej-orq-boton-parte-texto');
+        const previo = textoEl ? textoEl.textContent : boton.textContent;
+        if (textoEl) textoEl.textContent = textoCargando; else boton.textContent = textoCargando;
+        return () => {
+            boton.disabled = false;
+            if (textoEl) textoEl.textContent = previo; else boton.textContent = previo;
+        };
     }
 
-    function reproducirTodoOrquesta() {
-        ZONAS.forEach(zona => reproducirParteOrquesta(zona.nombre));
+    function reproducirParteOrquesta(nombre, boton) {
+        const eventos = eventosDeParteOrquesta(nombre);
+        if (!eventos.length) return;
+        const restaurar = ponerBotonEnCarga(boton, '⏳ Cargando sonido…');
+        AudioEngine.precargarMuestraInstrumento(nombre).finally(restaurar).then(() => {
+            AudioEngine.playSequence(eventos, tempoBpm, nombre);
+        });
+    }
+
+    function reproducirTodoOrquesta(boton) {
+        const restaurar = ponerBotonEnCarga(boton, '⏳ Cargando sonido…');
+        Promise.all(ZONAS.map(zona => AudioEngine.precargarMuestraInstrumento(zona.nombre)))
+            .finally(restaurar)
+            .then(() => {
+                ZONAS.forEach(zona => reproducirParteOrquesta(zona.nombre));
+            });
     }
 
     function crearControlesOrquesta() {
@@ -727,7 +752,7 @@
         btnTodo.type = 'button';
         btnTodo.className = 'ej-orq-boton-parte';
         btnTodo.textContent = '▶ Todo';
-        btnTodo.addEventListener('click', reproducirTodoOrquesta);
+        btnTodo.addEventListener('click', () => reproducirTodoOrquesta(btnTodo));
         contenedor.appendChild(btnTodo);
 
         ZONAS.forEach(zona => {
@@ -735,8 +760,8 @@
             btn.type = 'button';
             btn.className = 'ej-orq-boton-parte';
             btn.style.setProperty('--zona-color', zona.color);
-            btn.innerHTML = `<span class="ej-orq-pincel-punto"></span>▶ ${zona.nombre}`;
-            btn.addEventListener('click', () => reproducirParteOrquesta(zona.nombre));
+            btn.innerHTML = `<span class="ej-orq-pincel-punto"></span><span class="ej-orq-boton-parte-texto">▶ ${zona.nombre}</span>`;
+            btn.addEventListener('click', () => reproducirParteOrquesta(zona.nombre, btn));
             contenedor.appendChild(btn);
         });
     }
