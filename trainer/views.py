@@ -1772,6 +1772,29 @@ INSTRUMENTOS_EJERCICIO_ORQUESTACION = {
 
 OCTAVAS_VALIDAS_EJERCICIO = (-1, 0, 1)
 
+INTERVALO_POR_OCTAVA_EJERCICIO = {
+    -1: music21.interval.Interval('P-8'),
+    0: None,
+    1: music21.interval.Interval('P8'),
+}
+
+
+def _transportar_pitch_preservando_grafia(nombre_pitch, octava):
+    """
+    Construye el Pitch SIEMPRE a partir del nombre original (nameWithOctave de
+    music21, ej. "D#4"), nunca desde .ps — construir con Pitch(ps=...) le deja a
+    music21 elegir la grafía por convención propia (ps=75 sale "E-5", no "D#5"),
+    ensuciando la ortografía del original y generando becuadros espurios en notas
+    vecinas (verificado). Transponer por un intervalo de OCTAVA JUSTA (P8/P-8, no
+    aritmética de semitonos) preserva el nombre de nota y la alteración por
+    definición — P8 de D#4 es D#5, nunca Eb5.
+    """
+    p = music21.pitch.Pitch(nombre_pitch)
+    intervalo = INTERVALO_POR_OCTAVA_EJERCICIO.get(octava)
+    if intervalo is not None:
+        p = p.transpose(intervalo)
+    return p
+
 
 def _tiempo_y_armadura_por_compas(partes_originales, compases_totales):
     """
@@ -1808,7 +1831,7 @@ def _offsets_inicio_compas(part):
 
 def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_por_compas, armadura):
     """
-    eventos_por_compas: {numero_compas: [{'offset_local', 'duracion', 'ps_sonando', 'graces'}, ...]}.
+    eventos_por_compas: {numero_compas: [{'offset_local', 'duracion', 'pitch' (music21.pitch.Pitch, ya con la octava aplicada y grafía heredada), 'graces'}, ...]}.
     Los compases sin eventos quedan enteramente en silencio. Los silencios se calculan
     a mano (antes de la primera nota, entre notas, después de la última) — makeRests()
     de music21 no dio resultados confiables en las pruebas (compases con duración
@@ -1854,13 +1877,13 @@ def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_
             if duracion <= 0:
                 continue
             if len(grupo) == 1:
-                for grace_ev in grupo[0].get('graces', []):
-                    grace_note = music21.note.Note(music21.pitch.Pitch(ps=grace_ev['ps_sonando'])).getGrace()
+                for grace_pitch in grupo[0].get('graces', []):
+                    grace_note = music21.note.Note(grace_pitch).getGrace()
                     compas.insert(offset_ajustado, grace_note)
-                elemento = music21.note.Note(music21.pitch.Pitch(ps=grupo[0]['ps_sonando']), quarterLength=duracion)
+                elemento = music21.note.Note(grupo[0]['pitch'], quarterLength=duracion)
             else:
                 elemento = music21.chord.Chord(
-                    [music21.pitch.Pitch(ps=e['ps_sonando']) for e in grupo], quarterLength=duracion
+                    [e['pitch'] for e in grupo], quarterLength=duracion
                 )
             compas.insert(offset_ajustado, elemento)
             cursor = offset_ajustado + duracion
@@ -1881,12 +1904,15 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
     es {notaId: [{'instrumento','octava'}, ...]} — una nota puede aparecer en varias
     partes a la vez (multi-asignación, ej. duplicar en octavas entre Violín I y II).
     Cada nota conserva compás/offset/duración originales; el modificador de octava de
-    cada asignación se aplica como ±12 semitonos sobre la altura (y sobre sus graces,
-    si tiene) ANTES de armar la nota. El contrabajo, además, es instrumento
+    cada asignación se aplica ANTES de armar la nota, transponiendo por octava justa
+    (P8/P-8) el Pitch original — nunca reconstruyendo desde .ps, que le deja a music21
+    elegir la grafía por convención propia y puede cambiar D#4 por Eb4 (verificado,
+    ver _transportar_pitch_preservando_grafia). El contrabajo, además, es instrumento
     transpositor real (Contrabass.transposition = P-8 en music21) — se arma el score
     con las alturas que SUENAN y se marca atSoundingPitch=True + toWrittenPitch() para
     que la parte de contrabajo salga escrita una octava arriba de lo que suena, como
-    corresponde; las demás partes no tienen transposition y quedan intactas (verificado).
+    corresponde, preservando igual la grafía original (verificado); las demás partes
+    no tienen transposition y quedan intactas.
     """
     partes_originales = list(score_original.parts)
     compases_totales = max(len(list(p.getElementsByClass(music21.stream.Measure))) for p in partes_originales)
@@ -1901,15 +1927,15 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
         for asignacion in lista:
             instrumento = asignacion['instrumento']
             octava = asignacion['octava']
-            graces_sonando = [
-                {'ps_sonando': g['ps'] + 12 * octava}
+            graces_transportadas = [
+                _transportar_pitch_preservando_grafia(g['pitch'], octava)
                 for g in evento.get('graces', [])
             ]
             eventos_por_instrumento[instrumento].setdefault(compas, []).append({
                 'offset_local': offset_local,
                 'duracion': evento['duracion_ql'],
-                'ps_sonando': evento['ps'] + 12 * octava,
-                'graces': graces_sonando,
+                'pitch': _transportar_pitch_preservando_grafia(evento['pitch'], octava),
+                'graces': graces_transportadas,
             })
 
     score = music21.stream.Score()
