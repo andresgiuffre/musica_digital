@@ -4,6 +4,36 @@ const AudioEngine = {
     volume: -5,
     isReady: false,
     synthsInstrumento: {},
+    masterBus: null,
+
+    // Atenuación fija (dB) solo para los synths sintéticos (no el sampler de piano,
+    // que ya suena bien): un PolySynth sawtooth en polifonía de acordes x 5 partes
+    // suma mucha más energía que el piano muestreado, así que arranca con menos
+    // margen antes de llegar al compressor/limiter del master.
+    ATENUACION_SYNTH_DB: -8,
+
+    // Compressor + Limiter compartidos, entre CUALQUIER voz (sampler o synth) y
+    // Destination -- así ninguna combinación de voces simultáneas puede clipear,
+    // sin importar cuántas partes/acordes suenen a la vez. Se arma una sola vez y
+    // se cachea (igual que synthsInstrumento).
+    _construirMasterBus() {
+        if (!this.masterBus) {
+            const compressor = new Tone.Compressor({ threshold: -18, ratio: 4, attack: 0.003, release: 0.25 });
+            const limiter = new Tone.Limiter(-1);
+            compressor.connect(limiter);
+            limiter.toDestination();
+            this.masterBus = compressor;
+        }
+        return this.masterBus;
+    },
+
+    _volumenSampler() {
+        return this.isMuted ? -Infinity : this.volume;
+    },
+
+    _volumenSynth() {
+        return this.isMuted ? -Infinity : this.volume + this.ATENUACION_SYNTH_DB;
+    },
 
     // Grupos de instrumentos por familia orquestal, para elegir un timbre genérico en
     // playSequence(). Orden deliberado: entradas más específicas antes que las genéricas
@@ -31,10 +61,10 @@ const AudioEngine = {
             muteToggle.addEventListener('change', (e) => {
                 this.isMuted = !e.target.checked;
                 if (this.sampler) {
-                    this.sampler.volume.value = this.isMuted ? -Infinity : this.volume;
+                    this.sampler.volume.value = this._volumenSampler();
                 }
                 Object.values(this.synthsInstrumento).forEach(s => {
-                    s.volume.value = this.isMuted ? -Infinity : this.volume;
+                    s.volume.value = this._volumenSynth();
                 });
             });
             muteToggle.setAttribute('data-bound', 'true');
@@ -44,10 +74,10 @@ const AudioEngine = {
                 const val = e.target.value;
                 this.volume = val == 0 ? -Infinity : (val / 100) * 40 - 40;
                 if (this.sampler && !this.isMuted) {
-                    this.sampler.volume.value = this.volume;
+                    this.sampler.volume.value = this._volumenSampler();
                 }
                 if (!this.isMuted) {
-                    Object.values(this.synthsInstrumento).forEach(s => { s.volume.value = this.volume; });
+                    Object.values(this.synthsInstrumento).forEach(s => { s.volume.value = this._volumenSynth(); });
                 }
             });
             volSlider.setAttribute('data-bound', 'true');
@@ -91,8 +121,8 @@ const AudioEngine = {
         const config = this.CONFIGS_FAMILIA[familia];
         if (!config) return null;
 
-        const synth = new Tone.PolySynth(Tone.Synth, config).toDestination();
-        synth.volume.value = this.isMuted ? -Infinity : this.volume;
+        const synth = new Tone.PolySynth(Tone.Synth, config).connect(this._construirMasterBus());
+        synth.volume.value = this._volumenSynth();
         this.synthsInstrumento[nombre] = synth;
         return synth;
     },
@@ -118,8 +148,8 @@ const AudioEngine = {
                 baseUrl: "/static/audio/piano/",
                 onload: () => {
                     this.isReady = true;
-                    this.sampler.volume.value = this.isMuted ? -Infinity : this.volume;
-                    this.sampler.toDestination();
+                    this.sampler.volume.value = this._volumenSampler();
+                    this.sampler.connect(this._construirMasterBus());
                     console.log("Tone.js Piano sampler loaded successfully!");
                     resolve();
                 },
