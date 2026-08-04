@@ -1890,6 +1890,12 @@ def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_
                     # corchea en el XML (verificado, causa probable de que el mordente
                     # se dibujara incompleto/distinto en OSMD).
                     grace_note = music21.note.Note(grace_info['pitch'], type=grace_info['tipo']).getGrace()
+                    # Plica siempre hacia arriba en las grace notes — sin esto, el
+                    # cálculo automático de plica por altura (convención normal para
+                    # notas regulares) puede darles plica abajo si están agudas,
+                    # dejando el mordente "dado vuelta". Solo afecta a las graces, no a
+                    # la nota principal ni al resto de la parte.
+                    grace_note.stemDirection = 'up'
                     notas_grace.append(grace_note)
                 # Beam explícito entre las graces consecutivas, como en el original (dos
                 # corcheas beameadas) — experimento acotado para ver si ayuda al
