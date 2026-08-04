@@ -53,32 +53,45 @@ const AudioEngine = {
         this.bindSettingsUI();
     },
 
+    // Cada página de esta app es un load nuevo (no es SPA) -- sin persistir en
+    // localStorage, el volumen se resetearía al default en cada navegación y el control
+    // sería inútil en la práctica. Mismo patrón que localStorage['app_mode'] en base.html.
+    _aplicarVolumenATodasLasVoces() {
+        if (this.sampler) this.sampler.volume.value = this._volumenSampler();
+        Object.values(this.samplesInstrumento).forEach(s => { s.volume.value = this._volumenSampler(); });
+        Object.values(this.synthsInstrumento).forEach(s => { s.volume.value = this._volumenSynth(); });
+    },
+
     bindSettingsUI() {
-        const muteToggle = document.getElementById('audio-mute-toggle');
+        const muteBtn = document.getElementById('audio-mute-toggle');
         const volSlider = document.getElementById('audio-volume-slider');
 
-        if (muteToggle && !muteToggle.hasAttribute('data-bound')) {
-            muteToggle.addEventListener('change', (e) => {
-                this.isMuted = !e.target.checked;
-                if (this.sampler) {
-                    this.sampler.volume.value = this._volumenSampler();
-                }
-                Object.values(this.synthsInstrumento).forEach(s => {
-                    s.volume.value = this._volumenSynth();
-                });
+        const volumenGuardado = localStorage.getItem('audio_volume');
+        if (volumenGuardado !== null) this.volume = parseFloat(volumenGuardado);
+        this.isMuted = localStorage.getItem('audio_muted') === '1';
+
+        if (volSlider) {
+            volSlider.value = this.volume === -Infinity ? 0 : Math.round(((this.volume + 40) / 40) * 100);
+        }
+        if (muteBtn) {
+            muteBtn.textContent = this.isMuted ? '🔇' : '🔊';
+        }
+
+        if (muteBtn && !muteBtn.hasAttribute('data-bound')) {
+            muteBtn.addEventListener('click', () => {
+                this.isMuted = !this.isMuted;
+                localStorage.setItem('audio_muted', this.isMuted ? '1' : '0');
+                muteBtn.textContent = this.isMuted ? '🔇' : '🔊';
+                this._aplicarVolumenATodasLasVoces();
             });
-            muteToggle.setAttribute('data-bound', 'true');
+            muteBtn.setAttribute('data-bound', 'true');
         }
         if (volSlider && !volSlider.hasAttribute('data-bound')) {
             volSlider.addEventListener('input', (e) => {
                 const val = e.target.value;
                 this.volume = val == 0 ? -Infinity : (val / 100) * 40 - 40;
-                if (this.sampler && !this.isMuted) {
-                    this.sampler.volume.value = this._volumenSampler();
-                }
-                if (!this.isMuted) {
-                    Object.values(this.synthsInstrumento).forEach(s => { s.volume.value = this._volumenSynth(); });
-                }
+                localStorage.setItem('audio_volume', String(this.volume));
+                if (!this.isMuted) this._aplicarVolumenATodasLasVoces();
             });
             volSlider.setAttribute('data-bound', 'true');
         }
