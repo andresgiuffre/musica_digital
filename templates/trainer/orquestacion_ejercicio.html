@@ -561,8 +561,22 @@
 
     function rerenderYEtiquetar() {
         aplicarColoresLogicos();
+        // osmd.render() reemplaza el SVG entero del contenedor -- durante ese reemplazo
+        // sincrónico el contenedor puede quedar momentáneamente sin altura (vacío hasta
+        // que el nuevo SVG se inserta), lo que achica la altura total de la página por
+        // debajo del scroll actual; el navegador clampea el scroll al nuevo máximo (más
+        // chico) y no lo restaura cuando el contenido vuelve a crecer -- de ahí el salto.
+        // Confirmado por diagnóstico: ni scrollTo ni scrollIntoView se dispararon, solo
+        // el evento pasivo 'scroll', la firma de un clamp de altura, no de un scroll
+        // explícito. Reservamos la altura actual ANTES de renderizar para que la página
+        // nunca se achique durante el reemplazo, y la soltamos en el siguiente frame.
+        const alturaPrevia = contenedorOsmd.offsetHeight;
+        if (alturaPrevia > 0) contenedorOsmd.style.minHeight = alturaPrevia + 'px';
         osmd.render();
         etiquetarNotas();
+        if (alturaPrevia > 0) {
+            requestAnimationFrame(() => { contenedorOsmd.style.minHeight = ''; });
+        }
     }
 
     // --- Resolución de click, incluida la desambiguación geométrica de acordes ---
