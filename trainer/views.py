@@ -1914,6 +1914,13 @@ def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_
 
         parte.append(compas)
 
+    # El exportador de music21 beamea automáticamente las corcheas sueltas cuando NO
+    # hay ningún beam explícito en la parte — pero en cuanto agregamos el beam manual
+    # de las graces, ese beaming automático dejó de correr para el resto del compás
+    # (verificado: las corcheas principales quedaban sueltas). makeBeams() recalcula el
+    # agrupamiento de corcheas según el compás, como un copista, y no pisa el beam
+    # manual que ya tienen las graces (verificado con reparseo: ambos sobreviven juntos).
+    parte.makeBeams(inPlace=True)
     parte.makeTies(inPlace=True)
     return parte
 
