@@ -852,6 +852,38 @@
         }, 250);
     }
 
+    // --- DIAGNÓSTICO TEMPORAL: el overflow-anchor:none no resolvió el salto de scroll al
+    // pintar una nota. Antes de probar otra cosa a ciegas, esto engancha cualquier llamada
+    // real de scroll (del navegador, de OSMD, o de nuestro propio código) y deja un
+    // console.trace() con el stack exacto de quién la disparó. Pintar UNA nota y pegar acá
+    // lo que aparezca en consola alcanza para diagnosticar. Se retira una vez encontrado
+    // el origen real. ---
+    (function () {
+        const _scrollTo = window.scrollTo.bind(window);
+        window.scrollTo = function (...args) {
+            console.warn('[DIAG-SCROLL] window.scrollTo', args, 'scrollY antes:', window.scrollY);
+            console.trace('[DIAG-SCROLL] stack de scrollTo');
+            return _scrollTo(...args);
+        };
+        const _scroll = window.scroll.bind(window);
+        window.scroll = function (...args) {
+            console.warn('[DIAG-SCROLL] window.scroll', args, 'scrollY antes:', window.scrollY);
+            console.trace('[DIAG-SCROLL] stack de scroll');
+            return _scroll(...args);
+        };
+        const _scrollIntoView = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = function (...args) {
+            console.warn('[DIAG-SCROLL] scrollIntoView en', this, 'scrollY antes:', window.scrollY);
+            console.trace('[DIAG-SCROLL] stack de scrollIntoView');
+            return _scrollIntoView.apply(this, args);
+        };
+        let ultimoScrollY = window.scrollY;
+        window.addEventListener('scroll', () => {
+            console.warn('[DIAG-SCROLL] evento scroll: scrollY', ultimoScrollY, '->', window.scrollY, '| activeElement:', document.activeElement);
+            ultimoScrollY = window.scrollY;
+        }, { passive: true });
+    })();
+
     // --- Arranque ---
 
     const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(contenedorOsmd, {
