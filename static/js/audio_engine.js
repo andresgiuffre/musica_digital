@@ -126,7 +126,100 @@ const AudioEngine = {
         this.synthsInstrumento[nombre] = synth;
         return synth;
     },
-    
+
+    // --- Muestras reales de cuerda (tonejs-instruments, ver <script> en base.html,
+    // pineado a un commit concreto vía jsDelivr). Solo cubre violin/cello/contrabass —
+    // viento/metal siguen con el synth de familia de arriba. Si el nombre no matchea
+    // ninguna clave, o el CDN falló, playSequence() cae solo al synth — nunca silencio. ---
+
+    MUESTRA_INSTRUMENTO: [
+        [['contrabass', 'contrabajo', 'double bass'], 'contrabass'],
+        [['violoncello', 'violonchelo', 'cello'], 'cello'],
+        // Sin muestras propias de viola en la librería: se aproxima con cello — cubre el
+        // extremo grave del rango cómodo de Viola (C3, ver RANGOS_COMODOS en views.py) sin
+        // estirar samples (el violín más grave muestreado es A3) y es tímbricamente más
+        // cercano (oscuro/cálido) que violín.
+        [['viola'], 'cello'],
+        [['violin', 'violín'], 'violin'],
+    ],
+
+    CDN_MUESTRAS_CUERDA_BASE_URL: 'https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@622c2f1c32c8cfce4158ddc3eb26e518ddef37e5/samples/',
+    TIMEOUT_CARGA_MUESTRAS_MS: 15000,
+
+    samplesInstrumento: {},  // clave (violin/cello/contrabass) -> Tone.Sampler ya cargado
+    samplesCargando: {},     // clave -> Promise en curso, para no disparar 2 cargas a la vez
+
+    // Instrumento (nombre exacto de music21) -> clave de tonejs-instruments, o null si no
+    // hay muestra real para ese instrumento (usará synth).
+    muestraInstrumento(nombre) {
+        if (!nombre) return null;
+        const n = nombre.toLowerCase();
+        for (const [keywords, clave] of this.MUESTRA_INSTRUMENTO) {
+            if (keywords.some(kw => n.includes(kw))) return clave;
+        }
+        return null;
+    },
+
+    // Resuelve a un Tone.Sampler cargado, o null si no hay CDN disponible o se cumplió el
+    // timeout de carga. Nunca rechaza -- el llamador siempre puede seguir con el synth.
+    obtenerSamplerInstrumento(clave) {
+        if (this.samplesInstrumento[clave]) return Promise.resolve(this.samplesInstrumento[clave]);
+        if (this.samplesCargando[clave]) return this.samplesCargando[clave];
+
+        if (typeof SampleLibrary === 'undefined') {
+            console.warn(`AudioEngine: tonejs-instruments no está disponible (¿falló el CDN?) — "${clave}" va a sonar con synth.`);
+            return Promise.resolve(null);
+        }
+
+        const promesa = new Promise((resolve) => {
+            let resuelto = false;
+            const timeoutId = setTimeout(() => {
+                if (resuelto) return;
+                resuelto = true;
+                console.warn(`AudioEngine: timeout cargando muestras de "${clave}" desde el CDN — va a sonar con synth.`);
+                resolve(null);
+            }, this.TIMEOUT_CARGA_MUESTRAS_MS);
+
+            let sampler;
+            try {
+                sampler = SampleLibrary.load({
+                    instruments: clave,
+                    ext: '.mp3',
+                    baseUrl: this.CDN_MUESTRAS_CUERDA_BASE_URL,
+                    onload: () => {
+                        if (resuelto) return;
+                        resuelto = true;
+                        clearTimeout(timeoutId);
+                        this.samplesInstrumento[clave] = sampler;
+                        resolve(sampler);
+                    },
+                });
+            } catch (err) {
+                resuelto = true;
+                clearTimeout(timeoutId);
+                console.warn(`AudioEngine: error creando el sampler de "${clave}" — va a sonar con synth.`, err);
+                resolve(null);
+                return;
+            }
+            sampler.connect(this._construirMasterBus());
+            sampler.volume.value = this._volumenSampler();
+        }).finally(() => {
+            delete this.samplesCargando[clave];
+        });
+
+        this.samplesCargando[clave] = promesa;
+        return promesa;
+    },
+
+    // API pública para que la UI precargue y muestre un estado de carga antes de
+    // reproducir (lazy: la descarga real recién se dispara la primera vez que se llama
+    // para cada instrumento). Resuelve siempre, nunca rechaza.
+    precargarMuestraInstrumento(nombre) {
+        const clave = this.muestraInstrumento(nombre);
+        if (!clave) return Promise.resolve(null);
+        return this.obtenerSamplerInstrumento(clave);
+    },
+
     preload() {
         this.init();
         if (this.sampler) return Promise.resolve();
@@ -242,8 +335,17 @@ const AudioEngine = {
             return;
         }
 
-        const familia = this.familiaInstrumento(instrumento);
-        const voz = familia ? (this.obtenerSynthInstrumento(instrumento, familia) || this.sampler) : this.sampler;
+        // Preferí la muestra real ya cargada (Capa 2); si no está lista todavía (nadie
+        // llamó precargarMuestraInstrumento, o el CDN falló/está tardando), caé al synth
+        // de familia (Capa 1) -- nunca queda en silencio ni bloquea esta llamada.
+        const claveMuestra = this.muestraInstrumento(instrumento);
+        let voz;
+        if (claveMuestra && this.samplesInstrumento[claveMuestra]) {
+            voz = this.samplesInstrumento[claveMuestra];
+        } else {
+            const familia = this.familiaInstrumento(instrumento);
+            voz = familia ? (this.obtenerSynthInstrumento(instrumento, familia) || this.sampler) : this.sampler;
+        }
 
         const secondsPerBeat = 60 / bpm;
         const now = Tone.now();
