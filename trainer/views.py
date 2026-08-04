@@ -1653,8 +1653,12 @@ def _notas_piano_para_ejercicio(score):
                     continue
 
                 if el.duration.isGrace:
+                    # duration.type preserva la figura notada (ej. 'eighth') incluso
+                    # siendo grace (quarterLength siempre 0) — hace falta para que la
+                    # grace generada no caiga al default de music21 ('quarter') al
+                    # reconstruirla, que renderizaba distinto al original.
                     for p in pitches:
-                        graces_pendientes.append({'pitch': p.nameWithOctave, 'ps': p.ps})
+                        graces_pendientes.append({'pitch': p.nameWithOctave, 'ps': p.ps, 'tipo': el.duration.type})
                     continue
 
                 duracion = el.duration.quarterLength
@@ -1877,8 +1881,25 @@ def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_
             if duracion <= 0:
                 continue
             if len(grupo) == 1:
-                for grace_pitch in grupo[0].get('graces', []):
-                    grace_note = music21.note.Note(grace_pitch).getGrace()
+                graces_del_grupo = grupo[0].get('graces', [])
+                notas_grace = []
+                for grace_info in graces_del_grupo:
+                    # type explícito preserva la figura notada del adorno original (ej.
+                    # 'eighth') — sin esto, la nota base cae al default de music21
+                    # ('quarter') antes de volverse grace, y sale como negra en vez de
+                    # corchea en el XML (verificado, causa probable de que el mordente
+                    # se dibujara incompleto/distinto en OSMD).
+                    grace_note = music21.note.Note(grace_info['pitch'], type=grace_info['tipo']).getGrace()
+                    notas_grace.append(grace_note)
+                # Beam explícito entre las graces consecutivas, como en el original (dos
+                # corcheas beameadas) — experimento acotado para ver si ayuda al
+                # renderizado; no cambia el dato musical si no ayuda.
+                if len(notas_grace) >= 2:
+                    notas_grace[0].beams.append('start')
+                    for intermedia in notas_grace[1:-1]:
+                        intermedia.beams.append('continue')
+                    notas_grace[-1].beams.append('stop')
+                for grace_note in notas_grace:
                     compas.insert(offset_ajustado, grace_note)
                 elemento = music21.note.Note(grupo[0]['pitch'], quarterLength=duracion)
             else:
@@ -1928,7 +1949,7 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
             instrumento = asignacion['instrumento']
             octava = asignacion['octava']
             graces_transportadas = [
-                _transportar_pitch_preservando_grafia(g['pitch'], octava)
+                {'pitch': _transportar_pitch_preservando_grafia(g['pitch'], octava), 'tipo': g['tipo']}
                 for g in evento.get('graces', [])
             ]
             eventos_por_instrumento[instrumento].setdefault(compas, []).append({
