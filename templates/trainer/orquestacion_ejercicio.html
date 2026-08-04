@@ -20,6 +20,11 @@
         border-radius: 0.75rem;
         padding: 1rem;
         margin-bottom: 1.5rem;
+        /* Cada click de pintado reconstruye todo el SVG vía osmd.render() -- eso puede
+           disparar el "scroll anchoring" del navegador (reajuste automático de scroll
+           ante cambios de layout) de forma visible, saltando la página. Este contenedor
+           es el que se reconstruye, así que se lo excluye de esa heurística. */
+        overflow-anchor: none;
     }
     .ej-orq-osmd-wrap .nota-clickeable { cursor: pointer; }
     .ej-orq-indicador-octava {
