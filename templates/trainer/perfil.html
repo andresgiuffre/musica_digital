@@ -61,9 +61,9 @@
                 <div class="text-xs text-gray-500 mt-2">Minutos en Modo Estudio</div>
             </div>
 
-            <div class="perfil-card text-center border-t-4 border-t-ember">
+            <div class="perfil-card text-center" style="border-top: 4px solid var(--gold);">
                 <div class="text-sm text-gray-400 font-bold uppercase mb-2">Analizador</div>
-                <div class="stat-value text-ember">{{ profile.creditos_analisis }}</div>
+                <div class="stat-value" style="color: var(--gold);">{{ profile.creditos_analisis }}</div>
                 <div class="text-xs text-gray-500 mt-2">
                     {{ profile.creditos_analisis }} análisis disponibles
                     {% if profile.creditos_bonus > 0 %}

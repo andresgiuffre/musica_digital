@@ -807,6 +807,12 @@ def detectar_duplicaciones_verificadas(parts):
 
 CONTEXTO_COMPASES = 2  # compases de contexto a mostrar antes/después del rango editado
 
+# Mismo valor que --editado en templates/base.html (rediseño "Sala de conciertos") --
+# tiene que leerse como "nota modificada", no como un rojo de error genérico. No hay
+# forma de que Python lea la variable CSS, así que el valor se mantiene sincronizado
+# a mano entre los dos lugares.
+COLOR_NOTA_EDITADA = '#c9433f'
+
 
 def generar_fragmento_comparado(part, compas_desde, compas_hasta, accion_tipo, direccion, min_compas, max_compas):
     """
@@ -834,7 +840,7 @@ def generar_fragmento_comparado(part, compas_desde, compas_hasta, accion_tipo, d
             # Notas realmente tocadas por la edición, en rojo — los compases de contexto
             # quedan sin colorear porque no cambiaron.
             for elemento in m.recurse().notes:
-                elemento.style.color = '#FF0000'
+                elemento.style.color = COLOR_NOTA_EDITADA
 
     exporter_original = music21.musicxml.m21ToXml.GeneralObjectExporter(fragmento_original)
     exporter_editado = music21.musicxml.m21ToXml.GeneralObjectExporter(fragmento_editado)

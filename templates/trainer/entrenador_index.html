@@ -15,49 +15,49 @@
     .stage-badge {
         flex-shrink: 0; width: 56px; height: 56px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
-        font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 1.1rem;
+        font-family: var(--font-body); font-weight: 600; font-size: 1.1rem;
         background: var(--surface); border: 2px solid var(--border); color: var(--text-secondary);
     }
-    .stage.completed .stage-badge { border-color: var(--success); color: var(--success); background: rgba(52,211,153,0.12); }
+    .stage.completed .stage-badge { border-color: var(--success); color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
     .stage-card {
         flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 1rem;
         padding: 1.4rem 1.6rem; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
-        box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 16px 30px -26px rgba(0,0,0,0.7);
+        box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 16px 30px -26px rgba(0,0,0,0.7);
         transition: border-color 0.2s ease, transform 0.2s ease;
     }
-    .stage.completed .stage-card { border-color: rgba(52,211,153,0.35); }
+    .stage.completed .stage-card { border-color: color-mix(in srgb, var(--success) 35%, transparent); }
     .stage-card:hover { transform: translateY(-2px); }
     .stage-body { flex: 1; min-width: 15rem; }
-    .stage-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--primary); margin-bottom: 0.3rem; }
-    .stage-card h3 { font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 0.2rem; }
+    .stage-eyebrow { font-family: var(--font-body); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--parchment-eyebrow); margin-bottom: 0.3rem; }
+    .stage-card h3 { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 0.2rem; font-family: var(--font-display); }
     .stage-card p { color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 0.9rem; }
     .stage-metrics { display: flex; gap: 1.75rem; flex-wrap: wrap; }
     .metric { min-width: 9rem; }
-    .metric-label { display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 0.3rem; }
-    .metric-label b { color: var(--text); font-weight: 500; }
+    .metric-label { display: flex; justify-content: space-between; font-family: var(--font-body); font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.3rem; }
+    .metric-label b { color: var(--text); font-weight: 600; }
     .metric-bar { height: 5px; border-radius: 3px; background: var(--bg); overflow: hidden; }
     .metric-bar span { display: block; height: 100%; background: var(--border); }
     .metric-bar span.ok { background: var(--success); }
     .stage-cta {
         flex-shrink: 0; display: inline-flex; align-items: center; gap: 0.5rem;
-        background: var(--primary); color: #0b0e14; font-weight: 700; font-size: 0.9rem;
+        background: var(--primary); color: #241505; font-weight: 700; font-size: 0.9rem;
         padding: 0.7rem 1.5rem; border-radius: 0.7rem; text-decoration: none;
         transition: transform 0.15s ease, background 0.15s ease;
     }
     .stage-cta:hover { transform: translateY(-2px); background: var(--primary-hover); }
-    .stage.completed .stage-cta { background: var(--success); color: #06281c; }
+    .stage.completed .stage-cta { background: var(--success); color: #241505; }
 
     .path-summary { display: flex; gap: 1.75rem; margin-top: 1.75rem; flex-wrap: wrap; }
-    .path-stat { font-family: 'IBM Plex Mono', monospace; }
-    .path-stat .n { font-size: 1.6rem; font-weight: 500; color: var(--primary); }
-    .path-stat .l { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); }
+    .path-stat { font-family: var(--font-body); }
+    .path-stat .n { font-size: 1.6rem; font-weight: 600; color: var(--primary); font-family: var(--font-display); }
+    .path-stat .l { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--parchment-eyebrow); }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-legacy" style="max-width: 900px;">
 
-    <div class="eyebrow" style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--primary);margin-bottom:0.7rem;">Entrenador</div>
+    <div class="eyebrow" style="font-family:var(--font-body);font-weight:600;font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--parchment-eyebrow);margin-bottom:0.7rem;">Entrenador</div>
     <h1 style="font-size:clamp(2rem,4vw,2.8rem);font-weight:800;">Tu ruta de entrenamiento</h1>
     <p style="color:var(--text-secondary);margin-top:0.5rem;max-width:34rem;">Cada etapa desbloquea reflejos distintos — de reconocer una nota en el pentagrama a distinguir un intervalo de oído.</p>
 
