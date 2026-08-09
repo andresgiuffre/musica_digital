@@ -4,8 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Anti-flash de tema: tiene que correr ANTES que cualquier CSS se pinte. Lee la
+         preferencia guardada y marca <html> antes del primer render -- si esto se moviera
+         más abajo (o a extra_js), se vería un parpadeo del tema por defecto al cargar. -->
+    <script>
+        (function () {
+            try {
+                if (localStorage.getItem('color_scheme') === 'claro') {
+                    document.documentElement.setAttribute('data-tema', 'claro');
+                }
+            } catch (e) {}
+        })();
+    </script>
     <title>Música Digital</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,500&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <!-- tonejs-instruments (nbrosowsky), pineado a un commit concreto (no @master) para
          que un cambio futuro ajeno en el repo no rompa el audio en silencio. Define el
@@ -20,20 +32,22 @@
     <script src="https://cdn.jsdelivr.net/npm/tonal/browser/tonal.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Paleta "Pulso": velocity de MIDI (volt=suave, ember=fuerte) como sistema de color del sitio.
+        // Rediseño "Sala de conciertos" (etapa base.html -- ver commit): ink/surf/ivory
+        // pasan a la paleta cálida nueva porque su mapeo es directo y sin ambigüedad.
+        // volt/ember/violet y la escala blue/purple NO se tocan todavía a propósito --
+        // son parte de un sistema "Pulso" de color por velocity de MIDI que no se auditó
+        // en esta etapa (falta confirmar en qué templates y con qué semántica se usan
+        // antes de remapearlos). Quedan pendientes para la etapa de barrido de templates.
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        ink: '#0b0e14',
-                        surf: '#171c27',
-                        ivory: '#f4f1ea',
+                        ink: '#191919',
+                        surf: '#232322',
+                        ivory: '#f1e6d3',
                         volt: '#2fb8ff',
                         ember: '#ff5a36',
                         violet: '#9b6bff',
-                        // Reafina la paleta stock de Tailwind (blue/purple) hacia volt/violeta,
-                        // asi las plantillas que todavia usan utilidades crudas (bg-blue-600, etc.)
-                        // quedan visualmente consistentes con el resto del sitio sin tocar cada archivo.
                         blue: {
                             50: '#eaf8ff', 100: '#d1f0ff', 200: '#a3e2ff', 300: '#6ecfff',
                             400: '#43bdff', 500: '#2fb8ff', 600: '#1596e0', 700: '#0f77b3',
@@ -46,8 +60,8 @@
                         },
                     },
                     fontFamily: {
-                        display: ["'Bricolage Grotesque'", 'system-ui', 'sans-serif'],
-                        body: ["'IBM Plex Sans'", 'system-ui', 'sans-serif'],
+                        display: ["'Fraunces'", 'Georgia', 'serif'],
+                        body: ["'Work Sans'", 'system-ui', 'sans-serif'],
                         mono: ["'IBM Plex Mono'", 'ui-monospace', 'monospace'],
                     },
                 },
@@ -57,37 +71,119 @@
     <script src="{% static 'js/teoria.js' %}?v=2"></script>
     <script src="{% static 'js/audio_engine.js' %}?v=4"></script>
     <style>
+        /* ============================================================
+           SISTEMA DE TOKENS -- "Sala de conciertos"
+           Dos temas: [data-tema="claro"] en <html> redefine los mismos
+           nombres para "papel pautado". Por defecto (sin el atributo)
+           es el tema oscuro. El toggle de la navbar persiste la
+           preferencia en localStorage['color_scheme'] (ver el script
+           anti-flash en <head> y el handler más abajo en el body).
+           ============================================================ */
         :root {
-            --primary: #2fb8ff;
-            --primary-hover: #57c6ff;
-            --bg: #0b0e14;
-            --surface: #171c27;
-            --text: #f4f1ea;
-            --text-secondary: #9aa1ae;
-            --success: #34d399;
-            --danger: #ef4444;
-            --border: #262b36;
+            /* Superficies -- carbón casi neutro, la calidez vive en los acentos */
+            --ink: #191919;
+            --surface: #232322;
+            --surface-raised: #2b2b29;
+            --surface-line: #3d3c39;
+
+            /* Texto -- marfil/crema, nunca blanco puro */
+            --parchment: #f1e6d3;
+            --parchment-dim: #cdbba0;
+            --parchment-faint: #8f7c68;
+            --parchment-eyebrow: color-mix(in srgb, var(--parchment) 58%, transparent);
+
+            /* Acentos: uno protagonista (dorado), uno secundario (wine), uno frío
+               (petróleo) para íconos/detalles -- distinto de --success a propósito. */
+            --gold: #e8a83d;
+            --gold-bright: #f5c169;
+            --gold-dim: #a8762a;
+            --wine: #a63d4e;
+            --wine-bright: #c8556a;
+            --wine-dim: #6e2732;
+            --petroleo: #2c6b74;
+            --petroleo-bright: #4a99a3;
+
+            /* Semánticos -- desaturados y cálidos, no arcoíris neón */
+            --success: #7c9463;
+            --warning: #c98a3d;
+            --danger: #b5484a;
+            /* "Nota editada" en el analizador orquestal: distinto de --danger a
+               propósito, tiene que leerse como "modificado", no como error. */
+            --editado: #c9433f;
+
+            /* Papel de fondo para lienzos de notación (VexFlow/OSMD) -- un solo lugar
+               para ajustar en vez de "#eed"/"white" sueltos por template. */
+            --paper: #fdfbf3;
+
+            --radio-grande: 20px;
+            --radio: 14px;
+            --radio-chico: 8px;
+            --sombra: 0 22px 44px -22px rgba(0, 0, 0, 0.65);
+            --sombra-chica: 0 10px 22px -14px rgba(0, 0, 0, 0.6);
+
+            --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+            --font-body: 'Work Sans', 'Segoe UI', system-ui, sans-serif;
+
+            /* --- Alias de compatibilidad: todo lo que ya usa var(--primary)/var(--bg)/
+               etc. en el sitio hereda la paleta nueva sin que haga falta tocar esos
+               archivos. Nombre canónico es el de arriba -- no agregar usos NUEVOS de
+               estos alias, son solo para no reescribir el sitio entero de una. --- */
+            --primary: var(--gold);
+            --primary-hover: var(--gold-bright);
+            --bg: var(--ink);
+            --text: var(--parchment);
+            --text-secondary: var(--parchment-dim);
+            --border: var(--surface-line);
+        }
+
+        :root[data-tema="claro"] {
+            --ink: #f7f3e9;
+            --surface: #fffdf8;
+            --surface-raised: #f7f0de;
+            --surface-line: rgba(42, 38, 34, 0.1);
+
+            --parchment: #2a2622;
+            --parchment-dim: #56504a;
+            --parchment-faint: #8c8478;
+
+            /* El rol de "-bright" se invierte en claro: en oscuro es más CLARO que el
+               acento base (para saltar sobre el carbón); en claro necesita ser más
+               OSCURO/rico que el base para seguir saltando sobre blanco. */
+            --gold: #d98e1b;
+            --gold-bright: #b8760e;
+            --gold-dim: #f2dcb0;
+            --wine: #9e3a4c;
+            --wine-bright: #7d2836;
+            --wine-dim: #c8677a;
+            --petroleo: #2c6b74;
+            --petroleo-bright: #1f4d54;
+
+            --sombra: 0 24px 48px -24px rgba(42, 38, 34, 0.18);
+            --sombra-chica: 0 12px 26px -14px rgba(42, 38, 34, 0.14);
+
+            --paper: #ffffff;
         }
 
         body {
-            font-family: 'IBM Plex Sans', sans-serif;
+            font-family: var(--font-body);
             background-color: var(--bg);
             color: var(--text);
             line-height: 1.5;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
 
         h1, h2, h3, h4 {
-            font-family: 'Bricolage Grotesque', sans-serif;
+            font-family: var(--font-display);
         }
 
         /* Navbar Moderna con Glassmorphism */
         .navbar {
-            background: rgba(15, 23, 42, 0.85);
+            background: color-mix(in srgb, var(--ink) 88%, transparent);
             backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid var(--border);
             position: sticky;
             top: 0;
             z-index: 100;
@@ -103,14 +199,20 @@
         }
 
         .nav-brand {
-            font-family: 'Bricolage Grotesque', sans-serif;
+            font-family: var(--font-display);
             font-size: 1.8rem;
             font-weight: 800;
-            color: #fff;
-            text-shadow: 0 0 8px rgba(47, 184, 255, 0.5), 0 0 22px rgba(255, 90, 54, 0.35);
+            color: var(--text);
+            text-shadow: 0 0 16px color-mix(in srgb, var(--gold) 35%, transparent);
             text-decoration: none;
             letter-spacing: 0.02em;
             text-transform: uppercase;
+        }
+
+        .nav-right {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
         }
 
         .nav-menu {
@@ -120,7 +222,7 @@
         }
 
         .nav-link {
-            color: #cbd5e1;
+            color: var(--text-secondary);
             text-decoration: none;
             font-weight: 600;
             font-size: 0.95rem;
@@ -131,7 +233,7 @@
         }
 
         .nav-link:hover {
-            color: white;
+            color: var(--gold-bright);
         }
 
         .nav-user {
@@ -139,8 +241,24 @@
             align-items: center;
             gap: 1rem;
             padding-left: 2rem;
-            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            border-left: 1px solid var(--border);
         }
+
+        .tema-toggle-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text);
+            width: 2.1rem;
+            height: 2.1rem;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+        .tema-toggle-btn:hover { border-color: var(--gold); transform: translateY(-1px); }
 
         .main-content {
             flex: 1;
@@ -151,7 +269,7 @@
 
         /* Estilos Legados para compatibilidad con las vistas de entrenamiento que no usan Tailwind aún */
         .container-legacy { max-width: 1200px; margin: 0 auto; padding: 2rem; width: 100%; }
-        .card { background: var(--surface); border-radius: 1rem; padding: 2rem; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 24px 46px -30px rgba(0,0,0,0.75); }
+        .card { background: var(--surface); border-radius: 1rem; padding: 2rem; border: 1px solid var(--border); box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 24px 46px -30px rgba(0,0,0,0.75); }
         .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; text-decoration: none; font-size: 1rem; }
         .btn-primary { background-color: var(--primary); color: white; }
         .btn-primary:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
@@ -166,7 +284,7 @@
             width: 100%;
             height: 100%;
             overflow: auto;
-            background-color: rgba(15, 23, 42, 0.85);
+            background-color: color-mix(in srgb, var(--ink) 85%, transparent);
             backdrop-filter: blur(5px);
             align-items: center;
             justify-content: center;
@@ -204,10 +322,10 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            background: rgba(255,255,255,0.05);
+            background: color-mix(in srgb, var(--parchment) 5%, transparent);
             padding: 0.5rem 1rem;
             border-radius: 2rem;
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid var(--border);
         }
         .toggle-switch {
             position: relative; width: 40px; height: 20px; background-color: var(--border); border-radius: 20px; cursor: pointer; transition: background-color 0.3s;
@@ -237,31 +355,31 @@
         input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focus, input[type="number"]:focus, textarea:focus, select:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(47,184,255,0.18);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 18%, transparent);
         }
 
         /* --- Chrome compartido por las pantallas de juego (juego/*) --- */
         .top-nav { width: 100%; margin-bottom: -0.5rem; }
         .status-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; font-weight: 600; color: var(--text-secondary); }
 
-        .progress-container { width: 100%; background: var(--surface); padding: 1rem; border-radius: 1rem; border: 1px solid var(--border); box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 14px 26px -22px rgba(0,0,0,0.6); }
+        .progress-container { width: 100%; background: var(--surface); padding: 1rem; border-radius: 1rem; border: 1px solid var(--border); box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 14px 26px -22px rgba(0,0,0,0.6); }
         .progress-labels { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 0.5rem; color: var(--text); font-size: 0.9rem; }
         .progress-track { width: 100%; background: var(--bg); height: 8px; border-radius: 4px; overflow: hidden; }
-        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #7dd3ff); transition: width 0.3s ease; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold-bright)); transition: width 0.3s ease; }
 
         .btn-input { padding: 1rem 0.5rem; font-size: 1.05rem; border-radius: 0.75rem; background: var(--surface); border: 2px solid var(--border); color: var(--text); font-weight: 800; cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; box-shadow: 0 10px 20px -12px rgba(0,0,0,0.5); text-align: center; }
-        .btn-input:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--primary); box-shadow: 0 14px 24px -12px rgba(47,184,255,0.3); }
-        .btn-input.selected { background: var(--primary); color: #0b0e14; border-color: var(--primary); }
+        .btn-input:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--primary); box-shadow: 0 14px 24px -12px color-mix(in srgb, var(--gold) 30%, transparent); }
+        .btn-input.selected { background: var(--primary); color: #241505; border-color: var(--primary); }
         .btn-input:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        .btn-submit { background: var(--primary); color: #0b0e14; border: none; padding: 1rem 3rem; font-size: 1.15rem; font-weight: 800; border-radius: 50px; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 12px 24px -8px rgba(47,184,255,0.45); margin-top: 1rem; }
-        .btn-submit:hover:not(:disabled) { transform: translateY(-2px) scale(1.02); box-shadow: 0 16px 30px -8px rgba(47,184,255,0.6); }
+        .btn-submit { background: var(--primary); color: #241505; border: none; padding: 1rem 3rem; font-size: 1.15rem; font-weight: 800; border-radius: 50px; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 12px 24px -8px color-mix(in srgb, var(--gold) 45%, transparent); margin-top: 1rem; }
+        .btn-submit:hover:not(:disabled) { transform: translateY(-2px) scale(1.02); box-shadow: 0 16px 30px -8px color-mix(in srgb, var(--gold) 60%, transparent); }
         .btn-submit:disabled { background: var(--border); color: var(--text-secondary); box-shadow: none; cursor: not-allowed; }
 
         #feedback-msg { min-height: 1.5rem; font-weight: 700; text-align: center; width: 100%; }
 
-        .flash-correct { border-color: var(--success) !important; background-color: rgba(52,211,153,0.1) !important; }
-        .flash-incorrect { border-color: var(--danger) !important; background-color: rgba(239,68,68,0.1) !important; animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        .flash-correct { border-color: var(--success) !important; background-color: color-mix(in srgb, var(--success) 12%, transparent) !important; }
+        .flash-incorrect { border-color: var(--danger) !important; background-color: color-mix(in srgb, var(--danger) 12%, transparent) !important; animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
         @keyframes shake {
           10%, 90% { transform: translate3d(-1px, 0, 0); }
           20%, 80% { transform: translate3d(2px, 0, 0); }
@@ -279,7 +397,10 @@
                 <img src="{% static 'img/logo.png' %}" alt="Logo Música Digital" class="h-12 w-auto" style="mix-blend-mode: screen;">
                 MÚSICA DIGITAL
             </a>
-            
+
+            <div class="nav-right">
+                <button type="button" id="tema-toggle-btn" class="tema-toggle-btn" aria-label="Cambiar a tema claro" title="Cambiar tema">🌙</button>
+
             {% if user.is_authenticated %}
             <div class="nav-menu">
                 <a href="{% url 'dashboard' %}" class="nav-link">
@@ -322,6 +443,7 @@
                 </div>
             </div>
             {% endif %}
+            </div>
         </div>
     </nav>
 
@@ -362,6 +484,27 @@
                         label.style.color = "var(--text-secondary)";
                     }
                 });
+            }
+
+            const temaBtn = document.getElementById("tema-toggle-btn");
+            if (temaBtn) {
+                const actualizarBotonTema = () => {
+                    const claro = document.documentElement.getAttribute("data-tema") === "claro";
+                    temaBtn.textContent = claro ? "☀" : "🌙";
+                    temaBtn.setAttribute("aria-label", claro ? "Cambiar a tema oscuro" : "Cambiar a tema claro");
+                };
+                temaBtn.addEventListener("click", () => {
+                    const claro = document.documentElement.getAttribute("data-tema") === "claro";
+                    if (claro) {
+                        document.documentElement.removeAttribute("data-tema");
+                        localStorage.setItem("color_scheme", "oscuro");
+                    } else {
+                        document.documentElement.setAttribute("data-tema", "claro");
+                        localStorage.setItem("color_scheme", "claro");
+                    }
+                    actualizarBotonTema();
+                });
+                actualizarBotonTema();
             }
 
             const modal = document.getElementById("theory-modal");
