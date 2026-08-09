@@ -5,7 +5,7 @@
 {% block extra_css %}
 <style>
     #pulso-keyboard-bar {
-        background: linear-gradient(180deg, rgba(11,14,20,0) 0%, #0b0e14 18%);
+        background: linear-gradient(180deg, transparent 0%, var(--ink) 18%);
         padding: 1.25rem 1.5rem 1.5rem;
         border-top: 1px solid var(--border);
     }
@@ -41,11 +41,12 @@
     }
     .pulso-keyboard-caption {
         text-align: center;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: var(--font-body);
+        font-weight: 600;
         font-size: 0.7rem;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: var(--text-secondary);
+        color: var(--parchment-eyebrow);
         margin-top: 0.6rem;
     }
 </style>
@@ -69,12 +70,12 @@
 
     <!-- Pantalla Inicial -->
     <div id="screen-start" class="text-center">
-        <h1 class="text-6xl font-black text-white mb-6 drop-shadow-lg font-display">Identificación de <span class="text-violet">Acordes</span></h1>
+        <h1 class="text-6xl font-black text-white mb-6 drop-shadow-lg font-display">Identificación de <span style="color: var(--petroleo-bright);">Acordes</span></h1>
         <p class="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
             La plataforma te pedirá un acorde. Tócalo en tu controlador MIDI lo más rápido posible.
             Tienes <strong class="text-white">60 segundos</strong>. ¡Prepárate!
         </p>
-        <button id="btn-start" class="bg-violet hover:brightness-110 text-white font-black py-4 px-12 rounded-full text-2xl shadow-[0_0_30px_rgba(155,107,255,0.5)] transition-transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+        <button id="btn-start" class="hover:brightness-110 text-white font-black py-4 px-12 rounded-full text-2xl transition-transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed" style="background: var(--petroleo); box-shadow: 0 0 30px color-mix(in srgb, var(--petroleo) 50%, transparent);">
             EMPEZAR JUEGO
         </button>
         <p id="msg-waiting-midi" class="text-red-400 mt-4 font-bold">Por favor, conecta un controlador MIDI para jugar.</p>
@@ -90,7 +91,7 @@
             </div>
             <div class="bg-surf rounded-xl px-6 py-3 border border-[var(--border)] text-right">
                 <span class="text-gray-400 text-xs font-bold block uppercase tracking-widest">Puntos</span>
-                <span id="game-score" class="text-3xl font-bold text-volt">0</span>
+                <span id="game-score" class="text-3xl font-bold" style="color: var(--success);">0</span>
             </div>
         </div>
 
@@ -120,21 +121,21 @@
                 <span class="text-gray-400 text-xs font-bold block mb-1 uppercase tracking-widest">Puntuación</span>
                 <span id="res-score" class="text-4xl font-bold text-emerald-400">0</span>
             </div>
-            <div class="bg-gray-800 rounded-2xl p-6 border border-violet/30">
+            <div class="bg-gray-800 rounded-2xl p-6" style="border: 1px solid color-mix(in srgb, var(--petroleo) 30%, transparent);">
                 <span class="text-gray-400 text-xs font-bold block mb-1 uppercase tracking-widest">XP obtenida</span>
-                <span id="res-xp" class="text-4xl font-bold text-violet">+0</span>
+                <span id="res-xp" class="text-4xl font-bold" style="color: var(--petroleo-bright);">+0</span>
             </div>
-            <div class="bg-gray-800 rounded-2xl p-6 border border-volt/30">
+            <div class="bg-gray-800 rounded-2xl p-6" style="border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);">
                 <span class="text-gray-400 text-xs font-bold block mb-1 uppercase tracking-widest">Acordes correctos</span>
-                <span id="res-correct" class="text-4xl font-bold text-volt">0</span>
+                <span id="res-correct" class="text-4xl font-bold" style="color: var(--success);">0</span>
             </div>
-            <div class="bg-gray-800 rounded-2xl p-6 border border-ember/30">
+            <div class="bg-gray-800 rounded-2xl p-6" style="border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);">
                 <span class="text-gray-400 text-xs font-bold block mb-1 uppercase tracking-widest">Errores</span>
-                <span id="res-incorrect" class="text-4xl font-bold text-ember">0</span>
+                <span id="res-incorrect" class="text-4xl font-bold" style="color: var(--danger);">0</span>
             </div>
         </div>
         <div class="flex gap-4 justify-center">
-            <button onclick="startGame()" class="bg-violet hover:brightness-110 text-white font-bold py-3 px-8 rounded-xl transition-colors">
+            <button onclick="startGame()" class="hover:brightness-110 text-white font-bold py-3 px-8 rounded-xl transition-colors" style="background: var(--petroleo);">
                 Jugar de Nuevo
             </button>
             <a href="{% url 'midi_trainer_hub' %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-xl transition-colors">
@@ -147,7 +148,7 @@
 <!-- Teclado en pantalla: se ilumina en tiempo real con cada nota MIDI recibida (color = velocity) -->
 <div id="pulso-keyboard-bar" class="hidden fixed bottom-0 left-0 right-0 z-20">
     <div class="pulso-keyboard" id="pulso-keyboard"></div>
-    <p class="pulso-keyboard-caption">Lo que tocás en tu controlador se enciende acá — azul suave, naranja fuerte</p>
+    <p class="pulso-keyboard-caption">Lo que tocás en tu controlador se enciende acá — petróleo suave, dorado fuerte</p>
 </div>
 {% endblock %}
 
@@ -230,9 +231,12 @@
     })();
 
     function velocityColor(v) {
-        // v: 0 (suave) -> 1 (fuerte). Mismo par volt/ember de toda la interfaz.
-        const volt = [47, 184, 255], ember = [255, 90, 54];
-        const c = volt.map((ch, i) => Math.round(ch + (ember[i] - ch) * v));
+        // v: 0 (suave) -> 1 (fuerte). Petróleo (calmo) a dorado (intenso) -- reemplaza
+        // el viejo par volt/ember (cyan/naranja neón). Es una interpolación fija en JS,
+        // no lee la custom property en vivo, así que no sigue al toggle de tema -- misma
+        // limitación ya marcada para tailwind.config.
+        const suave = [44, 107, 116], fuerte = [232, 168, 61];
+        const c = suave.map((ch, i) => Math.round(ch + (fuerte[i] - ch) * v));
         return `rgb(${c.join(',')})`;
     }
 

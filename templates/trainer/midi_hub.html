@@ -4,15 +4,15 @@
 
 {% block extra_css %}
 <style>
-    .midi-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 1.1rem; box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 18px 34px -28px rgba(0,0,0,0.7); }
-    .harmony-panel { background: var(--surface); border: 1px solid rgba(155,107,255,0.3); box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 0 40px -10px rgba(155,107,255,0.15); }
-    .midi-note-chip { background: rgba(47,184,255,0.14); border: 1px solid rgba(47,184,255,0.4); color: var(--primary); font-family: 'IBM Plex Mono', monospace; }
+    .midi-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 1.1rem; box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 18px 34px -28px rgba(0,0,0,0.7); }
+    .harmony-panel { background: var(--surface); border: 1px solid color-mix(in srgb, var(--petroleo) 35%, transparent); box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 0 40px -10px color-mix(in srgb, var(--petroleo) 18%, transparent); }
+    .midi-note-chip { background: color-mix(in srgb, var(--petroleo) 16%, transparent); border: 1px solid color-mix(in srgb, var(--petroleo) 45%, transparent); color: var(--petroleo-bright); font-family: var(--font-body); font-weight: 600; }
     .game-tile {
         background: var(--surface); border: 1px solid var(--border); border-radius: 1rem; padding: 1.5rem;
-        box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 16px 30px -26px rgba(0,0,0,0.7);
+        box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 16px 30px -26px rgba(0,0,0,0.7);
         transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
     }
-    .game-tile:hover { transform: translateY(-3px); border-color: #9b6bff; box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 22px 40px -22px rgba(155,107,255,0.3); }
+    .game-tile:hover { transform: translateY(-3px); border-color: var(--wine); box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 22px 40px -22px color-mix(in srgb, var(--wine) 30%, transparent); }
 </style>
 {% endblock %}
 
@@ -20,11 +20,11 @@
 <div class="container mx-auto px-4 py-8 max-w-6xl">
     <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
-            <div class="font-mono text-xs tracking-widest uppercase text-violet mb-2">Estudio MIDI</div>
-            <h1 class="text-5xl font-black text-white drop-shadow-lg mb-2 font-display">
-                Tu teclado, <span class="text-violet">en vivo</span>
+            <div class="font-body text-xs tracking-widest uppercase mb-2" style="color: var(--parchment-eyebrow); font-weight: 600;">Estudio MIDI</div>
+            <h1 class="text-5xl font-black mb-2 font-display" style="color: var(--text);">
+                Tu teclado, <span style="color: var(--petroleo-bright);">en vivo</span>
             </h1>
-            <p class="text-gray-400 text-lg">Conectá tu controlador y empezá a interactuar en tiempo real.</p>
+            <p class="text-lg" style="color: var(--text-secondary);">Conectá tu controlador y empezá a interactuar en tiempo real.</p>
         </div>
         <a href="{% url 'dashboard' %}" class="bg-surf hover:bg-slate-700 text-white font-bold py-2 px-6 rounded-lg transition-colors border border-[var(--border)]">
             ← Volver al Inicio
@@ -39,13 +39,13 @@
             </div>
             <div>
                 <h3 class="text-xl font-bold text-white mb-1">Controlador MIDI</h3>
-                <select id="midi-device-select" class="bg-surf text-white border border-[var(--border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:border-violet w-full min-w-[200px]">
+                <select id="midi-device-select" class="bg-surf border border-[var(--border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:border-[var(--petroleo)] w-full min-w-[200px]" style="color: var(--text);">
                     <option>Buscando dispositivos...</option>
                 </select>
             </div>
         </div>
         <div>
-            <button id="btn-request-midi" class="bg-violet hover:brightness-110 text-white font-bold py-2 px-4 rounded-lg transition-colors hidden">
+            <button id="btn-request-midi" class="hover:brightness-110 font-bold py-2 px-4 rounded-lg transition-colors hidden" style="background: var(--petroleo); color: #fff;">
                 Permitir Acceso MIDI
             </button>
         </div>
@@ -55,21 +55,21 @@
         <!-- Monitor de Notas -->
         <div class="midi-panel p-6 relative overflow-hidden flex flex-col">
             <div class="flex justify-between w-full">
-                <h3 class="text-xs font-bold text-gray-400 mb-4 uppercase tracking-wider font-mono">Monitor MIDI</h3>
+                <h3 class="text-xs font-bold mb-4 uppercase tracking-wider font-body" style="color: var(--parchment-eyebrow);">Monitor MIDI</h3>
             </div>
             <div id="midi-monitor-display" class="flex-1 flex flex-wrap content-start gap-2 min-h-[150px]">
-                <p class="text-gray-600 w-full text-center mt-8">Tocá una tecla en tu controlador</p>
+                <p class="w-full text-center mt-8" style="color: var(--parchment-faint);">Tocá una tecla en tu controlador</p>
             </div>
         </div>
 
         <!-- Análisis Armónico -->
         <div class="harmony-panel rounded-[1.1rem] p-6 flex flex-col items-center justify-center text-center min-h-[250px]">
-            <h3 class="text-xs font-bold text-violet mb-2 uppercase tracking-wider w-full text-left font-mono">Análisis Armónico</h3>
+            <h3 class="text-xs font-bold mb-2 uppercase tracking-wider w-full text-left font-body" style="color: var(--petroleo-bright);">Análisis Armónico</h3>
             <div class="flex-1 flex flex-col justify-center w-full">
-                <h2 id="detected-chord-name" class="text-6xl font-black text-white drop-shadow-lg mb-4 font-display">-</h2>
+                <h2 id="detected-chord-name" class="text-6xl font-black drop-shadow-lg mb-4 font-display" style="color: var(--text);">-</h2>
                 <div class="flex flex-col gap-2">
-                    <p class="text-gray-400">Notas: <span id="detected-chord-notes" class="font-bold text-gray-200 font-mono">Ninguna</span></p>
-                    <p class="text-gray-400 text-sm" id="detected-chord-aliases"></p>
+                    <p style="color: var(--text-secondary);">Notas: <span id="detected-chord-notes" class="font-bold font-mono" style="color: var(--text);">Ninguna</span></p>
+                    <p class="text-sm" id="detected-chord-aliases" style="color: var(--text-secondary);"></p>
                 </div>
             </div>
         </div>
@@ -77,24 +77,24 @@
 
     <!-- Juegos -->
     <div>
-        <h2 class="text-2xl font-black text-white mb-6 border-b border-[var(--border)] pb-2 font-display">Juegos y Ejercicios</h2>
+        <h2 class="text-2xl font-black mb-6 border-b border-[var(--border)] pb-2 font-display" style="color: var(--text);">Juegos y Ejercicios</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <!-- Juego: Identificación de Acordes -->
             <a href="{% url 'midi_game_chords' %}" class="game-tile block">
-                <div class="w-12 h-12 bg-violet/15 border border-violet/40 rounded-lg flex items-center justify-center mb-4 text-violet">
+                <div class="w-12 h-12 rounded-lg flex items-center justify-center mb-4" style="background: color-mix(in srgb, var(--petroleo) 16%, transparent); border: 1px solid color-mix(in srgb, var(--petroleo) 40%, transparent); color: var(--petroleo-bright);">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
                 </div>
-                <h3 class="text-xl font-bold text-white mb-2">Identificación de Acordes</h3>
-                <p class="text-gray-400 text-sm mb-4">Practicá tocando los acordes que te pida la plataforma lo más rápido posible.</p>
-                <span class="bg-violet text-white text-xs font-bold px-3 py-1 rounded-full font-mono uppercase tracking-wide">Jugar</span>
+                <h3 class="text-xl font-bold mb-2" style="color: var(--text);">Identificación de Acordes</h3>
+                <p class="text-sm mb-4" style="color: var(--text-secondary);">Practicá tocando los acordes que te pida la plataforma lo más rápido posible.</p>
+                <span class="text-xs font-bold px-3 py-1 rounded-full font-body uppercase tracking-wide" style="background: var(--petroleo); color: #fff;">Jugar</span>
             </a>
 
             <div class="game-tile opacity-50" style="cursor: default;">
-                <div class="w-12 h-12 bg-surf border border-[var(--border)] rounded-lg flex items-center justify-center mb-4 text-gray-500">
+                <div class="w-12 h-12 bg-surf border border-[var(--border)] rounded-lg flex items-center justify-center mb-4" style="color: var(--parchment-faint);">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 </div>
-                <h3 class="text-xl font-bold text-white mb-2">Progresiones (Próximamente)</h3>
-                <p class="text-gray-400 text-sm">Entrená tocando progresiones armónicas populares en diferentes tonalidades.</p>
+                <h3 class="text-xl font-bold mb-2" style="color: var(--text);">Progresiones (Próximamente)</h3>
+                <p class="text-sm" style="color: var(--text-secondary);">Entrená tocando progresiones armónicas populares en diferentes tonalidades.</p>
             </div>
         </div>
     </div>

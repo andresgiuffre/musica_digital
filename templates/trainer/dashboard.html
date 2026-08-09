@@ -14,6 +14,12 @@
 
     .destacado { font-family: var(--font-display); font-style: italic; font-weight: 500; color: var(--gold-bright); }
 
+    /* Contenedor de 1180px -- deliberadamente NO envuelve a .seccion--explorar
+       entera (ver esa sección más abajo), para que el pentagrama de fondo pueda
+       romper el ancho hasta el borde del viewport sin que el overflow:hidden de
+       la sección se lo recorte primero. */
+    .envoltorio { max-width: 1180px; margin: 0 auto; padding: 0 2rem; }
+
     /* ---------- Bienvenida: header compacto (~120px), reemplaza el hero grande
        con glow neón + tira animada tipo piano. ---------- */
     .bienvenida { border-bottom: 1px solid var(--border); padding: 1.6rem 0; margin-top: -1px; }
@@ -92,8 +98,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-legacy" style="max-width: 1180px;">
-
+<div class="envoltorio">
     <header class="bienvenida">
         <div class="bienvenida__grid">
             <div>
@@ -118,8 +123,9 @@
             </div>
         </div>
     </header>
+</div>
 
-    <section class="seccion seccion--explorar">
+<section class="seccion seccion--explorar">
         <div class="seccion__pauta-fondo" aria-hidden="true">
             <svg viewBox="0 0 1600 300" xmlns="http://www.w3.org/2000/svg">
                 <g class="pauta-lineas">
@@ -165,7 +171,7 @@
                 </g>
             </svg>
         </div>
-        <div class="explorar-contenido">
+        <div class="envoltorio explorar-contenido">
             <div class="seccion__cabecera">
                 <span class="seccion__eyebrow">Explorar</span>
                 <h2 class="seccion__titulo">¿Qué vas a practicar hoy?</h2>
@@ -203,8 +209,9 @@
                 </a>
             </div>
         </div>
-    </section>
+</section>
 
+<div class="envoltorio">
     <section class="seccion" style="padding-top:0;">
         <div class="placa">
             <span class="placa__eyebrow">Análisis con IA</span>

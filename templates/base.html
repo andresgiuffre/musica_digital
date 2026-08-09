@@ -209,10 +209,19 @@
             text-transform: uppercase;
         }
 
-        .nav-right {
-            display: flex;
-            gap: 1.5rem;
+        /* El logo tiene fondo negro incorporado a la imagen y usa mix-blend-mode:screen
+           para que ese negro se funda con el navbar oscuro -- ese truco de blend SOLO
+           funciona sobre fondo oscuro (con el fondo claro, el contenido del logo se lava
+           hacia blanco en vez de "desaparecer"). En vez de depender del blend contra un
+           fondo que cambia de tema, el logo vive en su propio chip oscuro fijo,
+           independiente de --ink -- así se ve igual de nítido en los dos temas. */
+        .nav-brand__logo {
+            display: inline-flex;
             align-items: center;
+            justify-content: center;
+            background: #14110d;
+            border-radius: 10px;
+            padding: 2px 8px;
         }
 
         .nav-menu {
@@ -244,21 +253,29 @@
             border-left: 1px solid var(--border);
         }
 
+        /* Posición fija (no dentro de la navbar) a propósito: es inmune a cualquier
+           problema de layout del flex de la navbar, y coincide con dónde vivía en el
+           mockup aprobado. */
         .tema-toggle-btn {
-            background: none;
+            position: fixed;
+            bottom: 1.4rem;
+            right: 1.4rem;
+            z-index: 200;
+            background: var(--surface);
             border: 1px solid var(--border);
             color: var(--text);
-            width: 2.1rem;
-            height: 2.1rem;
+            width: 2.6rem;
+            height: 2.6rem;
             border-radius: 50%;
             cursor: pointer;
-            font-size: 1rem;
+            font-size: 1.1rem;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            transition: border-color 0.2s ease, transform 0.2s ease;
+            box-shadow: var(--sombra-chica);
+            transition: border-color 0.2s ease, transform 0.2s ease, background 0.25s ease;
         }
-        .tema-toggle-btn:hover { border-color: var(--gold); transform: translateY(-1px); }
+        .tema-toggle-btn:hover { border-color: var(--gold); transform: translateY(-2px); }
 
         .main-content {
             flex: 1;
@@ -394,12 +411,11 @@
     <nav class="navbar">
         <div class="nav-container">
             <a href="{% url 'dashboard' %}" class="nav-brand flex items-center gap-2">
-                <img src="{% static 'img/logo.png' %}" alt="Logo Música Digital" class="h-12 w-auto" style="mix-blend-mode: screen;">
+                <span class="nav-brand__logo">
+                    <img src="{% static 'img/logo.png' %}" alt="Logo Música Digital" class="h-12 w-auto" style="mix-blend-mode: screen;">
+                </span>
                 MÚSICA DIGITAL
             </a>
-
-            <div class="nav-right">
-                <button type="button" id="tema-toggle-btn" class="tema-toggle-btn" aria-label="Cambiar a tema claro" title="Cambiar tema">🌙</button>
 
             {% if user.is_authenticated %}
             <div class="nav-menu">
@@ -443,9 +459,10 @@
                 </div>
             </div>
             {% endif %}
-            </div>
         </div>
     </nav>
+
+    <button type="button" id="tema-toggle-btn" class="tema-toggle-btn" aria-label="Cambiar a tema claro" title="Cambiar tema">🌙</button>
 
     <main class="main-content">
         {% block content %}{% endblock %}

@@ -14,7 +14,7 @@
     <div class="flex flex-col gap-3">
         {% for fragmento in fragmentos %}
             <a href="{% url 'orquestacion_ejercicio' fragmento.id %}"
-               class="block p-4 rounded-lg border transition-all hover:border-volt"
+               class="block p-4 rounded-lg border transition-all hover:border-[var(--wine)]"
                style="background: var(--surface); border-color: var(--border);">
                 <div class="font-semibold">{{ fragmento.nombre }}</div>
             </a>
