@@ -34,7 +34,7 @@
 
     .btn-submit {
         background: var(--primary);
-        color: white;
+        color: #241505;
         border: none;
         padding: 1rem 3rem;
         font-size: 1.1rem;
@@ -42,13 +42,13 @@
         border-radius: 50px;
         cursor: pointer;
         transition: transform 0.2s, box-shadow 0.2s;
-        box-shadow: 0 4px 15px rgba(47, 184, 255, 0.4);
+        box-shadow: 0 4px 15px color-mix(in srgb, var(--primary) 40%, transparent);
         width: 100%;
     }
 
     .btn-submit:hover:not(:disabled) {
         transform: scale(1.02);
-        box-shadow: 0 6px 20px rgba(47, 184, 255, 0.6);
+        box-shadow: 0 6px 20px color-mix(in srgb, var(--primary) 60%, transparent);
     }
 
     .btn-submit:disabled {
@@ -60,7 +60,7 @@
     .loading-modal {
         position: fixed;
         inset: 0;
-        background: rgba(11, 14, 20, 0.88);
+        background: color-mix(in srgb, var(--ink) 88%, transparent);
         backdrop-filter: blur(4px);
         display: none;
         align-items: center;
@@ -112,14 +112,14 @@
         line-height: 1.5;
         margin-bottom: 1.5rem;
     }
-    .loading-modal p strong { color: #ff5a36; }
+    .loading-modal p strong { color: var(--warning); }
     .loading-clock {
         font-family: 'IBM Plex Mono', monospace;
         font-size: 2.4rem;
         font-weight: 700;
         color: var(--primary);
         letter-spacing: 0.05em;
-        text-shadow: 0 0 20px rgba(47, 184, 255, 0.5);
+        text-shadow: 0 0 20px color-mix(in srgb, var(--primary) 50%, transparent);
     }
 
     #results-area {
@@ -147,7 +147,7 @@
     }
     .btn-decision-continuar {
         background: var(--primary);
-        color: white;
+        color: #241505;
         border: none;
     }
     .btn-decision-cancelar {

@@ -19,20 +19,20 @@
     .mapa-ambito { font-size: 8pt; color: #666; text-align: right; }
     table.mapa-track { border: 1px solid #bbb; height: 0.35cm; }
     table.mapa-track td { padding: 0; height: 0.35cm; }
-    .mapa-barra { background-color: #2fb8ff; }
+    .mapa-barra { background-color: #e8a83d; }
 
     .bloque { margin-bottom: 0.6cm; page-break-inside: avoid; }
     .bloque-titulo { font-weight: bold; font-size: 10.5pt; background-color: #f0f0f0; padding: 0.15cm 0.25cm; }
     .bloque-sub { margin-top: 0.2cm; }
     .bloque-sub-label { font-size: 8pt; text-transform: uppercase; color: #666; font-weight: bold; }
     .bloque-sub p { margin: 0.05cm 0 0.2cm 0; line-height: 1.4; }
-    .solucion { background-color: #eaf6ff; padding: 0.2cm 0.25cm; margin: 0.2cm 0; }
+    .solucion { background-color: #fbf1de; padding: 0.2cm 0.25cm; margin: 0.2cm 0; }
 
     table.ediciones th { font-size: 7.5pt; }
     table.ediciones td { font-size: 8pt; }
 
     table.densidad-tabla td { height: 0.4cm; border: 0.5pt solid #ccc; }
-    .alerta-pdf { padding: 0.2cm 0.3cm; margin-bottom: 0.15cm; background-color: #fff3ec; border-left: 2pt solid #ff5a36; font-size: 9pt; }
+    .alerta-pdf { padding: 0.2cm 0.3cm; margin-bottom: 0.15cm; background-color: #f9e9e8; border-left: 2pt solid #b5484a; font-size: 9pt; }
 </style>
 </head>
 <body>
@@ -78,7 +78,7 @@
     <table class="densidad-tabla" width="100%" cellpadding="0" cellspacing="0">
         <tr>
         {% for item in densidad_pdf %}
-            <td style="background-color: rgba(47,184,255,{{ item.opacidad }});"></td>
+            <td style="background-color: rgba(232,168,61,{{ item.opacidad }});"></td>
         {% endfor %}
         </tr>
     </table>

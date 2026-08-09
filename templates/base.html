@@ -34,10 +34,10 @@
     <script>
         // Rediseño "Sala de conciertos" (etapa base.html -- ver commit): ink/surf/ivory
         // pasan a la paleta cálida nueva porque su mapeo es directo y sin ambigüedad.
-        // volt/ember/violet y la escala blue/purple NO se tocan todavía a propósito --
-        // son parte de un sistema "Pulso" de color por velocity de MIDI que no se auditó
-        // en esta etapa (falta confirmar en qué templates y con qué semántica se usan
-        // antes de remapearlos). Quedan pendientes para la etapa de barrido de templates.
+        // volt/ember/violet (los nombres custom) y el override de blue/purple se retiraron
+        // en la etapa de barrido de templates tras confirmar via grep que ningún template
+        // los usa más -- todos los usos de text-volt/bg-blue-*/text-purple-*/etc. ya se
+        // convirtieron a var(--token) inline o a clases arbitrarias Tailwind (bg-[var(--x)]).
         tailwind.config = {
             theme: {
                 extend: {
@@ -45,19 +45,6 @@
                         ink: '#191919',
                         surf: '#232322',
                         ivory: '#f1e6d3',
-                        volt: '#2fb8ff',
-                        ember: '#ff5a36',
-                        violet: '#9b6bff',
-                        blue: {
-                            50: '#eaf8ff', 100: '#d1f0ff', 200: '#a3e2ff', 300: '#6ecfff',
-                            400: '#43bdff', 500: '#2fb8ff', 600: '#1596e0', 700: '#0f77b3',
-                            800: '#0f5c8a', 900: '#123f5c', 950: '#0a2538',
-                        },
-                        purple: {
-                            50: '#f5f1ff', 100: '#ece3ff', 200: '#d6c5ff', 300: '#bd9fff',
-                            400: '#a880ff', 500: '#9b6bff', 600: '#7c4dff', 700: '#6636db',
-                            800: '#502aa8', 900: '#3a1f7a', 950: '#241350',
-                        },
                     },
                     fontFamily: {
                         display: ["'Fraunces'", 'Georgia', 'serif'],
@@ -222,6 +209,15 @@
             background: #14110d;
             border-radius: 10px;
             padding: 2px 8px;
+            flex-shrink: 0;
+            line-height: 0;
+        }
+        /* flex-shrink:0 en los dos niveles -- .nav-brand (el <a>) y este span son AMBOS
+           contenedores flex anidados; sin esto, la imagen podía angostarse bajo presión
+           de espacio mientras el alto quedaba fijo (h-12), aplastándola. */
+        .nav-brand__logo img {
+            flex-shrink: 0;
+            display: block;
         }
 
         .nav-menu {
@@ -431,7 +427,7 @@
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                     Mis Proyectos
                 </a>
-                <a href="{% url 'midi_trainer_hub' %}" class="nav-link !text-purple-400 hover:!text-purple-300">
+                <a href="{% url 'midi_trainer_hub' %}" class="nav-link !text-[var(--petroleo-bright)] hover:!text-[var(--petroleo)]">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
                     Estudio MIDI
                 </a>
@@ -445,7 +441,7 @@
                         <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);" id="mode-label">Evaluación</span>
                         <div class="toggle-switch" id="global-mode-toggle"></div>
                     </div>
-                    <a href="{% url 'perfil' %}" class="nav-link !text-blue-400 hover:!text-blue-300">
+                    <a href="{% url 'perfil' %}" class="nav-link !text-[var(--wine-bright)] hover:!text-[var(--wine)]">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                         Mi Perfil
                     </a>

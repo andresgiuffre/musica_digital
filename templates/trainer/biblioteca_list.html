@@ -8,14 +8,14 @@
         
         <!-- Filtros -->
         <div class="flex gap-2 flex-wrap">
-            <a href="{% url 'biblioteca_list' %}" class="px-4 py-2 rounded-full font-bold text-sm {% if not current_collection and not favorites_only %}bg-blue-600 text-white{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
+            <a href="{% url 'biblioteca_list' %}" class="px-4 py-2 rounded-full font-bold text-sm {% if not current_collection and not favorites_only %}bg-[var(--gold)] text-[#241505]{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
                 Todas
             </a>
             <a href="?favorites=true" class="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-1 {% if favorites_only %}bg-yellow-500 text-black{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
                 ⭐ Mis Favoritos
             </a>
             {% for col in collections %}
-            <a href="?collection={{ col.slug }}" class="px-4 py-2 rounded-full font-bold text-sm {% if current_collection == col.slug %}bg-blue-600 text-white{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
+            <a href="?collection={{ col.slug }}" class="px-4 py-2 rounded-full font-bold text-sm {% if current_collection == col.slug %}bg-[var(--gold)] text-[#241505]{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
                 {{ col.name }}
             </a>
             {% endfor %}
@@ -24,7 +24,7 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {% for score in scores %}
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-blue-500 transition-colors relative flex flex-col justify-between">
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-[var(--gold)] transition-colors relative flex flex-col justify-between">
             
             <!-- Botón Favorito -->
             <button onclick="toggleFavorite({{ score.id }}, this)" class="absolute top-4 right-4 text-2xl transition-transform hover:scale-110 focus:outline-none">
@@ -65,7 +65,7 @@
             </div>
 
             <div class="flex justify-end mt-2">
-                <a href="{% url 'biblioteca_play' score.id %}" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
+                <a href="{% url 'biblioteca_play' score.id %}" class="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#241505] font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
                     ▶ Practicar
                 </a>
             </div>

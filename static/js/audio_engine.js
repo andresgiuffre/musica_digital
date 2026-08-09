@@ -49,10 +49,6 @@ const AudioEngine = {
           'double bass', 'harp', 'arpa'], 'cuerda'],
     ],
 
-    init() {
-        this.bindSettingsUI();
-    },
-
     // Cada página de esta app es un load nuevo (no es SPA) -- sin persistir en
     // localStorage, el volumen se resetearía al default en cada navegación y el control
     // sería inútil en la práctica. Mismo patrón que localStorage['app_mode'] en base.html.
@@ -243,7 +239,6 @@ const AudioEngine = {
     },
 
     preload() {
-        this.init();
         if (this.sampler) return Promise.resolve();
         
         console.log("Preloading local piano samples with Tone.js...");
@@ -382,6 +377,15 @@ const AudioEngine = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Independiente de preload()/isReady a propósito: leer localStorage y fijar la
+    // posición de la barra/ícono de mute no necesita que Tone.js ni el gesto del
+    // usuario hayan pasado -- solo DOM y localStorage. Antes esto corría recién en
+    // preload() (disparado por el primer click en CUALQUIER parte de la página), así
+    // que hasta ese click la barra mostraba el valor por defecto del HTML en vez del
+    // guardado, y "saltaba" visiblemente en el primer click sin importar qué se haya
+    // clickeado. Ahora se sincroniza una sola vez acá, antes de cualquier interacción.
+    AudioEngine.bindSettingsUI();
+
     document.body.addEventListener('click', async () => {
         if(!AudioEngine.isReady) {
             if (window.Tone) {
