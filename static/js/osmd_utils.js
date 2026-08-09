@@ -1,9 +1,10 @@
 /*
- * Utilidades compartidas para recorrer una partitura ya cargada en OSMD vía su cursor
- * nativo (osmd.cursor). Dos consumidores hoy: biblioteca_play.html (arma la secuencia de
- * reproducción agrupando por acorde) y, potencialmente, orquestacion_ejercicio.html (que
- * hoy tiene su propia versión equivalente, recolectarNotasOsmd, sin migrar todavía -- ver
- * el plan de la sesión que introdujo este archivo).
+ * Utilidades compartidas para trabajar con una partitura cargada en OSMD. Dos consumidores
+ * hoy: biblioteca_play.html (arma la secuencia de reproducción/práctica agrupando por
+ * acorde) y orquestacion_ejercicio.html, que usa etiquetarNotasConSvg pero mantiene su
+ * propia recolectarNotasOsmd (resuelve un problema distinto: correlacionar notas contra un
+ * endpoint backend separado, no solo recorrer el cursor -- ver el plan de la sesión que
+ * introdujo este archivo).
  */
 window.OsmdUtils = (function () {
 
@@ -96,9 +97,51 @@ window.OsmdUtils = (function () {
         return currentIdx;
     }
 
+    /*
+     * Recorre osmd.GraphicSheet.MeasureList (el árbol YA renderizado) y le agrega .svgEl a
+     * cada entrada de `notas` (cualquier lista plana con .logicalNote -- la que devuelve
+     * recorrerCursorOsmd sirve tal cual) buscando su elemento SVG real. Muta in-place y no
+     * devuelve nada -- las entradas que no encuentran su SVG simplemente no reciben .svgEl.
+     * Promovido desde orquestacion_ejercicio.html (etiquetarNotas), con una diferencia real:
+     * usa un Map<logicalNote, entry> en vez de notas.find() dentro del recorrido, O(n) en
+     * vez de O(n²) sobre notas × elementos gráficos.
+     *
+     * Hay que volver a llamarla después de CADA osmd.render(): un render reconstruye el SVG
+     * entero y cualquier .svgEl guardado antes queda huérfano (apunta a un nodo ya
+     * desconectado del documento).
+     */
+    function etiquetarNotasConSvg(osmd, notas) {
+        const porLogicalNote = new Map();
+        notas.forEach(n => { if (n.logicalNote) porLogicalNote.set(n.logicalNote, n); });
+
+        try {
+            osmd.GraphicSheet.MeasureList.forEach(sistema => {
+                sistema.forEach(medida => {
+                    if (!medida || !medida.staffEntries) return;
+                    medida.staffEntries.forEach(staffEntry => {
+                        (staffEntry.graphicalVoiceEntries || []).forEach(gve => {
+                            (gve.notes || []).forEach(gNota => {
+                                const entry = porLogicalNote.get(gNota.sourceNote);
+                                if (!entry) return;
+
+                                let svgEl = null;
+                                if (typeof gNota.getSVGGElement === 'function') svgEl = gNota.getSVGGElement();
+                                else if (gNota.vfnote && gNota.vfnote[0] && gNota.vfnote[0].attrs) svgEl = gNota.vfnote[0].attrs.el;
+                                if (svgEl) entry.svgEl = svgEl;
+                            });
+                        });
+                    });
+                });
+            });
+        } catch (e) {
+            console.error('[OsmdUtils] Error recorriendo GraphicSheet:', e);
+        }
+    }
+
     return {
         recorrerCursorOsmd: recorrerCursorOsmd,
         avanzarCursorOsmdHasta: avanzarCursorOsmdHasta,
+        etiquetarNotasConSvg: etiquetarNotasConSvg,
         pitchANombre: pitchANombre
     };
 })();

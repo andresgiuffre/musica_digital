@@ -266,6 +266,7 @@
 
 {% block extra_js %}
 <script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
+<script src="{% static 'js/osmd_utils.js' %}"></script>
 <script>
 (function () {
     const RANGOS_COMODOS = JSON.parse(document.getElementById('rangos-comodos-data').textContent);
@@ -429,39 +430,21 @@
     // huérfanas) ---
 
     function etiquetarNotas() {
+        // El recorrido del GraphicSheet vive en OsmdUtils (compartido con
+        // biblioteca_play.html) -- acá solo queda lo específico de esta página: los
+        // atributos de click y el índice svgEl -> notas para el listener de click.
         mapaElementoANotas = new Map();
-        try {
-            osmd.GraphicSheet.MeasureList.forEach(sistema => {
-                sistema.forEach(medida => {
-                    if (!medida || !medida.staffEntries) return;
-                    medida.staffEntries.forEach(staffEntry => {
-                        (staffEntry.graphicalVoiceEntries || []).forEach(gve => {
-                            (gve.notes || []).forEach(gNota => {
-                                const notaLogica = gNota.sourceNote;
-                                const entry = notasBackend.find(n => n.logicalNote === notaLogica);
-                                if (!entry) return;
-
-                                let svgEl = null;
-                                if (typeof gNota.getSVGGElement === 'function') svgEl = gNota.getSVGGElement();
-                                else if (gNota.vfnote && gNota.vfnote[0] && gNota.vfnote[0].attrs) svgEl = gNota.vfnote[0].attrs.el;
-                                if (!svgEl) {
-                                    console.warn('[orquestacion] No se encontró elemento SVG para una nota:', entry);
-                                    return;
-                                }
-
-                                svgEl.setAttribute('data-osmd-nota', '1');
-                                svgEl.classList.add('nota-clickeable');
-                                entry.svgEl = svgEl;
-                                if (!mapaElementoANotas.has(svgEl)) mapaElementoANotas.set(svgEl, []);
-                                mapaElementoANotas.get(svgEl).push(entry);
-                            });
-                        });
-                    });
-                });
-            });
-        } catch (e) {
-            console.error('[orquestacion] Error recorriendo GraphicSheet — el pintado puede no funcionar:', e);
-        }
+        OsmdUtils.etiquetarNotasConSvg(osmd, notasBackend);
+        notasBackend.forEach(entry => {
+            if (!entry.svgEl) {
+                console.warn('[orquestacion] No se encontró elemento SVG para una nota:', entry);
+                return;
+            }
+            entry.svgEl.setAttribute('data-osmd-nota', '1');
+            entry.svgEl.classList.add('nota-clickeable');
+            if (!mapaElementoANotas.has(entry.svgEl)) mapaElementoANotas.set(entry.svgEl, []);
+            mapaElementoANotas.get(entry.svgEl).push(entry);
+        });
         aplicarHalosDeRegistro();
         actualizarIndicadoresOctava();
         actualizarBadgesMultiAsignacion();
