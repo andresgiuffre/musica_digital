@@ -107,11 +107,6 @@
         box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 18px 34px -28px rgba(0,0,0,0.7);
     }
 
-    /* Feedback del Modo Práctica sobre el cursor nativo de OSMD -- se aplica y se saca por
-       JS con un setTimeout corto, sin reconstruir el mapeo por elemento SVG del ejercicio
-       de pintado. */
-    .cursor-acierto { filter: drop-shadow(0 0 8px var(--success)); }
-    .cursor-error { filter: drop-shadow(0 0 8px var(--danger)); }
 
 </style>
 {% endblock %}
@@ -213,8 +208,8 @@
                     <div class="flex justify-between items-center text-xs text-gray-400">
                         <span>Errores: <span id="practica-errores" class="text-white font-bold">0</span></span>
                         <label class="flex items-center gap-1 cursor-pointer">
-                            <input type="checkbox" id="practica-confirmar-audio">
-                            🔊 Confirmar con sonido
+                            <input type="checkbox" id="practica-sonido-teclado" checked>
+                            🔊 Sonido del teclado
                         </label>
                     </div>
                 </div>
@@ -395,7 +390,7 @@
     const practicaDeviceSelect = document.getElementById('practica-device-select');
     const practicaStatusEl = document.getElementById('practica-status');
     const practicaErroresEl = document.getElementById('practica-errores');
-    const practicaConfirmarAudio = document.getElementById('practica-confirmar-audio');
+    const practicaSonidoTeclado = document.getElementById('practica-sonido-teclado');
 
     let osmd = null;
     let baseBpm = 100;
@@ -677,9 +672,11 @@
             if (esLigaduraContinuacion(n.logicalNote)) { excluidasPorLigadura++; return; }
 
             if (!gruposPorIdx.has(n.groupIndex)) {
-                gruposPorIdx.set(n.groupIndex, { pasoIdx: n.groupIndex, measureIndex: n.measureIndex, notasEsperadas: new Set() });
+                gruposPorIdx.set(n.groupIndex, { pasoIdx: n.groupIndex, measureIndex: n.measureIndex, notasEsperadas: new Set(), notasDetalle: [] });
             }
-            gruposPorIdx.get(n.groupIndex).notasEsperadas.add(n.ps);
+            const grupo = gruposPorIdx.get(n.groupIndex);
+            grupo.notasEsperadas.add(n.ps);
+            grupo.notasDetalle.push({ ps: n.ps, logicalNote: n.logicalNote });
         });
 
         const secuencia = Array.from(gruposPorIdx.values()).sort((a, b) => a.pasoIdx - b.pasoIdx);
@@ -697,12 +694,18 @@
             `Pasos sin ninguna nota exigible (silencios u otros vacíos tras filtrar): ${pasosSinNadaExigible}`
         );
 
+        // Se etiqueta acá, una sola vez por secuencia armada -- si hubo un render de por
+        // medio desde la última vez (ej. resize de ventana), esto la deja al día de nuevo.
+        const todasLasNotas = secuencia.flatMap(evt => evt.notasDetalle);
+        OsmdUtils.etiquetarNotasConSvg(osmd, todasLasNotas);
+
         return secuencia;
     }
 
     function crearMotorMatching(notasEsperadas) {
         const acumulado = new Set();
         return {
+            acumulado, // expuesto para que el feedback de error sepa qué notas siguen pendientes
             procesarNotaOn(ps) {
                 if (!notasEsperadas.has(ps)) {
                     return { correcta: false, completo: false };
@@ -713,11 +716,40 @@
         };
     }
 
-    function flashCursor(claseCss) {
-        const el = osmd.cursor.cursorElement;
-        if (!el) return;
-        el.classList.add(claseCss);
-        setTimeout(() => el.classList.remove(claseCss), 250);
+    // Feedback sobre la NOTA gráfica, no sobre el cursor -- mismo mecanismo que
+    // aplicarHalosDeRegistro en orquestacion_ejercicio.html: mutación directa de .style
+    // sobre el SVG ya renderizado, sin pasar por NoteheadColor (que exige un render nuevo).
+    function pintarNotaAcierto(entry) {
+        if (!entry.svgEl) return;
+        entry.svgEl.style.filter = 'drop-shadow(0 0 3px var(--success)) drop-shadow(0 0 6px var(--success))';
+        // Bonus, sin garantía: si VexFlow fija el fill con más especificidad en un hijo,
+        // esto puede no verse -- el glow de arriba es el mecanismo que sí está probado.
+        entry.svgEl.style.fill = 'var(--success)';
+    }
+
+    function flashNotasError(pendientes, motorDelEvento) {
+        pendientes.forEach(entry => {
+            if (!entry.svgEl) return;
+            entry.svgEl.style.filter = 'drop-shadow(0 0 3px var(--danger)) drop-shadow(0 0 6px var(--danger))';
+            setTimeout(() => {
+                // Si en el medio se terminó acertando esta misma nota, no le pisamos el
+                // verde persistente con la limpieza del flash rojo.
+                if (!motorDelEvento.acumulado.has(entry.ps)) {
+                    entry.svgEl.style.filter = '';
+                }
+            }, 250);
+        });
+    }
+
+    function limpiarPintadoPractica() {
+        practicaSecuencia.forEach(evt => {
+            evt.notasDetalle.forEach(n => {
+                if (n.svgEl) {
+                    n.svgEl.style.filter = '';
+                    n.svgEl.style.fill = '';
+                }
+            });
+        });
     }
 
     function actualizarStatusPractica() {
@@ -728,18 +760,6 @@
     }
 
     function avanzarEventoPractica() {
-        // El cursor ya está parado en el evento que se acaba de completar (así arrancó en
-        // activarModoPractica, o así quedó tras el avance anterior) -- el flash/confirmación
-        // van ACÁ, antes de mover nada, para que se vean en la posición que se acaba de
-        // acertar. Recién después se mueve el cursor hacia el próximo evento a esperar.
-        const evtCompletado = practicaSecuencia[practicaEventoIdx];
-        flashCursor('cursor-acierto');
-
-        if (practicaConfirmarAudio.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
-            const primerPitch = OsmdUtils.pitchANombre(Array.from(evtCompletado.notasEsperadas)[0]);
-            AudioEngine.sampler.triggerAttackRelease(primerPitch, '16n');
-        }
-
         practicaEventoIdx++;
         if (practicaEventoIdx >= practicaSecuencia.length) {
             terminarPractica();
@@ -753,31 +773,96 @@
         actualizarStatusPractica();
     }
 
-    function manejarNotaOnPractica(pitch) {
+    function manejarNotaOnPractica(pitch, velocity) {
+        // El sonido va primero y sin condiciones más que el checkbox -- nada de matching
+        // ni de DOM antes del triggerAttack, para no meter latencia entre la tecla y el
+        // sonido. Suena igual si la nota es correcta o no: es el instrumento del usuario.
+        if (practicaSonidoTeclado.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
+            AudioEngine.sampler.triggerAttack(OsmdUtils.pitchANombre(pitch), Tone.context.currentTime, velocity / 127);
+        }
+
         if (!practicaActiva || practicaEventoIdx >= practicaSecuencia.length) return;
+
+        const evt = practicaSecuencia[practicaEventoIdx];
         const resultado = practicaMotor.procesarNotaOn(pitch);
+
         if (!resultado.correcta) {
             practicaErrores++;
             practicaErroresEl.textContent = practicaErrores;
-            flashCursor('cursor-error');
+            const pendientes = evt.notasDetalle.filter(n => !practicaMotor.acumulado.has(n.ps));
+            flashNotasError(pendientes, practicaMotor);
             return;
         }
+
+        evt.notasDetalle.filter(n => n.ps === pitch).forEach(pintarNotaAcierto);
+
         if (resultado.completo) {
             avanzarEventoPractica();
         }
     }
 
+    function manejarNotaOffPractica(pitch) {
+        // Incondicional a propósito: si se destilda "Sonido del teclado" con una tecla
+        // todavía apretada, igual hay que soltarla -- el attack sí depende del checkbox,
+        // el release no, para que nunca quede una nota sonando colgada.
+        if (AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
+            AudioEngine.sampler.triggerRelease(OsmdUtils.pitchANombre(pitch), Tone.context.currentTime);
+        }
+    }
+
+    // Metrónomo del modo práctica: guía auditiva pura, sin ninguna relación con el
+    // matching ni con avanzarEventoPractica -- Tone.Loop independiente en vez de
+    // enganchar en Tone.Transport.schedule como hace la reproducción pasiva, porque acá
+    // no hay ningún evento de partitura agendado de antemano al que atarse.
+    let metronomoPracticaLoop = null;
+    let practicaBeatCount = 0;
+
+    function iniciarMetronomoPractica() {
+        initSynth();
+        practicaBeatCount = 0;
+        Tone.Transport.bpm.value = baseBpm * parseFloat(tempoSelector.value);
+        metronomoPracticaLoop = new Tone.Loop((time) => {
+            if (metronomoToggle.checked) {
+                const esAcento = practicaBeatCount % timeNumerator === 0;
+                clickSynth.triggerAttackRelease(esAcento ? "C3" : "G2", "16n", time);
+            }
+            Tone.Draw.schedule(() => {
+                const beatNum = (practicaBeatCount % timeNumerator) + 1;
+                document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
+                const dot = document.getElementById(`beat-${beatNum}`);
+                if (dot) dot.classList.add('active');
+                conductorWidget.classList.add('beat-pulse');
+                setTimeout(() => conductorWidget.classList.remove('beat-pulse'), 150);
+            }, time);
+            practicaBeatCount++;
+        }, "4n").start(0);
+        Tone.Transport.start();
+    }
+
+    function detenerMetronomoPractica() {
+        if (metronomoPracticaLoop) {
+            metronomoPracticaLoop.dispose();
+            metronomoPracticaLoop = null;
+        }
+        Tone.Transport.stop();
+        Tone.Transport.cancel();
+    }
+
     function bloquearControlesReproduccion(bloquear) {
         // Pausar/Detener no hace falta tocarlos acá: arrancan deshabilitados y solo
         // startPlayback() los habilita -- como el modo práctica nunca llama a
-        // startPlayback(), quedan afuera del juego solos mientras dure.
+        // startPlayback(), quedan afuera del juego solos mientras dure. El toggle de
+        // Metrónomo se deja siempre habilitado a propósito: es la guía del modo práctica.
         btnPlay.disabled = bloquear;
         pianoToggle.disabled = bloquear;
-        metronomoToggle.disabled = bloquear;
     }
 
-    function iniciarPractica() {
+    async function iniciarPractica() {
         if (isPlaying) stopPlayback();
+
+        if (window.Tone && Tone.context.state !== 'running') {
+            await Tone.start();
+        }
 
         practicaSecuencia = construirSecuenciaPractica();
         if (practicaSecuencia.length === 0) {
@@ -827,11 +912,14 @@
                     actualizarStatusPractica();
                 }
             },
-            onNoteOn: manejarNotaOnPractica
+            onNoteOn: manejarNotaOnPractica,
+            onNoteOff: manejarNotaOffPractica
         });
     }
 
     function activarModoPractica(dispositivos) {
+        limpiarPintadoPractica(); // por si quedó rastro de una práctica anterior en esta misma carga de página
+
         practicaActiva = true;
         practicaEventoIdx = 0;
         practicaErrores = 0;
@@ -855,9 +943,12 @@
         practicaDeviceSelect.onchange = () => practicaMidiHandle.seleccionarDispositivo(practicaDeviceSelect.value);
 
         actualizarStatusPractica();
+        iniciarMetronomoPractica();
     }
 
     function terminarPractica() {
+        detenerMetronomoPractica();
+
         if (practicaMidiHandle) {
             practicaMidiHandle.desconectar();
             practicaMidiHandle = null;
@@ -1072,7 +1163,7 @@
     }
 
     tempoSelector.addEventListener('change', () => {
-        if(isPlaying || Tone.Transport.state === "paused") {
+        if(isPlaying || Tone.Transport.state === "paused" || practicaActiva) {
             Tone.Transport.bpm.value = baseBpm * parseFloat(tempoSelector.value);
         }
     });
