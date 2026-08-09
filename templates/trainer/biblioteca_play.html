@@ -107,6 +107,12 @@
         box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 18px 34px -28px rgba(0,0,0,0.7);
     }
 
+    /* Feedback del Modo Práctica sobre el cursor nativo de OSMD -- se aplica y se saca por
+       JS con un setTimeout corto, sin reconstruir el mapeo por elemento SVG del ejercicio
+       de pintado. */
+    .cursor-acierto { filter: drop-shadow(0 0 8px var(--success)); }
+    .cursor-error { filter: drop-shadow(0 0 8px var(--danger)); }
+
 </style>
 {% endblock %}
 
@@ -189,6 +195,30 @@
                         <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--gold)]"></div>
                     </label>
                 </div>
+            </div>
+
+            <!-- Modo Práctica (MIDI) -->
+            <div class="panel-box" id="practica-panel">
+                <div id="practica-inicio">
+                    <button id="btn-practica" class="btn-control w-full" style="background: linear-gradient(135deg, var(--wine-bright), var(--wine)); color: white;">🎯 Iniciar práctica</button>
+                    <p class="text-xs text-gray-500 mt-2">Tocá tu teclado MIDI sobre la partitura — el cursor avanza cuando tocás la nota correcta. El piano de la app no suena en este modo.</p>
+                </div>
+                <div id="practica-activa" class="hidden">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-white text-sm font-bold">🎯 Modo Práctica</h3>
+                        <button id="btn-terminar-practica" class="text-xs text-gray-400 hover:text-white underline">Terminar práctica</button>
+                    </div>
+                    <select id="practica-device-select" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-2 text-xs mb-2 hidden"></select>
+                    <p id="practica-status" class="text-sm text-gray-300 mb-2">Esperando...</p>
+                    <div class="flex justify-between items-center text-xs text-gray-400">
+                        <span>Errores: <span id="practica-errores" class="text-white font-bold">0</span></span>
+                        <label class="flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" id="practica-confirmar-audio">
+                            🔊 Confirmar con sonido
+                        </label>
+                    </div>
+                </div>
+                <div id="practica-resumen" class="hidden text-sm text-gray-300"></div>
             </div>
 
             <!-- Velocidad -->
@@ -338,6 +368,7 @@
 {% block extra_js %}
 <script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
 <script src="{% static 'js/osmd_utils.js' %}"></script>
+<script src="{% static 'js/midi_input.js' %}"></script>
 <script>
     const osmdCanvas = document.getElementById('osmdCanvas');
     const btnPlay = document.getElementById('btn-play');
@@ -355,6 +386,17 @@
     const conductorWidget = document.getElementById('conductor-widget');
     const debugPanel = document.getElementById('debug-panel');
 
+    // Modo Práctica (MIDI)
+    const btnPractica = document.getElementById('btn-practica');
+    const btnTerminarPractica = document.getElementById('btn-terminar-practica');
+    const practicaInicioEl = document.getElementById('practica-inicio');
+    const practicaActivaEl = document.getElementById('practica-activa');
+    const practicaResumenEl = document.getElementById('practica-resumen');
+    const practicaDeviceSelect = document.getElementById('practica-device-select');
+    const practicaStatusEl = document.getElementById('practica-status');
+    const practicaErroresEl = document.getElementById('practica-errores');
+    const practicaConfirmarAudio = document.getElementById('practica-confirmar-audio');
+
     let osmd = null;
     let baseBpm = 100;
     let isPlaying = false;
@@ -368,6 +410,15 @@
     let autoScrollActivo = true;
     let scrolleandoProgramaticamente = false;
     let scrollGuardTimeout = null;
+
+    // Modo Práctica (MIDI)
+    let practicaActiva = false;
+    let practicaSecuencia = [];      // eventos exigibles, ya sin silencios/graces/ligaduras -- ver construirSecuenciaPractica()
+    let practicaEventoIdx = 0;       // índice DENTRO de practicaSecuencia (no el índice crudo del cursor)
+    let practicaMotor = null;        // motor de matching del evento actual, ver crearMotorMatching()
+    let practicaErrores = 0;
+    let practicaInicioTs = null;
+    let practicaMidiHandle = null;
 
     // Variables Modo Ensayo
     let isRehearsalActive = false;
@@ -591,6 +642,256 @@
             window.scrollBy({ top: delta, behavior: 'smooth' });
         }
     }
+
+    // ==================== Modo Práctica (MIDI) ====================
+    // Arquitectura: motor de MATCHING (¿la nota tocada es correcta? ¿el evento está
+    // completo?) separado del motor de AVANCE (¿cuándo pasamos al siguiente evento?).
+    // Acá el avance lo dispara el matching (modo paciente). Un futuro modo contra-reloj
+    // agregaría un motor de avance distinto (por scheduler de metrónomo, no por matching)
+    // sin tocar ninguna de las dos piezas de abajo.
+
+    function esLigaduraContinuacion(logicalNote) {
+        // OSMD expone la ligadura de forma distinta según la propiedad -- se prueban los
+        // candidatos conocidos. Si ninguno aplica se asume que NO es continuación (se
+        // prefiere exigir de más, detectable al toque en el log de diagnóstico, a trabar
+        // la práctica esperando una nota que en realidad nunca hay que re-atacar).
+        if (!logicalNote) return false;
+        if (logicalNote.NoteTie && logicalNote.NoteTie.StartNote && logicalNote.NoteTie.StartNote !== logicalNote) return true;
+        if (logicalNote.Tie && logicalNote.Tie.StartNote && logicalNote.Tie.StartNote !== logicalNote) return true;
+        return false;
+    }
+
+    function construirSecuenciaPractica() {
+        // incluirGraceNotes:true a propósito -- acá se filtran a mano (junto con ligaduras
+        // y silencios) para poder contar cada motivo de exclusión por separado en el log.
+        const { pasos, notas } = OsmdUtils.recorrerCursorOsmd(osmd, { incluirGraceNotes: true });
+
+        const gruposPorIdx = new Map();
+        let excluidasPorGrace = 0;
+        let excluidasPorLigadura = 0;
+        let excluidasPorPitchInvalido = 0;
+
+        notas.forEach(n => {
+            if (n.isGrace) { excluidasPorGrace++; return; }
+            if (n.pitchName === null || n.ps === null) { excluidasPorPitchInvalido++; return; }
+            if (esLigaduraContinuacion(n.logicalNote)) { excluidasPorLigadura++; return; }
+
+            if (!gruposPorIdx.has(n.groupIndex)) {
+                gruposPorIdx.set(n.groupIndex, { pasoIdx: n.groupIndex, measureIndex: n.measureIndex, notasEsperadas: new Set() });
+            }
+            gruposPorIdx.get(n.groupIndex).notasEsperadas.add(n.ps);
+        });
+
+        const secuencia = Array.from(gruposPorIdx.values()).sort((a, b) => a.pasoIdx - b.pasoIdx);
+        const pasosSinNadaExigible = pasos.length - secuencia.length;
+
+        // Log de diagnóstico PERMANENTE (no solo para depurar ahora): si el filtro de
+        // ligaduras falla en silencio con el nombre de propiedad de alguna partitura
+        // particular, el síntoma en uso es "el cursor se traba esperando algo que no
+        // existe" -- con este log se detecta comparando estos números contra la partitura
+        // real, en vez de perseguirlo a ciegas.
+        console.log(
+            `[modo-practica] Pasos totales del cursor: ${pasos.length} | ` +
+            `Eventos exigibles: ${secuencia.length} | ` +
+            `Excluidas -> grace: ${excluidasPorGrace}, ligadura: ${excluidasPorLigadura}, sin altura: ${excluidasPorPitchInvalido} | ` +
+            `Pasos sin ninguna nota exigible (silencios u otros vacíos tras filtrar): ${pasosSinNadaExigible}`
+        );
+
+        return secuencia;
+    }
+
+    function crearMotorMatching(notasEsperadas) {
+        const acumulado = new Set();
+        return {
+            procesarNotaOn(ps) {
+                if (!notasEsperadas.has(ps)) {
+                    return { correcta: false, completo: false };
+                }
+                acumulado.add(ps);
+                return { correcta: true, completo: acumulado.size === notasEsperadas.size };
+            }
+        };
+    }
+
+    function flashCursor(claseCss) {
+        const el = osmd.cursor.cursorElement;
+        if (!el) return;
+        el.classList.add(claseCss);
+        setTimeout(() => el.classList.remove(claseCss), 250);
+    }
+
+    function actualizarStatusPractica() {
+        if (practicaEventoIdx >= practicaSecuencia.length) return;
+        const evt = practicaSecuencia[practicaEventoIdx];
+        const nombres = Array.from(evt.notasEsperadas).sort((a, b) => a - b).map(ps => OsmdUtils.pitchANombre(ps));
+        practicaStatusEl.textContent = 'Esperando: ' + nombres.join(' + ');
+    }
+
+    function avanzarEventoPractica() {
+        // El cursor ya está parado en el evento que se acaba de completar (así arrancó en
+        // activarModoPractica, o así quedó tras el avance anterior) -- el flash/confirmación
+        // van ACÁ, antes de mover nada, para que se vean en la posición que se acaba de
+        // acertar. Recién después se mueve el cursor hacia el próximo evento a esperar.
+        const evtCompletado = practicaSecuencia[practicaEventoIdx];
+        flashCursor('cursor-acierto');
+
+        if (practicaConfirmarAudio.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
+            const primerPitch = OsmdUtils.pitchANombre(Array.from(evtCompletado.notasEsperadas)[0]);
+            AudioEngine.sampler.triggerAttackRelease(primerPitch, '16n');
+        }
+
+        practicaEventoIdx++;
+        if (practicaEventoIdx >= practicaSecuencia.length) {
+            terminarPractica();
+            return;
+        }
+
+        const siguiente = practicaSecuencia[practicaEventoIdx];
+        currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, siguiente.pasoIdx);
+        autoScrollHaciaCursor();
+        practicaMotor = crearMotorMatching(siguiente.notasEsperadas);
+        actualizarStatusPractica();
+    }
+
+    function manejarNotaOnPractica(pitch) {
+        if (!practicaActiva || practicaEventoIdx >= practicaSecuencia.length) return;
+        const resultado = practicaMotor.procesarNotaOn(pitch);
+        if (!resultado.correcta) {
+            practicaErrores++;
+            practicaErroresEl.textContent = practicaErrores;
+            flashCursor('cursor-error');
+            return;
+        }
+        if (resultado.completo) {
+            avanzarEventoPractica();
+        }
+    }
+
+    function bloquearControlesReproduccion(bloquear) {
+        // Pausar/Detener no hace falta tocarlos acá: arrancan deshabilitados y solo
+        // startPlayback() los habilita -- como el modo práctica nunca llama a
+        // startPlayback(), quedan afuera del juego solos mientras dure.
+        btnPlay.disabled = bloquear;
+        pianoToggle.disabled = bloquear;
+        metronomoToggle.disabled = bloquear;
+    }
+
+    function iniciarPractica() {
+        if (isPlaying) stopPlayback();
+
+        practicaSecuencia = construirSecuenciaPractica();
+        if (practicaSecuencia.length === 0) {
+            alert('Esta partitura no tiene notas para practicar.');
+            return;
+        }
+
+        // Bloqueo optimista apenas se aprieta el botón -- si algo de lo de abajo falla
+        // (sin soporte, permiso denegado, sin dispositivos) se desbloquea de nuevo en esa
+        // misma rama, para no dejar la reproducción normal inutilizable sin haber entrado
+        // realmente al modo práctica. btnPractica se deshabilita aparte para que un
+        // doble click mientras el navegador todavía no respondió el permiso no dispare
+        // dos conexiones MIDI en paralelo.
+        bloquearControlesReproduccion(true);
+        btnPractica.disabled = true;
+
+        practicaMidiHandle = MidiInput.conectar({
+            onSinSoporte: () => {
+                bloquearControlesReproduccion(false);
+                btnPractica.disabled = false;
+                alert('Tu navegador no soporta Web MIDI. Probá con Chrome o Edge.');
+            },
+            onPermisoDenegado: () => {
+                bloquearControlesReproduccion(false);
+                btnPractica.disabled = false;
+                alert('Se denegó el permiso de acceso MIDI.');
+            },
+            onDispositivosDisponibles: (dispositivos) => {
+                if (dispositivos.length === 0) {
+                    if (practicaActiva) {
+                        practicaStatusEl.textContent = 'Se desconectó el teclado MIDI — reconectalo para seguir.';
+                    } else {
+                        bloquearControlesReproduccion(false);
+                        btnPractica.disabled = false;
+                        alert('No se encontró ningún teclado MIDI conectado. Conectalo y volvé a intentar.');
+                    }
+                    return;
+                }
+
+                if (!practicaActiva) {
+                    // Primera vez que aparecen dispositivos tras pedir acceso: recién acá arranca de verdad el modo.
+                    activarModoPractica(dispositivos);
+                } else {
+                    // Reconexión en caliente durante una práctica ya en curso.
+                    practicaDeviceSelect.classList.toggle('hidden', dispositivos.length < 2);
+                    practicaDeviceSelect.innerHTML = dispositivos.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+                    actualizarStatusPractica();
+                }
+            },
+            onNoteOn: manejarNotaOnPractica
+        });
+    }
+
+    function activarModoPractica(dispositivos) {
+        practicaActiva = true;
+        practicaEventoIdx = 0;
+        practicaErrores = 0;
+        practicaInicioTs = Date.now();
+        practicaErroresEl.textContent = '0';
+
+        osmd.cursor.reset();
+        currentCursorIdx = 0;
+        // Si la partitura arranca con un silencio/anacrusa filtrada, el primer evento
+        // exigible puede no estar en el paso crudo 0 -- se salta hasta ahí antes de
+        // esperar la primera nota, para que lo que se ve coincida con lo que se pide.
+        currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, practicaSecuencia[0].pasoIdx);
+        practicaMotor = crearMotorMatching(practicaSecuencia[0].notasEsperadas);
+
+        practicaInicioEl.classList.add('hidden');
+        practicaResumenEl.classList.add('hidden');
+        practicaActivaEl.classList.remove('hidden');
+
+        practicaDeviceSelect.classList.toggle('hidden', dispositivos.length < 2);
+        practicaDeviceSelect.innerHTML = dispositivos.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+        practicaDeviceSelect.onchange = () => practicaMidiHandle.seleccionarDispositivo(practicaDeviceSelect.value);
+
+        actualizarStatusPractica();
+    }
+
+    function terminarPractica() {
+        if (practicaMidiHandle) {
+            practicaMidiHandle.desconectar();
+            practicaMidiHandle = null;
+        }
+
+        const eventosCompletados = practicaEventoIdx;
+        const totalEventos = practicaSecuencia.length;
+        const segundos = practicaInicioTs ? Math.round((Date.now() - practicaInicioTs) / 1000) : 0;
+        const mm = Math.floor(segundos / 60).toString().padStart(2, '0');
+        const ss = (segundos % 60).toString().padStart(2, '0');
+
+        practicaActiva = false;
+        bloquearControlesReproduccion(false);
+        btnPractica.disabled = false;
+
+        practicaActivaEl.classList.add('hidden');
+        practicaResumenEl.classList.remove('hidden');
+        practicaResumenEl.innerHTML = `
+            <h3 class="text-white text-sm font-bold mb-2">🏁 Práctica terminada</h3>
+            <p>Eventos completados: <strong class="text-white">${eventosCompletados} / ${totalEventos}</strong></p>
+            <p>Errores: <strong class="text-white">${practicaErrores}</strong></p>
+            <p>Tiempo: <strong class="text-white">${mm}:${ss}</strong></p>
+            <button id="btn-nueva-practica" class="w-full mt-3 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition">Volver a empezar</button>
+        `;
+        document.getElementById('btn-nueva-practica').addEventListener('click', () => {
+            practicaResumenEl.classList.add('hidden');
+            practicaInicioEl.classList.remove('hidden');
+        });
+    }
+
+    btnPractica.addEventListener('click', iniciarPractica);
+    btnTerminarPractica.addEventListener('click', terminarPractica);
+
+    // ==================== Fin Modo Práctica ====================
 
     async function startPlayback() {
         if (window.Tone) {
