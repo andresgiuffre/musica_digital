@@ -249,6 +249,75 @@
             border-left: 1px solid var(--border);
         }
 
+        /* Reemplaza los links sueltos (Inicio/Biblioteca/Mis Proyectos/Estudio MIDI) por
+           un único dropdown "Recursos" que agrupa los mismos destinos que las cards de la
+           página principal -- decisión explícita del usuario para achicar el navbar. */
+        .nav-dropdown { position: relative; }
+
+        .nav-dropdown__trigger {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        .nav-dropdown__caret {
+            width: 0.65rem;
+            height: 0.65rem;
+            transition: transform 0.18s ease;
+        }
+
+        .nav-dropdown.is-open .nav-dropdown__caret { transform: rotate(180deg); }
+        .nav-dropdown.is-open .nav-dropdown__trigger { color: var(--gold-bright); }
+
+        .nav-dropdown__menu {
+            position: absolute;
+            top: calc(100% + 0.9rem);
+            left: 50%;
+            transform: translateX(-50%);
+            min-width: 300px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radio);
+            box-shadow: var(--sombra);
+            padding: 0.6rem;
+            display: none;
+            flex-direction: column;
+            gap: 0.15rem;
+            z-index: 150;
+        }
+
+        .nav-dropdown.is-open .nav-dropdown__menu { display: flex; }
+
+        .nav-dropdown__item {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            padding: 0.65rem 0.75rem;
+            border-radius: var(--radio-chico);
+            text-decoration: none;
+            transition: background 0.15s ease;
+        }
+
+        .nav-dropdown__item:hover {
+            background: color-mix(in srgb, var(--item-acento, var(--wine)) 12%, transparent);
+        }
+
+        .nav-dropdown__item svg {
+            width: 20px;
+            height: 20px;
+            stroke: var(--item-acento, var(--wine));
+            fill: none;
+            stroke-width: 1.6;
+            flex-shrink: 0;
+        }
+
+        .nav-dropdown__item-texto { display: flex; flex-direction: column; }
+        .nav-dropdown__item-titulo { font-size: 0.92rem; font-weight: 600; color: var(--text); line-height: 1.25; }
+        .nav-dropdown__item-desc { font-size: 0.76rem; color: var(--text-secondary); font-weight: 500; margin-top: 0.1rem; }
+
+        .nav-dropdown__sep { height: 1px; background: var(--border); margin: 0.4rem 0.3rem; }
+
         /* Posición fija (no dentro de la navbar) a propósito: es inmune a cualquier
            problema de layout del flex de la navbar, y coincide con dónde vivía en el
            mockup aprobado. */
@@ -415,23 +484,59 @@
 
             {% if user.is_authenticated %}
             <div class="nav-menu">
-                <a href="{% url 'dashboard' %}" class="nav-link">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-                    Inicio
-                </a>
-                <a href="{% url 'biblioteca_list' %}" class="nav-link">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
-                    Biblioteca
-                </a>
-                <a href="{% url 'proyectos_list' %}" class="nav-link !text-emerald-400 hover:!text-emerald-300">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                    Mis Proyectos
-                </a>
-                <a href="{% url 'midi_trainer_hub' %}" class="nav-link !text-[var(--petroleo-bright)] hover:!text-[var(--petroleo)]">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
-                    Estudio MIDI
-                </a>
-                
+                <div class="nav-dropdown" id="recursos-dropdown">
+                    <button type="button" class="nav-link nav-dropdown__trigger" id="recursos-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="recursos-menu">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                        Recursos
+                        <svg class="nav-dropdown__caret" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div class="nav-dropdown__menu" id="recursos-menu" role="menu" aria-labelledby="recursos-trigger">
+                        <a href="{% url 'midi_trainer_hub' %}" class="nav-dropdown__item" style="--item-acento: var(--gold);" role="menuitem">
+                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+                            <span class="nav-dropdown__item-texto">
+                                <span class="nav-dropdown__item-titulo">Estudio MIDI</span>
+                                <span class="nav-dropdown__item-desc">Identificación de acordes en vivo</span>
+                            </span>
+                        </a>
+                        <a href="{% url 'biblioteca_list' %}" class="nav-dropdown__item" style="--item-acento: var(--wine);" role="menuitem">
+                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                            <span class="nav-dropdown__item-texto">
+                                <span class="nav-dropdown__item-titulo">Estudio Digital</span>
+                                <span class="nav-dropdown__item-desc">Partituras con metrónomo y tempo</span>
+                            </span>
+                        </a>
+                        <a href="{% url 'entrenador_index' %}" class="nav-dropdown__item" style="--item-acento: var(--petroleo);" role="menuitem">
+                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            <span class="nav-dropdown__item-texto">
+                                <span class="nav-dropdown__item-titulo">Entrenador</span>
+                                <span class="nav-dropdown__item-desc">Juegos de oído y lectura</span>
+                            </span>
+                        </a>
+                        <a href="{% url 'proyectos_list' %}" class="nav-dropdown__item" style="--item-acento: var(--gold);" role="menuitem">
+                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                            <span class="nav-dropdown__item-texto">
+                                <span class="nav-dropdown__item-titulo">Proyectos</span>
+                                <span class="nav-dropdown__item-desc">Obras en estudio a largo plazo</span>
+                            </span>
+                        </a>
+                        <a href="{% url 'orquestacion_ejercicio_lista' %}" class="nav-dropdown__item" style="--item-acento: var(--wine);" role="menuitem">
+                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v8m0 0l4-4m-4 4l-4-4"></path></svg>
+                            <span class="nav-dropdown__item-texto">
+                                <span class="nav-dropdown__item-titulo">Ejercicio de orquestación</span>
+                                <span class="nav-dropdown__item-desc">Pintá voces de un fragmento de piano</span>
+                            </span>
+                        </a>
+                        <div class="nav-dropdown__sep"></div>
+                        <a href="{% url 'orquestador_analizar' %}" class="nav-dropdown__item" style="--item-acento: var(--wine);" role="menuitem">
+                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"></path></svg>
+                            <span class="nav-dropdown__item-texto">
+                                <span class="nav-dropdown__item-titulo">Director de Estudio</span>
+                                <span class="nav-dropdown__item-desc">Analizar una partitura con IA</span>
+                            </span>
+                        </a>
+                    </div>
+                </div>
+
                 <div class="nav-user">
                     <div class="audio-volume-control" title="Volumen del audio">
                         <button type="button" id="audio-mute-toggle" class="audio-volume-mute-btn" aria-label="Silenciar sonido">🔊</button>
@@ -518,6 +623,30 @@
                     actualizarBotonTema();
                 });
                 actualizarBotonTema();
+            }
+
+            const recursosDropdown = document.getElementById("recursos-dropdown");
+            const recursosTrigger = document.getElementById("recursos-trigger");
+            if (recursosDropdown && recursosTrigger) {
+                const cerrarRecursos = () => {
+                    recursosDropdown.classList.remove("is-open");
+                    recursosTrigger.setAttribute("aria-expanded", "false");
+                };
+                const abrirRecursos = () => {
+                    recursosDropdown.classList.add("is-open");
+                    recursosTrigger.setAttribute("aria-expanded", "true");
+                };
+                recursosTrigger.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    if (recursosDropdown.classList.contains("is-open")) cerrarRecursos();
+                    else abrirRecursos();
+                });
+                document.addEventListener("click", (e) => {
+                    if (!recursosDropdown.contains(e.target)) cerrarRecursos();
+                });
+                document.addEventListener("keydown", (e) => {
+                    if (e.key === "Escape") cerrarRecursos();
+                });
             }
 
             const modal = document.getElementById("theory-modal");
