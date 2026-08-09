@@ -22,7 +22,12 @@
     /* Brújula (Conductor) */
     #conductor-widget {
         position: fixed;
-        bottom: 30px;
+        /* 6rem, no 30px: el botón de tema claro/oscuro (.tema-toggle-btn en base.html) vive
+           fijo en la misma esquina inferior derecha, bottom/right: 1.4rem, ~2.6rem de lado --
+           con 30px este círculo de 120px lo tapaba visualmente aunque siguiera siendo
+           clickeable (z-index más alto). Con 6rem de separación queda arriba, sin solape,
+           en los dos temas (el botón no cambia de posición entre claro/oscuro). */
+        bottom: 6rem;
         right: 30px;
         width: 120px;
         height: 120px;
@@ -169,6 +174,21 @@
                 <button id="btn-play" class="btn-control bg-emerald-600 hover:bg-emerald-500" disabled>▶ Reproducir</button>
                 <button id="btn-pause" class="btn-control bg-amber-600 hover:bg-amber-500" disabled>⏸ Pausar</button>
                 <button id="btn-stop" class="btn-control bg-red-600 hover:bg-red-500" disabled>⏹ Detener</button>
+
+                <div class="flex justify-between items-center pt-2 border-t border-white/10">
+                    <label class="text-gray-400 text-sm font-bold flex items-center gap-1">🎹 Piano</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="piano-toggle" class="sr-only peer" checked>
+                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--gold)]"></div>
+                    </label>
+                </div>
+                <div class="flex justify-between items-center">
+                    <label class="text-gray-400 text-sm font-bold flex items-center gap-1">🥁 Metrónomo</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="metronomo-toggle" class="sr-only peer" checked>
+                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--gold)]"></div>
+                    </label>
+                </div>
             </div>
 
             <!-- Velocidad -->
@@ -317,18 +337,21 @@
 
 {% block extra_js %}
 <script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
+<script src="{% static 'js/osmd_utils.js' %}"></script>
 <script>
     const osmdCanvas = document.getElementById('osmdCanvas');
     const btnPlay = document.getElementById('btn-play');
     const btnPause = document.getElementById('btn-pause');
     const btnStop = document.getElementById('btn-stop');
     const btnDebug = document.getElementById('btn-debug');
-    
+    const pianoToggle = document.getElementById('piano-toggle');
+    const metronomoToggle = document.getElementById('metronomo-toggle');
+
     const tempoSelector = document.getElementById('tempo-selector');
     const loopToggle = document.getElementById('loop-toggle');
     const loopStart = document.getElementById('loop-start');
     const loopEnd = document.getElementById('loop-end');
-    
+
     const conductorWidget = document.getElementById('conductor-widget');
     const debugPanel = document.getElementById('debug-panel');
 
@@ -340,6 +363,11 @@
     let clickSynth = null;
     let currentCursorIdx = 0;
     let events = []; // Array global para loop calculations
+
+    // Auto-scroll del cursor durante la reproducción
+    let autoScrollActivo = true;
+    let scrolleandoProgramaticamente = false;
+    let scrollGuardTimeout = null;
 
     // Variables Modo Ensayo
     let isRehearsalActive = false;
@@ -450,11 +478,15 @@
 
     async function initOSMD() {
         osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(osmdCanvas);
+        // Color leído de la paleta viva del sitio (no reactivo al toggle de tema en caliente,
+        // igual que el resto de las lecturas de custom properties en JS de este proyecto --
+        // se fija una vez al cargar la página).
+        const colorCursor = getComputedStyle(document.documentElement).getPropertyValue('--gold').trim() || '#e8a83d';
         osmd.setOptions({
             backend: "svg",
             drawTitle: false,
             drawComposer: false,
-            cursorsOptions: [{type: 0, color: "#3b82f6", alpha: 0.5, size: 3}]
+            cursorsOptions: [{type: 0, color: colorCursor, alpha: 0.5, size: 3}]
         });
         
         try {
@@ -496,65 +528,68 @@
         }
     }
 
-    function parsePitch(osmdNote) {
-        if (!osmdNote.Pitch || osmdNote.Pitch.halfTone === undefined) return null;
-        let midi = osmdNote.Pitch.halfTone + 12;
-        const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-        const octave = Math.floor(midi / 12) - 1;
-        const note = notes[midi % 12];
-        return note + octave;
+    function buildSequence() {
+        // Recorrido del cursor delegado a OsmdUtils (compartido con orquestacion_ejercicio.html
+        // en espíritu, aunque esa página todavía no fue migrada -- ver plan de la sesión).
+        // incluirGraceNotes:true preserva el comportamiento original de esta función, que
+        // nunca las filtraba.
+        const { pasos, notas } = OsmdUtils.recorrerCursorOsmd(osmd, { incluirGraceNotes: true });
+
+        const localEvents = pasos.map(p => ({
+            time: p.offsetBeats,
+            timeRealValue: p.offsetBeats / 4,
+            measureIndex: p.measureIndex,
+            maxDuration: 0,
+            notes: []
+        }));
+
+        notas.forEach(n => {
+            const evt = localEvents[n.groupIndex];
+            if (n.durationRealValue > evt.maxDuration) evt.maxDuration = n.durationRealValue;
+            if (n.pitchName) {
+                evt.notes.push({ pitch: n.pitchName, durationRealValue: n.durationRealValue });
+            }
+        });
+
+        localEvents.forEach(evt => {
+            if (evt.maxDuration === 0) evt.maxDuration = 0.25;
+        });
+
+        return localEvents;
     }
 
-    function buildSequence() {
-        let localEvents = [];
-        osmd.cursor.reset();
+    // Scroll automático para mantener el cursor de OSMD visible en el tercio superior del
+    // viewport mientras suena. "El scroll del usuario gana": si el usuario scrollea por su
+    // cuenta durante la reproducción, se apaga hasta el próximo Play.
+    function marcarScrollProgramatico() {
+        scrolleandoProgramaticamente = true;
+        clearTimeout(scrollGuardTimeout);
+        // Un scrollBy smooth con salto grande (cambio de sistema en una partitura larga)
+        // puede seguir emitiendo eventos 'scroll' por más de un segundo -- el guard se
+        // rearma en CADA evento de scroll mientras esté activo (ver listener más abajo), así
+        // que este timeout solo expira de verdad cuando el scroll propio ya terminó, no a un
+        // plazo fijo desde que arrancó.
+        scrollGuardTimeout = setTimeout(() => { scrolleandoProgramaticamente = false; }, 1000);
+    }
 
-        while (!osmd.cursor.iterator.EndReached) {
-            let ts = osmd.cursor.iterator.currentTimeStamp;
-            if(!ts) break;
-            
-            let realValue = ts.RealValue; 
-            let beats = realValue * 4;
-
-            let notesToPlay = [];
-            let maxDuration = 0;
-            let measureIndex = osmd.cursor.iterator.CurrentMeasureIndex;
-
-            let voices = osmd.cursor.iterator.CurrentVoiceEntries;
-            if (voices) {
-                voices.forEach(v => {
-                    if (v && v.Notes) {
-                        v.Notes.forEach(n => {
-                            let pitch = parsePitch(n);
-                            let durVal = n.Length ? n.Length.RealValue : 0;
-                            if (durVal > maxDuration) maxDuration = durVal;
-
-                            if(pitch) {
-                                notesToPlay.push({
-                                    pitch: pitch,
-                                    durationRealValue: durVal
-                                });
-                            }
-                        });
-                    }
-                });
-            }
-
-            if (maxDuration === 0) maxDuration = 0.25;
-
-            localEvents.push({
-                time: beats, 
-                timeRealValue: realValue,
-                measureIndex: measureIndex,
-                maxDuration: maxDuration,
-                notes: notesToPlay
-            });
-            
-            osmd.cursor.next();
+    window.addEventListener('scroll', () => {
+        if (scrolleandoProgramaticamente) {
+            clearTimeout(scrollGuardTimeout);
+            scrollGuardTimeout = setTimeout(() => { scrolleandoProgramaticamente = false; }, 1000);
+            return;
         }
-        
-        osmd.cursor.reset();
-        return localEvents;
+        autoScrollActivo = false;
+    });
+
+    function autoScrollHaciaCursor() {
+        if (!autoScrollActivo || !osmd.cursor.cursorElement) return;
+        const rect = osmd.cursor.cursorElement.getBoundingClientRect();
+        const objetivoY = window.innerHeight * 0.3;
+        const delta = rect.top - objetivoY;
+        if (Math.abs(delta) > 40) {
+            marcarScrollProgramatico();
+            window.scrollBy({ top: delta, behavior: 'smooth' });
+        }
     }
 
     async function startPlayback() {
@@ -572,12 +607,13 @@
                 if (events.length === 0) {
                     events = buildSequence();
                 }
-                
+
                 if (events.length === 0) return;
-                
+
                 Tone.Transport.cancel();
                 transportEvents = [];
                 currentCursorIdx = 0;
+                autoScrollActivo = true; // se reengancha en cada arranque nuevo, aunque el usuario lo haya apagado scrolleando en la pasada anterior
                 playCount++;
                 document.getElementById('session-plays').innerText = playCount;
 
@@ -593,25 +629,19 @@
                     let ticks = Math.round(evt.time * Tone.Transport.PPQ);
                     let transportId = Tone.Transport.schedule((time) => {
                         Tone.Draw.schedule(() => {
-                            // Detección de Loop (Viaje en el tiempo hacia atrás)
-                            if (idx < currentCursorIdx) {
-                                osmd.cursor.reset();
-                                currentCursorIdx = 0;
-                            }
-                            
-                            // Avance Absoluto para evitar desincronización
-                            while(currentCursorIdx < idx) {
-                                osmd.cursor.next();
-                                currentCursorIdx++;
-                            }
-                            
+                            currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, idx);
+
                             document.getElementById('dbg-measure').innerText = evt.measureIndex;
                             document.getElementById('dbg-cursor').innerText = currentCursorIdx;
-                            
+
+                            autoScrollHaciaCursor();
                         }, time);
 
+                        // pianoToggle.checked se lee en vivo acá adentro (no una constante capturada
+                        // al armar el schedule) -- así el toggle "Piano" tiene efecto inmediato sobre
+                        // notas ya agendadas, sin tener que reprogramar nada.
                         evt.notes.forEach(note => {
-                            if(AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
+                            if(pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
                                 let durationTicks = Math.round(note.durationRealValue * 4 * Tone.Transport.PPQ);
                                 AudioEngine.sampler.triggerAttackRelease(note.pitch, durationTicks + "i", time);
                             }
@@ -658,10 +688,7 @@
                     if(startEv) {
                         Tone.Transport.position = (startTime * Tone.Transport.PPQ) + "i";
                         let startIdx = events.indexOf(startEv);
-                        while(currentCursorIdx < startIdx) {
-                            osmd.cursor.next();
-                            currentCursorIdx++;
-                        }
+                        currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, startIdx);
                     }
                 } else {
                     Tone.Transport.loop = false;
@@ -677,7 +704,10 @@
                 for (let b = 0; b < totalBeats; b++) {
                     let ticks = Math.round(b * Tone.Transport.PPQ);
                     let clickId = Tone.Transport.schedule((time) => {
-                        if (!isMuted) {
+                        // metronomoToggle.checked también se lee en vivo -- mismo motivo que pianoToggle
+                        // arriba. isMuted sigue siendo el mute global del sitio (navbar), que se
+                        // respeta además del toggle propio de esta página.
+                        if (metronomoToggle.checked && !isMuted) {
                             if (b % timeNumerator === 0) clickSynth.triggerAttackRelease("C3", "16n", time);
                             else clickSynth.triggerAttackRelease("G2", "16n", time);
                         }
@@ -733,6 +763,11 @@
         osmd.cursor.reset();
         currentCursorIdx = 0;
         document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
+
+        // El cursor vuelve al principio -- lo acompañamos con el scroll aunque el usuario
+        // haya apagado el auto-scroll scrolleando durante la reproducción que acaba de parar.
+        autoScrollActivo = true;
+        autoScrollHaciaCursor();
     }
 
     tempoSelector.addEventListener('change', () => {
