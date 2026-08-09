@@ -95,7 +95,7 @@
     }
 
     #conductor-widget.beat-pulse {
-        box-shadow: 0 8px 32px 0 rgba(0, 255, 150, 0.4), inset 0 0 15px rgba(255,255,255,0.1);
+        box-shadow: 0 8px 32px 0 color-mix(in srgb, var(--success) 40%, transparent), inset 0 0 15px rgba(255,255,255,0.1);
         transform: translateY(-50%) scale(1.02);
     }
 
@@ -110,9 +110,9 @@
     }
 
     .beat-dot.active {
-        background: #00ffaa;
+        background: var(--success);
         transform: scale(1.6);
-        box-shadow: 0 0 15px #00ffaa, 0 0 30px #00ffaa;
+        box-shadow: 0 0 15px var(--success), 0 0 30px var(--success);
         z-index: 2;
     }
 

@@ -15,7 +15,7 @@
     background: var(--surface);
     border-radius: 1rem;
     padding: 2rem;
-    box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 24px 46px -30px rgba(0,0,0,0.75);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 24px 46px -30px rgba(0,0,0,0.75);
     border: 1px solid var(--border);
     width: 100%;
 }
@@ -33,7 +33,7 @@
 }
 .orquestador-tab.active {
     background: var(--primary);
-    color: #0b0e14;
+    color: #241505;
     border-color: var(--primary);
 }
 
@@ -75,7 +75,7 @@
     border-radius: 1rem;
     padding: 1.5rem 1.75rem;
     margin-bottom: 1.25rem;
-    box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 20px 38px -26px rgba(0,0,0,0.7);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 20px 38px -26px rgba(0,0,0,0.7);
 }
 .analisis-panel h3 {
     font-size: 1.15rem;
@@ -83,7 +83,7 @@
     margin-bottom: 0.75rem;
 }
 .analisis-panel--error {
-    border-color: rgba(239, 68, 68, 0.4);
+    border-color: color-mix(in srgb, var(--danger) 40%, transparent);
 }
 .analisis-prosa {
     color: var(--text-secondary);
@@ -144,7 +144,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 1rem;
-    box-shadow: 0 1px 0 rgba(244,241,234,0.05) inset, 0 18px 34px -28px rgba(0,0,0,0.7);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 18px 34px -28px rgba(0,0,0,0.7);
     overflow: hidden;
 }
 .analisis-bloque-summary {
@@ -178,8 +178,8 @@
 .analisis-sub p { color: var(--text-secondary); font-size: 0.9rem; margin: 0; }
 .analisis-sub--cuerdas { --sub-color: var(--primary); }
 .analisis-sub--maderas { --sub-color: var(--success); }
-.analisis-sub--metales { --sub-color: #ff5a36; }
-.analisis-sub--balance { --sub-color: #9b6bff; }
+.analisis-sub--metales { --sub-color: var(--wine); }
+.analisis-sub--balance { --sub-color: var(--petroleo); }
 
 .analisis-sub-label {
     display: block;
@@ -192,7 +192,7 @@
 }
 
 .analisis-solucion {
-    background: rgba(47, 184, 255, 0.08);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
     border-left: 3px solid var(--primary);
     border-radius: 0.6rem;
     padding: 0.9rem 1rem;
@@ -260,7 +260,7 @@
 }
 .analisis-osmd-original, .analisis-osmd-editado {
     min-height: 120px;
-    background: #ffffff;
+    background: var(--paper);
     border-radius: 0.4rem;
     padding: 0.75rem;
     overflow-x: auto;
@@ -288,13 +288,13 @@
     border-radius: 0.6rem;
     font-size: 0.88rem;
     line-height: 1.5;
-    background: rgba(255, 90, 54, 0.08);
-    border-left: 3px solid #ff5a36;
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
+    border-left: 3px solid var(--danger);
     color: var(--text);
 }
 .analisis-alerta--roza {
-    background: rgba(255, 200, 0, 0.08);
-    border-left-color: #ffc800;
+    background: color-mix(in srgb, var(--warning) 8%, transparent);
+    border-left-color: var(--warning);
 }
 .analisis-alerta-icono { flex-shrink: 0; }
 
@@ -319,7 +319,7 @@
     border-left: 3px solid var(--border);
 }
 .analisis-version-item--resuelto { border-left-color: var(--success); }
-.analisis-version-item--no_resuelto { border-left-color: #ff5a36; }
+.analisis-version-item--no_resuelto { border-left-color: var(--danger); }
 .analisis-version-item--sin_verificar { border-left-color: var(--text-secondary); }
 .analisis-version-icono { flex-shrink: 0; font-size: 1.1rem; }
 .analisis-version-titulo { font-weight: 700; color: var(--text); font-size: 0.88rem; }

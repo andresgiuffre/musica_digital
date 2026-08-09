@@ -239,7 +239,7 @@
                 renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
                 renderer.resize(400, 150);
                 context = renderer.getContext();
-                context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
+                context.setFont("Arial", 10, "").setBackgroundFillStyle(getComputedStyle(document.documentElement).getPropertyValue('--paper').trim() || "#eeeedd");
 
                 stave = new VF.Stave(10, 20, 380);
                 stave.addClef("treble").addTimeSignature(currentMeasureInfo.timeSignature);

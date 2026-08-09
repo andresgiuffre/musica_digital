@@ -63,7 +63,7 @@ function renderMapaDensidad(densidad) {
     if (!densidad || !densidad.length) return '';
     const bloques = densidad.map(d => {
         const opacidad = d.total_instrumentos > 0 ? (d.instrumentos_activos / d.total_instrumentos) : 0;
-        return `<div class="densidad-bloque" style="background-color: rgba(47,184,255,${opacidad.toFixed(2)});" title="Compás ${d.compas}: ${d.instrumentos_activos}/${d.total_instrumentos} instrumentos"></div>`;
+        return `<div class="densidad-bloque" style="background-color: color-mix(in srgb, var(--primary) ${(opacidad * 100).toFixed(0)}%, transparent);" title="Compás ${d.compas}: ${d.instrumentos_activos}/${d.total_instrumentos} instrumentos"></div>`;
     }).join('');
     return `
         <div class="analisis-panel">

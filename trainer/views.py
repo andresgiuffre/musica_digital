@@ -1698,12 +1698,18 @@ def orquestacion_ejercicio_lista(request):
     return render(request, 'trainer/orquestacion_ejercicio_lista.html', {'fragmentos': fragmentos})
 
 
+# Mismos tonos que los tokens --gold/--wine/--petroleo/--success de templates/base.html
+# (rediseño "Sala de conciertos"), más un quinto acento (violeta apagado) sin token propio
+# porque estos 5 colores se usan como literales de pincel, no vía CSS -- no hay forma de que
+# Python lea las custom properties, así que quedan sincronizados a mano igual que
+# COLOR_NOTA_EDITADA más arriba. Tienen que seguir siendo distinguibles entre sí Y del rojo
+# de "nota editada" del analizador (#c9433f).
 ZONAS_EJERCICIO_ORQUESTACION = [
-    {'nombre': 'Violín I', 'color': '#2fb8ff', 'rango_key': 'Violín'},
-    {'nombre': 'Violín II', 'color': '#ec4899', 'rango_key': 'Violín'},
-    {'nombre': 'Viola', 'color': '#9b6bff', 'rango_key': 'Viola'},
-    {'nombre': 'Violonchelo', 'color': '#ff5a36', 'rango_key': 'Violonchelo'},
-    {'nombre': 'Contrabajo', 'color': '#34d399', 'rango_key': 'Contrabajo'},
+    {'nombre': 'Violín I', 'color': '#e8a83d', 'rango_key': 'Violín'},
+    {'nombre': 'Violín II', 'color': '#a63d4e', 'rango_key': 'Violín'},
+    {'nombre': 'Viola', 'color': '#2c6b74', 'rango_key': 'Viola'},
+    {'nombre': 'Violonchelo', 'color': '#6f5b8f', 'rango_key': 'Violonchelo'},
+    {'nombre': 'Contrabajo', 'color': '#7c9463', 'rango_key': 'Contrabajo'},
 ]
 
 

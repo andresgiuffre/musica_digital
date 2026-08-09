@@ -223,9 +223,9 @@
             let noteName = getNoteName(pitch);
             let opacity = Math.max(0.3, vel / 127);
             monitorDisplay.innerHTML += `
-                <div class="bg-blue-600 text-white px-3 py-2 rounded shadow-lg border border-blue-400" style="opacity: ${opacity};">
+                <div class="bg-[var(--petroleo)] text-white px-3 py-2 rounded shadow-lg border border-[var(--petroleo-bright)]" style="opacity: ${opacity};">
                     <span class="font-bold text-lg">${noteName}</span>
-                    <span class="text-xs ml-2 text-blue-200">v${vel}</span>
+                    <span class="text-xs ml-2" style="color: var(--petroleo-bright);">v${vel}</span>
                 </div>
             `;
         });
