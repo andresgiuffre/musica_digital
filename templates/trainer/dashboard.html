@@ -3,128 +3,90 @@
 
 {% block extra_css %}
 <style>
-    .hero {
-        position: relative;
-        margin-top: 1.5rem;
-        border-radius: 1.4rem;
-        border: 1px solid var(--border);
-        background: var(--surface);
-        overflow: hidden;
-        padding: clamp(2rem, 5vw, 3.25rem) clamp(1.5rem, 5vw, 3rem) 0;
-        box-shadow: 0 30px 60px -30px rgba(0,0,0,0.6);
-    }
-    .hero-glow {
-        position: absolute; inset: 0; pointer-events: none; z-index: 0;
-        background:
-            radial-gradient(48rem 22rem at 12% -10%, rgba(47,184,255,0.16), transparent 60%),
-            radial-gradient(38rem 22rem at 100% 10%, rgba(155,107,255,0.14), transparent 60%),
-            radial-gradient(34rem 20rem at 70% 110%, rgba(255,90,54,0.10), transparent 60%);
-    }
-    .hero-top { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 2rem; align-items: flex-end; justify-content: space-between; }
-    .hero-stats { display: flex; gap: 1.75rem; }
-    .hero-stat { text-align: right; }
-    .hero-stat .n { font-size: 1.7rem; font-weight: 500; font-variant-numeric: tabular-nums; }
-    .hero-stat .l { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-top: 0.2rem; }
+    /* ============================================================
+       Rediseño "Sala de conciertos" -- etapa dashboard.html.
+       Reutiliza los tokens definidos en base.html (--gold/--wine/--petroleo/
+       --parchment*/--surface* etc., ya con soporte de [data-tema="claro"]),
+       igual que el mockup aprobado -- acá solo van los estilos propios de
+       esta página (header compacto, cards, pentagrama de fondo, panel del
+       analizador), no un sistema de tokens nuevo.
+       ============================================================ */
 
-    .hero-strip-wrap { position: relative; z-index: 1; margin-top: 2.25rem; }
-    .hero-strip { height: clamp(64px, 10vw, 96px); display: flex; align-items: flex-end; gap: 3px; cursor: pointer; }
-    .hero-bar {
-        flex: 1 1 auto; min-width: 2px; border-radius: 2px 2px 0 0;
-        background: linear-gradient(180deg, rgba(244,241,234,0.5), rgba(38,43,54,0.9));
-        transition: background 0.15s ease, box-shadow 0.15s ease;
-    }
-    .hero-bar.wide { flex-grow: 2.1; }
-    .hero-strip-caption { padding: 0.6rem 0 1.5rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--text-secondary); text-align: right; }
+    .destacado { font-family: var(--font-display); font-style: italic; font-weight: 500; color: var(--gold-bright); }
 
-    .continue-card {
-        margin-top: 1.5rem; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
-        border-radius: 1.1rem; padding: 1.4rem 1.75rem;
-    }
-    .continue-card.reminder { background: linear-gradient(120deg, rgba(255,90,54,0.14), rgba(23,28,39,0.4)); border: 1px solid rgba(255,90,54,0.35); }
-    .continue-card.motivation { background: linear-gradient(120deg, rgba(155,107,255,0.14), rgba(23,28,39,0.4)); border: 1px solid rgba(155,107,255,0.35); }
-    .continue-card.suggestion { background: linear-gradient(120deg, rgba(52,211,153,0.14), rgba(23,28,39,0.4)); border: 1px solid rgba(52,211,153,0.35); }
-    .continue-icon { width: 3rem; height: 3rem; border-radius: 0.8rem; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
-    .reminder .continue-icon { background: rgba(255,90,54,0.16); border: 1px solid rgba(255,90,54,0.4); }
-    .motivation .continue-icon { background: rgba(155,107,255,0.16); border: 1px solid rgba(155,107,255,0.4); }
-    .suggestion .continue-icon { background: rgba(52,211,153,0.16); border: 1px solid rgba(52,211,153,0.4); }
-    .continue-body { flex: 1; min-width: 14rem; }
-    .continue-body .k { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.3rem; }
-    .reminder .k { color: var(--danger); }
-    .motivation .k { color: #9b6bff; }
-    .suggestion .k { color: var(--success); }
-    .continue-body p { margin: 0; font-size: 1.02rem; }
+    /* ---------- Bienvenida: header compacto (~120px), reemplaza el hero grande
+       con glow neón + tira animada tipo piano. ---------- */
+    .bienvenida { border-bottom: 1px solid var(--border); padding: 1.6rem 0; margin-top: -1px; }
+    .bienvenida__grid { display: flex; justify-content: space-between; align-items: center; gap: 2rem; flex-wrap: wrap; }
+    .bienvenida__saludo { font-size: 1.5rem; color: var(--text); }
+    .bienvenida__contexto { margin-top: 0.4rem; font-size: 0.96rem; color: var(--text-secondary); max-width: 56ch; }
+    .bienvenida__lateral { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; flex-shrink: 0; }
+    .bienvenida__stats { font-size: 0.84rem; color: var(--parchment-faint); font-variant-numeric: tabular-nums; }
+    .bienvenida__stats strong { color: var(--text-secondary); font-weight: 600; }
 
-    .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 3rem 0 1.25rem; gap: 1rem; flex-wrap: wrap; }
+    .boton { display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.85rem 1.6rem; border-radius: 999px; font-family: var(--font-body); font-weight: 600; font-size: 0.96rem; text-decoration: none; border: 1px solid transparent; cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease; white-space: nowrap; }
+    .boton--primario { background: linear-gradient(160deg, var(--gold-bright), var(--gold)); color: #241505; box-shadow: 0 14px 28px -14px color-mix(in srgb, var(--gold) 50%, transparent); }
+    .boton--primario:hover { transform: translateY(-2px); box-shadow: 0 18px 34px -14px color-mix(in srgb, var(--gold) 62%, transparent); }
+    .boton--chico { padding: 0.62rem 1.25rem; font-size: 0.88rem; }
 
-    .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1.1rem; }
-    .tile {
-        position: relative; grid-column: span 2; border-radius: 1.1rem; border: 1px solid var(--border);
-        background: var(--surface); padding: 1.6rem; display: flex; flex-direction: column; gap: 0.9rem;
-        overflow: hidden; text-decoration: none; color: inherit;
-        box-shadow: 0 1px 0 rgba(244,241,234,0.06) inset, 0 18px 34px -26px rgba(0,0,0,0.7);
-        transition: transform 0.22s cubic-bezier(.2,.8,.2,1), box-shadow 0.22s ease, border-color 0.22s ease;
-    }
-    .tile:hover { transform: translateY(-4px); border-color: var(--tile-accent, var(--primary)); box-shadow: 0 1px 0 rgba(244,241,234,0.06) inset, 0 26px 44px -20px var(--tile-shadow, rgba(47,184,255,0.28)); }
-    .tile.featured { grid-column: span 3; grid-row: span 2; padding: 2rem; }
-    .tile-icon { width: 2.9rem; height: 2.9rem; border-radius: 0.8rem; display: flex; align-items: center; justify-content: center; background: var(--tile-icon-bg); border: 1px solid var(--tile-icon-border); color: var(--tile-accent); }
-    .tile-icon svg { width: 1.4rem; height: 1.4rem; }
-    .tile h3 { font-size: 1.15rem; font-weight: 700; color: #fff; }
-    .tile.featured h3 { font-size: 1.55rem; }
-    .tile p { margin: 0; color: var(--text-secondary); font-size: 0.9rem; flex: 1; }
-    .tile .go { align-self: flex-start; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tile-accent); display: flex; align-items: center; gap: 0.4em; }
-    .tile .go svg { width: 0.9em; height: 0.9em; transition: transform 0.2s ease; }
-    .tile:hover .go svg { transform: translateX(3px); }
+    .enlace-sutil { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; font-weight: 500; border-bottom: 1px solid var(--border); padding-bottom: 2px; transition: color 0.15s ease, border-color 0.15s ease; }
+    .enlace-sutil:hover { color: var(--gold-bright); border-color: var(--gold-dim); }
 
-    .tile--midi { --tile-accent: #9b6bff; --tile-icon-bg: rgba(155,107,255,0.16); --tile-icon-border: rgba(155,107,255,0.4); --tile-shadow: rgba(155,107,255,0.3); }
-    .tile--midi .mini-keys { display: flex; gap: 2px; height: 34px; margin-top: auto; }
-    .tile--midi .mini-keys i { flex: 1; background: rgba(244,241,234,0.85); border-radius: 0 0 3px 3px; font-style: normal; }
-    .tile--midi .mini-keys i:nth-child(3n) { background: #9b6bff; opacity: 0.8; }
-    .tile--biblio { --tile-accent: #2fb8ff; --tile-icon-bg: rgba(47,184,255,0.14); --tile-icon-border: rgba(47,184,255,0.35); --tile-shadow: rgba(47,184,255,0.28); }
-    .tile--entrenador { --tile-accent: #34d399; --tile-icon-bg: rgba(52,211,153,0.14); --tile-icon-border: rgba(52,211,153,0.35); --tile-shadow: rgba(52,211,153,0.28); }
-    .tile--proyectos { --tile-accent: #34d399; --tile-icon-bg: rgba(52,211,153,0.14); --tile-icon-border: rgba(52,211,153,0.35); --tile-shadow: rgba(52,211,153,0.28); }
-    .tile--analizador { --tile-accent: #ff5a36; --tile-icon-bg: rgba(255,90,54,0.14); --tile-icon-border: rgba(255,90,54,0.35); --tile-shadow: rgba(255,90,54,0.28); }
-    .tile--ejercicio { --tile-accent: #fbbf24; --tile-icon-bg: rgba(251,191,36,0.14); --tile-icon-border: rgba(251,191,36,0.35); --tile-shadow: rgba(251,191,36,0.28); }
+    /* ---------- Sección "Explorar" + pentagrama de fondo ---------- */
+    .seccion { padding: 3rem 0; }
+    .seccion__cabecera { margin-bottom: 1.9rem; max-width: 60ch; }
+    .seccion__eyebrow { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--parchment-eyebrow); margin-bottom: 0.6rem; display: block; }
+    .seccion__titulo { font-size: clamp(1.5rem, 2.6vw, 1.9rem); color: var(--text); font-family: var(--font-display); font-weight: 600; }
 
-    .progress-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1.1rem; align-items: start; }
-    @media (max-width: 900px) { .progress-grid { grid-template-columns: 1fr; } }
-    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 1.1rem; padding: 1.6rem 1.75rem; box-shadow: 0 1px 0 rgba(244,241,234,0.06) inset, 0 18px 34px -28px rgba(0,0,0,0.7); }
-    .panel h3 { font-size: 1rem; font-weight: 700; margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem; color: #fff; }
+    .seccion--explorar { position: relative; overflow: hidden; }
+    .seccion--explorar > .explorar-contenido { position: relative; z-index: 1; }
+    .seccion__pauta-fondo { position: absolute; top: 50%; left: 50%; width: 100vw; transform: translate(-50%, -50%); z-index: 0; pointer-events: none; }
+    .seccion__pauta-fondo svg { width: 100%; height: auto; display: block; }
+    .pauta-lineas line { stroke: var(--gold); stroke-width: 1.5; opacity: 0.11; vector-effect: non-scaling-stroke; }
+    .pauta-clave, .pauta-flag, .pauta-viga { fill: var(--gold); opacity: 0.1; }
+    .pauta-nota ellipse { fill: var(--gold); opacity: 0.1; }
+    .pauta-nota line { stroke: var(--gold); stroke-width: 3; opacity: 0.1; vector-effect: non-scaling-stroke; }
+    .pauta-nota--blanca ellipse { fill: none; stroke: var(--gold); stroke-width: 3; opacity: 0.1; }
+    :root[data-tema="claro"] .pauta-lineas line { stroke: var(--text); opacity: 0.35; }
+    :root[data-tema="claro"] .pauta-clave,
+    :root[data-tema="claro"] .pauta-flag,
+    :root[data-tema="claro"] .pauta-viga { fill: var(--text); opacity: 0.35; }
+    :root[data-tema="claro"] .pauta-nota ellipse { fill: var(--text); opacity: 0.35; }
+    :root[data-tema="claro"] .pauta-nota line { stroke: var(--text); opacity: 0.35; }
+    :root[data-tema="claro"] .pauta-nota--blanca ellipse { stroke: var(--text); opacity: 0.35; }
 
-    .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.6rem; }
-    .stat-tile { background: var(--bg); border: 1px solid var(--border); border-radius: 0.8rem; padding: 0.9rem 1rem; }
-    .stat-tile .n { font-family: 'IBM Plex Mono', monospace; font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; }
-    .stat-tile .l { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.15rem; }
+    /* ---------- Cards de sección ---------- */
+    .grilla-secciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.2rem; }
+    .card-seccion { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--card-acento, var(--petroleo)); border-radius: var(--radio); padding: 1.6rem 1.5rem; text-decoration: none; color: inherit; display: block; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.25s ease; position: relative; }
+    .card-seccion:hover { transform: translateY(-3px); border-color: var(--wine); box-shadow: var(--sombra-chica); }
+    .card-seccion__icono { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: var(--surface-raised); border: 1px solid var(--border); margin-bottom: 1.05rem; transition: border-color 0.18s ease, background 0.25s ease; }
+    .card-seccion__icono svg { width: 23px; height: 23px; stroke: var(--card-acento, var(--petroleo)); fill: none; stroke-width: 1.6; transition: stroke 0.18s ease; }
+    .card-seccion:hover .card-seccion__icono { border-color: var(--wine); }
+    .card-seccion:hover .card-seccion__icono svg { stroke: var(--wine-bright); }
+    .card-seccion__titulo { font-size: 1.08rem; color: var(--text); font-family: var(--font-display); font-weight: 600; }
+    .card-seccion__texto { margin-top: 0.45rem; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; }
+    .card-seccion__flecha { margin-top: 1rem; font-size: 0.83rem; color: var(--card-acento, var(--petroleo)); font-weight: 600; transition: color 0.18s ease; }
+    .card-seccion:hover .card-seccion__flecha { color: var(--wine-bright); }
 
-    .heat-wrap { overflow-x: auto; padding-bottom: 4px; }
-    .heatmap { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 3px; width: max-content; }
-    .heat-day { width: 11px; height: 11px; border-radius: 2px; background: var(--bg); }
-    .heat-day[data-level="1"] { background: #1d4e68; }
-    .heat-day[data-level="2"] { background: #2385b8; }
-    .heat-day[data-level="3"] { background: #ff8f5e; }
-    .heat-day[data-level="4"] { background: #ff5a36; }
-    .heat-legend { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.7rem; font-size: 0.7rem; color: var(--text-secondary); font-family: 'IBM Plex Mono', monospace; }
-    .heat-legend .heat-day { width: 9px; height: 9px; }
+    :root[data-tema="claro"] .card-seccion { border-color: transparent; border-top-color: transparent; box-shadow: var(--sombra-chica); }
+    :root[data-tema="claro"] .card-seccion:hover { box-shadow: var(--sombra); border-top-color: transparent; }
+    :root[data-tema="claro"] .card-seccion__icono { background: color-mix(in srgb, var(--card-acento, var(--petroleo)) 16%, var(--surface)); border-color: transparent; }
+    :root[data-tema="claro"] .card-seccion:hover .card-seccion__icono { background: color-mix(in srgb, var(--wine) 18%, var(--surface)); }
 
-    .rec-list { display: flex; flex-direction: column; gap: 0.7rem; }
-    .rec { display: flex; gap: 0.75rem; align-items: flex-start; background: var(--bg); border-radius: 0.7rem; padding: 0.8rem 1rem; border-left: 3px solid var(--rec-color, var(--primary)); }
-    .rec p { margin: 0; font-size: 0.88rem; color: #d6d9e0; }
-    .rec.reminder { --rec-color: #ff5a36; }
-    .rec.motivation { --rec-color: #9b6bff; }
-    .rec.suggestion { --rec-color: #34d399; }
+    /* ---------- Director de Estudio (analizador con IA) ---------- */
+    .placa { background: linear-gradient(155deg, var(--wine-dim), var(--surface) 65%); border: 1px solid var(--wine); border-radius: var(--radio-chico); padding: 2.5rem 2.7rem; position: relative; }
+    .placa::before, .placa::after { content: ''; position: absolute; width: 22px; height: 22px; border: 1px solid var(--wine-bright); opacity: 0.55; }
+    .placa::before { top: 14px; left: 14px; border-right: none; border-bottom: none; }
+    .placa::after { bottom: 14px; right: 14px; border-left: none; border-top: none; }
+    .placa__eyebrow { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--parchment-eyebrow); margin-bottom: 0.7rem; display: block; }
+    .placa__titulo { font-size: clamp(1.5rem, 2.4vw, 2rem); color: var(--text); max-width: 26ch; font-family: var(--font-display); font-weight: 600; }
+    .placa__texto { margin-top: 1rem; color: var(--text-secondary); font-size: 1rem; max-width: 56ch; }
+    .placa__acciones { margin-top: 1.6rem; display: flex; align-items: center; gap: 1.4rem; flex-wrap: wrap; }
+    .placa__creditos { font-size: 0.85rem; color: var(--parchment-faint); }
 
-    .goal-inline { display: flex; align-items: center; gap: 1rem; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
-    .goal-ring svg { transform: rotate(-90deg); }
-    .goal-ring circle { fill: none; stroke-width: 4; }
-    .goal-ring .track { stroke: var(--border); }
-    .goal-ring .fill { stroke: var(--primary); stroke-linecap: round; }
-    .goal-text .t { font-size: 0.85rem; font-weight: 600; }
-    .goal-text .v { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.15rem; }
-
-    @media (prefers-reduced-motion: reduce) { .hero-bar { transition: none !important; } }
     @media (max-width: 720px) {
-        .bento { grid-template-columns: repeat(2, 1fr); }
-        .tile, .tile.featured { grid-column: span 2; }
-        .stat-row { grid-template-columns: repeat(2, 1fr); }
+        .bienvenida__grid { flex-direction: column; align-items: flex-start; }
+        .bienvenida__lateral { align-items: flex-start; }
     }
 </style>
 {% endblock %}
@@ -132,229 +94,127 @@
 {% block content %}
 <div class="container-legacy" style="max-width: 1180px;">
 
-    <section class="hero">
-        <div class="hero-glow"></div>
-        <div class="hero-top">
+    <header class="bienvenida">
+        <div class="bienvenida__grid">
             <div>
-                <div class="eyebrow" style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--primary);margin-bottom:0.9rem;">Panel de práctica</div>
-                <h1 style="font-size:clamp(2.1rem,4.2vw,3.1rem);font-weight:800;letter-spacing:-0.01em;">Hola, <span style="color:var(--primary);">{{ user.username }}</span></h1>
-                <p style="margin-top:0.6rem;color:var(--text-secondary);font-size:1.02rem;max-width:30rem;">
-                    {% if profile.current_daily_streak > 0 %}
+                <h1 class="bienvenida__saludo">Hola, {{ user.username }}.</h1>
+                <p class="bienvenida__contexto">
+                    {% with top_rec=recommendations.0 %}
+                    {% if top_rec %}
+                        {{ top_rec.message }}
+                    {% elif profile.current_daily_streak > 0 %}
                         Llevás {{ profile.current_daily_streak }} día{{ profile.current_daily_streak|pluralize }} seguido{{ profile.current_daily_streak|pluralize }} practicando. No cortes la racha hoy.
                     {% else %}
                         Empezá hoy una racha nueva — ninguna sesión es demasiado corta para contar.
                     {% endif %}
+                    {% endwith %}
+                    <a href="{% url 'biblioteca_list' %}" class="enlace-sutil">Empezar ahora →</a>
                 </p>
             </div>
-            <div class="hero-stats">
-                <div class="hero-stat"><div class="n" style="color:var(--primary);">{{ profile.current_daily_streak }}</div><div class="l">Racha (días)</div></div>
-                <div class="hero-stat"><div class="n" style="color:#9b6bff;">Nv. {{ profile.user_level }}</div><div class="l">Nivel</div></div>
-                <div class="hero-stat"><div class="n" style="color:#ff5a36;">{{ profile.total_xp }}</div><div class="l">XP total</div></div>
+            <div class="bienvenida__lateral">
+                <a href="{% url 'entrenador_index' %}" class="boton boton--primario boton--chico">Continuar practicando</a>
+                <div class="bienvenida__stats">{{ profile.current_daily_streak }} día{{ profile.current_daily_streak|pluralize }} de racha · Nivel <strong>{{ profile.user_level }}</strong> · <span class="destacado">{{ profile.total_xp }} XP</span></div>
+                <a href="{% url 'perfil' %}" class="enlace-sutil">Ver mi progreso completo →</a>
             </div>
         </div>
-        <div class="hero-strip-wrap">
-            <div class="hero-strip" id="heroStrip"></div>
-            <div class="hero-strip-caption">pasá el mouse — así se siente tocar</div>
+    </header>
+
+    <section class="seccion seccion--explorar">
+        <div class="seccion__pauta-fondo" aria-hidden="true">
+            <svg viewBox="0 0 1600 300" xmlns="http://www.w3.org/2000/svg">
+                <g class="pauta-lineas">
+                    <line x1="0" y1="60" x2="1600" y2="60"></line>
+                    <line x1="0" y1="100" x2="1600" y2="100"></line>
+                    <line x1="0" y1="140" x2="1600" y2="140"></line>
+                    <line x1="0" y1="180" x2="1600" y2="180"></line>
+                    <line x1="0" y1="220" x2="1600" y2="220"></line>
+                </g>
+                <!-- Clave de sol real (Wikimedia Commons, dominio público), reescalada para que
+                     el ojo de la espiral caiga sobre la segunda línea desde abajo (y=180). -->
+                <path class="pauta-clave" transform="translate(69.661,-372.007) scale(0.067739)" d="M 2002,7851 C 1941,7868 1886,7906 1835,7964 C 1784,8023 1759,8088 1759,8158 C 1759,8202 1774,8252 1803,8305 C 1832,8359 1876,8398 1933,8423 C 1952,8427 1961,8437 1961,8451 C 1961,8456 1954,8461 1937,8465 C 1846,8442 1771,8393 1713,8320 C 1655,8246 1625,8162 1623,8066 C 1626,7963 1657,7867 1716,7779 C 1776,7690 1853,7627 1947,7590 L 1878,7235 C 1724,7363 1599,7496 1502,7636 C 1405,7775 1355,7926 1351,8089 C 1353,8162 1368,8233 1396,8301 C 1424,8370 1466,8432 1522,8489 C 1635,8602 1782,8661 1961,8667 C 2022,8663 2087,8652 2157,8634 L 2002,7851 z M 2074,7841 L 2230,8610 C 2384,8548 2461,8413 2461,8207 C 2452,8138 2432,8076 2398,8021 C 2365,7965 2321,7921 2265,7889 C 2209,7857 2146,7841 2074,7841 z M 1869,6801 C 1902,6781 1940,6746 1981,6697 C 2022,6649 2062,6592 2100,6528 C 2139,6463 2170,6397 2193,6330 C 2216,6264 2227,6201 2227,6143 C 2227,6118 2225,6093 2220,6071 C 2216,6035 2205,6007 2186,5988 C 2167,5970 2143,5960 2113,5960 C 2053,5960 1999,5997 1951,6071 C 1914,6135 1883,6211 1861,6297 C 1838,6384 1825,6470 1823,6557 C 1828,6656 1844,6737 1869,6801 z M 1806,6859 C 1761,6697 1736,6532 1731,6364 C 1732,6256 1743,6155 1764,6061 C 1784,5967 1813,5886 1851,5816 C 1888,5746 1931,5693 1979,5657 C 2022,5625 2053,5608 2070,5608 C 2083,5608 2094,5613 2104,5622 C 2114,5631 2127,5646 2143,5666 C 2262,5835 2322,6039 2322,6277 C 2322,6390 2307,6500 2277,6610 C 2248,6719 2205,6823 2148,6920 C 2090,7018 2022,7103 1943,7176 L 2024,7570 C 2068,7565 2098,7561 2115,7561 C 2191,7561 2259,7577 2322,7609 C 2385,7641 2439,7684 2483,7739 C 2527,7793 2561,7855 2585,7925 C 2608,7995 2621,8068 2621,8144 C 2621,8262 2590,8370 2528,8467 C 2466,8564 2373,8635 2248,8681 C 2256,8730 2270,8801 2291,8892 C 2311,8984 2326,9057 2336,9111 C 2346,9165 2350,9217 2350,9268 C 2350,9347 2331,9417 2293,9479 C 2254,9541 2202,9589 2136,9623 C 2071,9657 1999,9674 1921,9674 C 1811,9674 1715,9643 1633,9582 C 1551,9520 1507,9437 1503,9331 C 1506,9284 1517,9240 1537,9198 C 1557,9156 1584,9122 1619,9096 C 1653,9069 1694,9055 1741,9052 C 1780,9052 1817,9063 1852,9084 C 1886,9106 1914,9135 1935,9172 C 1955,9209 1966,9250 1966,9294 C 1966,9353 1946,9403 1906,9444 C 1866,9485 1815,9506 1754,9506 L 1731,9506 C 1770,9566 1834,9597 1923,9597 C 1968,9597 2014,9587 2060,9569 C 2107,9550 2146,9525 2179,9493 C 2212,9461 2234,9427 2243,9391 C 2260,9350 2268,9293 2268,9222 C 2268,9174 2263,9126 2254,9078 C 2245,9031 2231,8968 2212,8890 C 2193,8813 2179,8753 2171,8712 C 2111,8727 2049,8735 1984,8735 C 1875,8735 1772,8713 1675,8668 C 1578,8623 1493,8561 1419,8481 C 1346,8401 1289,8311 1248,8209 C 1208,8108 1187,8002 1186,7892 C 1190,7790 1209,7692 1245,7600 C 1281,7507 1327,7419 1384,7337 C 1441,7255 1500,7180 1561,7113 C 1623,7047 1704,6962 1806,6859 z" />
+                <g class="pauta-nota">
+                    <ellipse cx="780" cy="220" rx="16" ry="11" transform="rotate(-18 780 220)"></ellipse>
+                    <line x1="797" y1="220" x2="797" y2="150"></line>
+                </g>
+                <g class="pauta-nota pauta-nota--blanca">
+                    <ellipse cx="900" cy="180" rx="16" ry="11" transform="rotate(-18 900 180)"></ellipse>
+                    <line x1="917" y1="180" x2="917" y2="110"></line>
+                </g>
+                <g class="pauta-nota">
+                    <ellipse cx="1020" cy="200" rx="16" ry="11" transform="rotate(-18 1020 200)"></ellipse>
+                    <line x1="1037" y1="200" x2="1037" y2="130"></line>
+                </g>
+                <g class="pauta-nota">
+                    <ellipse cx="1140" cy="160" rx="16" ry="11" transform="rotate(-18 1140 160)"></ellipse>
+                    <line x1="1157" y1="160" x2="1157" y2="90"></line>
+                </g>
+                <path class="pauta-viga" d="M 1037,130 L 1157,90 L 1157,97 L 1037,137 Z"></path>
+                <g class="pauta-nota">
+                    <ellipse cx="1260" cy="100" rx="16" ry="11" transform="rotate(-18 1260 100)"></ellipse>
+                    <line x1="1243" y1="100" x2="1243" y2="170"></line>
+                </g>
+                <g class="pauta-nota">
+                    <ellipse cx="1380" cy="140" rx="16" ry="11" transform="rotate(-18 1380 140)"></ellipse>
+                    <line x1="1363" y1="140" x2="1363" y2="210"></line>
+                </g>
+                <path class="pauta-viga" d="M 1243,170 L 1363,210 L 1363,216 L 1243,176 Z"></path>
+                <path class="pauta-viga" d="M 1243,179 L 1363,219 L 1363,225 L 1243,185 Z"></path>
+                <g class="pauta-nota pauta-nota--blanca">
+                    <ellipse cx="1500" cy="80" rx="16" ry="11" transform="rotate(-18 1500 80)"></ellipse>
+                    <line x1="1483" y1="80" x2="1483" y2="150"></line>
+                </g>
+            </svg>
+        </div>
+        <div class="explorar-contenido">
+            <div class="seccion__cabecera">
+                <span class="seccion__eyebrow">Explorar</span>
+                <h2 class="seccion__titulo">¿Qué vas a practicar hoy?</h2>
+            </div>
+            <div class="grilla-secciones">
+                <a href="{% url 'midi_trainer_hub' %}" class="card-seccion" style="--card-acento: var(--gold);">
+                    <div class="card-seccion__icono"><svg viewBox="0 0 24 24"><path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div class="card-seccion__titulo">Estudio MIDI</div>
+                    <p class="card-seccion__texto">Conectá tu teclado y jugá con identificación de acordes en vivo — cada nota que tocás se ve y se escucha al instante.</p>
+                    <div class="card-seccion__flecha">Ir al piano →</div>
+                </a>
+                <a href="{% url 'biblioteca_list' %}" class="card-seccion" style="--card-acento: var(--wine);">
+                    <div class="card-seccion__icono"><svg viewBox="0 0 24 24"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div class="card-seccion__titulo">Estudio Digital</div>
+                    <p class="card-seccion__texto">Tocá partituras reales con metrónomo y control de tempo.</p>
+                    <div class="card-seccion__flecha">Ir a tocar →</div>
+                </a>
+                <a href="{% url 'entrenador_index' %}" class="card-seccion" style="--card-acento: var(--petroleo);">
+                    <div class="card-seccion__icono"><svg viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div class="card-seccion__titulo">Entrenador</div>
+                    <p class="card-seccion__texto">Juegos rápidos de oído y lectura para afilar reflejos.</p>
+                    <div class="card-seccion__flecha">Entrenar →</div>
+                </a>
+                <a href="{% url 'proyectos_list' %}" class="card-seccion" style="--card-acento: var(--gold);">
+                    <div class="card-seccion__icono"><svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div class="card-seccion__titulo">Proyectos</div>
+                    <p class="card-seccion__texto">Tus obras en estudio a largo plazo, con metas propias.</p>
+                    <div class="card-seccion__flecha">Mis obras →</div>
+                </a>
+                <a href="{% url 'orquestacion_ejercicio_lista' %}" class="card-seccion" style="--card-acento: var(--wine);">
+                    <div class="card-seccion__icono"><svg viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v8m0 0l4-4m-4 4l-4-4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div class="card-seccion__titulo">Ejercicio de orquestación</div>
+                    <p class="card-seccion__texto">Pintá cada nota de un fragmento de piano con el instrumento de cuerdas que le corresponda.</p>
+                    <div class="card-seccion__flecha">Practicar →</div>
+                </a>
+            </div>
         </div>
     </section>
 
-    {% with top_rec=recommendations.0 %}
-    {% if top_rec %}
-    <div class="continue-card {{ top_rec.type }}">
-        <div class="continue-icon">
-            {% if top_rec.type == 'reminder' %}⏰{% elif top_rec.type == 'motivation' %}🔥{% else %}💡{% endif %}
-        </div>
-        <div class="continue-body">
-            <div class="k">{% if top_rec.type == 'reminder' %}Seguí donde dejaste{% elif top_rec.type == 'motivation' %}Vas bien{% else %}Sugerencia de hoy{% endif %}</div>
-            <p>{{ top_rec.message }}</p>
-        </div>
-        <a href="{% url 'biblioteca_list' %}" class="ac-btn" style="background:#ff5a36;color:#fff;border-radius:0.7rem;padding:0.7rem 1.4rem;text-transform:none;letter-spacing:normal;font-size:0.92rem;">Ver biblioteca →</a>
-    </div>
-    {% endif %}
-    {% endwith %}
-
-    <div class="section-head"><h2 style="font-size:1.5rem;font-weight:700;">¿Qué vas a practicar hoy?</h2></div>
-    <div class="bento">
-        <a href="{% url 'midi_trainer_hub' %}" class="tile tile--midi featured">
-            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg></div>
-            <h3>Estudio MIDI</h3>
-            <p>Conectá tu teclado y jugá con identificación de acordes en vivo — cada nota que tocás se ve y se escucha al instante.</p>
-            <div class="mini-keys" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-            <span class="go">Ir al piano <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-        </a>
-        <a href="{% url 'biblioteca_list' %}" class="tile tile--biblio">
-            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg></div>
-            <h3>Estudio Digital</h3>
-            <p>Tocá partituras reales con metrónomo y control de tempo.</p>
-            <span class="go">Ir a tocar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-        </a>
-        <a href="{% url 'entrenador_index' %}" class="tile tile--entrenador">
-            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>
-            <h3>Entrenador</h3>
-            <p>Juegos rápidos de oído y lectura para afilar reflejos.</p>
-            <span class="go">Entrenar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-        </a>
-        <a href="{% url 'proyectos_list' %}" class="tile tile--proyectos">
-            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></div>
-            <h3>Proyectos</h3>
-            <p>Tus obras en estudio a largo plazo, con metas propias.</p>
-            <span class="go">Mis obras <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-        </a>
-        <a href="{% url 'orquestador_analizar' %}" class="tile tile--analizador">
-            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/></svg></div>
-            <h3>Analizador</h3>
-            <p>Subí un MIDI o MusicXML y recibí una crítica de orquestación.</p>
-            <span class="go">Analizar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-        </a>
-        <a href="{% url 'orquestacion_ejercicio_lista' %}" class="tile tile--ejercicio">
-            <div class="tile-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v8m0 0l4-4m-4 4l-4-4"/></svg></div>
-            <h3>Ejercicio de orquestación</h3>
-            <p>Arrastrá cada nota de un fragmento de piano al instrumento de cuerdas que le corresponda.</p>
-            <span class="go">Practicar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-        </a>
-    </div>
-
-    <div class="section-head"><h2 style="font-size:1.5rem;font-weight:700;">Director de Estudio</h2></div>
-    <div class="progress-grid">
-        <div class="panel">
-            <h3>Constancia del año</h3>
-            <div class="stat-row">
-                <div class="stat-tile"><div class="n">{{ weekly_summary.total_sessions }}</div><div class="l">Sesiones</div></div>
-                <div class="stat-tile"><div class="n">{{ weekly_summary.total_minutes }}m</div><div class="l">Esta semana</div></div>
-                <div class="stat-tile"><div class="n">{{ weekly_summary.unique_days }}/7</div><div class="l">Días activos</div></div>
-                <div class="stat-tile"><div class="n">{{ weekly_summary.unique_sheets }}</div><div class="l">Obras tocadas</div></div>
-            </div>
-            <div class="heat-wrap"><div class="heatmap" id="heatmap"></div></div>
-            <div class="heat-legend">
-                Menos
-                <div class="heat-day" data-level="0"></div>
-                <div class="heat-day" data-level="1"></div>
-                <div class="heat-day" data-level="2"></div>
-                <div class="heat-day" data-level="3"></div>
-                <div class="heat-day" data-level="4"></div>
-                Más
+    <section class="seccion" style="padding-top:0;">
+        <div class="placa">
+            <span class="placa__eyebrow">Análisis con IA</span>
+            <h2 class="placa__titulo">Director de Estudio</h2>
+            <p class="placa__texto">Subí tu orquestación y recibí una crítica estructurada — dobles verificados, densidad por compás y sugerencias de registro — antes de mostrarla a tu profesor.</p>
+            <div class="placa__acciones">
+                <a href="{% url 'orquestador_analizar' %}" class="boton boton--primario">Analizar una partitura</a>
+                <span class="placa__creditos">{{ profile.creditos_analisis|add:profile.creditos_bonus }} análisis disponibles</span>
             </div>
         </div>
-
-        <div class="panel">
-            <h3>Recomendaciones</h3>
-            <div class="rec-list">
-                {% for rec in recommendations|slice:"1:" %}
-                <div class="rec {{ rec.type }}"><p>{{ rec.message }}</p></div>
-                {% empty %}
-                <p style="color:var(--text-secondary);font-size:0.9rem;">Sin más recomendaciones por ahora — segui así.</p>
-                {% endfor %}
-            </div>
-            {% for ug in today_goals %}
-            {% widthratio ug.current_value ug.goal.target_value 125.6 as filled_len %}
-            <div class="goal-inline">
-                <div class="goal-ring">
-                    <svg width="48" height="48" viewBox="0 0 48 48">
-                        <circle class="track" cx="24" cy="24" r="20"></circle>
-                        <circle class="fill" cx="24" cy="24" r="20" stroke-dasharray="{{ filled_len }} 125.6"></circle>
-                    </svg>
-                </div>
-                <div class="goal-text">
-                    <div class="t">{{ ug.goal.title }}</div>
-                    <div class="v">{{ ug.current_value }} / {{ ug.goal.target_value }}m</div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
+    </section>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-(function () {
-    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    var strip = document.getElementById('heroStrip');
-    var pattern = [1,0,1,0,1,1,0,1,0,1,0,1];
-    var bars = [];
-    var BAR_COUNT = 60;
-    for (var i = 0; i < BAR_COUNT; i++) {
-        var bar = document.createElement('div');
-        bar.className = 'hero-bar' + (pattern[i % pattern.length] ? ' wide' : '');
-        var base = 22 + Math.random() * 26;
-        bar.dataset.base = base;
-        bar.style.height = base + '%';
-        strip.appendChild(bar);
-        bars.push(bar);
-    }
-    if (!reduceMotion) {
-        var t = 0;
-        setInterval(function () {
-            t += 0.05;
-            for (var i = 0; i < bars.length; i++) {
-                if (bars[i].classList.contains('hot')) continue;
-                var base = parseFloat(bars[i].dataset.base);
-                bars[i].style.height = Math.max(6, base + Math.sin(t + i * 0.4) * 5) + '%';
-            }
-        }, 60);
-    }
-    function velocityColor(v) {
-        var volt = [47,184,255], ember = [255,90,54];
-        var c = volt.map(function (ch, i) { return Math.round(ch + (ember[i]-ch) * v); });
-        return 'rgb(' + c.join(',') + ')';
-    }
-    strip.addEventListener('mousemove', function (e) {
-        var rect = strip.getBoundingClientRect();
-        var relX = (e.clientX - rect.left) / rect.width;
-        var relY = 1 - (e.clientY - rect.top) / rect.height;
-        var idx = Math.round(relX * (bars.length - 1));
-        for (var i = 0; i < bars.length; i++) {
-            var d = Math.abs(i - idx);
-            if (d < 7) {
-                var falloff = 1 - d / 7;
-                var base = parseFloat(bars[i].dataset.base);
-                bars[i].classList.add('hot');
-                bars[i].style.height = Math.min(100, base + relY * 55 * falloff) + '%';
-                bars[i].style.background = velocityColor(relY);
-                bars[i].style.boxShadow = '0 0 ' + (8*falloff) + 'px ' + velocityColor(relY);
-            } else {
-                bars[i].classList.remove('hot');
-                bars[i].style.background = '';
-                bars[i].style.boxShadow = '';
-            }
-        }
-    });
-    strip.addEventListener('mouseleave', function () {
-        bars.forEach(function (b) { b.classList.remove('hot'); b.style.background=''; b.style.boxShadow=''; });
-    });
-
-    // Heatmap real: 53 semanas x 7 días terminando hoy, usando calendar_data del backend (minutos por día)
-    var calendarData = {{ calendar_data|safe }};
-    var heatmap = document.getElementById('heatmap');
-    var today = new Date();
-    today.setHours(0,0,0,0);
-    var totalDays = 53 * 7;
-    var start = new Date(today);
-    start.setDate(start.getDate() - (totalDays - 1) - today.getDay());
-
-    function levelFor(minutes) {
-        if (!minutes) return 0;
-        if (minutes < 15) return 1;
-        if (minutes < 30) return 2;
-        if (minutes < 60) return 3;
-        return 4;
-    }
-
-    for (var w = 0; w < 53; w++) {
-        for (var d = 0; d < 7; d++) {
-            var date = new Date(start);
-            date.setDate(date.getDate() + w * 7 + d);
-            var cell = document.createElement('div');
-            cell.className = 'heat-day';
-            if (date <= today) {
-                var key = date.toISOString().slice(0, 10);
-                cell.dataset.level = levelFor(calendarData[key]);
-                cell.title = key + ': ' + (calendarData[key] || 0) + ' min';
-            }
-            heatmap.appendChild(cell);
-        }
-    }
-})();
-</script>
 {% endblock %}
