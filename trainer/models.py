@@ -3,12 +3,16 @@ from django.contrib.auth.models import User
 from .storage import EncryptedFileSystemStorage
 
 class Game(models.Model):
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField(unique=True, help_text="Tiene que coincidir con el slug ya cableado en las URLs del Entrenador -- crear un Game nuevo acá no crea una página nueva sola.")
     name = models.CharField(max_length=100)
     description = models.TextField()
     order = models.IntegerField(default=1)
     recommended_accuracy = models.IntegerField(default=0)
     recommended_attempts = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Juego (Entrenador)"
+        verbose_name_plural = "Juegos (Entrenador)"
 
     def __str__(self):
         return self.name
@@ -25,6 +29,8 @@ class Score(models.Model):
 
     class Meta:
         unique_together = ('user', 'game')
+        verbose_name = "Puntaje de Juego"
+        verbose_name_plural = "Puntajes de Juego"
 
     @property
     def accuracy(self):
@@ -72,6 +78,10 @@ class Attempt(models.Model):
     response_time_ms = models.IntegerField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = "Intento de Juego"
+        verbose_name_plural = "Intentos de Juego"
+
     def __str__(self):
         return f"{self.user.username} - {self.game.slug} - {'Correct' if self.is_correct else 'Incorrect'}"
 
@@ -84,8 +94,12 @@ class UserProfile(models.Model):
     last_active_date = models.DateField(null=True, blank=True)
     max_study_time_day = models.IntegerField(default=0)
     max_sessions_day = models.IntegerField(default=0)
-    creditos_analisis = models.IntegerField(default=0, help_text="Créditos del analizador de partituras asignados manualmente por el admin. No se otorgan automáticamente.")
-    creditos_bonus = models.IntegerField(default=0, help_text="Créditos adicionales cargados manualmente o comprados. No se resetean ni vencen.")
+    creditos_analisis = models.IntegerField(default=0, help_text="Créditos del Director de Estudio (analizador de partituras con IA) asignados manualmente por el admin. No se otorgan automáticamente.")
+    creditos_bonus = models.IntegerField(default=0, help_text="Créditos adicionales del Director de Estudio cargados manualmente o comprados. No se resetean ni vencen.")
+
+    class Meta:
+        verbose_name = "Perfil de Usuario"
+        verbose_name_plural = "Perfiles de Usuario"
 
     def __str__(self):
         return f"Perfil de {self.user.username}"
@@ -95,7 +109,11 @@ class Achievement(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField()
     icon = models.CharField(max_length=50, default="🏆")
-    
+
+    class Meta:
+        verbose_name = "Logro"
+        verbose_name_plural = "Logros"
+
     def __str__(self):
         return self.name
 
@@ -106,6 +124,8 @@ class UserAchievement(models.Model):
 
     class Meta:
         unique_together = ('user', 'achievement')
+        verbose_name = "Logro Obtenido"
+        verbose_name_plural = "Logros Obtenidos"
 
     def __str__(self):
         return f"{self.user.username} - {self.achievement.name}"
@@ -116,8 +136,12 @@ class Piece(models.Model):
     time_signature = models.CharField(max_length=10, default="4/4")
     key_signature = models.CharField(max_length=50, blank=True, null=True)
     difficulty = models.IntegerField(default=1, help_text="1: Principiante, 2: Intermedio, 3: Avanzado")
-    xml_content = models.TextField(help_text="Contenido en formato MusicXML")
+    xml_content = models.TextField(help_text="Contenido MusicXML pegado como texto. Alimenta el juego 'Lectura Musical' del Entrenador -- esto NO aparece en la Biblioteca de Partituras (para eso usá 'Partitura (Biblioteca)').")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Partitura de Lectura (Entrenador)"
+        verbose_name_plural = "Partituras de Lectura (Entrenador)"
 
     def __str__(self):
         return f"{self.title} - {self.author}"
@@ -126,6 +150,10 @@ class Collection(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True)
 
+    class Meta:
+        verbose_name = "Colección de Partituras"
+        verbose_name_plural = "Colecciones de Partituras"
+
     def __str__(self):
         return self.name
 
@@ -133,9 +161,13 @@ class SheetMusic(models.Model):
     title = models.CharField(max_length=100, blank=True, help_text="Se puede extraer automáticamente del MusicXML")
     composer = models.CharField(max_length=100, blank=True, help_text="Se puede extraer automáticamente del MusicXML")
     difficulty = models.IntegerField(default=1)
-    xml_file = models.FileField(upload_to='partituras/')
+    xml_file = models.FileField(upload_to='partituras/', help_text="Subí acá el archivo (MusicXML o .mxl comprimido) -- va a aparecer en la Biblioteca de Partituras del sitio.")
     collections = models.ManyToManyField(Collection, blank=True, related_name='sheet_musics')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Partitura (Biblioteca)"
+        verbose_name_plural = "Partituras (Biblioteca)"
 
     def __str__(self):
         return self.title or self.xml_file.name
@@ -147,6 +179,8 @@ class Favorite(models.Model):
 
     class Meta:
         unique_together = ('user', 'sheet_music')
+        verbose_name = "Favorito de Biblioteca"
+        verbose_name_plural = "Favoritos de Biblioteca"
 
 class StudySession(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='study_sessions')
@@ -156,6 +190,10 @@ class StudySession(models.Model):
     duration_seconds = models.IntegerField(default=0)
     bpm_used = models.IntegerField(default=100)
     play_count = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Sesión de Estudio"
+        verbose_name_plural = "Sesiones de Estudio"
 
     def __str__(self):
         return f"{self.user.username} - {self.sheet_music} - {self.start_time}"
@@ -171,6 +209,10 @@ class RehearsalConfig(models.Model):
     bpm_step = models.IntegerField(default=5)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = "Configuración de Ensayo"
+        verbose_name_plural = "Configuraciones de Ensayo"
+
     def __str__(self):
         return f"{self.name} ({self.sheet_music})"
 
@@ -182,6 +224,10 @@ class RehearsalLog(models.Model):
     time_spent_seconds = models.IntegerField(default=0)
     max_bpm_reached = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Registro de Ensayo"
+        verbose_name_plural = "Registros de Ensayo"
 
     def __str__(self):
         return f"Ensayo de {self.user.username} - {self.repetitions_done} reps"
@@ -196,6 +242,8 @@ class SheetMusicProgress(models.Model):
 
     class Meta:
         unique_together = ('user', 'sheet_music')
+        verbose_name = "Progreso de Partitura"
+        verbose_name_plural = "Progresos de Partitura"
 
 class DailyGoal(models.Model):
     GOAL_TYPES = (
@@ -205,6 +253,10 @@ class DailyGoal(models.Model):
     title = models.CharField(max_length=100)
     goal_type = models.CharField(max_length=20, choices=GOAL_TYPES)
     target_value = models.IntegerField(help_text="Ej: 10 para 10 minutos")
+
+    class Meta:
+        verbose_name = "Meta Diaria (plantilla)"
+        verbose_name_plural = "Metas Diarias (plantilla)"
 
     def __str__(self):
         return self.title
@@ -218,12 +270,18 @@ class UserDailyGoal(models.Model):
 
     class Meta:
         unique_together = ('user', 'goal', 'date')
+        verbose_name = "Meta Diaria de Usuario"
+        verbose_name_plural = "Metas Diarias de Usuario"
 
 class Playlist(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='playlists')
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Playlist"
+        verbose_name_plural = "Playlists"
 
     def __str__(self):
         return self.name
@@ -235,6 +293,8 @@ class PlaylistSheet(models.Model):
 
     class Meta:
         ordering = ['order']
+        verbose_name = "Partitura en Playlist"
+        verbose_name_plural = "Partituras en Playlist"
 
 class SheetMarker(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sheet_markers')
@@ -244,6 +304,10 @@ class SheetMarker(models.Model):
     color = models.CharField(max_length=20, default='blue')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = "Marcador de Partitura"
+        verbose_name_plural = "Marcadores de Partitura"
+
 class SheetNote(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sheet_notes')
     sheet_music = models.ForeignKey(SheetMusic, on_delete=models.CASCADE)
@@ -251,12 +315,20 @@ class SheetNote(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        verbose_name = "Anotación de Partitura"
+        verbose_name_plural = "Anotaciones de Partitura"
+
 class SessionAudio(models.Model):
     session = models.OneToOneField(StudySession, on_delete=models.CASCADE, related_name='audio_eval')
     audio_file = models.FileField(upload_to='session_audio/', blank=True, null=True)
     evaluation_score = models.IntegerField(null=True, blank=True)
     feedback_notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Audio de Sesión (evaluación)"
+        verbose_name_plural = "Audios de Sesión (evaluación)"
 
 class MusicalProject(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='projects')
@@ -274,6 +346,10 @@ class MusicalProject(models.Model):
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
 
+    class Meta:
+        verbose_name = "Proyecto Musical"
+        verbose_name_plural = "Proyectos Musicales"
+
     def __str__(self):
         return f"Proyecto: {self.sheet_music.title} - {self.user.username}"
 
@@ -287,6 +363,10 @@ class ProjectGoal(models.Model):
     goal_type = models.CharField(max_length=20, choices=GOAL_TYPES)
     target_value = models.IntegerField()
     is_completed = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Objetivo de Proyecto"
+        verbose_name_plural = "Objetivos de Proyecto"
 
     def __str__(self):
         return f"{self.get_goal_type_display()} - {self.target_value}"
@@ -304,6 +384,8 @@ class ProjectSection(models.Model):
 
     class Meta:
         ordering = ['start_measure']
+        verbose_name = "Sección de Proyecto"
+        verbose_name_plural = "Secciones de Proyecto"
 
     def __str__(self):
         return f"Compases {self.start_measure}-{self.end_measure} ({self.get_status_display()})"
@@ -318,6 +400,10 @@ class MidiChordStat(models.Model):
     is_problematic = models.BooleanField(default=False)
     last_played = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        verbose_name = "Estadística de Acorde MIDI"
+        verbose_name_plural = "Estadísticas de Acordes MIDI"
+
     def __str__(self):
         return f"{self.user.username} - {self.chord_name}"
 
@@ -328,6 +414,10 @@ class MidiGameSession(models.Model):
     xp_earned = models.IntegerField(default=0)
     duration_seconds = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Sesión de Juego MIDI"
+        verbose_name_plural = "Sesiones de Juego MIDI"
 
     def __str__(self):
         return f"{self.user.username} - {self.game_type} - {self.score} pts"
@@ -365,6 +455,10 @@ class ScoreAnalysis(models.Model):
     puntaje_obra = models.IntegerField(null=True, blank=True)
     creditos_cobrados = models.IntegerField(null=True, blank=True)
 
+    class Meta:
+        verbose_name = "Análisis de Orquestación (Director de Estudio)"
+        verbose_name_plural = "Análisis de Orquestación (Director de Estudio)"
+
     def __str__(self):
         return f"{self.name} - {self.user.username}"
 
@@ -377,10 +471,14 @@ class FragmentoOrquestacion(models.Model):
     privado de un usuario — mismo criterio que SheetMusic.xml_file.
     """
     nombre = models.CharField(max_length=200)
-    archivo = models.FileField(upload_to='orquestacion_ejercicios/', help_text="Formatos: .musicxml, .xml, .mxl. Piano (una o dos manos).")
+    archivo = models.FileField(upload_to='orquestacion_ejercicios/', help_text="Formatos: .musicxml, .xml, .mxl. Piano (una o dos manos). Subí acá el fragmento para el Ejercicio de Orquestación -- no es la Biblioteca de Partituras.")
     activo = models.BooleanField(default=True, help_text="Solo los fragmentos activos aparecen en el listado del ejercicio.")
     creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='fragmentos_orquestacion')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Fragmento (Ejercicio de Orquestación)"
+        verbose_name_plural = "Fragmentos (Ejercicio de Orquestación)"
 
     def __str__(self):
         return self.nombre
