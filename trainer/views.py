@@ -2197,23 +2197,58 @@ def biblioteca_play(request, score_id):
     })
 
 
-def _eventos_ejecucion(score_expandido):
+def _secuencia_compases_canonica(score):
     """
-    Recorre un score YA expandido por Score.expandRepeats() (los números de compás
-    impresos se conservan en .number tras la expansión -- verificado empíricamente,
-    ver el plan de la sesión que introdujo esto) y arma la secuencia de EJECUCIÓN: el
-    orden real en que suena la pieza, no el orden impreso. Recorre TODAS las partes en
-    paralelo, compás por compás (no parte por parte) -- un piano a dos manos son dos
-    Part/PartStaff independientes en music21, y las notas de ambas manos que caen en
-    el mismo tiempo tienen que agruparse en el mismo paso de ejecución, igual que hace
-    el cursor de OSMD del lado del frontend (un solo cursor para todo el sistema).
+    Determina el orden de EJECUCIÓN de números de compás (repeticiones/voltas ya
+    resueltas), de forma robusta ante un caso real confirmado con music21: la barra de
+    repetición no siempre queda marcada en TODAS las partes de una partitura de piano a
+    dos manos -- algunos exportadores de MusicXML solo la escriben en una de las dos
+    (aunque visualmente la barra atraviesa las dos pentagramas del sistema). Si se llama
+    a expandRepeats() sobre cada parte por separado con SUS propias barras, la parte sin
+    la marca queda sin expandir mientras la otra sí -- y las dos manos quedan
+    completamente desalineadas al reconstruir (síntoma real reportado: "primero suena
+    la mano derecha, después la izquierda", a los saltos).
+
+    Se expande cada parte por separado y se usa como canónica la secuencia de números de
+    compás de la que ganó MÁS compases al expandir -- esa es la que capturó la
+    repetición real. Con partituras bien formadas (marcada igual en todas las partes, o
+    sin repeticiones en absoluto) todas las secuencias coinciden, da lo mismo cuál se
+    elija.
+    """
+    secuencias = []
+    for part in score.parts:
+        parcial = music21.stream.Score()
+        parcial.insert(0, part)
+        try:
+            expandido = parcial.expandRepeats()
+            medidas = list(expandido.parts[0].getElementsByClass(music21.stream.Measure))
+            secuencias.append([m.number for m in medidas])
+        except Exception:
+            secuencias.append([m.number for m in part.getElementsByClass(music21.stream.Measure)])
+
+    if not secuencias:
+        return []
+    return max(secuencias, key=len)
+
+
+def _eventos_ejecucion(score):
+    """
+    Arma la secuencia de EJECUCIÓN (orden real en que suena la pieza, con
+    repeticiones/voltas expandidas) a partir del score ORIGINAL sin expandir, guiándose
+    por _secuencia_compases_canonica() -- no por Score.expandRepeats() directo, que
+    puede desalinear partes (ver esa función). Para cada compás de la secuencia
+    canónica, se busca ese número de compás en CADA parte del score original (por
+    número, no por posición) y se recorren juntas -- si una parte no tiene una segunda
+    ocurrencia física de un compás repetido (porque nunca tuvo la barra marcada), se
+    reusa su única copia, que es exactamente lo correcto: esa mano suena igual las dos
+    veces.
 
     Un registro por altura real que suena, agrupadas por paso_ejecucion (una parada
-    rítmica -- varias alturas comparten paso_ejecucion si s* suenan juntas, sea por
-    acorde o por varias partes coincidiendo en el mismo tiempo). paso_en_compas
-    identifica la parada DENTRO de su compás (se reinicia en cada compás, incluidas
-    las repeticiones) -- es lo que el frontend usa para ubicar la parada exacta sin
-    comparar offsets flotantes contra el recorrido del cursor de OSMD.
+    rítmica -- varias alturas comparten paso_ejecucion si suenan juntas, sea por acorde
+    o por varias partes coincidiendo en el mismo tiempo). paso_en_compas identifica la
+    parada DENTRO de su compás (se reinicia en cada ocurrencia, incluidas las
+    repeticiones) -- es lo que el frontend usa para ubicar la parada exacta sin comparar
+    offsets flotantes contra el recorrido del cursor de OSMD.
 
     Grace notes (duration.isGrace, no quarterLength==0 -- mismo criterio que
     _notas_piano_para_ejercicio): SÍ viajan en la secuencia acá (a diferencia de esa
@@ -2221,19 +2256,32 @@ def _eventos_ejecucion(score_expandido):
     Comparten paso_en_compas con la nota principal que las sigue -- no consumen una
     parada propia, porque el cursor de OSMD tampoco se mueve por ellas.
     """
-    partes = list(score_expandido.parts)
-    if not partes:
+    secuencia_canonica = _secuencia_compases_canonica(score)
+    if not secuencia_canonica:
         return []
-    compases_por_parte = [list(p.getElementsByClass(music21.stream.Measure)) for p in partes]
-    num_compases = min((len(cs) for cs in compases_por_parte), default=0)
+
+    partes = list(score.parts)
+    medidas_por_parte = []
+    for part in partes:
+        mapa = {}
+        for m in part.getElementsByClass(music21.stream.Measure):
+            mapa.setdefault(m.number, []).append(m)
+        medidas_por_parte.append(mapa)
 
     eventos = []
     paso_ejecucion = -1
-    for i in range(num_compases):
-        compas_num = compases_por_parte[0][i].number
+    ocurrencias_usadas = [dict() for _ in partes]  # por parte: {numero_compas: cuántas veces ya se usó}
+
+    for compas_num in secuencia_canonica:
         entradas = []
-        for cs in compases_por_parte:
-            m = cs[i]
+        for idx_parte, mapa in enumerate(medidas_por_parte):
+            opciones = mapa.get(compas_num)
+            if not opciones:
+                continue
+            ocurrencia = ocurrencias_usadas[idx_parte].get(compas_num, 0)
+            m = opciones[ocurrencia] if ocurrencia < len(opciones) else opciones[-1]
+            ocurrencias_usadas[idx_parte][compas_num] = ocurrencia + 1
+
             for el in m.recurse().notes:
                 if isinstance(el, music21.chord.Chord):
                     pitches = el.pitches
@@ -2244,9 +2292,8 @@ def _eventos_ejecucion(score_expandido):
                 offset_en_compas = el.getOffsetInHierarchy(m)
                 entradas.append((offset_en_compas, el.duration.isGrace, pitches, el.duration.quarterLength))
 
-        # Ordenado por offset -- recurse() ya suele entregar en orden, pero acá se
-        # combinan elementos de partes DISTINTAS (measure objects distintos), así que
-        # no hay garantía de orden entre ellas sin ordenar a mano.
+        # Ordenado por offset -- se combinan elementos de partes DISTINTAS (measure
+        # objects distintos), así que no hay garantía de orden entre ellas sin ordenar a mano.
         entradas.sort(key=lambda e: (e[0], e[1]))
 
         paso_en_compas = -1
@@ -2299,11 +2346,11 @@ def biblioteca_secuencia_ejecucion(request, score_id):
         return JsonResponse({'status': 'sin_soporte', 'motivo': 'repeticion_compleja'})
 
     try:
-        score_expandido = score.expandRepeats()
+        eventos = _eventos_ejecucion(score)
     except Exception as e:
         return JsonResponse({'status': 'sin_soporte', 'motivo': f'expansion_fallo: {e}'})
 
-    return JsonResponse({'status': 'success', 'eventos': _eventos_ejecucion(score_expandido)})
+    return JsonResponse({'status': 'success', 'eventos': eventos})
 
 
 @login_required

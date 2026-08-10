@@ -409,7 +409,8 @@
     let baseBpm = 100;
     let isPlaying = false;
     let transportEvents = [];
-    let timeNumerator = 4;
+    let timeNumerator = 4; // cantidad de "tiempos" de conducción por compás (no el numerador crudo en compases compuestos -- ver renderConductor)
+    let beatUnitQuarters = 1.0; // cuántas negras dura un "tiempo" -- 1.5 en compases compuestos (6/8, 9/8, 12/8)
     let clickSynth = null;
     let currentCursorIdx = 0;
     let events = []; // Array global para loop calculations
@@ -522,19 +523,28 @@
         }
     }
 
-    function renderConductor(numerator) {
-        timeNumerator = numerator;
+    function renderConductor(numerator, denominator) {
+        // Compases compuestos (6/8, 9/8, 12/8): el tiempo real es la negra con puntillo
+        // (3 corcheas), no la corchea suelta -- se conducen con el mismo patrón de 3/4 o
+        // 4/4 según corresponda, no con un punto por corchea. denominator===8 y numerator
+        // múltiplo de 3 (y >3, para no confundir un genuino 3/8 simple) es la señal
+        // estándar de compás compuesto.
+        const esCompuesto = denominator === 8 && numerator % 3 === 0 && numerator > 3;
+        const tiemposPorCompas = esCompuesto ? (numerator / 3) : numerator;
+        beatUnitQuarters = esCompuesto ? 1.5 : 1.0;
+
+        timeNumerator = tiemposPorCompas;
         conductorWidget.innerHTML = '';
-        if (numerator === 4) {
+        if (tiemposPorCompas === 4) {
             addBeatDot(1, 'pos-down');
             addBeatDot(2, 'pos-left');
             addBeatDot(3, 'pos-right');
             addBeatDot(4, 'pos-up');
-        } else if (numerator === 3) {
+        } else if (tiemposPorCompas === 3) {
             addBeatDot(1, 'pos-down');
             addBeatDot(2, 'pos-right');
             addBeatDot(3, 'pos-up');
-        } else if (numerator === 2) {
+        } else if (tiemposPorCompas === 2) {
             addBeatDot(1, 'pos-down');
             addBeatDot(2, 'pos-up');
         } else {
@@ -608,7 +618,7 @@
             if (osmd.sheet && osmd.sheet.SourceMeasures && osmd.sheet.SourceMeasures.length > 0) {
                 let ts = osmd.sheet.SourceMeasures[0].ActiveTimeSignature;
                 if (ts) {
-                    renderConductor(ts.Numerator);
+                    renderConductor(ts.Numerator, ts.Denominator);
                 }
             }
         } catch (err) {
@@ -1191,7 +1201,7 @@
                 setTimeout(() => conductorWidget.classList.remove('beat-pulse'), 150);
             }, time);
             practicaBeatCount++;
-        }, "4n").start(0);
+        }, beatUnitQuarters === 1.5 ? "4n." : "4n").start(0); // "4n." = negra con puntillo, el tiempo real en compás compuesto
         Tone.Transport.start();
     }
 
@@ -1476,8 +1486,12 @@
                 }
 
                 // 3. Programar Metrónomo explícitamente para que soporte Loop nativo de Tone.js
-                for (let b = 0; b < totalBeats; b++) {
-                    let ticks = Math.round(b * Tone.Transport.PPQ);
+                // b cuenta TIEMPOS de conducción (lo que usan el acento y el punto del director),
+                // no negras -- en compás compuesto un tiempo dura 1.5 negras (beatUnitQuarters),
+                // así que la posición real en negras (para los ticks) es b * beatUnitQuarters,
+                // no b directamente. totalBeats sigue siendo la duración total en negras.
+                for (let b = 0, posicionEnNegras = 0; posicionEnNegras < totalBeats; b++, posicionEnNegras += beatUnitQuarters) {
+                    let ticks = Math.round(posicionEnNegras * Tone.Transport.PPQ);
                     let clickId = Tone.Transport.schedule((time) => {
                         // metronomoToggle.checked también se lee en vivo -- mismo motivo que pianoToggle
                         // arriba. isMuted sigue siendo el mute global del sitio (navbar), que se
