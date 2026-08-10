@@ -2255,6 +2255,18 @@ def _eventos_ejecucion(score):
     función, que las agrupa como adorno de un instrumento) porque tienen que sonar.
     Comparten paso_en_compas con la nota principal que las sigue -- no consumen una
     parada propia, porque el cursor de OSMD tampoco se mueve por ellas.
+
+    Ligaduras de prolongación (note.tie, type start/continue/stop -- no chequeado antes,
+    causaba que la nota se reatacara en cada segmento en vez de sonar prolongada): la
+    nota que ABRE la ligadura se emite normal y queda "abierta"; cada segmento que la
+    continúa NO se emite como ataque nuevo -- se le suma su duracion_ql a la nota que
+    abrió la ligadura, y se marca es_ligadura_continuacion=True para que el frontend
+    sepa que existe (la sigue usando para mover el cursor) pero no la dispare ni la
+    ilumine, porque ya forma parte del sonido de la nota original. Clave por (parte,
+    altura) -- dos manos pueden ligar la misma altura al mismo tiempo sin confundirse
+    entre sí. Simplificación deliberada: se usa el tie del Chord/Note completo, no por
+    altura individual dentro de un acorde (igual nivel de simplificación que el resto de
+    esta función, que ya trata la duración de un acorde como una sola).
     """
     secuencia_canonica = _secuencia_compases_canonica(score)
     if not secuencia_canonica:
@@ -2271,6 +2283,7 @@ def _eventos_ejecucion(score):
     eventos = []
     paso_ejecucion = -1
     ocurrencias_usadas = [dict() for _ in partes]  # por parte: {numero_compas: cuántas veces ya se usó}
+    ligadura_abierta = {}  # (idx_parte, ps) -> evento (dict, ya en `eventos`) que se sigue extendiendo
 
     for compas_num in secuencia_canonica:
         entradas = []
@@ -2290,7 +2303,8 @@ def _eventos_ejecucion(score):
                 else:
                     continue
                 offset_en_compas = el.getOffsetInHierarchy(m)
-                entradas.append((offset_en_compas, el.duration.isGrace, pitches, el.duration.quarterLength))
+                tie_tipo = el.tie.type if el.tie is not None else None
+                entradas.append((offset_en_compas, el.duration.isGrace, pitches, el.duration.quarterLength, idx_parte, tie_tipo))
 
         # Ordenado por offset -- se combinan elementos de partes DISTINTAS (measure
         # objects distintos), así que no hay garantía de orden entre ellas sin ordenar a mano.
@@ -2299,7 +2313,7 @@ def _eventos_ejecucion(score):
         paso_en_compas = -1
         offset_actual = None
         graces_pendientes = []
-        for offset_en_compas, es_grace, pitches, duracion in entradas:
+        for offset_en_compas, es_grace, pitches, duracion, idx_parte, tie_tipo in entradas:
             if es_grace:
                 for p in pitches:
                     graces_pendientes.append({'pitch': p.nameWithOctave, 'ps': p.ps})
@@ -2314,14 +2328,30 @@ def _eventos_ejecucion(score):
                 eventos.append({
                     'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
                     'pitch': g['pitch'], 'ps': g['ps'], 'duracion_ql': 0.25, 'es_grace': True,
+                    'es_ligadura_continuacion': False,
                 })
             graces_pendientes = []
 
             for p in pitches:
-                eventos.append({
-                    'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
-                    'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion, 'es_grace': False,
-                })
+                clave = (idx_parte, p.ps)
+                if tie_tipo in ('stop', 'continue') and clave in ligadura_abierta:
+                    ligadura_abierta[clave]['duracion_ql'] += duracion
+                    eventos.append({
+                        'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
+                        'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion, 'es_grace': False,
+                        'es_ligadura_continuacion': True,
+                    })
+                    if tie_tipo == 'stop':
+                        del ligadura_abierta[clave]
+                else:
+                    nuevo_evento = {
+                        'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
+                        'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion, 'es_grace': False,
+                        'es_ligadura_continuacion': False,
+                    }
+                    eventos.append(nuevo_evento)
+                    if tie_tipo == 'start':
+                        ligadura_abierta[clave] = nuevo_evento
     return eventos
 
 

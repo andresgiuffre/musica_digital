@@ -721,6 +721,38 @@
             return null;
         }
 
+        // Validación de consistencia: para cada measureIndex, el rango de pasoIdx crudos
+        // que le corresponde (desde donde arranca hasta donde arranca el measureIndex
+        // siguiente en el recorrido impreso). Si algún pasoIdx resuelto "se derrama" fuera
+        // de ese rango, significa que music21 y OSMD no contaron la misma cantidad de
+        // paradas para ese compás (por la razón que sea) -- server esa resolución
+        // igual mezclaría manos/compases distintos entre sí, exactamente el bug de audio
+        // deformado/manos alternadas que se ve al usar la secuencia de ejecución. Mejor
+        // caer acá, con un aviso claro, que reproducir algo corrompido.
+        const finDelMeasureIndex = new Map();
+        measureIndexesEnOrden.forEach((mi, i) => {
+            const finExclusivo = (i + 1 < measureIndexesEnOrden.length)
+                ? primerPasoDelMeasureIndex.get(measureIndexesEnOrden[i + 1])
+                : pasos.length;
+            finDelMeasureIndex.set(mi, finExclusivo);
+        });
+
+        let compasConDerrame = null;
+        gruposPorPasoEjecucion.forEach((grupo) => {
+            if (compasConDerrame !== null) return;
+            const inicio = primerPasoDelMeasureIndex.get(grupo.measureIndex);
+            const fin = finDelMeasureIndex.get(grupo.measureIndex);
+            if (grupo.pasoIdx < inicio || grupo.pasoIdx >= fin) {
+                compasConDerrame = grupo.measureIndex;
+            }
+        });
+
+        if (compasConDerrame !== null) {
+            console.warn(`[secuencia-ejecucion] La cantidad de paradas no coincide entre music21 y OSMD en measureIndex=${compasConDerrame} -- se usa el orden impreso.`);
+            secuenciaEjecucionResuelta = false;
+            return null;
+        }
+
         const secuencia = Array.from(gruposPorPasoEjecucion.keys())
             .sort((a, b) => a - b)
             .map(k => gruposPorPasoEjecucion.get(k));
@@ -751,14 +783,34 @@
             notes: []
         }));
 
+        // Ligaduras de prolongación: sin esto, cada segmento ligado dispara su propio
+        // ataque -- se reusa estadoLigadura (misma detección que ya usa el modo práctica
+        // para excluir continuaciones) para sumar la duración al evento que abrió la
+        // ligadura en vez de agregar uno nuevo. Clave por ps -- una sola voz por altura
+        // simultánea es la simplificación ya aceptada en el resto de esta función
+        // (tampoco distingue voces para nada más).
+        const ligaduraAbierta = new Map(); // ps -> objeto de nota (dentro de evt.notes) que se sigue extendiendo
+
         notas.forEach(n => {
             const evt = localEvents[n.groupIndex];
             const duracionBeats = n.durationRealValue * 4;
             if (duracionBeats > evt.maxDuration) evt.maxDuration = duracionBeats;
-            if (n.pitchName) {
-                // logicalNote viaja para poder etiquetar el svgEl más adelante (encendido
-                // de notas al sonar) -- se resuelve una sola vez, en obtenerEventos().
-                evt.notes.push({ pitch: n.pitchName, duracionBeats: duracionBeats, logicalNote: n.logicalNote });
+            if (!n.pitchName) return;
+
+            const estado = estadoLigadura(n.logicalNote);
+            if (estado === 'continuacion' && ligaduraAbierta.has(n.ps)) {
+                ligaduraAbierta.get(n.ps).duracionBeats += duracionBeats;
+                return; // no dispara ataque nuevo ni brillo propio -- ya es parte de la nota abierta
+            }
+
+            // logicalNote viaja para poder etiquetar el svgEl más adelante (encendido
+            // de notas al sonar) -- se resuelve una sola vez, en obtenerEventos().
+            const notaEvento = { pitch: n.pitchName, duracionBeats: duracionBeats, logicalNote: n.logicalNote };
+            evt.notes.push(notaEvento);
+            if (estado === 'inicio') {
+                ligaduraAbierta.set(n.ps, notaEvento);
+            } else {
+                ligaduraAbierta.delete(n.ps);
             }
         });
 
@@ -801,7 +853,12 @@
                 pasoIdxImpreso: paso.pasoIdx,
                 measureIndex: paso.measureIndex,
                 maxDuration: maxDuration,
-                notes: notasReales.map(n => {
+                // Las continuaciones de ligadura NO se filtran de notasReales (siguen
+                // contando para maxDuration, el paso tiene que durar lo que dure el
+                // compás igual) pero sí se excluyen acá de "notes" -- el backend ya le
+                // sumó su duración a la nota que abrió la ligadura, dispararla de nuevo
+                // sonaría como un reataque.
+                notes: notasReales.filter(n => !n.es_ligadura_continuacion).map(n => {
                     const impresa = candidatas.find(c => Math.abs(c.ps - n.ps) < 0.01);
                     return { pitch: n.pitch, duracionBeats: n.duracion_ql, logicalNote: impresa ? impresa.logicalNote : null };
                 }),
@@ -950,15 +1007,16 @@
     // agregaría un motor de avance distinto (por scheduler de metrónomo, no por matching)
     // sin tocar ninguna de las dos piezas de abajo.
 
-    function esLigaduraContinuacion(logicalNote) {
-        // OSMD expone la ligadura de forma distinta según la propiedad -- se prueban los
-        // candidatos conocidos. Si ninguno aplica se asume que NO es continuación (se
-        // prefiere exigir de más, detectable al toque en el log de diagnóstico, a trabar
-        // la práctica esperando una nota que en realidad nunca hay que re-atacar).
-        if (!logicalNote) return false;
-        if (logicalNote.NoteTie && logicalNote.NoteTie.StartNote && logicalNote.NoteTie.StartNote !== logicalNote) return true;
-        if (logicalNote.Tie && logicalNote.Tie.StartNote && logicalNote.Tie.StartNote !== logicalNote) return true;
-        return false;
+    // Devuelve 'inicio' | 'continuacion' | null (sin ligadura). OSMD expone la ligadura
+    // de forma distinta según la propiedad -- se prueban los candidatos conocidos. Si
+    // ninguno aplica se asume que NO tiene ligadura (se prefiere exigir de más /
+    // reatacar de más en un caso raro no cubierto, a trabar el modo práctica esperando
+    // una nota que en realidad nunca hay que re-atacar).
+    function estadoLigadura(logicalNote) {
+        if (!logicalNote) return null;
+        const tieInfo = logicalNote.NoteTie || logicalNote.Tie;
+        if (!tieInfo || !tieInfo.StartNote) return null;
+        return tieInfo.StartNote === logicalNote ? 'inicio' : 'continuacion';
     }
 
     // Camino IMPRESO del modo práctica (orden del cursor, sin repetir) -- fallback cuando
@@ -974,7 +1032,7 @@
         notas.forEach(n => {
             if (n.isGrace) { excluidasPorGrace++; return; }
             if (n.pitchName === null || n.ps === null) { excluidasPorPitchInvalido++; return; }
-            if (esLigaduraContinuacion(n.logicalNote)) { excluidasPorLigadura++; return; }
+            if (estadoLigadura(n.logicalNote) === 'continuacion') { excluidasPorLigadura++; return; }
 
             if (!gruposPorIdx.has(n.groupIndex)) {
                 gruposPorIdx.set(n.groupIndex, { pasoIdx: n.groupIndex, measureIndex: n.measureIndex, notasEsperadas: new Set(), notasDetalle: [] });
@@ -1005,8 +1063,10 @@
     // Camino de EJECUCIÓN del modo práctica: resuelve cada nota de la secuencia de
     // ejecución contra su logicalNote real en el recorrido impreso (necesario para pintar
     // sobre el SVG y para aplicar el mismo filtro de ligaduras que ya usa el camino impreso
-    // -- el backend no filtra ligaduras, así que se hace acá, reusando esLigaduraContinuacion
-    // sobre la nota ya resuelta). Grace notes de la ejecución no se exigen (igual que hoy).
+    // -- el modo práctica sigue decidiendo esto por su cuenta con estadoLigadura() sobre
+    // la nota ya resuelta, independiente del es_ligadura_continuacion del backend (que es
+    // para el ataque de audio de la reproducción, acá lo que importa es qué se exige).
+    // Grace notes de la ejecución no se exigen (igual que hoy).
     function construirSecuenciaPracticaDesdeEjecucion(secuenciaResuelta, notasImpresas) {
         const notasPorPasoIdx = new Map();
         notasImpresas.forEach(n => {
@@ -1026,7 +1086,7 @@
             paso.notas.filter(n => !n.es_grace).forEach(n => {
                 const impresa = candidatas.find(c => Math.abs(c.ps - n.ps) < 0.01);
                 if (!impresa) { excluidasSinResolver++; return; }
-                if (esLigaduraContinuacion(impresa.logicalNote)) { excluidasPorLigadura++; return; }
+                if (estadoLigadura(impresa.logicalNote) === 'continuacion') { excluidasPorLigadura++; return; }
                 notasEsperadas.add(n.ps);
                 notasDetalle.push({ ps: n.ps, logicalNote: impresa.logicalNote });
             });
