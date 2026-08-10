@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/orquestacion/ejercicio/<int:fragmento_id>/generar/', views.orquestacion_ejercicio_generar, name='orquestacion_ejercicio_generar'),
     path('biblioteca/', views.biblioteca_list, name='biblioteca_list'),
     path('biblioteca/<int:score_id>/', views.biblioteca_play, name='biblioteca_play'),
+    path('api/biblioteca/<int:score_id>/secuencia-ejecucion/', views.biblioteca_secuencia_ejecucion, name='biblioteca_secuencia_ejecucion'),
     path('api/record_attempt/<str:game_slug>/', views.record_attempt, name='record_attempt'),
     path('api/toggle_favorite/<int:score_id>/', views.toggle_favorite, name='toggle_favorite'),
     path('api/log_study_session/', views.log_study_session, name='log_study_session'),

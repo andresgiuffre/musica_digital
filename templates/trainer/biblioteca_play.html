@@ -190,6 +190,13 @@
                         <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--gold)]"></div>
                     </label>
                 </div>
+                <div class="flex justify-between items-center pt-2 border-t border-white/10">
+                    <label class="text-gray-400 text-sm font-bold flex items-center gap-1" title="Con repeticiones y voltas expandidas; apagalo para tocar la partitura impresa una sola vez">🔁 Repeticiones</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="repeticiones-toggle" class="sr-only peer" checked>
+                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--gold)]"></div>
+                    </label>
+                </div>
             </div>
 
             <!-- Modo Práctica (MIDI) -->
@@ -372,6 +379,7 @@
     const btnDebug = document.getElementById('btn-debug');
     const pianoToggle = document.getElementById('piano-toggle');
     const metronomoToggle = document.getElementById('metronomo-toggle');
+    const repeticionesToggle = document.getElementById('repeticiones-toggle');
 
     const tempoSelector = document.getElementById('tempo-selector');
     const loopToggle = document.getElementById('loop-toggle');
@@ -401,10 +409,19 @@
     let currentCursorIdx = 0;
     let events = []; // Array global para loop calculations
 
+    // Secuencia de EJECUCIÓN (repeticiones/voltas expandidas, adornos incluidos) traída
+    // del backend -- null si todavía no llegó o si falló (entonces se usa el orden
+    // impreso de siempre, derivado del cursor). Se resuelve una vez contra los `pasos`
+    // impresos de OsmdUtils para saber a qué pasoIdx crudo del cursor corresponde cada
+    // paso de ejecución -- ver resolverSecuenciaEjecucion().
+    let eventosEjecucionCrudos = null;
+    let secuenciaEjecucionResuelta = null;
+
     // Auto-scroll del cursor durante la reproducción
     let autoScrollActivo = true;
     let scrolleandoProgramaticamente = false;
     let scrollGuardTimeout = null;
+    let reengancheAutoScrollTimeout = null;
 
     // Modo Práctica (MIDI)
     let practicaActiva = false;
@@ -547,6 +564,11 @@
             osmd.cursor.show();
             btnPlay.disabled = false;
 
+            // En segundo plano -- no bloquea que el usuario ya pueda tocar Play. Si todavía
+            // no llegó cuando se aprieta Play, esa pasada usa el orden impreso; queda
+            // disponible para la siguiente.
+            cargarSecuenciaEjecucion();
+
             {% if active_project %}
             // Restore last measure and tempo
             baseBpm = {{ active_project.last_tempo|default:60 }};
@@ -574,16 +596,126 @@
         }
     }
 
+    // ==================== Secuencia de EJECUCIÓN (repeticiones/voltas/adornos) ====================
+    // El cursor de OSMD solo conoce el orden IMPRESO -- no repite, no distingue voltas, no
+    // sabe de adornos. Esta sección trae del backend (music21, que sí expande repeticiones)
+    // el orden de EJECUCIÓN real y lo resuelve contra los pasos impresos de OsmdUtils para
+    // saber a qué pasoIdx crudo del cursor corresponde cada paso ejecutado -- así el cursor
+    // (y avanzarCursorOsmdHasta/autoScrollHaciaCursor, sin ningún cambio) puede rebobinar en
+    // una repetición como si fuera un salto hacia atrás más.
+
+    async function cargarSecuenciaEjecucion() {
+        try {
+            const response = await fetch('{% url "biblioteca_secuencia_ejecucion" sheet.id %}');
+            const data = await response.json();
+            if (data.status === 'success' && data.eventos && data.eventos.length > 0) {
+                eventosEjecucionCrudos = data.eventos;
+            } else {
+                console.warn(`[secuencia-ejecucion] No disponible (${data.motivo || data.status}) -- se usa el orden impreso.`);
+            }
+        } catch (e) {
+            console.warn('[secuencia-ejecucion] Error de red, se usa el orden impreso:', e);
+        }
+    }
+
+    // Resuelve eventosEjecucionCrudos contra el recorrido impreso de OSMD. Memoizado: null
+    // mientras no haya datos todavía (reintentable en el próximo Play), un array una vez
+    // resuelto con éxito, o `false` si se intentó y falló de verdad (no se reintenta más --
+    // recorrer el cursor entero en cada Play sería caro para nada).
+    function resolverSecuenciaEjecucion() {
+        if (secuenciaEjecucionResuelta !== null) return secuenciaEjecucionResuelta || null;
+        if (!eventosEjecucionCrudos) return null;
+
+        const { pasos } = OsmdUtils.recorrerCursorOsmd(osmd);
+
+        // measureIndex por orden de PRIMERA aparición en el recorrido impreso, y
+        // compas_impreso por orden de PRIMERA aparición en la ejecución -- la primera vez
+        // que la ejecución visita cada compás es, por definición, en el mismo orden en que
+        // aparece impreso (una repetición vuelve a algo YA visitado, nunca adelanta a algo
+        // nuevo) -- emparejar estas dos listas por posición no requiere comparar números
+        // entre los dos sistemas, que no tienen por qué coincidir (anacrusas, etc.).
+        const measureIndexesEnOrden = [];
+        const vistosMeasureIndex = new Set();
+        pasos.forEach(p => {
+            if (!vistosMeasureIndex.has(p.measureIndex)) {
+                vistosMeasureIndex.add(p.measureIndex);
+                measureIndexesEnOrden.push(p.measureIndex);
+            }
+        });
+
+        const compasesEnOrden = [];
+        const vistosCompas = new Set();
+        eventosEjecucionCrudos.forEach(e => {
+            if (!vistosCompas.has(e.compas_impreso)) {
+                vistosCompas.add(e.compas_impreso);
+                compasesEnOrden.push(e.compas_impreso);
+            }
+        });
+
+        if (compasesEnOrden.length !== measureIndexesEnOrden.length) {
+            console.warn(`[secuencia-ejecucion] Cantidad de compases no coincide entre OSMD (${measureIndexesEnOrden.length}) y music21 (${compasesEnOrden.length}) -- se usa el orden impreso.`);
+            secuenciaEjecucionResuelta = false;
+            return null;
+        }
+
+        const measureIndexPorCompas = new Map();
+        compasesEnOrden.forEach((cn, i) => measureIndexPorCompas.set(cn, measureIndexesEnOrden[i]));
+
+        const primerPasoDelMeasureIndex = new Map();
+        pasos.forEach((p, idx) => {
+            if (!primerPasoDelMeasureIndex.has(p.measureIndex)) {
+                primerPasoDelMeasureIndex.set(p.measureIndex, idx);
+            }
+        });
+
+        const gruposPorPasoEjecucion = new Map();
+        let huboSinResolver = false;
+        eventosEjecucionCrudos.forEach(e => {
+            const measureIndex = measureIndexPorCompas.get(e.compas_impreso);
+            const inicioMedida = primerPasoDelMeasureIndex.get(measureIndex);
+            if (measureIndex === undefined || inicioMedida === undefined) {
+                huboSinResolver = true;
+                return;
+            }
+            const pasoIdx = inicioMedida + e.paso_en_compas;
+
+            if (!gruposPorPasoEjecucion.has(e.paso_ejecucion)) {
+                gruposPorPasoEjecucion.set(e.paso_ejecucion, { pasoIdx, measureIndex, notas: [] });
+            }
+            gruposPorPasoEjecucion.get(e.paso_ejecucion).notas.push(e);
+        });
+
+        if (huboSinResolver) {
+            console.warn('[secuencia-ejecucion] Algún compás de music21 no se pudo mapear a OSMD -- se usa el orden impreso.');
+            secuenciaEjecucionResuelta = false;
+            return null;
+        }
+
+        const secuencia = Array.from(gruposPorPasoEjecucion.keys())
+            .sort((a, b) => a - b)
+            .map(k => gruposPorPasoEjecucion.get(k));
+
+        console.log(`[secuencia-ejecucion] Resuelta: ${secuencia.length} pasos de ejecución sobre ${pasos.length} pasos impresos.`);
+        secuenciaEjecucionResuelta = secuencia;
+        return secuencia;
+    }
+
+    // Camino IMPRESO (orden del cursor de OSMD, sin repeticiones/voltas) -- fallback de
+    // reproducción cuando el toggle Repeticiones está OFF o la secuencia de ejecución no
+    // está disponible. `maxDuration`/`duracionBeats` quedan en beats (RealValue de OSMD es
+    // fracción de redonda, ×4 para pasar a beats -- se hace acá, una sola vez, para que
+    // todo lo que consume estos eventos más abajo no tenga que saber de qué camino salieron).
     function buildSequence() {
         // Recorrido del cursor delegado a OsmdUtils (compartido con orquestacion_ejercicio.html
         // en espíritu, aunque esa página todavía no fue migrada -- ver plan de la sesión).
         // incluirGraceNotes:true preserva el comportamiento original de esta función, que
-        // nunca las filtraba.
+        // nunca las filtraba (los adornos correctos, con floreo propio, salen del camino de
+        // ejecución -- ver construirEventosDesdeEjecucion).
         const { pasos, notas } = OsmdUtils.recorrerCursorOsmd(osmd, { incluirGraceNotes: true });
 
         const localEvents = pasos.map(p => ({
             time: p.offsetBeats,
-            timeRealValue: p.offsetBeats / 4,
+            pasoIdxImpreso: p.groupIndex,
             measureIndex: p.measureIndex,
             maxDuration: 0,
             notes: []
@@ -591,22 +723,64 @@
 
         notas.forEach(n => {
             const evt = localEvents[n.groupIndex];
-            if (n.durationRealValue > evt.maxDuration) evt.maxDuration = n.durationRealValue;
+            const duracionBeats = n.durationRealValue * 4;
+            if (duracionBeats > evt.maxDuration) evt.maxDuration = duracionBeats;
             if (n.pitchName) {
-                evt.notes.push({ pitch: n.pitchName, durationRealValue: n.durationRealValue });
+                evt.notes.push({ pitch: n.pitchName, duracionBeats: duracionBeats });
             }
         });
 
         localEvents.forEach(evt => {
-            if (evt.maxDuration === 0) evt.maxDuration = 0.25;
+            if (evt.maxDuration === 0) evt.maxDuration = 1.0; // negra por default, ya en beats
         });
 
         return localEvents;
     }
 
+    // Camino de EJECUCIÓN: arma los mismos eventos que buildSequence() (misma forma --
+    // time/pasoIdxImpreso/measureIndex/maxDuration/notes en beats) pero a partir de la
+    // secuencia ya resuelta contra el cursor impreso, con repeticiones/voltas expandidas.
+    // Grace notes van aparte, en notesGrace, para agendarlas con su propio floreo -- no
+    // afectan measureIndex/pasoIdxImpreso del paso (el cursor no se mueve por ellas).
+    function construirEventosDesdeEjecucion(secuenciaResuelta) {
+        const localEvents = [];
+        let tiempoAcumulado = 0;
+
+        secuenciaResuelta.forEach(paso => {
+            const notasReales = paso.notas.filter(n => !n.es_grace);
+            const notasGrace = paso.notas.filter(n => n.es_grace);
+            let maxDuration = notasReales.reduce((max, n) => Math.max(max, n.duracion_ql), 0);
+            if (maxDuration === 0) maxDuration = 1.0;
+
+            localEvents.push({
+                time: tiempoAcumulado,
+                pasoIdxImpreso: paso.pasoIdx,
+                measureIndex: paso.measureIndex,
+                maxDuration: maxDuration,
+                notes: notasReales.map(n => ({ pitch: n.pitch, duracionBeats: n.duracion_ql })),
+                notesGrace: notasGrace.map(n => ({ pitch: n.pitch }))
+            });
+            tiempoAcumulado += maxDuration;
+        });
+
+        return localEvents;
+    }
+
+    // Decide qué camino arma la secuencia de reproducción según el toggle Repeticiones.
+    function obtenerEventos() {
+        if (repeticionesToggle.checked) {
+            const resuelta = resolverSecuenciaEjecucion();
+            if (resuelta) return construirEventosDesdeEjecucion(resuelta);
+            console.warn('[secuencia-ejecucion] No disponible para reproducción -- se usa el orden impreso.');
+        }
+        return buildSequence();
+    }
+
     // Scroll automático para mantener el cursor de OSMD visible en el tercio superior del
     // viewport mientras suena. "El scroll del usuario gana": si el usuario scrollea por su
-    // cuenta durante la reproducción, se apaga hasta el próximo Play.
+    // cuenta durante la reproducción o la práctica, se apaga -- pero se reengancha solo
+    // por inactividad, a los ~4s sin otro scroll manual, en vez de quedar apagado hasta el
+    // próximo Play.
     function marcarScrollProgramatico() {
         scrolleandoProgramaticamente = true;
         clearTimeout(scrollGuardTimeout);
@@ -618,13 +792,40 @@
         scrollGuardTimeout = setTimeout(() => { scrolleandoProgramaticamente = false; }, 1000);
     }
 
+    // Fuerza autoScrollActivo=true y cancela cualquier reenganche por inactividad que
+    // hubiera quedado pendiente de un scroll manual anterior -- para los lugares donde ya
+    // reactivamos el seguimiento a mano (Play, Detener), así no queda un reenganche viejo
+    // disparando de nuevo más tarde sobre un estado distinto.
+    function reactivarAutoScroll() {
+        clearTimeout(reengancheAutoScrollTimeout);
+        autoScrollActivo = true;
+    }
+
     window.addEventListener('scroll', () => {
         if (scrolleandoProgramaticamente) {
+            // Eco de nuestro propio scroll (inicial o de reenganche) -- nunca cuenta como
+            // scroll manual, así que nunca toca el timer de reenganche.
             clearTimeout(scrollGuardTimeout);
             scrollGuardTimeout = setTimeout(() => { scrolleandoProgramaticamente = false; }, 1000);
             return;
         }
+
         autoScrollActivo = false;
+
+        // El timer se rearma en cada scroll manual real. Solo tiene sentido si hay algo
+        // sonando o tocándose -- si la página está quieta (nada reproduciendo ni en modo
+        // práctica), no hay ningún cursor al que volver, así que no se agenda nada.
+        clearTimeout(reengancheAutoScrollTimeout);
+        if (isPlaying || practicaActiva) {
+            reengancheAutoScrollTimeout = setTimeout(() => {
+                // Re-chequeado acá porque pueden haber pasado los ~4s completos con
+                // Pausa/Detener/Terminar práctica de por medio.
+                if (isPlaying || practicaActiva) {
+                    autoScrollActivo = true;
+                    autoScrollHaciaCursor();
+                }
+            }, 4000);
+        }
     });
 
     function autoScrollHaciaCursor() {
@@ -656,11 +857,11 @@
         return false;
     }
 
-    function construirSecuenciaPractica() {
+    // Camino IMPRESO del modo práctica (orden del cursor, sin repetir) -- fallback cuando
+    // el toggle Repeticiones está OFF o la secuencia de ejecución no está disponible.
+    function construirSecuenciaPracticaImpresa(pasos, notas) {
         // incluirGraceNotes:true a propósito -- acá se filtran a mano (junto con ligaduras
         // y silencios) para poder contar cada motivo de exclusión por separado en el log.
-        const { pasos, notas } = OsmdUtils.recorrerCursorOsmd(osmd, { incluirGraceNotes: true });
-
         const gruposPorIdx = new Map();
         let excluidasPorGrace = 0;
         let excluidasPorLigadura = 0;
@@ -688,11 +889,72 @@
         // existe" -- con este log se detecta comparando estos números contra la partitura
         // real, en vez de perseguirlo a ciegas.
         console.log(
-            `[modo-practica] Pasos totales del cursor: ${pasos.length} | ` +
+            `[modo-practica] Camino impreso -- pasos totales del cursor: ${pasos.length} | ` +
             `Eventos exigibles: ${secuencia.length} | ` +
             `Excluidas -> grace: ${excluidasPorGrace}, ligadura: ${excluidasPorLigadura}, sin altura: ${excluidasPorPitchInvalido} | ` +
             `Pasos sin ninguna nota exigible (silencios u otros vacíos tras filtrar): ${pasosSinNadaExigible}`
         );
+
+        return secuencia;
+    }
+
+    // Camino de EJECUCIÓN del modo práctica: resuelve cada nota de la secuencia de
+    // ejecución contra su logicalNote real en el recorrido impreso (necesario para pintar
+    // sobre el SVG y para aplicar el mismo filtro de ligaduras que ya usa el camino impreso
+    // -- el backend no filtra ligaduras, así que se hace acá, reusando esLigaduraContinuacion
+    // sobre la nota ya resuelta). Grace notes de la ejecución no se exigen (igual que hoy).
+    function construirSecuenciaPracticaDesdeEjecucion(secuenciaResuelta, notasImpresas) {
+        const notasPorPasoIdx = new Map();
+        notasImpresas.forEach(n => {
+            if (!notasPorPasoIdx.has(n.groupIndex)) notasPorPasoIdx.set(n.groupIndex, []);
+            notasPorPasoIdx.get(n.groupIndex).push(n);
+        });
+
+        const secuencia = [];
+        let excluidasPorLigadura = 0;
+        let excluidasSinResolver = 0;
+
+        secuenciaResuelta.forEach(paso => {
+            const candidatas = notasPorPasoIdx.get(paso.pasoIdx) || [];
+            const notasEsperadas = new Set();
+            const notasDetalle = [];
+
+            paso.notas.filter(n => !n.es_grace).forEach(n => {
+                const impresa = candidatas.find(c => Math.abs(c.ps - n.ps) < 0.01);
+                if (!impresa) { excluidasSinResolver++; return; }
+                if (esLigaduraContinuacion(impresa.logicalNote)) { excluidasPorLigadura++; return; }
+                notasEsperadas.add(n.ps);
+                notasDetalle.push({ ps: n.ps, logicalNote: impresa.logicalNote });
+            });
+
+            if (notasEsperadas.size > 0) {
+                secuencia.push({ pasoIdx: paso.pasoIdx, measureIndex: paso.measureIndex, notasEsperadas, notasDetalle });
+            }
+        });
+
+        console.log(
+            `[modo-practica] Camino de ejecución -- ${secuenciaResuelta.length} pasos -> ${secuencia.length} eventos exigibles | ` +
+            `excluidas por ligadura: ${excluidasPorLigadura}, sin resolver contra el impreso: ${excluidasSinResolver}`
+        );
+
+        return secuencia;
+    }
+
+    function construirSecuenciaPractica() {
+        const { pasos, notas } = OsmdUtils.recorrerCursorOsmd(osmd, { incluirGraceNotes: true });
+
+        let secuencia = null;
+        if (repeticionesToggle.checked) {
+            const resuelta = resolverSecuenciaEjecucion();
+            if (resuelta) {
+                secuencia = construirSecuenciaPracticaDesdeEjecucion(resuelta, notas);
+            } else {
+                console.warn('[modo-practica] Secuencia de ejecución no disponible -- se practica el orden impreso.');
+            }
+        }
+        if (!secuencia) {
+            secuencia = construirSecuenciaPracticaImpresa(pasos, notas);
+        }
 
         // Se etiqueta acá, una sola vez por secuencia armada -- si hubo un render de por
         // medio desde la última vez (ej. resize de ventana), esto la deja al día de nuevo.
@@ -997,7 +1259,7 @@
         try {
             if (!isPlaying && Tone.Transport.state !== "started") {
                 if (events.length === 0) {
-                    events = buildSequence();
+                    events = obtenerEventos();
                 }
 
                 if (events.length === 0) return;
@@ -1005,7 +1267,7 @@
                 Tone.Transport.cancel();
                 transportEvents = [];
                 currentCursorIdx = 0;
-                autoScrollActivo = true; // se reengancha en cada arranque nuevo, aunque el usuario lo haya apagado scrolleando en la pasada anterior
+                reactivarAutoScroll(); // se reengancha en cada arranque nuevo, aunque el usuario lo haya apagado scrolleando en la pasada anterior
                 playCount++;
                 document.getElementById('session-plays').innerText = playCount;
 
@@ -1017,11 +1279,11 @@
                 else clickSynth.volume.value = (AudioEngine.volume === -Infinity) ? -Infinity : -12;
 
                 // 1. Programar Notas y Cursor Visual
-                events.forEach((evt, idx) => {
+                events.forEach((evt) => {
                     let ticks = Math.round(evt.time * Tone.Transport.PPQ);
                     let transportId = Tone.Transport.schedule((time) => {
                         Tone.Draw.schedule(() => {
-                            currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, idx);
+                            currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, evt.pasoIdxImpreso);
 
                             document.getElementById('dbg-measure').innerText = evt.measureIndex;
                             document.getElementById('dbg-cursor').innerText = currentCursorIdx;
@@ -1034,18 +1296,36 @@
                         // notas ya agendadas, sin tener que reprogramar nada.
                         evt.notes.forEach(note => {
                             if(pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
-                                let durationTicks = Math.round(note.durationRealValue * 4 * Tone.Transport.PPQ);
+                                let durationTicks = Math.round(note.duracionBeats * Tone.Transport.PPQ);
                                 AudioEngine.sampler.triggerAttackRelease(note.pitch, durationTicks + "i", time);
                             }
                         });
 
                     }, ticks + "i");
                     transportEvents.push(transportId);
+
+                    // Grace notes del paso (solo existen en el camino de ejecución): adelanto
+                    // chico y fijo antes del tiempo nominal, duración corta fija -- no mueven
+                    // el cursor (comparten pasoIdxImpreso con las notas principales de arriba),
+                    // solo suenan como floreo. "sonarlas breves antes de la principal" per el
+                    // pedido -- no se intenta reconstruir su duración notada real.
+                    if (evt.notesGrace && evt.notesGrace.length > 0) {
+                        const ticksAdelanto = Math.round(0.0625 * Tone.Transport.PPQ);
+                        const ticksGrace = Math.max(0, ticks - ticksAdelanto);
+                        const graceId = Tone.Transport.schedule((time) => {
+                            evt.notesGrace.forEach(note => {
+                                if(pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
+                                    AudioEngine.sampler.triggerAttackRelease(note.pitch, "32n", time);
+                                }
+                            });
+                        }, ticksGrace + "i");
+                        transportEvents.push(graceId);
+                    }
                 });
 
                 // 2. Lógica de Loop y Fin de Reproducción
                 let lastEvent = events[events.length - 1];
-                let totalBeats = Math.ceil(lastEvent.time + (lastEvent.maxDuration * 4));
+                let totalBeats = Math.ceil(lastEvent.time + lastEvent.maxDuration);
 
                 let isLoop = loopToggle.checked;
                 let sMeasure = parseInt(loopStart.value) || 1;
@@ -1079,8 +1359,7 @@
                     // Aseguramos que el cursor comience en la posición correcta al inicio manual
                     if(startEv) {
                         Tone.Transport.position = (startTime * Tone.Transport.PPQ) + "i";
-                        let startIdx = events.indexOf(startEv);
-                        currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, startIdx);
+                        currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, startEv.pasoIdxImpreso);
                     }
                 } else {
                     Tone.Transport.loop = false;
@@ -1158,7 +1437,7 @@
 
         // El cursor vuelve al principio -- lo acompañamos con el scroll aunque el usuario
         // haya apagado el auto-scroll scrolleando durante la reproducción que acaba de parar.
-        autoScrollActivo = true;
+        reactivarAutoScroll();
         autoScrollHaciaCursor();
     }
 
@@ -1166,6 +1445,15 @@
         if(isPlaying || Tone.Transport.state === "paused" || practicaActiva) {
             Tone.Transport.bpm.value = baseBpm * parseFloat(tempoSelector.value);
         }
+    });
+
+    // Cambiar el modo de repeticiones a mitad de una reproducción parada no tiene sentido
+    // reflejarlo en caliente (cambia la cantidad y el orden de los eventos, no solo un
+    // parámetro) -- invalida el cache de `events` para que el próximo Play lo reconstruya
+    // con el camino elegido. El modo práctica no necesita esto: arma su secuencia de cero
+    // en cada "Iniciar práctica", nunca la reusa entre sesiones.
+    repeticionesToggle.addEventListener('change', () => {
+        events = [];
     });
 
     btnPlay.addEventListener('click', startPlayback);
