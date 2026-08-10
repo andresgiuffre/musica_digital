@@ -2296,6 +2296,17 @@ def _eventos_ejecucion(score):
             ocurrencias_usadas[idx_parte][compas_num] = ocurrencia + 1
 
             for el in m.recurse().notes:
+                if isinstance(el, music21.harmony.Harmony):
+                    # Cifrado (ChordSymbol, ej. "F"/"Am7" escrito arriba del pentagrama):
+                    # music21.harmony.Harmony hereda de music21.chord.Chord (mismo pitches
+                    # de las notas que forman el acorde), así que sin este chequeo el
+                    # isinstance(el, Chord) de abajo lo confunde con un acorde real que
+                    # SUENA -- entra a la secuencia con quarterLength 0 (duración por
+                    # defecto de un cifrado) y duplicado (a menudo el cifrado se repite
+                    # arriba de cada pentagrama del sistema). Síntoma real confirmado con
+                    # un archivo de un usuario: notas fantasma de duración 0 intercaladas
+                    # con las reales, deformando el audio y desalineando las manos.
+                    continue
                 if isinstance(el, music21.chord.Chord):
                     pitches = el.pitches
                 elif isinstance(el, music21.note.Note):
