@@ -2196,6 +2196,116 @@ def biblioteca_play(request, score_id):
         'project_sections': project_sections,
     })
 
+
+def _eventos_ejecucion(score_expandido):
+    """
+    Recorre un score YA expandido por Score.expandRepeats() (los números de compás
+    impresos se conservan en .number tras la expansión -- verificado empíricamente,
+    ver el plan de la sesión que introdujo esto) y arma la secuencia de EJECUCIÓN: el
+    orden real en que suena la pieza, no el orden impreso. Recorre TODAS las partes en
+    paralelo, compás por compás (no parte por parte) -- un piano a dos manos son dos
+    Part/PartStaff independientes en music21, y las notas de ambas manos que caen en
+    el mismo tiempo tienen que agruparse en el mismo paso de ejecución, igual que hace
+    el cursor de OSMD del lado del frontend (un solo cursor para todo el sistema).
+
+    Un registro por altura real que suena, agrupadas por paso_ejecucion (una parada
+    rítmica -- varias alturas comparten paso_ejecucion si s* suenan juntas, sea por
+    acorde o por varias partes coincidiendo en el mismo tiempo). paso_en_compas
+    identifica la parada DENTRO de su compás (se reinicia en cada compás, incluidas
+    las repeticiones) -- es lo que el frontend usa para ubicar la parada exacta sin
+    comparar offsets flotantes contra el recorrido del cursor de OSMD.
+
+    Grace notes (duration.isGrace, no quarterLength==0 -- mismo criterio que
+    _notas_piano_para_ejercicio): SÍ viajan en la secuencia acá (a diferencia de esa
+    función, que las agrupa como adorno de un instrumento) porque tienen que sonar.
+    Comparten paso_en_compas con la nota principal que las sigue -- no consumen una
+    parada propia, porque el cursor de OSMD tampoco se mueve por ellas.
+    """
+    partes = list(score_expandido.parts)
+    if not partes:
+        return []
+    compases_por_parte = [list(p.getElementsByClass(music21.stream.Measure)) for p in partes]
+    num_compases = min((len(cs) for cs in compases_por_parte), default=0)
+
+    eventos = []
+    paso_ejecucion = -1
+    for i in range(num_compases):
+        compas_num = compases_por_parte[0][i].number
+        entradas = []
+        for cs in compases_por_parte:
+            m = cs[i]
+            for el in m.recurse().notes:
+                if isinstance(el, music21.chord.Chord):
+                    pitches = el.pitches
+                elif isinstance(el, music21.note.Note):
+                    pitches = [el.pitch]
+                else:
+                    continue
+                offset_en_compas = el.getOffsetInHierarchy(m)
+                entradas.append((offset_en_compas, el.duration.isGrace, pitches, el.duration.quarterLength))
+
+        # Ordenado por offset -- recurse() ya suele entregar en orden, pero acá se
+        # combinan elementos de partes DISTINTAS (measure objects distintos), así que
+        # no hay garantía de orden entre ellas sin ordenar a mano.
+        entradas.sort(key=lambda e: (e[0], e[1]))
+
+        paso_en_compas = -1
+        offset_actual = None
+        graces_pendientes = []
+        for offset_en_compas, es_grace, pitches, duracion in entradas:
+            if es_grace:
+                for p in pitches:
+                    graces_pendientes.append({'pitch': p.nameWithOctave, 'ps': p.ps})
+                continue
+
+            if offset_en_compas != offset_actual:
+                offset_actual = offset_en_compas
+                paso_en_compas += 1
+                paso_ejecucion += 1
+
+            for g in graces_pendientes:
+                eventos.append({
+                    'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
+                    'pitch': g['pitch'], 'ps': g['ps'], 'duracion_ql': 0.25, 'es_grace': True,
+                })
+            graces_pendientes = []
+
+            for p in pitches:
+                eventos.append({
+                    'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
+                    'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion, 'es_grace': False,
+                })
+    return eventos
+
+
+@login_required
+def biblioteca_secuencia_ejecucion(request, score_id):
+    """
+    Secuencia de reproducción en orden de EJECUCIÓN (repeticiones/voltas expandidas,
+    grace notes incluidas), para que biblioteca_play.html no dependa únicamente del
+    orden IMPRESO que entrega el cursor de OSMD. Ver el plan de la sesión que lo
+    introdujo para el detalle de la investigación con music21.
+    """
+    sheet = get_object_or_404(SheetMusic, id=score_id)
+    try:
+        score = music21.converter.parse(sheet.xml_file.path)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'No se pudo leer el archivo: {e}'})
+
+    if score.recurse().getElementsByClass(music21.repeat.RepeatExpression):
+        # D.C./D.S./Fine/Coda: verificado que expandRepeats() renumera los compases
+        # repetidos en vez de conservar el número impreso (a diferencia de
+        # bar.Repeat+RepeatBracket) -- rompe el ancla compas_impreso. No se intenta.
+        return JsonResponse({'status': 'sin_soporte', 'motivo': 'repeticion_compleja'})
+
+    try:
+        score_expandido = score.expandRepeats()
+    except Exception as e:
+        return JsonResponse({'status': 'sin_soporte', 'motivo': f'expansion_fallo: {e}'})
+
+    return JsonResponse({'status': 'success', 'eventos': _eventos_ejecucion(score_expandido)})
+
+
 @login_required
 @csrf_exempt
 def record_attempt(request, game_slug):
