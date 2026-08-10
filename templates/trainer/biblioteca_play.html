@@ -17,6 +17,11 @@
     #osmdCanvas {
         width: 100%;
         min-width: 800px;
+        /* OSMD posiciona el cursor con position:absolute asumiendo que este contenedor
+           ancla ese contexto, pero nunca lo fuerza -- sin esto, el cursor se posiciona
+           relativo al ancestro posicionado más cercano de TODA la página (o al viewport),
+           no a la partitura. Confirmado leyendo el código fuente de OSMD 1.8.8. */
+        position: relative;
     }
 
     /* Brújula (Conductor) */
@@ -417,6 +422,11 @@
     let eventosEjecucionCrudos = null;
     let secuenciaEjecucionResuelta = null;
 
+    // Notas que se encienden al sonar durante la reproducción pasiva (--gold, transitorio)
+    // -- ver encenderNota/apagarNota más abajo.
+    let notasIluminadas = new Set();
+    let contadorIluminado = new Map(); // svgEl -> cuántos encendidos siguen sin su apagado
+
     // Auto-scroll del cursor durante la reproducción
     let autoScrollActivo = true;
     let scrolleandoProgramaticamente = false;
@@ -549,7 +559,7 @@
             backend: "svg",
             drawTitle: false,
             drawComposer: false,
-            cursorsOptions: [{type: 0, color: colorCursor, alpha: 0.5, size: 3}]
+            cursorsOptions: [{type: 0, color: colorCursor, alpha: 0.85, size: 3}]
         });
         
         try {
@@ -562,6 +572,16 @@
             osmd.render();
             
             osmd.cursor.show();
+            // OSMD deja el cursor en z-index negativo (-2 sin cursorsOptions.follow) y su
+            // mecanismo pensado para esto (EngravingRules.PageBackgroundColor -> z-index 1)
+            // está documentado por la propia librería como roto en esta versión ("will
+            // prevent the cursor from being visible for now"). Se fuerza acá en vez de
+            // depender de eso -- confirmado en el código fuente que OSMD solo toca este
+            // estilo al crear el cursor y adentro de show(), nunca de nuevo en
+            // cursor.next()/update(), así que este set no se pisa después.
+            if (osmd.cursor.cursorElement) {
+                osmd.cursor.cursorElement.style.zIndex = '5';
+            }
             btnPlay.disabled = false;
 
             // En segundo plano -- no bloquea que el usuario ya pueda tocar Play. Si todavía
@@ -726,7 +746,9 @@
             const duracionBeats = n.durationRealValue * 4;
             if (duracionBeats > evt.maxDuration) evt.maxDuration = duracionBeats;
             if (n.pitchName) {
-                evt.notes.push({ pitch: n.pitchName, duracionBeats: duracionBeats });
+                // logicalNote viaja para poder etiquetar el svgEl más adelante (encendido
+                // de notas al sonar) -- se resuelve una sola vez, en obtenerEventos().
+                evt.notes.push({ pitch: n.pitchName, duracionBeats: duracionBeats, logicalNote: n.logicalNote });
             }
         });
 
@@ -742,11 +764,23 @@
     // secuencia ya resuelta contra el cursor impreso, con repeticiones/voltas expandidas.
     // Grace notes van aparte, en notesGrace, para agendarlas con su propio floreo -- no
     // afectan measureIndex/pasoIdxImpreso del paso (el cursor no se mueve por ellas).
-    function construirEventosDesdeEjecucion(secuenciaResuelta) {
+    // notasImpresas: la lista plana del recorrido impreso (mismo insumo que ya usa
+    // construirSecuenciaPracticaDesdeEjecucion) -- se usa para resolver logicalNote de
+    // cada nota de ejecución por pasoIdx+ps, igual que ahí. Si no encuentra coincidencia,
+    // logicalNote queda null -- esa nota simplemente no se etiqueta ni brilla, sin cortar
+    // la reproducción.
+    function construirEventosDesdeEjecucion(secuenciaResuelta, notasImpresas) {
+        const notasPorPasoIdx = new Map();
+        notasImpresas.forEach(n => {
+            if (!notasPorPasoIdx.has(n.groupIndex)) notasPorPasoIdx.set(n.groupIndex, []);
+            notasPorPasoIdx.get(n.groupIndex).push(n);
+        });
+
         const localEvents = [];
         let tiempoAcumulado = 0;
 
         secuenciaResuelta.forEach(paso => {
+            const candidatas = notasPorPasoIdx.get(paso.pasoIdx) || [];
             const notasReales = paso.notas.filter(n => !n.es_grace);
             const notasGrace = paso.notas.filter(n => n.es_grace);
             let maxDuration = notasReales.reduce((max, n) => Math.max(max, n.duracion_ql), 0);
@@ -757,7 +791,10 @@
                 pasoIdxImpreso: paso.pasoIdx,
                 measureIndex: paso.measureIndex,
                 maxDuration: maxDuration,
-                notes: notasReales.map(n => ({ pitch: n.pitch, duracionBeats: n.duracion_ql })),
+                notes: notasReales.map(n => {
+                    const impresa = candidatas.find(c => Math.abs(c.ps - n.ps) < 0.01);
+                    return { pitch: n.pitch, duracionBeats: n.duracion_ql, logicalNote: impresa ? impresa.logicalNote : null };
+                }),
                 notesGrace: notasGrace.map(n => ({ pitch: n.pitch }))
             });
             tiempoAcumulado += maxDuration;
@@ -766,14 +803,71 @@
         return localEvents;
     }
 
-    // Decide qué camino arma la secuencia de reproducción según el toggle Repeticiones.
+    // Decide qué camino arma la secuencia de reproducción según el toggle Repeticiones, y
+    // etiqueta el svgEl de cada nota UNA vez acá (para los dos caminos por igual) --
+    // mismo llamado que ya hace construirSecuenciaPractica() para el modo práctica. Esto
+    // es lo que hace que, con la secuencia de ejecución, la MISMA nota impresa se vuelva a
+    // encender sola en cada repetición: etiquetarNotasConSvg resuelve por logicalNote (el
+    // objeto real de la nota impresa), no por posición en la secuencia.
     function obtenerEventos() {
+        let localEvents = null;
         if (repeticionesToggle.checked) {
             const resuelta = resolverSecuenciaEjecucion();
-            if (resuelta) return construirEventosDesdeEjecucion(resuelta);
-            console.warn('[secuencia-ejecucion] No disponible para reproducción -- se usa el orden impreso.');
+            if (resuelta) {
+                const { notas } = OsmdUtils.recorrerCursorOsmd(osmd, { incluirGraceNotes: true });
+                localEvents = construirEventosDesdeEjecucion(resuelta, notas);
+            } else {
+                console.warn('[secuencia-ejecucion] No disponible para reproducción -- se usa el orden impreso.');
+            }
         }
-        return buildSequence();
+        if (!localEvents) {
+            localEvents = buildSequence();
+        }
+
+        OsmdUtils.etiquetarNotasConSvg(osmd, localEvents.flatMap(evt => evt.notes));
+        return localEvents;
+    }
+
+    // Notas que se encienden al sonar (reproducción pasiva) -- mismo mecanismo que el
+    // acierto del modo práctica (svgEl.style.filter, sin re-render), pero transitorio: se
+    // prende al sonar y se apaga solo al terminar la duración real de la nota, en vez de
+    // quedar pintado. Dorado ("está sonando"), no el verde de "acertaste" -- ese queda
+    // reservado a la práctica.
+    //
+    // contadorIluminado lleva la cuenta de encendidos sin su apagado correspondiente por
+    // svgEl, en vez de un simple on/off booleano: en Modo Ensayo con un loop corto, un
+    // apagado agendado en una vuelta puede llegar a disparar DESPUÉS de que la misma nota
+    // ya se encendió de nuevo en la vuelta siguiente (el loop nativo de Tone.Transport
+    // reasigna posiciones; confirmado leyendo handleRehearsalIteration() que el modo
+    // ensayo NO cancela ni reagenda nada entre vueltas, solo cambia el BPM). Con el
+    // contador, ese apagado atrasado resta uno pero no apaga el brillo mientras quede al
+    // menos un encendido más reciente sin el suyo propio.
+    function encenderNota(svgEl) {
+        if (!svgEl) return;
+        contadorIluminado.set(svgEl, (contadorIluminado.get(svgEl) || 0) + 1);
+        svgEl.style.filter = 'drop-shadow(0 0 3px var(--gold)) drop-shadow(0 0 6px var(--gold))';
+        notasIluminadas.add(svgEl);
+    }
+
+    function apagarNota(svgEl) {
+        if (!svgEl) return;
+        const restante = (contadorIluminado.get(svgEl) || 1) - 1;
+        if (restante > 0) {
+            contadorIluminado.set(svgEl, restante);
+            return;
+        }
+        contadorIluminado.delete(svgEl);
+        svgEl.style.filter = '';
+        notasIluminadas.delete(svgEl);
+    }
+
+    // Al pausar/detener no puede quedar nada brillando congelado -- se apaga todo de una,
+    // sin importar el conteo pendiente (se corta la reproducción, no tiene sentido
+    // respetar encendidos que ya no van a sonar).
+    function apagarTodasLasNotasIluminadas() {
+        notasIluminadas.forEach(svgEl => { svgEl.style.filter = ''; });
+        notasIluminadas.clear();
+        contadorIluminado.clear();
     }
 
     // Scroll automático para mantener el cursor de OSMD visible en el tercio superior del
@@ -1295,10 +1389,20 @@
                         // al armar el schedule) -- así el toggle "Piano" tiene efecto inmediato sobre
                         // notas ya agendadas, sin tener que reprogramar nada.
                         evt.notes.forEach(note => {
+                            let durationTicks = Math.round(note.duracionBeats * Tone.Transport.PPQ);
                             if(pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
-                                let durationTicks = Math.round(note.duracionBeats * Tone.Transport.PPQ);
                                 AudioEngine.sampler.triggerAttackRelease(note.pitch, durationTicks + "i", time);
                             }
+
+                            // Encendido/apagado visual -- independiente del toggle Piano (es guía de
+                            // qué dice la partitura, no un eco del audio; en modo práctica el piano
+                            // también está mudo y la guía visual sigue andando). Si no se pudo
+                            // etiquetar el svgEl, encenderNota/apagarNota son no-op silenciosos.
+                            Tone.Draw.schedule(() => encenderNota(note.svgEl), time);
+                            const apagadoId = Tone.Transport.schedule((offTime) => {
+                                Tone.Draw.schedule(() => apagarNota(note.svgEl), offTime);
+                            }, (ticks + durationTicks) + "i");
+                            transportEvents.push(apagadoId);
                         });
 
                     }, ticks + "i");
@@ -1421,6 +1525,7 @@
         isPlaying = false;
         btnPlay.disabled = false;
         btnPause.disabled = true;
+        apagarTodasLasNotasIluminadas(); // que no quede nada brillando congelado al pausar
     }
 
     function stopPlayback() {
@@ -1434,6 +1539,7 @@
         osmd.cursor.reset();
         currentCursorIdx = 0;
         document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
+        apagarTodasLasNotasIluminadas();
 
         // El cursor vuelve al principio -- lo acompañamos con el scroll aunque el usuario
         // haya apagado el auto-scroll scrolleando durante la reproducción que acaba de parar.
