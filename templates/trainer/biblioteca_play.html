@@ -409,8 +409,9 @@
     let baseBpm = 100;
     let isPlaying = false;
     let transportEvents = [];
-    let timeNumerator = 4; // cantidad de "tiempos" de conducción por compás (no el numerador crudo en compases compuestos -- ver renderConductor)
-    let beatUnitQuarters = 1.0; // cuántas negras dura un "tiempo" -- 1.5 en compases compuestos (6/8, 9/8, 12/8)
+    let timeNumerator = 4; // cantidad real de PULSOS de conducción por compás (para el acento y el wraparound del contador) -- ver renderConductor
+    let beatUnitQuarters = 1.0; // cuántas negras dura un pulso -- 0.5 (corchea) en compases compuestos (6/8, 9/8, 12/8)
+    let patronVisualLength = 4; // cantidad de posiciones que dibuja/cicla el director -- 3 en compases compuestos (reusa el dibujo de 3/4, repetido tantas veces como grupos de 3 corcheas haya)
     let clickSynth = null;
     let currentCursorIdx = 0;
     let events = []; // Array global para loop calculations
@@ -524,27 +525,31 @@
     }
 
     function renderConductor(numerator, denominator) {
-        // Compases compuestos (6/8, 9/8, 12/8): el tiempo real es la negra con puntillo
-        // (3 corcheas), no la corchea suelta -- se conducen con el mismo patrón de 3/4 o
-        // 4/4 según corresponda, no con un punto por corchea. denominator===8 y numerator
-        // múltiplo de 3 (y >3, para no confundir un genuino 3/8 simple) es la señal
-        // estándar de compás compuesto.
+        // Compases compuestos (6/8, 9/8, 12/8): pedido explícito -- se conducen repitiendo
+        // el MISMO patrón visual de 3/4 (abajo-derecha-arriba), una vez por cada grupo de 3
+        // corcheas del compás, marcando 1,2,3,1,2,3(,1,2,3...) -- no colapsando a un "tiempo
+        // grande" (negra con puntillo) por grupo, que daría solo 1,2,1,2 en 6/8. El pulso
+        // real de conducción es entonces la corchea (beatUnitQuarters=0.5) y el patrón
+        // visual cicla cada 3 posiciones (patronVisualLength), aunque haya 6/9/12 pulsos
+        // reales por compás (timeNumerator, usado para el acento del primer pulso y el
+        // wraparound del contador). denominator===8 y numerator múltiplo de 3 (y >3, para
+        // no confundir un genuino 3/8 simple) es la señal estándar de compás compuesto.
         const esCompuesto = denominator === 8 && numerator % 3 === 0 && numerator > 3;
-        const tiemposPorCompas = esCompuesto ? (numerator / 3) : numerator;
-        beatUnitQuarters = esCompuesto ? 1.5 : 1.0;
+        beatUnitQuarters = esCompuesto ? 0.5 : 1.0;
+        timeNumerator = numerator;
+        patronVisualLength = esCompuesto ? 3 : numerator;
 
-        timeNumerator = tiemposPorCompas;
         conductorWidget.innerHTML = '';
-        if (tiemposPorCompas === 4) {
+        if (patronVisualLength === 4) {
             addBeatDot(1, 'pos-down');
             addBeatDot(2, 'pos-left');
             addBeatDot(3, 'pos-right');
             addBeatDot(4, 'pos-up');
-        } else if (tiemposPorCompas === 3) {
+        } else if (patronVisualLength === 3) {
             addBeatDot(1, 'pos-down');
             addBeatDot(2, 'pos-right');
             addBeatDot(3, 'pos-up');
-        } else if (tiemposPorCompas === 2) {
+        } else if (patronVisualLength === 2) {
             addBeatDot(1, 'pos-down');
             addBeatDot(2, 'pos-up');
         } else {
@@ -1253,7 +1258,7 @@
                 clickSynth.triggerAttackRelease(esAcento ? "C3" : "G2", "16n", time);
             }
             Tone.Draw.schedule(() => {
-                const beatNum = (practicaBeatCount % timeNumerator) + 1;
+                const beatNum = (practicaBeatCount % patronVisualLength) + 1;
                 document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
                 const dot = document.getElementById(`beat-${beatNum}`);
                 if (dot) dot.classList.add('active');
@@ -1261,7 +1266,7 @@
                 setTimeout(() => conductorWidget.classList.remove('beat-pulse'), 150);
             }, time);
             practicaBeatCount++;
-        }, beatUnitQuarters === 1.5 ? "4n." : "4n").start(0); // "4n." = negra con puntillo, el tiempo real en compás compuesto
+        }, beatUnitQuarters === 0.5 ? "8n" : "4n").start(0); // "8n" = corchea, el pulso real en compás compuesto
         Tone.Transport.start();
     }
 
