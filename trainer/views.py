@@ -2345,11 +2345,21 @@ def _eventos_ejecucion(score):
 
             for p in pitches:
                 clave = (idx_parte, p.ps)
+                # duracion (el.duration.quarterLength) viene como fractions.Fraction para
+                # cualquier valor no binario -- tresillos y demás tuplets, el caso real que
+                # tumbaba este endpoint con un 500 (json.dumps no sabe serializar Fraction,
+                # y el try/except de la vista solo cubre la construcción de `eventos`, no el
+                # JsonResponse posterior). float() + round a 6 decimales acá, en el único
+                # punto donde `duracion` entra a un evento, para que ningún campo del JSON
+                # de salida pueda ser un Fraction -- 6 decimales alcanza para que un
+                # Fraction(1,3) viaje estable como 0.333333 sin ruido de punto flotante en
+                # la comparación de tolerancia (<0.01) que ya usa el frontend.
+                duracion_json = round(float(duracion), 6)
                 if tie_tipo in ('stop', 'continue') and clave in ligadura_abierta:
-                    ligadura_abierta[clave]['duracion_ql'] += duracion
+                    ligadura_abierta[clave]['duracion_ql'] = round(ligadura_abierta[clave]['duracion_ql'] + duracion_json, 6)
                     eventos.append({
                         'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
-                        'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion, 'es_grace': False,
+                        'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion_json, 'es_grace': False,
                         'es_ligadura_continuacion': True,
                     })
                     if tie_tipo == 'stop':
@@ -2357,7 +2367,7 @@ def _eventos_ejecucion(score):
                 else:
                     nuevo_evento = {
                         'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
-                        'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion, 'es_grace': False,
+                        'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion_json, 'es_grace': False,
                         'es_ligadura_continuacion': False,
                     }
                     eventos.append(nuevo_evento)
@@ -2391,7 +2401,17 @@ def biblioteca_secuencia_ejecucion(request, score_id):
     except Exception as e:
         return JsonResponse({'status': 'sin_soporte', 'motivo': f'expansion_fallo: {e}'})
 
-    return JsonResponse({'status': 'success', 'eventos': eventos})
+    try:
+        return JsonResponse({'status': 'success', 'eventos': eventos})
+    except TypeError as e:
+        # Red de seguridad: json.dumps corre DENTRO del constructor de JsonResponse, fuera
+        # del try/except de arriba -- un campo no serializable (el caso real ya visto:
+        # fractions.Fraction de un tresillo colándose en duracion_ql antes del fix de más
+        # arriba) escapaba como un 500 crudo de Django en vez de cualquiera de los
+        # 'sin_soporte' ya manejados. Si algún campo nuevo se cuela sin convertir en el
+        # futuro, esto lo convierte en un fallback prolijo -- nunca una pieza que deja de
+        # reproducirse por un error no capturado.
+        return JsonResponse({'status': 'sin_soporte', 'motivo': f'serializacion_fallo: {e}'})
 
 
 @login_required
