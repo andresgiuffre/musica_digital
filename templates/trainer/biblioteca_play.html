@@ -881,13 +881,21 @@
     // es lo que hace que, con la secuencia de ejecución, la MISMA nota impresa se vuelva a
     // encender sola en cada repetición: etiquetarNotasConSvg resuelve por logicalNote (el
     // objeto real de la nota impresa), no por posición en la secuencia.
+    // Último camino que efectivamente usó obtenerEventos() -- 'ejecucion' o 'impreso'. El
+    // fallback silencioso ya generó confusión real de diagnóstico (un piece "andaba bien"
+    // por estar cayendo al camino viejo sin que nadie lo supiera) -- esto lo deja explícito
+    // en la consola cada vez, y expuesto para el comparador de más abajo.
+    let caminoActivo = null;
+
     function obtenerEventos() {
         let localEvents = null;
+        caminoActivo = 'impreso';
         if (repeticionesToggle.checked) {
             const resuelta = resolverSecuenciaEjecucion();
             if (resuelta) {
                 const { notas } = OsmdUtils.recorrerCursorOsmd(osmd, { incluirGraceNotes: true });
                 localEvents = construirEventosDesdeEjecucion(resuelta, notas);
+                caminoActivo = 'ejecucion';
             } else {
                 console.warn('[secuencia-ejecucion] No disponible para reproducción -- se usa el orden impreso.');
             }
@@ -895,6 +903,7 @@
         if (!localEvents) {
             localEvents = buildSequence();
         }
+        console.log(`[secuencia-ejecucion] Camino activo para esta reproducción: ${caminoActivo} (toggle Repeticiones: ${repeticionesToggle.checked ? 'ON' : 'OFF'}).`);
 
         OsmdUtils.etiquetarNotasConSvg(osmd, localEvents.flatMap(evt => evt.notes));
         return localEvents;
@@ -928,6 +937,15 @@
         const impresos = buildSequence();
 
         const resuelta = resolverSecuenciaEjecucion();
+
+        // Esto es justamente lo que costó tiempo de diagnóstico la vez pasada: una pieza
+        // "andaba bien" porque en realidad estaba cayendo callada al camino impreso (por un
+        // 500 del endpoint), no porque el camino de ejecución estuviera realmente probado.
+        // Reportarlo acá, aparte del diff, deja sin ambigüedad cuál camino es el que de
+        // verdad se está escuchando ahora mismo con el estado actual del toggle.
+        const caminoQueUsariaAhora = (repeticionesToggle.checked && resuelta) ? 'ejecución' : 'impreso (fallback)';
+        console.log(`[comparador] Con Repeticiones en ${repeticionesToggle.checked ? 'ON' : 'OFF'} ahora mismo, obtenerEventos() usaría el camino: ${caminoQueUsariaAhora}.`);
+
         if (!resuelta) {
             console.error('[comparador] resolverSecuenciaEjecucion() no se pudo resolver -- revisar los warnings [secuencia-ejecucion] previos.');
             return null;
