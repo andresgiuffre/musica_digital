@@ -900,6 +900,96 @@
         return localEvents;
     }
 
+    // ==================== Comparador de secuencias (DIAGNÓSTICO, temporal) ====================
+    // Compara evento por evento el camino IMPRESO (buildSequence -- lo que reproduce el
+    // toggle Repeticiones OFF) contra el camino de EJECUCIÓN resuelto
+    // (construirEventosDesdeEjecucion -- lo que reproduce el toggle ON). En una pieza SIN
+    // repeticiones expandRepeats() es identidad, así que los dos caminos DEBEN producir
+    // exactamente la misma secuencia de audio (mismos offsets, duraciones, notas) -- calcan
+    // el mismo score por dos rutas de código distintas. Cualquier diferencia ahí es un bug
+    // real en cómo se arma el camino de ejecución, no un efecto secundario de repeticiones.
+    //
+    // No se llama desde ningún botón ni flujo de reproducción normal -- se invoca a mano
+    // desde la consola del navegador con window.debugCompararSecuencias() una vez que la
+    // partitura ya cargó (no reproducir antes; usa el cursor de OSMD internamente y lo dejа
+    // reseteado al terminar, pero mezclarlo con una reproducción activa es confuso de leer,
+    // no incorrecto). Se deja en el código a propósito, sin UI ni flag de build: es la
+    // herramienta correcta si esto se vuelve a desalinear más adelante y no vale la pena
+    // reconstruirla de cero cada vez.
+    window.debugCompararSecuencias = async function () {
+        if (!eventosEjecucionCrudos) {
+            await cargarSecuenciaEjecucion();
+        }
+        if (!eventosEjecucionCrudos) {
+            console.error('[comparador] No hay secuencia de ejecución disponible para esta partitura -- nada que comparar.');
+            return null;
+        }
+
+        const impresos = buildSequence();
+
+        const resuelta = resolverSecuenciaEjecucion();
+        if (!resuelta) {
+            console.error('[comparador] resolverSecuenciaEjecucion() no se pudo resolver -- revisar los warnings [secuencia-ejecucion] previos.');
+            return null;
+        }
+        const { notas } = OsmdUtils.recorrerCursorOsmd(osmd, { incluirGraceNotes: true });
+        const ejecucion = construirEventosDesdeEjecucion(resuelta, notas);
+
+        // Redondeo a 3 decimales solo para no marcar como "discrepancia" ruido de punto
+        // flotante (ej. 1.9999999996 vs 2.0) que no es un bug real.
+        function normalizar(events) {
+            return events.map(e => ({
+                time: Math.round(e.time * 1000) / 1000,
+                maxDuration: Math.round(e.maxDuration * 1000) / 1000,
+                noteCount: e.notes.length,
+                pitches: e.notes.map(n => n.pitch).slice().sort().join('+'),
+                notasResueltas: e.notes.filter(n => !!n.logicalNote).length,
+                graceCount: (e.notesGrace || []).length,
+            }));
+        }
+
+        const A = normalizar(impresos);   // camino impreso (toggle OFF)
+        const B = normalizar(ejecucion);  // camino de ejecución (toggle ON)
+
+        console.log(`[comparador] Camino IMPRESO: ${A.length} eventos. Camino EJECUCIÓN: ${B.length} eventos.`);
+        if (A.length !== B.length) {
+            console.warn(`[comparador] CANTIDAD DE EVENTOS DISTINTA (${A.length} vs ${B.length}) -- ya es una discrepancia en sí misma antes de comparar evento por evento.`);
+        }
+
+        const max = Math.max(A.length, B.length);
+        let discrepancias = 0;
+        const detalle = [];
+        for (let i = 0; i < max; i++) {
+            const a = A[i], b = B[i];
+            if (!a || !b) {
+                console.warn(`[comparador] #${i}: falta de un lado -- impreso=${JSON.stringify(a) || 'undefined'} ejecucion=${JSON.stringify(b) || 'undefined'}`);
+                discrepancias++;
+                detalle.push({ idx: i, impreso: a, ejecucion: b });
+                continue;
+            }
+            const diffs = [];
+            if (a.time !== b.time) diffs.push(`time: ${a.time} vs ${b.time}`);
+            if (a.maxDuration !== b.maxDuration) diffs.push(`maxDuration: ${a.maxDuration} vs ${b.maxDuration}`);
+            if (a.noteCount !== b.noteCount) diffs.push(`noteCount: ${a.noteCount} vs ${b.noteCount}`);
+            if (a.pitches !== b.pitches) diffs.push(`pitches: [${a.pitches}] vs [${b.pitches}]`);
+            if (diffs.length > 0) {
+                console.warn(`[comparador] #${i} DISCREPANCIA -- ${diffs.join(' | ')}`);
+                discrepancias++;
+                detalle.push({ idx: i, impreso: a, ejecucion: b, diffs });
+            }
+        }
+
+        const notasSinResolverEjecucion = B.reduce((acc, e) => acc + (e.noteCount - e.notasResueltas), 0);
+        const totalNotasEjecucion = B.reduce((acc, e) => acc + e.noteCount, 0);
+        console.log(`[comparador] logicalNote sin resolver en camino de ejecución: ${notasSinResolverEjecucion} / ${totalNotasEjecucion} notas -- una resolución fallida masiva acá explicaría encendido de notas intermitente/errático aunque el audio suene bien.`);
+
+        const totalGracesEjecucion = B.reduce((acc, e) => acc + e.graceCount, 0);
+        console.log(`[comparador] grace notes en camino de ejecución (agendadas aparte, con adelanto fijo): ${totalGracesEjecucion}. En el camino impreso viajan mezcladas dentro de notes (no separadas) -- si la pieza tiene graces, es normal que eso por sí solo aparezca como diferencia de noteCount arriba, no es necesariamente un bug.`);
+
+        console.log(`[comparador] Total: ${discrepancias} discrepancias de ${max} eventos comparados.`);
+        return { impreso: A, ejecucion: B, discrepancias, detalle };
+    };
+
     // Notas que se encienden al sonar (reproducción pasiva) -- mismo mecanismo que el
     // acierto del modo práctica (svgEl.style.filter, sin re-render), pero transitorio: se
     // prende al sonar y se apaga solo al terminar la duración real de la nota, en vez de
