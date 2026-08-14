@@ -804,7 +804,6 @@
         notas.forEach(n => {
             const evt = localEvents[n.groupIndex];
             const duracionBeats = n.durationRealValue * 4;
-            if (duracionBeats > evt.maxDuration) evt.maxDuration = duracionBeats;
             if (!n.pitchName) return;
 
             const estado = estadoLigadura(n.logicalNote);
@@ -824,9 +823,22 @@
             }
         });
 
-        localEvents.forEach(evt => {
-            if (evt.maxDuration === 0) evt.maxDuration = 1.0; // negra por default, ya en beats
-        });
+        // maxDuration = brecha real hasta el PRÓXIMO paso (no el máximo de las duraciones de
+        // las notas de ESTE paso, como se calculaba antes acá) -- mismo criterio que ahora
+        // usa construirEventosDesdeEjecucion(), por la misma razón: el máximo por nota se
+        // infla con una ligadura sonando en simultáneo con un ataque más corto (la
+        // continuación no representa una parada nueva pero sí tiene su propia duración local
+        // larga). Acá `time` YA es el timestamp absoluto real de OSMD (nunca dependió de
+        // maxDuration para nada, por eso este camino jamás mostró el drift del otro) -- este
+        // cambio es solo para que maxDuration dejе de mentir sobre lo que realmente pasa en
+        // cada paso, no un fix de un bug audible en este camino.
+        for (let i = 0; i < localEvents.length - 1; i++) {
+            localEvents[i].maxDuration = Math.round((localEvents[i + 1].time - localEvents[i].time) * 1000) / 1000;
+        }
+        if (localEvents.length > 0) {
+            const ultimo = localEvents[localEvents.length - 1];
+            ultimo.maxDuration = ultimo.notes.reduce((max, n) => Math.max(max, n.duracionBeats), 0) || 1.0;
+        }
 
         return localEvents;
     }
@@ -989,12 +1001,27 @@
 
         // Redondeo a 3 decimales solo para no marcar como "discrepancia" ruido de punto
         // flotante (ej. 1.9999999996 vs 2.0) que no es un bug real.
+        // pitchClave: por ps (semitono real), no por el string de altura -- comparar por
+        // nombre marca como "discrepancia" diferencias de deletreo enarmónico (D#3 vs Eb3,
+        // el mismo semitono exacto) que music21 y OSMD a veces deletrean distinto para la
+        // misma pieza; no afecta ni al audio (Tone.js interpreta ambos deletreos igual) ni
+        // a la resolución de logicalNote (esa ya compara por ps, no por nombre -- ver
+        // construirEventosDesdeEjecucion). Sin logicalNote resuelto no hay ps disponible;
+        // se cae al nombre crudo en ese caso puntual, que sigue siendo una comparación
+        // válida (mejor un falso positivo raro que ocultar una resolución fallida).
+        function pitchClave(n) {
+            if (n.logicalNote && n.logicalNote.Pitch && n.logicalNote.Pitch.halfTone !== undefined) {
+                return String(n.logicalNote.Pitch.halfTone + 12);
+            }
+            return n.pitch;
+        }
+
         function normalizar(events) {
             return events.map(e => ({
                 time: Math.round(e.time * 1000) / 1000,
                 maxDuration: Math.round(e.maxDuration * 1000) / 1000,
                 noteCount: e.notes.length,
-                pitches: e.notes.map(n => n.pitch).slice().sort().join('+'),
+                pitches: e.notes.map(pitchClave).slice().sort().join('+'),
                 notasResueltas: e.notes.filter(n => !!n.logicalNote).length,
                 graceCount: (e.notesGrace || []).length,
             }));
