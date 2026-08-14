@@ -148,6 +148,73 @@ class EventosEjecucionTests(TestCase):
         pitches = [e['pitch'] for e in eventos]
         self.assertEqual(pitches, ['A4'])
 
+    def test_offset_global_no_se_infla_con_ligadura_simultanea_a_notas_cortas(self):
+        """
+        Caso real de producción: una mano con una nota larga ligada entre compases,
+        sonando en simultáneo con la otra mano atacando notas cortas por encima. El
+        frontend solía derivar el avance del timeline (`time`) de
+        `max(duración de las notas del paso)` -- con una ligadura ahí en medio, ese máximo
+        quedaba dominado por la duración LOCAL del segmento de continuación (que no
+        representa ningún ataque nuevo) e inflaba el avance, corriendo todo lo que sigue
+        cada vez más adelante del camino impreso (confirmado con debugCompararSecuencias()
+        sobre un archivo real, sin ninguna repetición de por medio). offset_global es el
+        reemplazo: una posición absoluta calculada acá, en el backend, a partir de la
+        duración nominal de cada compás -- este test fija ese contrato.
+        """
+        s = music21.stream.Score()
+        treble = music21.stream.Part()
+        bass = music21.stream.Part()
+
+        m1t = music21.stream.Measure(number=1)
+        for p in ('C5', 'D5', 'E5', 'F5'):
+            n = music21.note.Note(p)
+            n.duration.quarterLength = 1.0
+            m1t.append(n)
+        treble.append(m1t)
+
+        m1b = music21.stream.Measure(number=1)
+        n1 = music21.note.Note('C3')
+        n1.duration.quarterLength = 1.0
+        m1b.append(n1)
+        n2 = music21.note.Note('F3')
+        n2.duration.quarterLength = 3.0
+        n2.tie = music21.tie.Tie('start')
+        m1b.append(n2)
+        bass.append(m1b)
+
+        m2t = music21.stream.Measure(number=2)
+        for p in ('G5', 'A5', 'B5', 'C6'):
+            n = music21.note.Note(p)
+            n.duration.quarterLength = 1.0
+            m2t.append(n)
+        treble.append(m2t)
+
+        m2b = music21.stream.Measure(number=2)
+        n3 = music21.note.Note('F3')
+        n3.duration.quarterLength = 2.0
+        n3.tie = music21.tie.Tie('stop')
+        m2b.append(n3)
+        n4 = music21.note.Note('G3')
+        n4.duration.quarterLength = 2.0
+        m2b.append(n4)
+        bass.append(m2b)
+
+        s.insert(0, treble)
+        s.insert(0, bass)
+
+        eventos = _eventos_ejecucion(s)
+
+        offsets = [e['offset_global'] for e in eventos]
+        self.assertEqual(offsets, sorted(offsets), "offset_global debe ser monótono no decreciente")
+
+        ataque_f3 = [e for e in eventos if e['pitch'] == 'F3' and not e['es_ligadura_continuacion']]
+        self.assertEqual(len(ataque_f3), 1)
+        self.assertAlmostEqual(ataque_f3[0]['offset_global'], 1.0)
+        self.assertAlmostEqual(ataque_f3[0]['duracion_ql'], 5.0)  # 3.0 + 2.0 acumulado por la ligadura
+
+        offsets_compas_2 = [e['offset_global'] for e in eventos if e['compas_impreso'] == 2]
+        self.assertAlmostEqual(min(offsets_compas_2), 4.0)  # el compás 1 dura 4 negras
+
     def test_tresillo_serializa_a_json_sin_error(self):
         """
         Caso real de producción: un tresillo hace que music21 devuelva quarterLength (y el
