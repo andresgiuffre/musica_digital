@@ -715,7 +715,12 @@
             const pasoIdx = inicioMedida + e.paso_en_compas;
 
             if (!gruposPorPasoEjecucion.has(e.paso_ejecucion)) {
-                gruposPorPasoEjecucion.set(e.paso_ejecucion, { pasoIdx, measureIndex, notas: [] });
+                // offsetGlobal: posición absoluta real (en negras) de este paso, ya
+                // calculada por el backend a partir de la duración nominal de cada compás
+                // (ver offset_global en _eventos_ejecucion) -- todas las notas de un mismo
+                // paso_ejecucion comparten el mismo valor por construcción (son
+                // simultáneas), tomar la del primer evento alcanza.
+                gruposPorPasoEjecucion.set(e.paso_ejecucion, { pasoIdx, measureIndex, offsetGlobal: e.offset_global, notas: [] });
             }
             gruposPorPasoEjecucion.get(e.paso_ejecucion).notas.push(e);
         });
@@ -844,33 +849,62 @@
         });
 
         const localEvents = [];
-        let tiempoAcumulado = 0;
 
         secuenciaResuelta.forEach(paso => {
             const candidatas = notasPorPasoIdx.get(paso.pasoIdx) || [];
             const notasReales = paso.notas.filter(n => !n.es_grace);
             const notasGrace = paso.notas.filter(n => n.es_grace);
-            let maxDuration = notasReales.reduce((max, n) => Math.max(max, n.duracion_ql), 0);
-            if (maxDuration === 0) maxDuration = 1.0;
+            // Las continuaciones de ligadura no disparan audio propio -- el backend ya le
+            // sumó su duración a la nota que abrió la ligadura, dispararla de nuevo sonaría
+            // como un reataque.
+            const notasAudibles = notasReales.filter(n => !n.es_ligadura_continuacion);
+
+            // Un paso compuesto ENTERAMENTE por continuaciones de ligadura (ninguna nota
+            // nueva ataca acá, en ninguna parte) no es un momento propio del timeline -- la
+            // duración ya quedó contada en la nota que abrió la ligadura. Antes se le daba
+            // igual su propio slot de tiempo (no disparaba audio, pero sí avanzaba el reloj
+            // con su propia duración local) -- eso duplicaba tiempo ya contado y es
+            // exactamente lo que hacía que el camino de ejecución se corriera cada vez más
+            // adelante del impreso a medida que se acumulaban ligaduras (confirmado con
+            // debugCompararSecuencias()). Se salta.
+            if (notasAudibles.length === 0 && notasGrace.length === 0) {
+                return;
+            }
 
             localEvents.push({
-                time: tiempoAcumulado,
+                time: paso.offsetGlobal,
                 pasoIdxImpreso: paso.pasoIdx,
                 measureIndex: paso.measureIndex,
-                maxDuration: maxDuration,
-                // Las continuaciones de ligadura NO se filtran de notasReales (siguen
-                // contando para maxDuration, el paso tiene que durar lo que dure el
-                // compás igual) pero sí se excluyen acá de "notes" -- el backend ya le
-                // sumó su duración a la nota que abrió la ligadura, dispararla de nuevo
-                // sonaría como un reataque.
-                notes: notasReales.filter(n => !n.es_ligadura_continuacion).map(n => {
+                maxDuration: 0, // se completa abajo, a partir del offsetGlobal del próximo evento
+                notes: notasAudibles.map(n => {
                     const impresa = candidatas.find(c => Math.abs(c.ps - n.ps) < 0.01);
                     return { pitch: n.pitch, duracionBeats: n.duracion_ql, logicalNote: impresa ? impresa.logicalNote : null };
                 }),
                 notesGrace: notasGrace.map(n => ({ pitch: n.pitch }))
             });
-            tiempoAcumulado += maxDuration;
         });
+
+        // maxDuration = brecha real hasta el PRÓXIMO evento, no el máximo de las duraciones
+        // de las notas de ESTE paso -- ese cálculo anterior es el que se rompía apenas un
+        // paso tenía una nota larga sonando en simultáneo con una más corta que ataca antes
+        // de que termine (la larga "ganaba" el máximo e inflaba el avance de todo el
+        // timeline de ahí en más, cada vez más lejos del camino impreso -- confirmado con
+        // debugCompararSecuencias(): el drift crecía sin parar en una pieza con ligaduras,
+        // sin ninguna repetición de por medio). `time` ya es una posición absoluta real
+        // (offsetGlobal, calculada en el backend a partir de la duración nominal de cada
+        // compás), así que la brecha correcta es simplemente la resta entre consecutivos --
+        // mismo principio que ya usa sin heurísticas el camino impreso (buildSequence usa
+        // el timestamp absoluto de OSMD directo, nunca acumula duraciones a mano).
+        for (let i = 0; i < localEvents.length - 1; i++) {
+            localEvents[i].maxDuration = Math.round((localEvents[i + 1].time - localEvents[i].time) * 1000) / 1000;
+        }
+        if (localEvents.length > 0) {
+            const ultimo = localEvents[localEvents.length - 1];
+            // Sin próximo evento del cual derivar la brecha para el último -- se usa la nota
+            // audible más larga de ese paso como mejor estimación disponible (mismo criterio
+            // de fallback de cola que ya usa buildSequence() para su propio último evento).
+            ultimo.maxDuration = ultimo.notes.reduce((max, n) => Math.max(max, n.duracionBeats), 0) || 1.0;
+        }
 
         return localEvents;
     }

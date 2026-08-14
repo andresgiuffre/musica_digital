@@ -2285,8 +2285,22 @@ def _eventos_ejecucion(score):
     ocurrencias_usadas = [dict() for _ in partes]  # por parte: {numero_compas: cuántas veces ya se usó}
     ligadura_abierta = {}  # (idx_parte, ps) -> evento (dict, ya en `eventos`) que se sigue extendiendo
 
+    # offset_global: posición absoluta en negras desde el INICIO de la ejecución (repeticiones
+    # ya contadas como tiempo real transcurrido). Es el reemplazo del truco anterior del
+    # frontend de acumular `time += max(duración de las notas del paso)` -- ese cálculo se
+    # rompe apenas un paso tiene una nota de duración larga sonando en simultáneo con una más
+    # corta que ataca antes que termine (larga tapa a la corta, o -- el caso real que lo
+    # confirmó -- una ligadura: el segmento de continuación tiene su PROPIA duración local
+    # larga aunque no representa un ataque nuevo, e igual competía por el "máximo" e inflaba
+    # el avance del timeline). offset_global se ancla directo a la aritmética real de
+    # duraciones de compás (barDuration, la duración nominal según el compás vigente, no el
+    # contenido) -- exactamente el mismo principio que ya usa sin heurísticas el camino
+    # IMPRESO (ts.RealValue de OSMD, un timestamp absoluto real).
+    offset_global = 0.0
+
     for compas_num in secuencia_canonica:
         entradas = []
+        duracion_compas = None
         for idx_parte, mapa in enumerate(medidas_por_parte):
             opciones = mapa.get(compas_num)
             if not opciones:
@@ -2294,6 +2308,11 @@ def _eventos_ejecucion(score):
             ocurrencia = ocurrencias_usadas[idx_parte].get(compas_num, 0)
             m = opciones[ocurrencia] if ocurrencia < len(opciones) else opciones[-1]
             ocurrencias_usadas[idx_parte][compas_num] = ocurrencia + 1
+            if duracion_compas is None:
+                # barDuration = duración nominal del compás según el compás vigente (heredado
+                # por contexto si este compás puntual no trae su propio <time>), no la suma
+                # del contenido real -- correcto incluso si el compás está incompleto/raro.
+                duracion_compas = float(m.barDuration.quarterLength)
 
             for el in m.recurse().notes:
                 if isinstance(el, music21.harmony.Harmony):
@@ -2325,6 +2344,10 @@ def _eventos_ejecucion(score):
         offset_actual = None
         graces_pendientes = []
         for offset_en_compas, es_grace, pitches, duracion, idx_parte, tie_tipo in entradas:
+            # float() acá también -- offset_en_compas puede ser Fraction por el mismo motivo
+            # que duracion (tresillos), y offset_global_evento viaja en el JSON.
+            offset_global_evento = round(offset_global + float(offset_en_compas), 6)
+
             if es_grace:
                 for p in pitches:
                     graces_pendientes.append({'pitch': p.nameWithOctave, 'ps': p.ps})
@@ -2338,6 +2361,7 @@ def _eventos_ejecucion(score):
             for g in graces_pendientes:
                 eventos.append({
                     'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
+                    'offset_global': offset_global_evento,
                     'pitch': g['pitch'], 'ps': g['ps'], 'duracion_ql': 0.25, 'es_grace': True,
                     'es_ligadura_continuacion': False,
                 })
@@ -2359,6 +2383,7 @@ def _eventos_ejecucion(score):
                     ligadura_abierta[clave]['duracion_ql'] = round(ligadura_abierta[clave]['duracion_ql'] + duracion_json, 6)
                     eventos.append({
                         'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
+                        'offset_global': offset_global_evento,
                         'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion_json, 'es_grace': False,
                         'es_ligadura_continuacion': True,
                     })
@@ -2367,12 +2392,16 @@ def _eventos_ejecucion(score):
                 else:
                     nuevo_evento = {
                         'paso_ejecucion': paso_ejecucion, 'compas_impreso': compas_num, 'paso_en_compas': paso_en_compas,
+                        'offset_global': offset_global_evento,
                         'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion_json, 'es_grace': False,
                         'es_ligadura_continuacion': False,
                     }
                     eventos.append(nuevo_evento)
                     if tie_tipo == 'start':
                         ligadura_abierta[clave] = nuevo_evento
+
+        if duracion_compas is not None:
+            offset_global += duracion_compas
     return eventos
 
 
