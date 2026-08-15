@@ -417,6 +417,20 @@
     let currentCursorIdx = 0;
     let events = []; // Array global para loop calculations
 
+    // Token de sesión de reproducción -- se incrementa en cada Play y en cada Stop. Los
+    // callbacks agendados con Tone.Draw.schedule() (avance de cursor, encendido/apagado
+    // de notas, reconfiguración del director) NO se cancelan solos con
+    // Tone.Transport.cancel(): ese cancela los Tone.Transport.schedule() todavía
+    // pendientes, pero uno que YA disparó antes de un Stop deja su Tone.Draw.schedule()
+    // interno igual encolado (Draw tiene su propia cola, separada, atada a
+    // requestAnimationFrame) -- si ese callback demorado corre DESPUÉS del reset de
+    // Stop, pisa currentCursorIdx/osmd.cursor con la posición vieja. Cada callback
+    // agendado en un Play captura el token vigente en ese momento (miSesion) y se
+    // autodescarta si para cuando le toca correr el token global ya cambió -- así un
+    // Stop (o un Play nuevo) invalida de una todo lo que quedó en vuelo de la sesión
+    // anterior, sin depender de que Tone.js cancele nada por su cuenta.
+    let sesionReproduccion = 0;
+
     // Secuencia de EJECUCIÓN (repeticiones/voltas expandidas, adornos incluidos) traída
     // del backend -- null si todavía no llegó o si falló (entonces se usa el orden
     // impreso de siempre, derivado del cursor). Se resuelve una vez contra los `pasos`
@@ -1727,6 +1741,14 @@
 
                 if (events.length === 0) return;
 
+                // Nueva sesión de reproducción -- ver el comentario junto a
+                // sesionReproduccion. Todo lo que se agenda de acá en más lleva este
+                // token capturado; si el usuario para y vuelve a arrancar, los callbacks
+                // de la sesión vieja (miSesion !== sesionReproduccion en ese momento) se
+                // vuelven no-ops solos, sin importar si Tone.Transport.cancel() ya se
+                // había llevado puesto el Tone.Transport.schedule() que los originó.
+                const miSesion = ++sesionReproduccion;
+
                 Tone.Transport.cancel();
                 transportEvents = [];
                 currentCursorIdx = 0;
@@ -1746,6 +1768,7 @@
                     let ticks = Math.round(evt.time * Tone.Transport.PPQ);
                     let transportId = Tone.Transport.schedule((time) => {
                         Tone.Draw.schedule(() => {
+                            if (miSesion !== sesionReproduccion) return; // sesión vieja, ver comentario junto a sesionReproduccion
                             currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, evt.pasoIdxImpreso);
 
                             document.getElementById('dbg-measure').innerText = evt.measureIndex;
@@ -1790,12 +1813,18 @@
                             // también está mudo y la guía visual sigue andando). Si no se pudo
                             // etiquetar el svgEl, encenderNota/apagarNota son no-op silenciosos.
                             try {
-                                Tone.Draw.schedule(() => encenderNota(note.svgEl), time);
+                                Tone.Draw.schedule(() => {
+                                    if (miSesion !== sesionReproduccion) return; // sesión vieja
+                                    encenderNota(note.svgEl);
+                                }, time);
                             } catch (err) {
                                 console.warn(`[reproduccion] Fallo al encender ${note.pitch} en t=${time.toFixed(3)}:`, err.message || err);
                             }
                             const apagadoId = Tone.Transport.schedule((offTime) => {
-                                Tone.Draw.schedule(() => apagarNota(note.svgEl), offTime);
+                                Tone.Draw.schedule(() => {
+                                    if (miSesion !== sesionReproduccion) return; // sesión vieja
+                                    apagarNota(note.svgEl);
+                                }, offTime);
                             }, (ticks + durationTicks) + "i");
                             transportEvents.push(apagadoId);
                         });
@@ -1855,6 +1884,7 @@
                         let startTicks = Math.round(startTime * Tone.Transport.PPQ);
                         Tone.Transport.schedule((time) => {
                             Tone.Draw.schedule(() => {
+                                if (miSesion !== sesionReproduccion) return; // sesión vieja
                                 if(rehearsalJustStarted) {
                                     rehearsalJustStarted = false; // Ignorar la primera pasada (inicio)
                                 } else {
@@ -1874,6 +1904,9 @@
                     let finalTicks = Math.round(totalBeats * Tone.Transport.PPQ);
                     Tone.Transport.schedule((time) => {
                         Tone.Draw.schedule(() => {
+                            // Sesión vieja: si esto dispara tarde (después de que el usuario ya
+                            // frenó a mano y arrancó de nuevo), NO puede pararle la sesión nueva.
+                            if (miSesion !== sesionReproduccion) return;
                             stopPlayback();
                         }, time);
                     }, finalTicks + "i");
@@ -1974,6 +2007,7 @@
                                 }
                             }
                             Tone.Draw.schedule(() => {
+                                if (miSesion !== sesionReproduccion) return; // sesión vieja
                                 // Primer pulso de un segmento que no es el inicial -- el compás
                                 // cambió acá, reconstruye el widget (cantidad y forma de luces)
                                 // en vivo, en el mismo callback y ANTES de buscar el dot, para
@@ -2026,8 +2060,18 @@
     }
 
     function stopPlayback() {
+        // Primera línea, a propósito: invalida de una cualquier callback en vuelo de la
+        // sesión que se está por parar (ver el comentario junto a sesionReproduccion) --
+        // antes de tocar ningún otro estado, para que nada de lo que sigue abajo pueda
+        // quedar pisado por un callback viejo que dispare después.
+        sesionReproduccion++;
+
         Tone.Transport.stop();
         Tone.Transport.cancel();
+        // Tone.Transport.stop() ya debería dejar la posición en 0 -- se fuerza explícito
+        // igual, sin asumirlo: costo cero, y descarta de raíz cualquier duda de que el
+        // próximo Play pudiera arrancar agendando ticks relativos a una posición vieja.
+        Tone.Transport.position = 0;
         stopSessionTimer();
         isPlaying = false;
         btnPlay.disabled = false;
@@ -2037,6 +2081,14 @@
         currentCursorIdx = 0;
         document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
         apagarTodasLasNotasIluminadas();
+
+        // events (la secuencia de audio ya armada) y secuenciaEjecucionResuelta (el
+        // mapeo compás-ejecución contra el cursor impreso) siguen siendo válidos en sí
+        // mismos -- son datos derivados de la partitura y el toggle Repeticiones, no de
+        // POR DÓNDE iba sonando. No hace falta invalidarlos para que el próximo Play
+        // arranque limpio: ya arranca desde currentCursorIdx=0 con el cursor reseteado
+        // arriba. Se deja events tal cual (recalcularlo de nuevo en cada Stop sería
+        // trabajo repetido sin ningún beneficio real).
 
         // El cursor vuelve al principio -- lo acompañamos con el scroll aunque el usuario
         // haya apagado el auto-scroll scrolleando durante la reproducción que acaba de parar.
