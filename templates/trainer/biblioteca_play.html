@@ -1424,7 +1424,13 @@
         metronomoPracticaLoop = new Tone.Loop((time) => {
             if (metronomoToggle.checked) {
                 const esAcento = practicaBeatCount % timeNumerator === 0;
-                clickSynth.triggerAttackRelease(esAcento ? "C3" : "G2", "16n", time);
+                // Mismo guard que el metrónomo de la reproducción pasiva -- clickSynth es
+                // monofónico, ver el comentario en startPlayback().
+                try {
+                    clickSynth.triggerAttackRelease(esAcento ? "C3" : "G2", "16n", time);
+                } catch (err) {
+                    console.warn(`[practica] Fallo al disparar click del metrónomo en t=${time.toFixed(3)}:`, err.message || err);
+                }
             }
             Tone.Draw.schedule(() => {
                 const beatNum = (practicaBeatCount % patronVisualLength) + 1;
@@ -1687,9 +1693,18 @@
                         const ticksAdelanto = Math.round(0.0625 * Tone.Transport.PPQ);
                         const ticksGrace = Math.max(0, ticks - ticksAdelanto);
                         const graceId = Tone.Transport.schedule((time) => {
+                            // Mismo dedup + red de seguridad que las notas principales de arriba --
+                            // este bloque quedó sin protección en el fix anterior (solo se cubrió
+                            // evt.notes, no evt.notesGrace).
+                            const alturasGraceDisparadas = new Set();
                             evt.notesGrace.forEach(note => {
-                                if(pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
-                                    AudioEngine.sampler.triggerAttackRelease(note.pitch, "32n", time);
+                                if(pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded && !alturasGraceDisparadas.has(note.pitch)) {
+                                    alturasGraceDisparadas.add(note.pitch);
+                                    try {
+                                        AudioEngine.sampler.triggerAttackRelease(note.pitch, "32n", time);
+                                    } catch (err) {
+                                        console.warn(`[reproduccion] Fallo al disparar grace ${note.pitch} en t=${time.toFixed(3)} (measureIndex=${evt.measureIndex}):`, err.message || err);
+                                    }
                                 }
                             });
                         }, ticksGrace + "i");
@@ -1757,8 +1772,21 @@
                         // arriba. isMuted sigue siendo el mute global del sitio (navbar), que se
                         // respeta además del toggle propio de esta página.
                         if (metronomoToggle.checked && !isMuted) {
-                            if (b % timeNumerator === 0) clickSynth.triggerAttackRelease("C3", "16n", time);
-                            else clickSynth.triggerAttackRelease("G2", "16n", time);
+                            // clickSynth es un Tone.MembraneSynth -- MONOFÓNICO (una sola voz,
+                            // clase base Monophonic de Tone.js), a diferencia del sampler de
+                            // piano (polifónico, una voz por altura). Un synth monofónico exige
+                            // que cada trigger llegue en tiempo estrictamente mayor al anterior
+                            // -- reusa el mismo oscilador/envelope siempre, no tiene pool de
+                            // voces donde acomodar un segundo ataque simultáneo. Esto es lo que
+                            // realmente tiraba "Start time must be strictly greater..." (stack
+                            // trace real: Monophonic.ts/Synth.ts, no el Sampler del piano) --
+                            // protegido igual con try/catch, causa exacta todavía sin confirmar.
+                            try {
+                                if (b % timeNumerator === 0) clickSynth.triggerAttackRelease("C3", "16n", time);
+                                else clickSynth.triggerAttackRelease("G2", "16n", time);
+                            } catch (err) {
+                                console.warn(`[reproduccion] Fallo al disparar click del metrónomo en t=${time.toFixed(3)} (b=${b}):`, err.message || err);
+                            }
                         }
                         Tone.Draw.schedule(() => {
                             let beatNum = (b % timeNumerator) + 1;
