@@ -409,9 +409,10 @@
     let baseBpm = 100;
     let isPlaying = false;
     let transportEvents = [];
-    let timeNumerator = 4; // cantidad real de PULSOS de conducción por compás (para el acento y el wraparound del contador) -- ver renderConductor
-    let beatUnitQuarters = 1.0; // cuántas negras dura un pulso -- 0.5 (corchea) en compases compuestos (6/8, 9/8, 12/8)
-    let patronVisualLength = 4; // cantidad de posiciones que dibuja/cicla el director -- 3 en compases compuestos (reusa el dibujo de 3/4, repetido tantas veces como grupos de 3 corcheas haya)
+    let timeNumerator = 4; // cantidad real de PULSOS de audio por compás (corcheas en compuesto, negras en simple) -- ver renderConductor
+    let beatUnitQuarters = 1.0; // cuántas negras dura un pulso de AUDIO -- 0.5 (corchea) en compases compuestos (6/8, 9/8, 12/8)
+    let patronVisualLength = 4; // cantidad de LUCES del director -- 2/3/4 en compuesto (6/8=2, 9/8=3, 12/8=4: un pulso de dirección real por cada grupo de 3 corcheas, reusando el dibujo de N/4 con N=numerator/3)
+    let pulsosPorGrupoVisual = 1; // cuántos pulsos de AUDIO forman UN pulso visual -- 3 en compuesto (un pulso de dirección = un grupo de 3 corcheas), 1 en simple (cada pulso de audio ES un pulso visual)
     let clickSynth = null;
     let currentCursorIdx = 0;
     let events = []; // Array global para loop calculations
@@ -525,19 +526,23 @@
     }
 
     function renderConductor(numerator, denominator) {
-        // Compases compuestos (6/8, 9/8, 12/8): pedido explícito -- se conducen repitiendo
-        // el MISMO patrón visual de 3/4 (abajo-derecha-arriba), una vez por cada grupo de 3
-        // corcheas del compás, marcando 1,2,3,1,2,3(,1,2,3...) -- no colapsando a un "tiempo
-        // grande" (negra con puntillo) por grupo, que daría solo 1,2,1,2 en 6/8. El pulso
-        // real de conducción es entonces la corchea (beatUnitQuarters=0.5) y el patrón
-        // visual cicla cada 3 posiciones (patronVisualLength), aunque haya 6/9/12 pulsos
-        // reales por compás (timeNumerator, usado para el acento del primer pulso y el
-        // wraparound del contador). denominator===8 y numerator múltiplo de 3 (y >3, para
-        // no confundir un genuino 3/8 simple) es la señal estándar de compás compuesto.
+        // Compases compuestos (6/8, 9/8, 12/8): patrón de dirección de orquesta REAL --
+        // un pulso visual por cada grupo de 3 corcheas (negra con puntillo), no uno por
+        // corchea suelta. 6/8 dirige en 2 (abajo-arriba), 9/8 en 3 (abajo-derecha-arriba,
+        // el mismo dibujo de 3/4), 12/8 en 4 (el mismo dibujo de 4/4) -- cada uno reusa el
+        // gesto de N/4 con N = numerator/3, que es exactamente cómo se dirige de verdad.
+        // El CLICK de audio sigue sonando una vez por corchea (beatUnitQuarters=0.5,
+        // timeNumerator=numerator sin dividir) -- eso ya andaba bien y no se toca acá.
+        // pulsosPorGrupoVisual (3 en compuesto, 1 en simple) es lo que separa la cadencia
+        // del click de la cadencia de la luz: un pulso visual solo avanza cada 3 pulsos de
+        // audio en compuesto, cada 1 en simple. denominator===8 y numerator múltiplo de 3
+        // (y >3, para no confundir un genuino 3/8 simple) es la señal estándar de compás
+        // compuesto.
         const esCompuesto = denominator === 8 && numerator % 3 === 0 && numerator > 3;
         beatUnitQuarters = esCompuesto ? 0.5 : 1.0;
         timeNumerator = numerator;
-        patronVisualLength = esCompuesto ? 3 : numerator;
+        pulsosPorGrupoVisual = esCompuesto ? 3 : 1;
+        patronVisualLength = esCompuesto ? (numerator / 3) : numerator;
 
         conductorWidget.innerHTML = '';
         if (patronVisualLength === 4) {
@@ -562,6 +567,19 @@
         div.className = `beat-dot ${posClass}`;
         div.id = `beat-${num}`;
         conductorWidget.appendChild(div);
+    }
+
+    // Compás realmente vigente en un measureIndex dado -- ActiveTimeSignature de OSMD ya
+    // hace el forward-fill (el compás que rige en ese measureIndex, heredado del último
+    // <time> explícito aunque este compás puntual no lo repita), mismo principio que ya usa
+    // el proyecto del lado de music21 en la trituradora/generación orquestal, solo que acá
+    // resuelto gratis por la propia librería de renderizado, sin ida y vuelta al backend.
+    // null si el measureIndex no existe o el sheet no está listo (defensivo, no debería
+    // pasar en el flujo normal).
+    function compasDeMedida(measureIndex) {
+        const sm = osmd && osmd.sheet && osmd.sheet.SourceMeasures ? osmd.sheet.SourceMeasures[measureIndex] : null;
+        const ts = sm ? sm.ActiveTimeSignature : null;
+        return ts ? { numerator: ts.Numerator, denominator: ts.Denominator } : null;
     }
 
     async function initOSMD() {
@@ -1430,6 +1448,7 @@
         }
 
         const siguiente = practicaSecuencia[practicaEventoIdx];
+        aplicarCompasSiCambio(siguiente.measureIndex); // BUG 2: cambio de compás a mitad de pieza
         currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, siguiente.pasoIdx);
         autoScrollHaciaCursor();
         practicaMotor = crearMotorMatching(siguiente.notasEsperadas);
@@ -1482,14 +1501,44 @@
 
     let ultimoClickTimePractica = -Infinity;
 
+    // Último compás (numerator/denominator) aplicado al widget/metrónomo de práctica --
+    // para detectar cuándo avanzarEventoPractica() entra a un compás con fórmula distinta
+    // y reconfigurar ahí mismo, sin esperar a reiniciar la práctica.
+    let ultimoCompasAplicadoPractica = null;
+
+    // Reconfigura el director + el intervalo del Tone.Loop del metrónomo de práctica si el
+    // compás vigente en measureIndex difiere del último aplicado. Se llama tanto al
+    // arrancar la práctica (measureIndex inicial, por si se retoma un proyecto a mitad de
+    // partitura) como en cada avanzarEventoPractica() (BUG 2: cambio de compás a mitad de
+    // pieza). metronomoPracticaLoop.interval se puede reasignar en caliente -- Tone.Loop lo
+    // toma en la próxima iteración, sin recrear el loop.
+    function aplicarCompasSiCambio(measureIndex) {
+        const compas = compasDeMedida(measureIndex);
+        if (!compas) return;
+        if (ultimoCompasAplicadoPractica && compas.numerator === ultimoCompasAplicadoPractica.numerator && compas.denominator === ultimoCompasAplicadoPractica.denominator) return;
+        ultimoCompasAplicadoPractica = compas;
+        renderConductor(compas.numerator, compas.denominator);
+        practicaBeatCount = 0;
+        if (metronomoPracticaLoop) {
+            metronomoPracticaLoop.interval = beatUnitQuarters === 0.5 ? "8n" : "4n";
+        }
+    }
+
     function iniciarMetronomoPractica() {
         initSynth();
         practicaBeatCount = 0;
         ultimoClickTimePractica = -Infinity;
+        ultimoCompasAplicadoPractica = { numerator: timeNumerator, denominator: beatUnitQuarters === 0.5 ? 8 : 4 };
+        aplicarCompasSiCambio(practicaSecuencia[0].measureIndex);
         Tone.Transport.bpm.value = baseBpm * parseFloat(tempoSelector.value);
         metronomoPracticaLoop = new Tone.Loop((time) => {
             if (metronomoToggle.checked) {
-                const esAcento = practicaBeatCount % timeNumerator === 0;
+                // Acento: pulso 1 del compás siempre, y en compuesto también el inicio del
+                // segundo grupo de 3 corcheas -- mismo criterio que la reproducción pasiva,
+                // ver el comentario en startPlayback().
+                const esInicioDeCompas = practicaBeatCount % timeNumerator === 0;
+                const esSegundoGrupoCompuesto = pulsosPorGrupoVisual > 1 && (practicaBeatCount % timeNumerator === pulsosPorGrupoVisual);
+                const esAcento = esInicioDeCompas || esSegundoGrupoCompuesto;
                 // Mismo guard que el metrónomo de la reproducción pasiva -- clickSynth es
                 // monofónico, ver el comentario en startPlayback().
                 if (time > ultimoClickTimePractica) {
@@ -1502,7 +1551,8 @@
                 }
             }
             Tone.Draw.schedule(() => {
-                const beatNum = (practicaBeatCount % patronVisualLength) + 1;
+                const pulsoVisual = Math.floor((practicaBeatCount % timeNumerator) / pulsosPorGrupoVisual);
+                const beatNum = pulsoVisual + 1;
                 document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
                 const dot = document.getElementById(`beat-${beatNum}`);
                 if (dot) dot.classList.add('active');
@@ -1829,12 +1879,40 @@
                     }, finalTicks + "i");
                 }
 
-                // 3. Programar Metrónomo explícitamente para que soporte Loop nativo de Tone.js
-                // b cuenta TIEMPOS de conducción (lo que usan el acento y el punto del director),
-                // no negras -- en compás compuesto un tiempo dura 1.5 negras (beatUnitQuarters),
-                // así que la posición real en negras (para los ticks) es b * beatUnitQuarters,
-                // no b directamente. totalBeats sigue siendo la duración total en negras.
+                // 3. Programar Metrónomo -- por SEGMENTOS de compás constante, no un solo
+                // rango con beatUnitQuarters/timeNumerator fijos para toda la pieza, para
+                // poder seguir un cambio de fórmula de compás a mitad de la partitura.
                 //
+                // segmentosMetronomo: recorre `events` (ya en orden temporal, con
+                // repeticiones expandidas si el toggle Repeticiones está ON) detectando
+                // cada vez que measureIndex entra a un compás cuyo ActiveTimeSignature (ver
+                // compasDeMedida(), forward-fill real de OSMD) difiere del vigente -- ahí
+                // arranca un nuevo segmento, anclado a ese evento.time (ya una posición
+                // absoluta real, sea cual sea el camino activo). El primer segmento no
+                // necesita re-renderizar el director: ya se pintó una vez al cargar la
+                // partitura, con el mismo compás.
+                const segmentosMetronomo = [];
+                {
+                    let measureIndexAnterior = null;
+                    let compasVigenteSegmento = null;
+                    events.forEach(evt => {
+                        if (evt.measureIndex === measureIndexAnterior) return;
+                        measureIndexAnterior = evt.measureIndex;
+                        const compas = compasDeMedida(evt.measureIndex);
+                        if (!compas) return; // defensivo -- no debería pasar en el flujo normal
+                        if (compasVigenteSegmento && compas.numerator === compasVigenteSegmento.numerator && compas.denominator === compasVigenteSegmento.denominator) return;
+                        compasVigenteSegmento = compas;
+                        segmentosMetronomo.push({ tiempoInicio: evt.time, numerator: compas.numerator, denominator: compas.denominator });
+                    });
+                }
+                if (segmentosMetronomo.length === 0) {
+                    // Defensivo: si por algún motivo no se pudo derivar ningún compás
+                    // (ActiveTimeSignature no disponible), se sigue con las globales ya
+                    // fijadas por el render inicial -- mismo comportamiento que antes de
+                    // este cambio, nunca una pieza que deja de sonar por esto.
+                    segmentosMetronomo.push({ tiempoInicio: 0, numerator: timeNumerator, denominator: beatUnitQuarters === 0.5 ? 8 : 4 });
+                }
+
                 // ultimoClickTime: clickSynth es un Tone.MembraneSynth -- MONOFÓNICO (una sola
                 // voz, clase base Monophonic de Tone.js), a diferencia del sampler de piano
                 // (polifónico, una voz por altura). Un synth monofónico exige que cada trigger
@@ -1844,44 +1922,81 @@
                 // cortar (el "golpe con reverberación al fondo" reportado). Este guard evita el
                 // intento por completo si el tiempo no avanzó lo suficiente desde el último
                 // click que sí se disparó, así nunca se le pide a Tone.js algo condenado a
-                // fallar. El try/catch se deja igual, como red de seguridad final.
+                // fallar. El try/catch se deja igual, como red de seguridad final. Compartido
+                // entre TODOS los segmentos (no se reinicia por segmento): lo que importa es
+                // el tiempo absoluto real del synth, no la posición dentro de un compás.
                 let ultimoClickTime = -Infinity;
-                for (let b = 0, posicionEnNegras = 0; posicionEnNegras < totalBeats; b++, posicionEnNegras += beatUnitQuarters) {
-                    let ticks = Math.round(posicionEnNegras * Tone.Transport.PPQ);
-                    let clickId = Tone.Transport.schedule((time) => {
-                        // metronomoToggle.checked también se lee en vivo -- mismo motivo que pianoToggle
-                        // arriba. isMuted sigue siendo el mute global del sitio (navbar), que se
-                        // respeta además del toggle propio de esta página.
-                        if (metronomoToggle.checked && !isMuted) {
-                            // Guard silencioso -- saltear un click cuyo tiempo no avanzó lo
-                            // suficiente es esperable en pasajes densos (varios pulsos
-                            // agendados muy cerca) y no indica un problema real; loguearlo
-                            // ahí generaba mucho ruido en consola sin aportar nada nuevo una
-                            // vez confirmado que el audio suena bien.
-                            if (time > ultimoClickTime) {
-                                ultimoClickTime = time;
-                                try {
-                                    if (b % timeNumerator === 0) clickSynth.triggerAttackRelease("C3", "16n", time);
-                                    else clickSynth.triggerAttackRelease("G2", "16n", time);
-                                } catch (err) {
-                                    console.warn(`[reproduccion] Fallo al disparar click del metrónomo en t=${time.toFixed(3)} (b=${b}):`, err.message || err);
+
+                segmentosMetronomo.forEach((segmento, idxSegmento) => {
+                    // Misma derivación que renderConductor(), calculada acá aparte (sin
+                    // mutar las globales todavía) para poder agendar los ticks de ESTE
+                    // segmento con sus propios valores mientras el segmento anterior/
+                    // siguiente puede tener otros distintos.
+                    const esCompuestoSegmento = segmento.denominator === 8 && segmento.numerator % 3 === 0 && segmento.numerator > 3;
+                    const beatUnitQuartersSegmento = esCompuestoSegmento ? 0.5 : 1.0;
+                    const timeNumeratorSegmento = segmento.numerator;
+                    const pulsosPorGrupoVisualSegmento = esCompuestoSegmento ? 3 : 1;
+
+                    const tiempoFinSegmento = (idxSegmento + 1 < segmentosMetronomo.length)
+                        ? segmentosMetronomo[idxSegmento + 1].tiempoInicio
+                        : totalBeats;
+
+                    // b se reinicia en CADA segmento (no es un índice global de toda la
+                    // pieza) -- todos los compases DENTRO de un segmento comparten el mismo
+                    // timeNumeratorSegmento, así que b % timeNumeratorSegmento alcanza para
+                    // que el acento caiga siempre en el primer pulso de cada compás.
+                    for (let b = 0, posicionEnNegras = segmento.tiempoInicio; posicionEnNegras < tiempoFinSegmento; b++, posicionEnNegras += beatUnitQuartersSegmento) {
+                        let ticks = Math.round(posicionEnNegras * Tone.Transport.PPQ);
+                        let clickId = Tone.Transport.schedule((time) => {
+                            // metronomoToggle.checked también se lee en vivo -- mismo motivo que pianoToggle
+                            // arriba. isMuted sigue siendo el mute global del sitio (navbar), que se
+                            // respeta además del toggle propio de esta página.
+                            if (metronomoToggle.checked && !isMuted) {
+                                // Guard silencioso -- saltear un click cuyo tiempo no avanzó lo
+                                // suficiente es esperable en pasajes densos (varios pulsos
+                                // agendados muy cerca) y no indica un problema real; loguearlo
+                                // ahí generaba mucho ruido en consola sin aportar nada nuevo una
+                                // vez confirmado que el audio suena bien.
+                                if (time > ultimoClickTime) {
+                                    ultimoClickTime = time;
+                                    // Acento: pulso 1 del compás siempre, y en compuesto TAMBIÉN
+                                    // el inicio del segundo grupo de 3 corcheas (el pulso "4" de
+                                    // 6/8) -- dos golpes fuertes reales, coincidiendo con las dos
+                                    // luces del director, no uno solo.
+                                    const esInicioDeCompas = b % timeNumeratorSegmento === 0;
+                                    const esSegundoGrupoCompuesto = esCompuestoSegmento && (b % timeNumeratorSegmento === pulsosPorGrupoVisualSegmento);
+                                    const esAcento = esInicioDeCompas || esSegundoGrupoCompuesto;
+                                    try {
+                                        clickSynth.triggerAttackRelease(esAcento ? "C3" : "G2", "16n", time);
+                                    } catch (err) {
+                                        console.warn(`[reproduccion] Fallo al disparar click del metrónomo en t=${time.toFixed(3)} (b=${b}):`, err.message || err);
+                                    }
                                 }
                             }
-                        }
-                        Tone.Draw.schedule(() => {
-                            let beatNum = (b % timeNumerator) + 1;
-                            document.getElementById('dbg-beat').innerText = beatNum;
-                            
-                            document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
-                            let dot = document.getElementById(`beat-${beatNum}`);
-                            if(dot) dot.classList.add('active');
-                            
-                            conductorWidget.classList.add('beat-pulse');
-                            setTimeout(() => conductorWidget.classList.remove('beat-pulse'), 150);
-                        }, time);
-                    }, ticks + "i");
-                    transportEvents.push(clickId);
-                }
+                            Tone.Draw.schedule(() => {
+                                // Primer pulso de un segmento que no es el inicial -- el compás
+                                // cambió acá, reconstruye el widget (cantidad y forma de luces)
+                                // en vivo, en el mismo callback y ANTES de buscar el dot, para
+                                // que ya exista en el DOM cuando se lo busca por id más abajo.
+                                if (b === 0 && idxSegmento > 0) {
+                                    renderConductor(segmento.numerator, segmento.denominator);
+                                }
+
+                                const pulsoVisual = Math.floor((b % timeNumeratorSegmento) / pulsosPorGrupoVisualSegmento);
+                                const beatNum = pulsoVisual + 1;
+                                document.getElementById('dbg-beat').innerText = beatNum;
+
+                                document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
+                                let dot = document.getElementById(`beat-${beatNum}`);
+                                if(dot) dot.classList.add('active');
+
+                                conductorWidget.classList.add('beat-pulse');
+                                setTimeout(() => conductorWidget.classList.remove('beat-pulse'), 150);
+                            }, time);
+                        }, ticks + "i");
+                        transportEvents.push(clickId);
+                    }
+                });
 
                 Tone.Transport.start("+0.4");
                 isPlaying = true;
