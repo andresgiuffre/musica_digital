@@ -1,8 +1,10 @@
 import json
 
 import music21
-from django.test import TestCase
+from django.contrib.auth.models import User
+from django.test import Client, TestCase
 
+from trainer.models import Game, MusicalProject, Playlist, SheetMusic
 from trainer.views import _eventos_ejecucion
 
 
@@ -273,3 +275,111 @@ class EventosEjecucionTests(TestCase):
         for d in duraciones:
             self.assertIsInstance(d, float)
             self.assertAlmostEqual(d, 1 / 3, places=5)
+
+
+class CSRFProtectionTests(TestCase):
+    """
+    Confirma que las 14 vistas a las que se les sacó @csrf_exempt en la auditoría de
+    seguridad (ver sesión de la auditoría) realmente exigen el token -- y que, con el
+    token puesto (como ya lo manda el frontend real en cada template), la request llega
+    a la vista en vez de quedar bloqueada por el middleware.
+
+    No valida la lógica de negocio de cada vista -- varias van a devolver 400/404/409
+    con estos datos mínimos/IDs inexistentes a propósito, y eso es correcto: el único
+    punto de este test es distinguir "Django bloqueó esto por CSRF antes de llegar al
+    código de la vista" (síntoma inconfundible: 403 + HTML, la respuesta de
+    CsrfViewMiddleware, nunca un JsonResponse) de "la vista lo procesó y devolvió lo
+    suyo" (JsonResponse, sea cual sea el status).
+
+    Las 2 vistas que quedaron con @csrf_exempt a propósito (log_study_session,
+    api_update_project_state -- llamadas solo vía navigator.sendBeacon(), que no puede
+    mandar headers) no están acá: no hay nada de CSRF que probarles, siguen exentas
+    deliberadamente.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='csrf_test_user', password='testpass123')
+        cls.game = Game.objects.create(slug='csrf-test-game', name='CSRF Test', description='x')
+        cls.sheet = SheetMusic.objects.create(title='CSRF Test Sheet')
+        cls.project = MusicalProject.objects.create(user=cls.user, sheet_music=cls.sheet)
+        cls.playlist = Playlist.objects.create(user=cls.user, name='CSRF Test Playlist')
+
+    def setUp(self):
+        self.client = Client(enforce_csrf_checks=True)
+        self.client.login(username='csrf_test_user', password='testpass123')
+        # secure=True en TODAS las requests de esta clase: con SECURE_SSL_REDIRECT=True
+        # (production_settings, activo en test porque DEBUG es False acá también), una
+        # request no marcada como segura rebota con un 301 antes de llegar a la vista
+        # -- simula lo que realmente pasa en producción detrás del proxy de
+        # PythonAnywiere (ver SECURE_PROXY_SSL_HEADER en settings.py).
+        #
+        # El token de CSRF se rota al iniciar sesión -- pedirlo ANTES del login daría
+        # un token ya inválido para esta sesión. /biblioteca/ ya renderiza
+        # {{ csrf_token }} (biblioteca_list.html), así que esta request deja la cookie
+        # csrftoken puesta y vigente para el resto del test.
+        self.client.get('/biblioteca/', secure=True)
+        self.token = self.client.cookies['csrftoken'].value
+
+    def _endpoints(self):
+        from django.urls import reverse
+        return [
+            ('toggle_favorite', reverse('toggle_favorite', args=[self.sheet.id]), {}),
+            ('add_sheet_marker', reverse('add_sheet_marker', args=[self.sheet.id]), {'measure': 1, 'text': 'nota'}),
+            ('add_sheet_note', reverse('add_sheet_note', args=[self.sheet.id]), {'text': 'nota'}),
+            ('save_rehearsal_config', reverse('save_rehearsal_config', args=[self.sheet.id]), {}),
+            ('log_rehearsal_session', reverse('log_rehearsal_session', args=[self.sheet.id]), {}),
+            ('playlist_add_sheet', reverse('playlist_add_sheet'), {'playlist_id': self.playlist.id, 'score_id': self.sheet.id}),
+            ('api_create_project', reverse('api_create_project', args=[self.sheet.id]), {}),
+            ('api_update_project_section', reverse('api_update_project_section', args=[self.project.id]), {}),
+            ('record_attempt', reverse('record_attempt', args=[self.game.slug]), {
+                'presented_question': 'x', 'guessed_answer': 'y', 'is_correct': True, 'response_time_ms': 100,
+            }),
+            ('api_log_midi_game', reverse('api_log_midi_game'), {}),
+            # IDs inexistentes a propósito -- alcanza para pasar el CSRF y llegar a la
+            # vista, que va a responder 404/409 por su cuenta (ver docstring).
+            ('orquestador_analizar_confirmado', reverse('orquestador_analizar_confirmado', args=[999999]), {}),
+            ('orquestador_generar_link', reverse('orquestador_generar_link', args=[999999]), {}),
+            ('orquestador_revocar_link', reverse('orquestador_revocar_link', args=[999999]), {}),
+            ('orquestacion_ejercicio_generar', reverse('orquestacion_ejercicio_generar', args=[999999]), {'asignaciones': {}}),
+        ]
+
+    def _es_rechazo_csrf(self, response):
+        return response.status_code == 403 and 'application/json' not in (response.get('Content-Type') or '')
+
+    def test_sin_token_django_rechaza(self):
+        for nombre, url, body in self._endpoints():
+            with self.subTest(vista=nombre):
+                response = self.client.post(
+                    url, data=json.dumps(body), content_type='application/json',
+                    secure=True, HTTP_REFERER='https://testserver/',
+                )
+                self.assertTrue(
+                    self._es_rechazo_csrf(response),
+                    f"{nombre}: se esperaba que Django lo bloqueara por CSRF (403 + HTML) sin el "
+                    f"token, pero dio status={response.status_code} Content-Type={response.get('Content-Type')!r} "
+                    f"-- si ya no tiene @csrf_exempt esto es un regreso real, revisar.",
+                )
+
+    def test_con_token_pasa_a_la_vista(self):
+        for nombre, url, body in self._endpoints():
+            with self.subTest(vista=nombre):
+                response = self.client.post(
+                    url, data=json.dumps(body), content_type='application/json',
+                    HTTP_X_CSRFTOKEN=self.token, secure=True,
+                    # Con SECURE_SSL_REDIRECT/HTTPS activo, Django exige ADEMÁS del token
+                    # que el Referer esté presente y coincida con el origen -- protección
+                    # real de Django para requests seguras (no aplica sobre HTTP plano),
+                    # que un navegador real ya manda solo en cualquier fetch() same-origin.
+                    # Sin este header, el test client (que no lo manda por su cuenta) daba
+                    # "Referer checking failed - no Referer" -- no era un problema del fix,
+                    # era el test sin terminar de simular una request real.
+                    HTTP_REFERER='https://testserver/',
+                )
+                self.assertFalse(
+                    self._es_rechazo_csrf(response),
+                    f"{nombre}: con el token puesto (igual que lo manda el frontend real) "
+                    f"igual lo bloqueó el CSRF -- status={response.status_code} "
+                    f"Content-Type={response.get('Content-Type')!r}. El fetch() correspondiente "
+                    f"se rompería en producción.",
+                )

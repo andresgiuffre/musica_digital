@@ -422,7 +422,7 @@
             
             fetch('{% url "record_attempt" game.slug %}', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
                 body: JSON.stringify({
                     presented_question: presented,
                     guessed_answer: guessedName,

@@ -406,7 +406,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     mostrarModalCarga();
                     return enviarYProcesar(fetch(`/api/orquestador/analizar/${data.analysis_id}/confirmar/`, {
                         method: 'POST',
-                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': '{{ csrf_token }}' },
                     }));
                 }
 
