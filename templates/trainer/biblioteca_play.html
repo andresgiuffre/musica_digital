@@ -1069,6 +1069,56 @@
         return { impreso: A, ejecucion: B, discrepancias, detalle };
     };
 
+    // ==================== Inspector de eventos (DIAGNÓSTICO, temporal) ====================
+    // A diferencia de debugCompararSecuencias() (que compara dos caminos entre sí y solo
+    // tiene sentido en una pieza SIN repetición), este inspecciona el camino REALMENTE
+    // ACTIVO ahora mismo -- obtenerEventos(), el mismo que usaría startPlayback() -- en
+    // busca de anomalías sueltas: duraciones de nota sospechosamente largas (indicio de un
+    // bug de ligadura/timing arrastrando una duración que no corresponde), alturas
+    // duplicadas dentro de un mismo evento que hayan sobrevivido al dedup, y pasos sin
+    // ninguna nota real (silencios inesperados). Sirve para pieza CON o SIN repetición por
+    // igual, a diferencia del comparador. Se invoca a mano: window.debugInspeccionarEventos().
+    window.debugInspeccionarEventos = function (umbralDuracionSospechosa = 6) {
+        const eventos = obtenerEventos();
+        console.log(`[inspector] Camino activo: ${caminoActivo}. Total eventos: ${eventos.length}.`);
+
+        const totalNotas = eventos.reduce((acc, e) => acc + e.notes.length, 0);
+        console.log(`[inspector] Total notas a disparar: ${totalNotas}.`);
+
+        const duracionesLargas = [];
+        eventos.forEach((e, idx) => {
+            e.notes.forEach(n => {
+                if (n.duracionBeats > umbralDuracionSospechosa) {
+                    duracionesLargas.push({ idx, time: e.time, measureIndex: e.measureIndex, pitch: n.pitch, duracionBeats: n.duracionBeats });
+                }
+            });
+        });
+        console.log(`[inspector] Notas con duración > ${umbralDuracionSospechosa} beats (${duracionesLargas.length}):`, duracionesLargas);
+
+        const eventosVacios = eventos.filter(e => e.notes.length === 0 && (!e.notesGrace || e.notesGrace.length === 0));
+        console.log(`[inspector] Eventos sin ninguna nota (${eventosVacios.length}):`, eventosVacios.map(e => ({ idx: eventos.indexOf(e), time: e.time, measureIndex: e.measureIndex })));
+
+        const conAlturaDuplicada = [];
+        eventos.forEach((e, idx) => {
+            const vistas = new Set();
+            e.notes.forEach(n => {
+                if (vistas.has(n.pitch)) conAlturaDuplicada.push({ idx, time: e.time, measureIndex: e.measureIndex, pitch: n.pitch });
+                vistas.add(n.pitch);
+            });
+        });
+        console.log(`[inspector] Alturas duplicadas dentro de un mismo evento, todavía sin dedupear (${conAlturaDuplicada.length}):`, conAlturaDuplicada);
+
+        // Notas simultáneas por evento -- un pico muy alto (ej. >6-8) en un pasaje que no
+        // debería tener tantas voces a la vez es indicio de eventos que en los hechos son
+        // DOS pasos distintos colapsados en uno (measureIndex/pasoIdx mal resuelto).
+        const porCantidadDeNotas = eventos.map((e, idx) => ({ idx, time: e.time, measureIndex: e.measureIndex, cantidad: e.notes.length }))
+            .sort((a, b) => b.cantidad - a.cantidad)
+            .slice(0, 10);
+        console.log('[inspector] Los 10 eventos con más notas simultáneas:', porCantidadDeNotas);
+
+        return { eventos, duracionesLargas, eventosVacios, conAlturaDuplicada, porCantidadDeNotas };
+    };
+
     // Notas que se encienden al sonar (reproducción pasiva) -- mismo mecanismo que el
     // acierto del modo práctica (svgEl.style.filter, sin re-render), pero transitorio: se
     // prende al sonar y se apaga solo al terminar la duración real de la nota, en vez de
