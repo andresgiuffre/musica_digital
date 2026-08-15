@@ -888,11 +888,24 @@
                 pasoIdxImpreso: paso.pasoIdx,
                 measureIndex: paso.measureIndex,
                 maxDuration: 0, // se completa abajo, a partir del offsetGlobal del próximo evento
+                // OsmdUtils.pitchANombre(n.ps) en vez de n.pitch -- n.pitch es el deletreo de
+                // music21 (nameWithOctave), que usa GUIÓN para bemol ("B-3" = Si bemol 3, no
+                // "B menos 3"). Tone.js no entiende esa notación: su parser de nombres de nota
+                // espera "Bb3"/dígito de octava sin signo, así que "B-3" se interpreta como la
+                // nota B con octava "-3" (negativa) -- ni tira error, simplemente no s(u)ena, o
+                // suena con una frecuencia/pitch-shift absurdo (el "ruido con reverberación
+                // grande, como un golpe al fondo" reportado: el sampler estirando un buffer a
+                // una octava disparatada). Causa real confirmada: p.ps de music21 usa la MISMA
+                // convención MIDI que ya usa pitchANombre (C4=60) -- así que reconstruir el
+                // nombre desde ps, en vez de confiar en el deletreo de music21, da exactamente
+                // el mismo nombre (siempre con sostenidos) que YA usa sin problemas el camino
+                // impreso (OsmdUtils.recorrerCursorOsmd también arma sus nombres con
+                // pitchANombre) -- por eso el camino impreso nunca mostró este bug.
                 notes: notasAudibles.map(n => {
                     const impresa = candidatas.find(c => Math.abs(c.ps - n.ps) < 0.01);
-                    return { pitch: n.pitch, duracionBeats: n.duracion_ql, logicalNote: impresa ? impresa.logicalNote : null };
+                    return { pitch: OsmdUtils.pitchANombre(n.ps), duracionBeats: n.duracion_ql, logicalNote: impresa ? impresa.logicalNote : null };
                 }),
-                notesGrace: notasGrace.map(n => ({ pitch: n.pitch }))
+                notesGrace: notasGrace.map(n => ({ pitch: OsmdUtils.pitchANombre(n.ps) }))
             });
         });
 
