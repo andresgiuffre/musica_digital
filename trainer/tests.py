@@ -148,6 +148,31 @@ class EventosEjecucionTests(TestCase):
         pitches = [e['pitch'] for e in eventos]
         self.assertEqual(pitches, ['A4'])
 
+    def test_altura_duplicada_dentro_del_mismo_acorde_se_descarta(self):
+        """
+        Caso real de producción: un Chord de music21 puede traer la MISMA altura escrita
+        dos veces (doblado de octava/unísono dentro de un mismo acorde -- notación real de
+        piano). music21 no lo deduplica solo (confirmado: Chord(['C4','E4','G4','C4']).pitches
+        trae las dos C4). Sin filtrar esto, el frontend terminaba disparando la misma nota
+        dos veces en el mismo instante exacto -- Tone.js tira "Start time must be strictly
+        greater than previous start time" en el segundo trigger, matando ese trigger (la
+        nota no suena ni se ilumina).
+        """
+        s = music21.stream.Score()
+        part = music21.stream.Part()
+        m = music21.stream.Measure(number=1)
+        c = music21.chord.Chord(['C4', 'E4', 'G4', 'C4'])
+        c.duration.quarterLength = 4.0
+        m.append(c)
+        part.append(m)
+        s.insert(0, part)
+
+        eventos = _eventos_ejecucion(s)
+
+        self.assertEqual(len(eventos), 3)
+        pitches = sorted(e['pitch'] for e in eventos)
+        self.assertEqual(pitches, ['C4', 'E4', 'G4'])
+
     def test_offset_global_no_se_infla_con_ligadura_simultanea_a_notas_cortas(self):
         """
         Caso real de producción: una mano con una nota larga ligada entre compases,
