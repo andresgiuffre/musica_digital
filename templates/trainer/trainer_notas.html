@@ -265,7 +265,7 @@
             let presentedFull = currentNoteLetter + (currentAccidental!=='n'?currentAccidental:'');
             fetch('{% url "record_attempt" game.slug %}', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
                 body: JSON.stringify({
                     presented_question: presentedFull,
                     guessed_answer: guessedFullName,

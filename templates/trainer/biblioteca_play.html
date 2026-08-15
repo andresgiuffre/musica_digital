@@ -2076,7 +2076,7 @@
         fetch(`/api/add_sheet_marker/{{ sheet.id }}/`, {
             method: 'POST',
             body: JSON.stringify({ measure: measure, text: text }),
-            headers: {'Content-Type': 'application/json'}
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
         }).then(res => res.json()).then(data => {
             if(data.status === 'success') location.reload();
         });
@@ -2089,7 +2089,7 @@
         fetch(`/api/add_sheet_note/{{ sheet.id }}/`, {
             method: 'POST',
             body: JSON.stringify({ text: text }),
-            headers: {'Content-Type': 'application/json'}
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
         }).then(res => res.json()).then(data => {
             if(data.status === 'success') location.reload();
         });
@@ -2102,7 +2102,7 @@
         fetch('/api/playlist_add_sheet/', {
             method: 'POST',
             body: JSON.stringify({ playlist_id: plId, score_id: {{ sheet.id }} }),
-            headers: {'Content-Type': 'application/json'}
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
         }).then(res => res.json()).then(data => {
             if(data.status === 'success') alert('Añadido exitosamente!');
             else alert('Error: ' + data.message);
@@ -2139,7 +2139,7 @@
         fetch('/api/save_rehearsal_config/{{ sheet.id }}/', {
             method: 'POST',
             body: JSON.stringify(payload),
-            headers: {'Content-Type': 'application/json'}
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
         }).then(res => res.json()).then(data => {
             if(data.status === 'success') {
                 alert('Configuración guardada!');
@@ -2219,7 +2219,7 @@
         fetch('/api/log_rehearsal_session/{{ sheet.id }}/', {
             method: 'POST',
             body: JSON.stringify(payload),
-            headers: {'Content-Type': 'application/json'}
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
         });
         
         // Reset UI

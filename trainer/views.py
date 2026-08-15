@@ -1424,7 +1424,6 @@ def orquestador_analizar(request):
     })
 
 
-@csrf_exempt
 @login_required
 def orquestador_analizar_confirmado(request, analysis_id):
     """
@@ -1590,7 +1589,6 @@ def orquestador_historial_detalle(request, analysis_id):
     return render(request, 'trainer/orquestador_historial_detalle.html', {'analysis': analysis})
 
 
-@csrf_exempt
 @login_required
 def orquestador_generar_link(request, analysis_id):
     from .models import ScoreAnalysis
@@ -1606,7 +1604,6 @@ def orquestador_generar_link(request, analysis_id):
     return JsonResponse({'status': 'success', 'url': url_publica})
 
 
-@csrf_exempt
 @login_required
 def orquestador_revocar_link(request, analysis_id):
     from .models import ScoreAnalysis
@@ -1998,7 +1995,6 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
     return exporter.parse().decode('utf-8')
 
 
-@csrf_exempt
 @login_required
 def orquestacion_ejercicio_generar(request, fragmento_id):
     """
@@ -2108,7 +2104,6 @@ def biblioteca_list(request):
     return render(request, 'trainer/biblioteca_list.html', context)
 
 @login_required
-@csrf_exempt
 def toggle_favorite(request, score_id):
     if request.method == 'POST':
         score = get_object_or_404(SheetMusic, id=score_id)
@@ -2120,6 +2115,15 @@ def toggle_favorite(request, score_id):
     return JsonResponse({'error': 'Invalid method'}, status=400)
 
 @login_required
+# @csrf_exempt deliberado, NO un descuido: se llama exclusivamente vía
+# navigator.sendBeacon() en el handler de beforeunload de biblioteca_play.html, que por
+# diseño del navegador no permite mandar headers custom (no hay forma de adjuntar
+# X-CSRFToken a un sendBeacon). Impacto de un CSRF forjado acá es bajo -- la vista ya
+# filtra user=request.user, así que lo peor que logra un atacante es loguear una
+# sesión de estudio falsa a nombre de la víctima; no hay alcance a datos de otro
+# usuario ni gasto de crédito. Decisión tomada en la auditoría de seguridad de la
+# sesión, no reabrir sin revisar de nuevo el resto de las vistas @csrf_exempt del
+# archivo (todas las demás SÍ perdieron el exempt).
 @csrf_exempt
 def log_study_session(request):
     if request.method == 'POST':
@@ -2490,7 +2494,6 @@ def biblioteca_secuencia_ejecucion(request, score_id):
 
 
 @login_required
-@csrf_exempt
 def record_attempt(request, game_slug):
     if request.method == 'POST':
         try:
@@ -2578,7 +2581,6 @@ def record_attempt(request, game_slug):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     return JsonResponse({'status': 'error', 'message': 'Invalid method'}, status=405)
 
-@csrf_exempt
 @login_required
 def add_sheet_marker(request, score_id):
     if request.method == 'POST':
@@ -2600,7 +2602,6 @@ def add_sheet_marker(request, score_id):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
 
-@csrf_exempt
 @login_required
 def add_sheet_note(request, score_id):
     if request.method == 'POST':
@@ -2632,7 +2633,6 @@ def playlists_list(request):
     playlists = Playlist.objects.filter(user=request.user)
     return render(request, 'trainer/playlists_list.html', {'playlists': playlists})
 
-@csrf_exempt
 @login_required
 def playlist_add_sheet(request):
     if request.method == 'POST':
@@ -2653,7 +2653,6 @@ def playlist_add_sheet(request):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
 
-@csrf_exempt
 @login_required
 def save_rehearsal_config(request, score_id):
     if request.method == 'POST':
@@ -2676,7 +2675,6 @@ def save_rehearsal_config(request, score_id):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     return JsonResponse({'status': 'error'}, status=400)
 
-@csrf_exempt
 @login_required
 def log_rehearsal_session(request, score_id):
     if request.method == 'POST':
@@ -2712,7 +2710,6 @@ def proyecto_detail(request, project_id):
     proyecto = get_object_or_404(MusicalProject, id=project_id, user=request.user)
     return render(request, 'trainer/proyecto_detail.html', {'proyecto': proyecto})
 
-@csrf_exempt
 @login_required
 def api_create_project(request, score_id):
     if request.method == 'POST':
@@ -2729,6 +2726,14 @@ def api_create_project(request, score_id):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     return JsonResponse({'status': 'error'}, status=400)
 
+# @csrf_exempt deliberado, NO un descuido: se llama exclusivamente vía
+# navigator.sendBeacon() en el handler de beforeunload de biblioteca_play.html, que por
+# diseño del navegador no permite mandar headers custom (no hay forma de adjuntar
+# X-CSRFToken a un sendBeacon). Impacto de un CSRF forjado acá es bajo -- la vista ya
+# filtra user=request.user (get_object_or_404 más abajo), así que lo peor que logra un
+# atacante es pisar el last_measure/last_tempo del propio proyecto de la víctima; no
+# hay alcance a datos de otro usuario ni gasto de crédito. Mismo criterio que
+# log_study_session -- ver el comentario ahí para la decisión completa.
 @csrf_exempt
 @login_required
 def api_update_project_state(request, project_id):
@@ -2747,7 +2752,6 @@ def api_update_project_state(request, project_id):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     return JsonResponse({'status': 'error'}, status=400)
 
-@csrf_exempt
 @login_required
 def api_update_project_section(request, project_id):
     if request.method == 'POST':
@@ -2776,7 +2780,6 @@ def midi_trainer_hub(request):
 def midi_game_chords(request):
     return render(request, 'trainer/midi_game_chords.html')
 
-@csrf_exempt
 @login_required
 def api_log_midi_game(request):
     if request.method == 'POST':

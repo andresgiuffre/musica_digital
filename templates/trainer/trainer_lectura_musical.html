@@ -476,7 +476,7 @@
                         stopPlayback();
                         fetch('/api/record_attempt/lectura-musical/', {
                             method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
+                            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
                             body: JSON.stringify({
                                 presented_question: 'lectura',
                                 guessed_answer: 'completada',
