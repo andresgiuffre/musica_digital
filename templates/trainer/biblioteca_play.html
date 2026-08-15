@@ -1853,6 +1853,11 @@
                         // arriba. isMuted sigue siendo el mute global del sitio (navbar), que se
                         // respeta además del toggle propio de esta página.
                         if (metronomoToggle.checked && !isMuted) {
+                            // Guard silencioso -- saltear un click cuyo tiempo no avanzó lo
+                            // suficiente es esperable en pasajes densos (varios pulsos
+                            // agendados muy cerca) y no indica un problema real; loguearlo
+                            // ahí generaba mucho ruido en consola sin aportar nada nuevo una
+                            // vez confirmado que el audio suena bien.
                             if (time > ultimoClickTime) {
                                 ultimoClickTime = time;
                                 try {
@@ -1861,8 +1866,6 @@
                                 } catch (err) {
                                     console.warn(`[reproduccion] Fallo al disparar click del metrónomo en t=${time.toFixed(3)} (b=${b}):`, err.message || err);
                                 }
-                            } else {
-                                console.warn(`[reproduccion] Click del metrónomo salteado (b=${b}, t=${time.toFixed(3)} no mayor al último t=${ultimoClickTime.toFixed(3)}) -- se evita el intento, causa todavía sin confirmar.`);
                             }
                         }
                         Tone.Draw.schedule(() => {
