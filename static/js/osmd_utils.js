@@ -103,8 +103,16 @@ window.OsmdUtils = (function () {
      * recorrerCursorOsmd sirve tal cual) buscando su elemento SVG real. Muta in-place y no
      * devuelve nada -- las entradas que no encuentran su SVG simplemente no reciben .svgEl.
      * Promovido desde orquestacion_ejercicio.html (etiquetarNotas), con una diferencia real:
-     * usa un Map<logicalNote, entry> en vez de notas.find() dentro del recorrido, O(n) en
+     * usa un Map<logicalNote, entry[]> en vez de notas.find() dentro del recorrido, O(n) en
      * vez de O(n²) sobre notas × elementos gráficos.
+     *
+     * Map<logicalNote, ARRAY de entries>, no un solo entry -- con la secuencia de EJECUCIÓN
+     * (repeticiones expandidas), la MISMA nota impresa (mismo objeto logicalNote) puede
+     * aparecer en `notas` más de una vez: una entrada por cada pasada de la repetición que la
+     * toca. Con un Map de un solo valor por clave, la segunda pasada pisaba a la primera al
+     * llamar a .set() -- la primera pasada se quedaba sin su .svgEl para siempre (nunca se
+     * volvía a intentar asignar), y por eso nunca se iluminaba aunque sí sonara. Bug real
+     * encontrado: "la primera pasada de una repetición no ilumina, la segunda sí".
      *
      * Hay que volver a llamarla después de CADA osmd.render(): un render reconstruye el SVG
      * entero y cualquier .svgEl guardado antes queda huérfano (apunta a un nodo ya
@@ -112,7 +120,11 @@ window.OsmdUtils = (function () {
      */
     function etiquetarNotasConSvg(osmd, notas) {
         const porLogicalNote = new Map();
-        notas.forEach(n => { if (n.logicalNote) porLogicalNote.set(n.logicalNote, n); });
+        notas.forEach(n => {
+            if (!n.logicalNote) return;
+            if (!porLogicalNote.has(n.logicalNote)) porLogicalNote.set(n.logicalNote, []);
+            porLogicalNote.get(n.logicalNote).push(n);
+        });
 
         try {
             osmd.GraphicSheet.MeasureList.forEach(sistema => {
@@ -121,13 +133,13 @@ window.OsmdUtils = (function () {
                     medida.staffEntries.forEach(staffEntry => {
                         (staffEntry.graphicalVoiceEntries || []).forEach(gve => {
                             (gve.notes || []).forEach(gNota => {
-                                const entry = porLogicalNote.get(gNota.sourceNote);
-                                if (!entry) return;
+                                const entries = porLogicalNote.get(gNota.sourceNote);
+                                if (!entries) return;
 
                                 let svgEl = null;
                                 if (typeof gNota.getSVGGElement === 'function') svgEl = gNota.getSVGGElement();
                                 else if (gNota.vfnote && gNota.vfnote[0] && gNota.vfnote[0].attrs) svgEl = gNota.vfnote[0].attrs.el;
-                                if (svgEl) entry.svgEl = svgEl;
+                                if (svgEl) entries.forEach(entry => { entry.svgEl = svgEl; });
                             });
                         });
                     });
