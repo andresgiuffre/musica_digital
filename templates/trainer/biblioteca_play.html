@@ -1417,19 +1417,25 @@
     let metronomoPracticaLoop = null;
     let practicaBeatCount = 0;
 
+    let ultimoClickTimePractica = -Infinity;
+
     function iniciarMetronomoPractica() {
         initSynth();
         practicaBeatCount = 0;
+        ultimoClickTimePractica = -Infinity;
         Tone.Transport.bpm.value = baseBpm * parseFloat(tempoSelector.value);
         metronomoPracticaLoop = new Tone.Loop((time) => {
             if (metronomoToggle.checked) {
                 const esAcento = practicaBeatCount % timeNumerator === 0;
                 // Mismo guard que el metrónomo de la reproducción pasiva -- clickSynth es
                 // monofónico, ver el comentario en startPlayback().
-                try {
-                    clickSynth.triggerAttackRelease(esAcento ? "C3" : "G2", "16n", time);
-                } catch (err) {
-                    console.warn(`[practica] Fallo al disparar click del metrónomo en t=${time.toFixed(3)}:`, err.message || err);
+                if (time > ultimoClickTimePractica) {
+                    ultimoClickTimePractica = time;
+                    try {
+                        clickSynth.triggerAttackRelease(esAcento ? "C3" : "G2", "16n", time);
+                    } catch (err) {
+                        console.warn(`[practica] Fallo al disparar click del metrónomo en t=${time.toFixed(3)}:`, err.message || err);
+                    }
                 }
             }
             Tone.Draw.schedule(() => {
@@ -1765,6 +1771,18 @@
                 // no negras -- en compás compuesto un tiempo dura 1.5 negras (beatUnitQuarters),
                 // así que la posición real en negras (para los ticks) es b * beatUnitQuarters,
                 // no b directamente. totalBeats sigue siendo la duración total en negras.
+                //
+                // ultimoClickTime: clickSynth es un Tone.MembraneSynth -- MONOFÓNICO (una sola
+                // voz, clase base Monophonic de Tone.js), a diferencia del sampler de piano
+                // (polifónico, una voz por altura). Un synth monofónico exige que cada trigger
+                // llegue en tiempo estrictamente mayor al anterior. El try/catch de antes recién
+                // atajaba el error DESPUÉS de que Tone.js ya había empezado a procesar el
+                // trigger -- eso podía dejar un envelope a medio armar sonando raro antes de
+                // cortar (el "golpe con reverberación al fondo" reportado). Este guard evita el
+                // intento por completo si el tiempo no avanzó lo suficiente desde el último
+                // click que sí se disparó, así nunca se le pide a Tone.js algo condenado a
+                // fallar. El try/catch se deja igual, como red de seguridad final.
+                let ultimoClickTime = -Infinity;
                 for (let b = 0, posicionEnNegras = 0; posicionEnNegras < totalBeats; b++, posicionEnNegras += beatUnitQuarters) {
                     let ticks = Math.round(posicionEnNegras * Tone.Transport.PPQ);
                     let clickId = Tone.Transport.schedule((time) => {
@@ -1772,20 +1790,16 @@
                         // arriba. isMuted sigue siendo el mute global del sitio (navbar), que se
                         // respeta además del toggle propio de esta página.
                         if (metronomoToggle.checked && !isMuted) {
-                            // clickSynth es un Tone.MembraneSynth -- MONOFÓNICO (una sola voz,
-                            // clase base Monophonic de Tone.js), a diferencia del sampler de
-                            // piano (polifónico, una voz por altura). Un synth monofónico exige
-                            // que cada trigger llegue en tiempo estrictamente mayor al anterior
-                            // -- reusa el mismo oscilador/envelope siempre, no tiene pool de
-                            // voces donde acomodar un segundo ataque simultáneo. Esto es lo que
-                            // realmente tiraba "Start time must be strictly greater..." (stack
-                            // trace real: Monophonic.ts/Synth.ts, no el Sampler del piano) --
-                            // protegido igual con try/catch, causa exacta todavía sin confirmar.
-                            try {
-                                if (b % timeNumerator === 0) clickSynth.triggerAttackRelease("C3", "16n", time);
-                                else clickSynth.triggerAttackRelease("G2", "16n", time);
-                            } catch (err) {
-                                console.warn(`[reproduccion] Fallo al disparar click del metrónomo en t=${time.toFixed(3)} (b=${b}):`, err.message || err);
+                            if (time > ultimoClickTime) {
+                                ultimoClickTime = time;
+                                try {
+                                    if (b % timeNumerator === 0) clickSynth.triggerAttackRelease("C3", "16n", time);
+                                    else clickSynth.triggerAttackRelease("G2", "16n", time);
+                                } catch (err) {
+                                    console.warn(`[reproduccion] Fallo al disparar click del metrónomo en t=${time.toFixed(3)} (b=${b}):`, err.message || err);
+                                }
+                            } else {
+                                console.warn(`[reproduccion] Click del metrónomo salteado (b=${b}, t=${time.toFixed(3)} no mayor al último t=${ultimoClickTime.toFixed(3)}) -- se evita el intento, causa todavía sin confirmar.`);
                             }
                         }
                         Tone.Draw.schedule(() => {
