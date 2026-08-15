@@ -1632,17 +1632,43 @@
                         // pianoToggle.checked se lee en vivo acá adentro (no una constante capturada
                         // al armar el schedule) -- así el toggle "Piano" tiene efecto inmediato sobre
                         // notas ya agendadas, sin tener que reprogramar nada.
+                        //
+                        // alturasDisparadas: dos notas de la MISMA altura en este mismo evento (un
+                        // unísono legítimo entre dos manos/voces -- el backend ya deduplica el caso
+                        // de una altura repetida DENTRO de un mismo acorde de music21, pero no puede
+                        // fusionar dos objetos Chord/Note distintos sin arriesgar el estado de
+                        // ligadura de cada uno, ver el comentario en _eventos_ejecucion) harían que
+                        // Tone.js tire "Start time must be strictly greater than previous start
+                        // time" en el segundo trigger -- misma tecla física, sonarla dos veces en el
+                        // mismo instante exacto no aporta nada de audio real. Se dispara audio una
+                        // sola vez por altura; el resto del evento (encendido visual, apagado
+                        // programado) sigue corriendo para CADA nota igual, así ninguna cabeza de
+                        // nota real deja de iluminarse aunque comparta altura con otra.
+                        const alturasDisparadas = new Set();
                         evt.notes.forEach(note => {
                             let durationTicks = Math.round(note.duracionBeats * Tone.Transport.PPQ);
-                            if(pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
-                                AudioEngine.sampler.triggerAttackRelease(note.pitch, durationTicks + "i", time);
+                            if(pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded && !alturasDisparadas.has(note.pitch)) {
+                                alturasDisparadas.add(note.pitch);
+                                try {
+                                    AudioEngine.sampler.triggerAttackRelease(note.pitch, durationTicks + "i", time);
+                                } catch (err) {
+                                    // Red de seguridad independiente de la causa exacta -- una nota
+                                    // conflictiva (cualquiera que sea el motivo) no puede matar el
+                                    // resto del callback (el resto del acorde, el avance de cursor,
+                                    // el encendido visual) y llevárselos puestos con ella.
+                                    console.warn(`[reproduccion] Fallo al disparar audio de ${note.pitch} en t=${time.toFixed(3)} (measureIndex=${evt.measureIndex}):`, err.message || err);
+                                }
                             }
 
                             // Encendido/apagado visual -- independiente del toggle Piano (es guía de
                             // qué dice la partitura, no un eco del audio; en modo práctica el piano
                             // también está mudo y la guía visual sigue andando). Si no se pudo
                             // etiquetar el svgEl, encenderNota/apagarNota son no-op silenciosos.
-                            Tone.Draw.schedule(() => encenderNota(note.svgEl), time);
+                            try {
+                                Tone.Draw.schedule(() => encenderNota(note.svgEl), time);
+                            } catch (err) {
+                                console.warn(`[reproduccion] Fallo al encender ${note.pitch} en t=${time.toFixed(3)}:`, err.message || err);
+                            }
                             const apagadoId = Tone.Transport.schedule((offTime) => {
                                 Tone.Draw.schedule(() => apagarNota(note.svgEl), offTime);
                             }, (ticks + durationTicks) + "i");

@@ -2367,7 +2367,29 @@ def _eventos_ejecucion(score):
                 })
             graces_pendientes = []
 
+            alturas_de_este_elemento = set()
             for p in pitches:
+                # Un mismo Chord de music21 puede traer la MISMA altura escrita dos veces
+                # (doblado de octava/unísono dentro de un mismo acorde -- notación real de
+                # piano; confirmado empíricamente que music21 NO deduplica esto solo:
+                # Chord(['C4','E4','G4','C4']).pitches trae las dos C4). Sin este chequeo,
+                # esa altura entraba dos veces con el mismo offset -- el frontend terminaba
+                # disparando la misma nota dos veces en el mismo instante exacto, y Tone.js
+                # tira "Start time must be strictly greater than previous start time" en el
+                # segundo trigger (mata ESE trigger nada más, pero como consecuencia esa
+                # nota ni suena ni se ilumina). Es la MISMA tecla física -- se descarta el
+                # duplicado, se conserva el primero. Alcance deliberadamente angosto (solo
+                # duplicados DENTRO del mismo elemento/acorde, no entre partes distintas):
+                # un unísono legítimo entre dos manos son dos objetos Chord/Note distintos,
+                # cada uno con su propia ligadura si la tuviera -- fusionarlos ahí requeriría
+                # decidir de cuál de las dos conservar el estado de ligadura, sin evidencia
+                # todavía de que haga falta. Ese caso, si existe, lo absorbe el frontend
+                # (deduplica el disparo de audio por altura al agendar, sin tocar esta
+                # secuencia) sin necesidad de resolverlo acá.
+                if p.ps in alturas_de_este_elemento:
+                    continue
+                alturas_de_este_elemento.add(p.ps)
+
                 clave = (idx_parte, p.ps)
                 # duracion (el.duration.quarterLength) viene como fractions.Fraction para
                 # cualquier valor no binario -- tresillos y demás tuplets, el caso real que
