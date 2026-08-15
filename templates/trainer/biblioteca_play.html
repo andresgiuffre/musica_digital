@@ -596,7 +596,7 @@
         });
         
         try {
-            var xmlUrl = `{{ sheet.xml_file.url }}`;
+            var xmlUrl = `{% url "biblioteca_archivo" sheet.id %}`;
             const response = await fetch(xmlUrl);
             if (!response.ok) throw new Error("No se pudo cargar el archivo MusicXML.");
             const xmlContent = await response.text();

@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -21,7 +23,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-xq!zzys5_#1fk5=)v*va_8k-000_9-ki#qlk9o^3t+qt3c%cir')
+#
+# Deliberadamente SIN default -- un valor por defecto acá (aunque tenga el prefijo
+# "django-insecure-" que genera el propio startproject de Django) queda commiteado al
+# repo, legible por cualquiera que lo lea. Con esa clave se firman cookies de sesión,
+# tokens de reseteo de contraseña y el token CSRF -- filtrada, se pueden forjar todos
+# esos. A diferencia de SCORE_FILE_ENCRYPTION_KEY (que falla recién al primer uso,
+# porque el resto del sitio funciona sin ella), acá el fallo tiene que ser inmediato:
+# Django necesita SECRET_KEY para arrancar, no hay "resto del sitio" que funcione sin
+# esto.
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY no está configurada. Nunca debe tener un valor por "
+        "default en el código -- generar una clave real y cargarla como variable "
+        "de entorno (local y en la configuración de la app web de PythonAnywhere). "
+        "Generación: python -c \"from django.core.management.utils import "
+        "get_random_secret_key; print(get_random_secret_key())\""
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
@@ -152,3 +171,25 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = '/'
 LOGIN_URL = '/login/'
 LOGOUT_REDIRECT_URL = '/login/'
+
+
+# ==============================================================================
+# COOKIES SEGURAS + REDIRECT HTTPS (solo en producción)
+#
+# Condicionado a `not DEBUG` para no romper runserver local (sin HTTPS local,
+# SECURE_SSL_REDIRECT=True en dev dejaría al desarrollador afuera de su propio sitio).
+#
+# SECURE_PROXY_SSL_HEADER es el que evita un loop de redirect en PythonAnywhere: su
+# proxy termina TLS y le habla a Django por HTTP plano puertas adentro -- sin este
+# header, Django ve cada request como HTTP puro, SECURE_SSL_REDIRECT lo manda a
+# redirigir a HTTPS, PythonAnywhere lo vuelve a mandar por HTTP interno, y así en
+# bucle. Confiar en este header solo tiene sentido porque PythonAnywhere es quien
+# controla el proxy que lo setea -- si el deploy cambiara a otro proveedor sin este
+# mismo comportamiento de proxy, este header dejaría de ser confiable y habría que
+# revisarlo de nuevo.
+# ==============================================================================
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

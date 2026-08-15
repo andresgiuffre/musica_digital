@@ -2197,6 +2197,30 @@ def biblioteca_play(request, score_id):
     })
 
 
+@login_required
+def biblioteca_archivo(request, score_id):
+    """
+    Sirve el contenido crudo del xml_file -- mismo motivo que
+    orquestacion_ejercicio_archivo: en PythonAnywhere /media/ se sirve por fuera de
+    Django (Apache/nginx), sin @login_required, así que resolver esto vía MEDIA_URL
+    directo (como hacía antes biblioteca_play.html) dejaba cualquier partitura de la
+    Biblioteca descargable sin sesión -- confirmado en la práctica, no solo en teoría.
+    Sin filtro por user=: SheetMusic es un recurso compartido de la Biblioteca (no
+    privado de un usuario), @login_required es exactamente el mismo nivel de
+    protección que ya tiene la propia página de biblioteca_play.
+    """
+    sheet = get_object_or_404(SheetMusic, id=score_id)
+
+    extension = pathlib.Path(sheet.xml_file.name).suffix.lower()
+    content_type = 'application/vnd.recordare.musicxml' if extension == '.mxl' else 'application/vnd.recordare.musicxml+xml'
+
+    return FileResponse(
+        sheet.xml_file.open('rb'),
+        content_type=content_type,
+        filename=sheet.xml_file.name,
+    )
+
+
 def _secuencia_compases_canonica(score):
     """
     Determina el orden de EJECUCIÓN de números de compás (repeticiones/voltas ya
