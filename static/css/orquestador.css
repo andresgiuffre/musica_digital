@@ -74,7 +74,7 @@
     white-space: nowrap;
     text-decoration: none;
 }
-.historial-link:hover { text-decoration: underline; }
+.historial-link:hover { color: var(--primary-dark); }
 .historial-paginacion {
     display: flex;
     justify-content: center;
@@ -84,7 +84,7 @@
     color: var(--ink-soft);
 }
 .historial-paginacion a { color: var(--primary); text-decoration: none; font-weight: 600; }
-.historial-paginacion a:hover { text-decoration: underline; }
+.historial-paginacion a:hover { color: var(--primary-dark); }
 
 .analisis-panel {
     background: var(--surface);

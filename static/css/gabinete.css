@@ -183,8 +183,10 @@ body.gabinete em, body.gabinete .kicker-gab, body.gabinete .eyebrow-gab {
 body.gabinete .eyebrow-gab { font-size: 0.9375rem; color: var(--primary); }
 body.gabinete p { line-height: 1.7; color: var(--ink-body); }
 
+/* Sin subrayado en ningún estado -- pedido explícito. El hover se marca solo con
+   color (y, en botones/cards, elevación -- ver .btn-gab más abajo). */
 body.gabinete a { color: var(--primary); text-decoration: none; }
-body.gabinete a:hover { color: var(--primary-dark); text-decoration: underline; }
+body.gabinete a:hover { color: var(--primary-dark); text-decoration: none; }
 
 /* Foco de teclado -- ciruela, nunca el anillo azul por defecto. Se aplica
    también dentro del chrome (navbar/footer), no sólo en body.gabinete. */
@@ -210,14 +212,35 @@ body.gabinete .btn-gab {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    /* Elevación + sombra al hover, no solo cambio de color -- para que el botón se
+       sienta "levantable", no solo marcado. transform primero en la lista para que
+       arranque animando apenas empieza el hover, sin esperar a color/background. */
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
+body.gabinete .btn-gab:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+body.gabinete .btn-gab:active { transform: translateY(0); box-shadow: none; }
 body.gabinete .btn-gab--primary { background: var(--primary); color: #ffffff; }
 body.gabinete .btn-gab--primary:hover { background: var(--primary-dark); text-decoration: none; }
 body.gabinete .btn-gab--secondary { background: var(--surface); color: var(--ink); border-color: var(--line-input); }
 body.gabinete .btn-gab--secondary:hover { border-color: var(--primary); color: var(--primary); text-decoration: none; }
 body.gabinete .btn-gab--on-dark { background: var(--on-dark); color: var(--dark-panel); }
 body.gabinete .btn-gab--on-dark:hover { background: var(--rose); text-decoration: none; }
+
+/* ---------- Volver -- un paso atrás en la jerarquía de la página (no
+   necesariamente al Panel), reusada en todas las pantallas de contenido.
+   Discreto a propósito: no compite con los botones de acción reales. ---------- */
+body.gabinete .volver-gab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+    margin-bottom: 1.25rem;
+    transition: color 0.15s ease, transform 0.15s ease;
+}
+body.gabinete .volver-gab:hover { color: var(--primary); transform: translateX(-2px); text-decoration: none; }
+body.gabinete .volver-gab svg { width: 1rem; height: 1rem; flex-shrink: 0; }
 
 /* ---------- Contenedor centrado -- compartido por todas las pantallas de
    contenido (dashboard, biblioteca_play, orquestacion_ejercicio*). Vivía
