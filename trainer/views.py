@@ -163,6 +163,10 @@ def dashboard(request):
     progreso_por_slug = {p['game'].slug: p for p in get_user_progress(request.user)}
     habilidades = [progreso_por_slug[slug] for slug in habilidades_slugs if slug in progreso_por_slug]
 
+    # 6. Destacado de Cursos junto al de Director de Estudio en el panel.
+    from .models import Curso
+    cursos_disponibles_count = Curso.objects.filter(activo=True).count()
+
     context = {
         'profile': profile,
         'today_goals': today_goals,
@@ -171,6 +175,7 @@ def dashboard(request):
         'calendar_data': json.dumps(calendar_data),
         'atril': atril,
         'habilidades': habilidades,
+        'cursos_disponibles_count': cursos_disponibles_count,
     }
     return render(request, 'trainer/dashboard.html', context)
 
