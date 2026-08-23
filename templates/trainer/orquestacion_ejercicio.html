@@ -1,25 +1,28 @@
 {% extends 'base.html' %}
 {% load static %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+{% block nav_active_orquestar %}is-active{% endblock %}
 
 {% block extra_css %}
 <style>
     #ej-orq-error-timbre {
         display: none;
-        background: color-mix(in srgb, var(--danger) 12%, transparent);
+        background: color-mix(in srgb, var(--danger) 10%, transparent);
         border: 1px solid var(--danger);
         color: var(--danger);
-        border-radius: 0.5rem;
+        border-radius: var(--radius);
         padding: 0.75rem 1rem;
         margin-bottom: 1rem;
-        font-family: 'IBM Plex Mono', monospace;
         font-size: 0.85rem;
     }
     .ej-orq-osmd-wrap {
         overflow-x: auto;
-        background: #fff;
-        border-radius: 0.75rem;
+        background: var(--score-paper);
+        border-radius: var(--radius);
         padding: 1rem;
         margin-bottom: 1.5rem;
+        border: 1px solid var(--line);
         /* Cada click de pintado reconstruye todo el SVG vía osmd.render() -- eso puede
            disparar el "scroll anchoring" del navegador (reajuste automático de scroll
            ante cambios de layout) de forma visible, saltando la página. Este contenedor
@@ -30,7 +33,6 @@
     .ej-orq-indicador-octava {
         position: absolute;
         z-index: 150;
-        font-family: 'IBM Plex Mono', monospace;
         font-size: 0.7rem;
         font-weight: 700;
         color: var(--danger);
@@ -47,7 +49,7 @@
         width: 7px;
         height: 7px;
         border-radius: 50%;
-        border: 1px solid rgba(0,0,0,0.45);
+        border: 1px solid rgba(0,0,0,0.3);
         pointer-events: none;
     }
     .ej-orq-paleta {
@@ -58,8 +60,8 @@
     }
     .ej-orq-instrumento {
         background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 0.75rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
         padding: 0.75rem;
         display: flex;
         flex-direction: column;
@@ -71,18 +73,19 @@
         gap: 0.5rem;
         background: transparent;
         border: 2px solid transparent;
-        border-radius: 0.5rem;
+        border-radius: var(--radius);
         padding: 0.4rem 0.5rem;
-        color: var(--text);
+        color: var(--ink);
+        font-family: var(--font-body);
         font-weight: 600;
         cursor: pointer;
         text-align: left;
         transition: border-color 0.15s, background 0.15s;
     }
-    .ej-orq-pincel:hover { background: rgba(255,255,255,0.05); }
+    .ej-orq-pincel:hover { background: var(--bg); }
     .ej-orq-pincel.ej-orq-pincel-activo {
         border-color: var(--zona-color);
-        background: color-mix(in srgb, var(--zona-color) 15%, transparent);
+        background: color-mix(in srgb, var(--zona-color) 12%, transparent);
     }
     .ej-orq-pincel-punto {
         width: 14px;
@@ -95,7 +98,7 @@
         position: relative;
         height: 8px;
         border-radius: 4px;
-        background: rgba(255,255,255,0.08);
+        background: var(--line-soft);
     }
     .ej-orq-registro-barra {
         position: absolute;
@@ -103,7 +106,7 @@
         height: 100%;
         border-radius: 4px;
         background: var(--zona-color);
-        opacity: 0.55;
+        opacity: 0.75;
     }
     .ej-orq-advertencia {
         font-size: 0.78rem;
@@ -118,47 +121,50 @@
     }
     .ej-orq-octava-label {
         font-size: 0.85rem;
-        color: var(--text-secondary);
+        color: var(--ink-soft);
     }
     .ej-orq-octava-btn {
         background: var(--surface);
-        border: 1px solid var(--border);
-        color: var(--text);
-        border-radius: 0.4rem;
+        border: 1px solid var(--line-input);
+        color: var(--ink);
+        font-family: var(--font-body);
+        border-radius: var(--radius);
         padding: 0.35rem 0.8rem;
-        font-family: 'IBM Plex Mono', monospace;
         font-size: 0.85rem;
         cursor: pointer;
     }
     .ej-orq-octava-btn.ej-orq-octava-activa {
         border-color: var(--primary);
-        background: color-mix(in srgb, var(--primary) 15%, transparent);
+        background: var(--primary-tint);
         color: var(--primary);
         font-weight: 700;
     }
     .ej-orq-boton-secundario {
-        background: transparent;
-        border: 1px solid var(--border);
-        color: var(--text);
-        border-radius: 0.4rem;
+        background: var(--surface);
+        border: 1px solid var(--line-input);
+        color: var(--ink);
+        font-family: var(--font-body);
+        border-radius: var(--radius);
         padding: 0.4rem 0.9rem;
         font-size: 0.85rem;
         cursor: pointer;
     }
-    .ej-orq-boton-secundario:hover { border-color: var(--primary); }
+    .ej-orq-boton-secundario:hover { border-color: var(--primary); color: var(--primary); }
     .ej-orq-boton-primario {
         background: var(--primary);
         border: none;
-        color: #241505;
-        font-weight: 700;
-        border-radius: 0.4rem;
+        color: #ffffff;
+        font-weight: 600;
+        font-family: var(--font-body);
+        border-radius: var(--radius);
         padding: 0.5rem 1.1rem;
         font-size: 0.9rem;
         cursor: pointer;
     }
+    .ej-orq-boton-primario:hover:not(:disabled) { background: var(--primary-dark); }
     .ej-orq-boton-primario:disabled { opacity: 0.6; cursor: not-allowed; }
     .ej-orq-separador {
-        border-top: 1px solid var(--border);
+        border-top: 1px solid var(--line-soft);
         margin: 2rem 0 1.5rem;
         padding-top: 1.5rem;
         display: flex;
@@ -169,10 +175,10 @@
     }
     #ej-orq-error-orquesta {
         display: none;
-        background: color-mix(in srgb, var(--danger) 12%, transparent);
+        background: color-mix(in srgb, var(--danger) 10%, transparent);
         border: 1px solid var(--danger);
         color: var(--danger);
-        border-radius: 0.5rem;
+        border-radius: var(--radius);
         padding: 0.75rem 1rem;
         margin-bottom: 1rem;
         font-size: 0.85rem;
@@ -188,11 +194,12 @@
         align-items: center;
         gap: 0.4rem;
         background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 0.4rem;
+        border: 1px solid var(--line-input);
+        border-radius: var(--radius);
         padding: 0.35rem 0.7rem;
         font-size: 0.8rem;
-        color: var(--text);
+        font-family: var(--font-body);
+        color: var(--ink);
         cursor: pointer;
     }
     .ej-orq-boton-parte:hover { border-color: var(--zona-color); }
@@ -202,13 +209,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto w-full px-4 py-8">
-    <a href="{% url 'orquestacion_ejercicio_lista' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all mb-6">
-        ← Volver
-    </a>
-
-    <h1 class="text-2xl font-display mb-1">{{ fragmento.nombre }}</h1>
-    <p class="mb-6" style="color: var(--text-secondary);">
+<div class="envoltorio-gab" style="max-width: 64rem; padding-top: 1.75rem; padding-bottom: 2.5rem;">
+    <div class="eyebrow-gab" style="margin-bottom: 0.4rem;">Reducción de piano</div>
+    <h1 style="font-size: 1.75rem; margin-bottom: 0.6rem;">{{ fragmento.nombre }}</h1>
+    <p style="color: var(--ink-soft); margin-bottom: 1.5rem; max-width: 68ch;">
         Elegí un instrumento y una octava (el pincel activo) y hacé click sobre cada cabeza de nota de la
         reducción de piano para asignarla — una misma nota puede ir a varios instrumentos a la vez (por
         ejemplo, duplicar en octavas entre Violín I y II). Click de nuevo con el mismo pincel y la misma
@@ -241,15 +245,15 @@
         <div id="ej-orq-osmd"></div>
     </div>
 
-    <p id="ej-orq-estado" class="text-sm" style="color: var(--text-secondary);"></p>
+    <p id="ej-orq-estado" style="font-size: 0.875rem; color: var(--ink-soft);"></p>
 
     <div class="ej-orq-separador">
-        <h2 class="text-xl font-display">Partitura de orquesta</h2>
+        <h2 style="font-family: var(--font-display); font-size: 1.375rem;">Partitura de orquesta</h2>
         <button type="button" id="ej-orq-ver-orquesta" class="ej-orq-boton-primario">Ver orquestación</button>
     </div>
 
     <div id="ej-orq-error-orquesta"></div>
-    <p id="ej-orq-panel-orquesta-vacio" style="color: var(--text-secondary);">
+    <p id="ej-orq-panel-orquesta-vacio" style="color: var(--ink-soft);">
         Todavía no generaste la orquestación — pintá algunas notas y apretá "Ver orquestación".
     </p>
     <div id="ej-orq-panel-orquesta-contenido" style="display: none;">

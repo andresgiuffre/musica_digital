@@ -7,18 +7,24 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/orquestador.css' %}">
 <style>
-    .form-group {
+    /* .card .form-group, no .form-group a secas: base.html ya define un .form-group
+       genérico para los formularios sin clases (login/registro) con los colores del
+       sistema viejo -- misma especificidad que una regla nuestra sin calificar
+       (0,1,0), lo que deja el resultado a merced del orden del cascade. Calificando
+       con .card (el contenedor de esta tarjeta) subimos a (0,2,0) y ganamos siempre,
+       sin depender de en qué orden termine cargando cada <style>. */
+    .card .form-group {
         margin-bottom: 1.5rem;
     }
 
-    .form-group label {
+    .card .form-group label {
         display: block;
         margin-bottom: 0.5rem;
         font-weight: 600;
         color: var(--ink);
     }
 
-    .form-group input[type="text"], .form-group input[type="file"], .form-group select {
+    .card .form-group input[type="text"], .card .form-group input[type="file"], .card .form-group select {
         width: 100%;
         padding: 0.75rem;
         border: 1px solid var(--line-input);
@@ -35,7 +41,11 @@
         margin-bottom: 1rem;
     }
 
-    .btn-submit {
+    /* #btn-submit, no .btn-submit a secas: base.html ya define un .btn-submit
+       genérico (para las pantallas de juego) con la misma especificidad -- el
+       botón ya lleva id="btn-submit" en el HTML, así que calificar por id nos
+       garantiza ganar siempre, sin depender del orden del cascade. */
+    #btn-submit.btn-submit {
         background: var(--primary);
         color: #ffffff;
         border: none;
@@ -49,11 +59,11 @@
         width: 100%;
     }
 
-    .btn-submit:hover:not(:disabled) {
+    #btn-submit.btn-submit:hover:not(:disabled) {
         background: var(--primary-dark);
     }
 
-    .btn-submit:disabled {
+    #btn-submit.btn-submit:disabled {
         background: var(--line-input);
         color: var(--ink-soft);
         cursor: not-allowed;
