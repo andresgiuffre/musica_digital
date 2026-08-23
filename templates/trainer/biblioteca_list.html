@@ -1,90 +1,160 @@
 {% extends 'base.html' %}
 {% block title %}Biblioteca de Partituras{% endblock %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+{% block nav_active_biblioteca %}is-active{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ============================================================
+       "Gabinete de estudio" -- Biblioteca (pantalla 02 del rediseño).
+       El mockup mezcla sidebar + UN lector en una sola pantalla; en el
+       sitio real "biblioteca" (esta página, para explorar/buscar) y
+       "reproductor" (biblioteca_play.html, para tocar UNA partitura) son
+       dos vistas separadas -- acá se adapta el layout de sidebar del
+       mockup a lo que esta página hace de verdad: explorar y filtrar,
+       no reproducir. El lector propiamente dicho se restylea en
+       biblioteca_play.html.
+       ============================================================ */
+    .biblio-gab { display: grid; grid-template-columns: 288px 1fr; min-height: calc(100vh - 8rem); }
+    .biblio-gab__sidebar {
+        background: var(--surface); border-right: 1px solid var(--line);
+        padding: 1.5rem 1.375rem; display: flex; flex-direction: column; gap: 1.125rem;
+        align-self: start; position: sticky; top: 3.75rem;
+    }
+    .biblio-gab__buscador {
+        width: 100%; font-family: var(--font-body); font-size: 0.8125rem; color: var(--ink);
+        padding: 0.625rem 0.75rem; border: 1px solid var(--line-input); border-radius: var(--radius);
+        background: var(--bg);
+    }
+    .biblio-gab__buscador::placeholder { color: var(--ink-soft); }
+    .biblio-gab__seccion-titulo { font-family: var(--font-display); font-style: italic; font-size: 0.875rem; color: var(--primary); margin-bottom: 0.4rem; }
+    .biblio-gab__lista { display: flex; flex-direction: column; gap: 0.25rem; }
+    .biblio-gab__item {
+        font-size: 0.8125rem; padding: 0.44rem 0.625rem; border-radius: var(--radius);
+        display: flex; justify-content: space-between; color: var(--ink-dense); text-decoration: none;
+    }
+    .biblio-gab__item:hover { background: var(--primary-tint); text-decoration: none; }
+    .biblio-gab__item.is-active { background: var(--primary-tint); color: var(--primary); font-weight: 500; }
+    .biblio-gab__item span:last-child { color: var(--ink-soft); }
+    .biblio-gab__reciente { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.35rem 0; text-decoration: none; color: inherit; }
+    .biblio-gab__reciente:hover { text-decoration: none; }
+    .biblio-gab__reciente-titulo { font-size: 0.8125rem; font-weight: 500; color: var(--ink); }
+    .biblio-gab__reciente-sub { font-size: 0.75rem; color: var(--ink-soft); }
+
+    .biblio-gab__main { padding: 1.75rem 2rem 2.5rem; }
+    .biblio-gab__cabecera { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 1.375rem; flex-wrap: wrap; gap: 0.5rem; }
+    .biblio-gab__titulo { font-size: 1.75rem; margin: 0; }
+    .biblio-gab__cantidad { font-size: 0.8125rem; color: var(--ink-soft); }
+
+    .biblio-gab__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.1rem; }
+    .partitura-gab { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.375rem 1.375rem 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; position: relative; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+    .partitura-gab:hover { border-color: var(--primary); box-shadow: var(--shadow-hover); }
+    .partitura-gab__fav { position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; font-size: 1.25rem; line-height: 1; padding: 0.15rem; color: var(--line-input); }
+    .partitura-gab__fav.is-fav { color: var(--ochre); }
+    .partitura-gab__titulo { font-size: 1.125rem; margin: 0 1.75rem 0 0; }
+    .partitura-gab__compositor { font-size: 0.8125rem; color: var(--ink-soft); margin: 0; }
+    .partitura-gab__tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.2rem 0 0.3rem; }
+    .partitura-gab__tag { font-size: 0.6875rem; font-weight: 500; padding: 0.2rem 0.5rem; border-radius: var(--radius); background: var(--primary-tint); color: var(--primary); }
+    .partitura-gab__progreso-label { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-soft); margin-bottom: 0.3rem; }
+    .partitura-gab__progreso-pista { height: 5px; background: var(--line-soft); border-radius: 3px; overflow: hidden; }
+    .partitura-gab__progreso-fill { height: 100%; background: var(--green); border-radius: 3px; }
+    .partitura-gab__pie { margin-top: 0.5rem; display: flex; justify-content: flex-end; }
+
+    .biblio-gab__vacio { grid-column: 1 / -1; text-align: center; padding: 4rem 1rem; color: var(--ink-soft); }
+
+    @media (max-width: 860px) {
+        .biblio-gab { grid-template-columns: 1fr; }
+        .biblio-gab__sidebar { position: static; border-right: none; border-bottom: 1px solid var(--line); }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="top-nav">
-        <a href="{% url 'dashboard' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all mb-6">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-            </svg>
-            Volver
-        </a>
-    </div>
-    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <h1 class="text-4xl font-bold text-white">Biblioteca de Partituras</h1>
-        
-        <!-- Filtros -->
-        <div class="flex gap-2 flex-wrap">
-            <a href="{% url 'biblioteca_list' %}" class="px-4 py-2 rounded-full font-bold text-sm {% if not current_collection and not favorites_only %}bg-[var(--gold)] text-[#241505]{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
-                Todas
-            </a>
-            <a href="?favorites=true" class="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-1 {% if favorites_only %}bg-yellow-500 text-black{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
-                ⭐ Mis Favoritos
-            </a>
-            {% for col in collections %}
-            <a href="?collection={{ col.slug }}" class="px-4 py-2 rounded-full font-bold text-sm {% if current_collection == col.slug %}bg-[var(--gold)] text-[#241505]{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700{% endif %}">
-                {{ col.name }}
-            </a>
-            {% endfor %}
+<div class="biblio-gab">
+    <aside class="biblio-gab__sidebar">
+        <form method="get">
+            {% if current_collection %}<input type="hidden" name="collection" value="{{ current_collection }}">{% endif %}
+            {% if favorites_only %}<input type="hidden" name="favorites" value="true">{% endif %}
+            <input type="text" name="q" value="{{ query }}" placeholder="Buscar por título o compositor" class="biblio-gab__buscador">
+        </form>
+
+        <div>
+            <div class="biblio-gab__seccion-titulo">Colecciones</div>
+            <div class="biblio-gab__lista">
+                <a href="{% url 'biblioteca_list' %}" class="biblio-gab__item {% if not current_collection and not favorites_only %}is-active{% endif %}">
+                    <span>Todas</span>
+                </a>
+                <a href="?favorites=true" class="biblio-gab__item {% if favorites_only %}is-active{% endif %}">
+                    <span>⭐ Mis favoritos</span>
+                </a>
+                {% for col in collections %}
+                <a href="?collection={{ col.slug }}" class="biblio-gab__item {% if current_collection == col.slug %}is-active{% endif %}">
+                    <span>{{ col.name }}</span>
+                </a>
+                {% endfor %}
+            </div>
         </div>
-    </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {% for score in scores %}
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-[var(--gold)] transition-colors relative flex flex-col justify-between">
-            
-            <!-- Botón Favorito -->
-            <button onclick="toggleFavorite({{ score.id }}, this)" class="absolute top-4 right-4 text-2xl transition-transform hover:scale-110 focus:outline-none">
-                {% if score.id in user_favorites %}
-                    <span class="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]">⭐</span>
-                {% else %}
-                    <span class="text-gray-500 opacity-50 hover:opacity-100">☆</span>
-                {% endif %}
-            </button>
+        {% if recientes %}
+        <div>
+            <div class="biblio-gab__seccion-titulo">Abiertas hace poco</div>
+            <div class="biblio-gab__lista">
+                {% for r in recientes %}
+                <a href="{% url 'biblioteca_play' r.sheet_music.id %}" class="biblio-gab__reciente">
+                    <span class="biblio-gab__reciente-titulo">{{ r.sheet_music.title|default:r.sheet_music.xml_file.name }}</span>
+                    <span class="biblio-gab__reciente-sub">{{ r.sheet_music.composer|default:"Desconocido" }} · {{ r.completion_percentage }}%</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </aside>
 
-            <div>
-                <h2 class="text-2xl font-bold text-white mb-1 pr-8">{{ score.title|default:score.xml_file.name }}</h2>
-                <p class="text-gray-400 mb-4 text-sm">Compositor: {{ score.composer|default:"Desconocido" }}</p>
-                
-                <div class="flex flex-wrap gap-2 mb-4">
-                    <span class="bg-gray-700 text-gray-300 text-xs font-bold px-2 py-1 rounded">Dif. {{ score.difficulty }}</span>
+    <div class="biblio-gab__main">
+        <div class="biblio-gab__cabecera">
+            <h1 class="biblio-gab__titulo">{% if query %}Resultados para «{{ query }}»{% else %}Biblioteca de partituras{% endif %}</h1>
+            <span class="biblio-gab__cantidad">{{ scores|length }} partitura{{ scores|length|pluralize }}</span>
+        </div>
+
+        <div class="biblio-gab__grid">
+            {% for score in scores %}
+            <div class="partitura-gab">
+                <button onclick="toggleFavorite({{ score.id }}, this)" class="partitura-gab__fav {% if score.id in user_favorites %}is-fav{% endif %}" aria-label="Marcar como favorito">
+                    {% if score.id in user_favorites %}★{% else %}☆{% endif %}
+                </button>
+
+                <h2 class="partitura-gab__titulo">{{ score.title|default:score.xml_file.name }}</h2>
+                <p class="partitura-gab__compositor">{{ score.composer|default:"Compositor desconocido" }}</p>
+
+                <div class="partitura-gab__tags">
+                    <span class="partitura-gab__tag">Dif. {{ score.difficulty }}</span>
                     {% for c in score.collections.all %}
-                        <span class="bg-indigo-900 text-indigo-200 text-xs font-bold px-2 py-1 rounded">{{ c.name }}</span>
+                        <span class="partitura-gab__tag">{{ c.name }}</span>
                     {% endfor %}
                 </div>
-            </div>
 
-            <!-- Progreso -->
-            <div class="mt-4 mb-4">
-                <div class="flex justify-between text-xs text-gray-400 mb-1">
-                    <span>Progreso de Estudio</span>
-                    <span>
-                        {% for pid, perc in user_progress.items %}
-                            {% if pid == score.id %}{{ perc }}%{% endif %}
-                        {% empty %}
-                            0%
-                        {% endfor %}
-                    </span>
+                <div>
+                    <div class="partitura-gab__progreso-label">
+                        <span>Progreso de estudio</span>
+                        <span>{% for pid, perc in user_progress.items %}{% if pid == score.id %}{{ perc }}%{% endif %}{% empty %}0%{% endfor %}</span>
+                    </div>
+                    <div class="partitura-gab__progreso-pista">
+                        <div class="partitura-gab__progreso-fill" style="width: {% for pid, perc in user_progress.items %}{% if pid == score.id %}{{ perc }}{% endif %}{% endfor %}%;"></div>
+                    </div>
                 </div>
-                <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div class="bg-emerald-500 h-2 rounded-full" style="width: {% for pid, perc in user_progress.items %}{% if pid == score.id %}{{ perc }}{% endif %}{% endfor %}%;"></div>
+
+                <div class="partitura-gab__pie">
+                    <a href="{% url 'biblioteca_play' score.id %}" class="btn-gab btn-gab--primary">Practicar</a>
                 </div>
             </div>
-
-            <div class="flex justify-end mt-2">
-                <a href="{% url 'biblioteca_play' score.id %}" class="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#241505] font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
-                    ▶ Practicar
-                </a>
+            {% empty %}
+            <div class="biblio-gab__vacio">
+                <p style="font-size: 1.0625rem; color: var(--ink);">No se encontraron partituras</p>
+                <p>Probá cambiar los filtros o la búsqueda.</p>
             </div>
+            {% endfor %}
         </div>
-        {% empty %}
-        <div class="col-span-full text-center py-16 bg-gray-800 rounded-2xl border border-gray-700">
-            <span class="text-6xl mb-4 block">🎼</span>
-            <p class="text-gray-300 text-xl font-bold">No se encontraron partituras</p>
-            <p class="text-gray-500 mt-2">Intenta cambiar los filtros o sube nuevas partituras desde la administración.</p>
-        </div>
-        {% endfor %}
     </div>
 </div>
 
@@ -100,9 +170,11 @@ function toggleFavorite(scoreId, btn) {
     .then(r => r.json())
     .then(data => {
         if (data.status === 'added') {
-            btn.innerHTML = '<span class="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]">⭐</span>';
+            btn.classList.add('is-fav');
+            btn.textContent = '★';
         } else if (data.status === 'removed') {
-            btn.innerHTML = '<span class="text-gray-500 opacity-50 hover:opacity-100">☆</span>';
+            btn.classList.remove('is-fav');
+            btn.textContent = '☆';
         }
     });
 }
