@@ -338,7 +338,12 @@
     <nav class="navbar-gab">
         <div class="navbar-gab__inner">
             <div class="navbar-gab__left">
-                <a href="{% url 'dashboard' %}" class="navbar-gab__brand">Música <em>Digital</em></a>
+                <a href="{% url 'dashboard' %}" class="navbar-gab__brand">
+                    <span class="navbar-gab__logo">
+                        <img src="{% static 'img/logo.png' %}" alt="Logo Música Digital" style="mix-blend-mode: screen;">
+                    </span>
+                    Música <em>Digital</em>
+                </a>
                 {% if user.is_authenticated %}
                 <div class="navbar-gab__links">
                     <a href="{% url 'dashboard' %}" class="navbar-gab__link {% block nav_active_panel %}{% endblock %}">Panel</a>
