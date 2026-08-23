@@ -1,0 +1,408 @@
+/*
+ * ============================================================================
+ * "Gabinete de estudio" -- sistema de tokens del rediseño visual (ver README
+ * del paquete de diseño). Vive aparte de los tokens de base.html ("Sala de
+ * conciertos", el sistema oscuro/claro que ya usan ~25 plantillas del sitio)
+ * a propósito: el rediseño se aplica pantalla por pantalla, no de una, así
+ * que estos tokens NO pueden vivir en :root -- eso los propagaría a TODAS
+ * las páginas de golpe, incluidas las que todavía no fueron migradas, y las
+ * dejaría con una mezcla rota de dos paletas (el sistema viejo también usa
+ * --bg/--primary/--text/--border como alias en :root -- redefinirlos ahí
+ * rompería el .card/.btn/.form-group/etc. compartido que usan todas esas
+ * páginas todavía).
+ *
+ * Dos capas, con ese riesgo en mente:
+ *  1) NAVBAR + FOOTER + botón de tema -- son chrome verdaderamente global
+ *     (un solo base.html, sirve a TODAS las páginas), y la consigna fue
+ *     reemplazarlos ya, sitio entero. Sus tokens viven escopeados
+ *     directamente en sus propios selectores (`.navbar-gab`, `.footer-gab`,
+ *     `.tema-toggle-btn`), nunca en :root/body -- así no hace falta que la
+ *     página de abajo esté migrada para que el chrome se vea bien, y no hay
+ *     ningún riesgo de que estos nombres genéricos (--bg, --primary, --ink...)
+ *     se filtren a componentes viejos que ya usan esos mismos nombres con
+ *     otro significado.
+ *  2) CONTENIDO de cada pantalla migrada -- escopeado a `body.gabinete`
+ *     (ver {% block body_class %} en base.html), presente SOLO en las
+ *     plantillas ya migradas. Mismos valores que la capa 1, pero declarados
+ *     aparte porque `body.gabinete` no es ancestro de `.navbar-gab`/
+ *     `.footer-gab` (son hermanos dentro de <body>) y por lo tanto no
+ *     heredaría sus custom properties.
+ *
+ * Tema claro/oscuro: "Gabinete" es fundamentalmente un diseño CLARO (el
+ * README no define una variante oscura), pero el sitio ya tenía toggle de
+ * tema y la consigna fue conservarlo. La variante oscura de acá es una
+ * extrapolación mía, no algo pedido punto por punto en el README -- para no
+ * inventar de la nada, reusa la única pista que el propio README da: el
+ * token --rose (#c9a5b6) ya está documentado ahí como "acento sobre fondo
+ * oscuro", visible en el panel oscuro del analizador de los mockups. Sigo
+ * esa lógica: en oscuro, --primary pasa a ser --rose (la ciruela pura se lee
+ * apagada sobre fondo oscuro), y el resto de la paleta se ajusta con el
+ * mismo criterio de contraste que ya usa el sistema viejo (tonos más claros
+ * sobre fondo oscuro).
+ *
+ * Independiente del atributo `data-tema` que ya usa el sistema viejo (vive
+ * en <html>, significa otra cosa ahí: default=oscuro, "claro"=claro). Acá se
+ * usa un atributo separado, `data-tema-gabinete="oscuro"` (ausente = claro),
+ * para que las dos preferencias de tema no se pisen mientras conviven ambos
+ * sistemas en el sitio. Ver el script anti-flash y el toggle en base.html.
+ * ============================================================================
+ */
+
+/* ---------- Capa 1: tokens de chrome (navbar, footer, botón de tema) ---------- */
+.navbar-gab, .footer-gab, .tema-toggle-btn.tema-toggle-btn--gab {
+    --bg: #eef0ea;
+    --surface: #ffffff;
+    --ink: #23282a;
+    --ink-soft: #55605e;
+    --line: #d3d8cf;
+    --line-input: #cbd2c8;
+    --primary: #6b3550;
+    --primary-dark: #56283f;
+    --primary-tint: #f6eff2;
+    --radius: 3px;
+    --shadow-hover: 0 3px 10px rgba(45, 43, 43, 0.10);
+    --shadow-window: 0 12px 32px rgba(45, 43, 43, 0.20);
+    --font-display: 'Newsreader', 'Iowan Old Style', Georgia, serif;
+    --font-body: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+}
+html[data-tema-gabinete="oscuro"] .navbar-gab,
+html[data-tema-gabinete="oscuro"] .footer-gab,
+html[data-tema-gabinete="oscuro"] .tema-toggle-btn.tema-toggle-btn--gab {
+    --bg: #1c1815;
+    --surface: #241f1b;
+    --ink: #eef0ea;
+    --ink-soft: rgba(238, 240, 234, 0.66);
+    --line: rgba(238, 240, 234, 0.16);
+    --line-input: rgba(238, 240, 234, 0.28);
+    --primary: #c9a5b6;
+    --primary-dark: #b98298;
+    --primary-tint: rgba(201, 165, 182, 0.14);
+    --shadow-hover: 0 3px 10px rgba(0, 0, 0, 0.35);
+    --shadow-window: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- Capa 2: tokens de contenido de página (solo templates migrados) --- */
+body.gabinete {
+    --bg: #eef0ea;
+    --surface: #ffffff;
+
+    --ink: #23282a;
+    --ink-soft: #55605e;
+    --ink-body: #4c5553;
+    --ink-dense: #3d4644;
+
+    --line: #d3d8cf;
+    --line-soft: #e4e8e0;
+    --line-input: #cbd2c8;
+
+    --primary: #6b3550;
+    --primary-dark: #56283f;
+    --primary-tint: #f6eff2;
+
+    /* Sólo para distinguir familias instrumentales / series de datos --
+       nunca para botones ni estados de foco */
+    --slate: #3f5a6b;
+    --ochre: #b5822e;
+    --green: #4b6b52;
+    --brown: #8c5a3f;
+    --rose: #c9a5b6;
+
+    --unassigned: #c9c3b8;
+    --danger: #a33a2b;
+
+    --dark-panel: #23282a;
+    --on-dark: #eef0ea;
+    --on-dark-body: rgba(238, 240, 234, 0.72);
+    --on-dark-soft: rgba(238, 240, 234, 0.6);
+    --on-dark-line: rgba(238, 240, 234, 0.16);
+
+    /* El papel de las partituras es SIEMPRE blanco con tinta casi negra,
+       en cualquier tema -- por eso son tokens propios, nunca redefinidos
+       en la variante oscura de más abajo. */
+    --score-paper: #ffffff;
+    --score-ink: #23282a;
+
+    --radius: 3px;
+    --radius-data: 2px;
+    --shadow-hover: 0 3px 10px rgba(45, 43, 43, 0.10);
+    --shadow-window: 0 12px 32px rgba(45, 43, 43, 0.20);
+
+    --font-display: 'Newsreader', 'Iowan Old Style', Georgia, serif;
+    --font-body: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html[data-tema-gabinete="oscuro"] body.gabinete {
+    --bg: #1c1815;
+    --surface: #241f1b;
+
+    --ink: #eef0ea;
+    --ink-soft: rgba(238, 240, 234, 0.66);
+    --ink-body: rgba(238, 240, 234, 0.72);
+    --ink-dense: rgba(238, 240, 234, 0.82);
+
+    --line: rgba(238, 240, 234, 0.16);
+    --line-soft: rgba(238, 240, 234, 0.12);
+    --line-input: rgba(238, 240, 234, 0.28);
+
+    --primary: #c9a5b6;
+    --primary-dark: #b98298;
+    --primary-tint: rgba(201, 165, 182, 0.14);
+
+    --slate: #7391a3;
+    --ochre: #d1a353;
+    --green: #7fa287;
+    --brown: #b98564;
+    --rose: #c9a5b6;
+
+    --unassigned: rgba(238, 240, 234, 0.32);
+    --danger: #e0685a;
+
+    --dark-panel: #14110e;
+
+    --shadow-hover: 0 3px 10px rgba(0, 0, 0, 0.35);
+    --shadow-window: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- Tipografía de contenido migrado ---------- */
+body.gabinete h1, body.gabinete h2, body.gabinete h3, body.gabinete h4 {
+    font-family: var(--font-display);
+    font-weight: 300;
+    text-wrap: balance;
+    text-transform: none;
+    letter-spacing: 0;
+}
+body.gabinete em, body.gabinete .kicker-gab, body.gabinete .eyebrow-gab {
+    font-family: var(--font-display);
+    font-style: italic;
+}
+body.gabinete .eyebrow-gab { font-size: 0.9375rem; color: var(--primary); }
+body.gabinete p { line-height: 1.7; color: var(--ink-body); }
+
+body.gabinete a { color: var(--primary); text-decoration: none; }
+body.gabinete a:hover { color: var(--primary-dark); text-decoration: underline; }
+
+/* Foco de teclado -- ciruela, nunca el anillo azul por defecto. Se aplica
+   también dentro del chrome (navbar/footer), no sólo en body.gabinete. */
+body.gabinete a:focus-visible, .navbar-gab a:focus-visible, .footer-gab a:focus-visible,
+body.gabinete button:focus-visible, .navbar-gab button:focus-visible,
+body.gabinete input:focus-visible, .navbar-gab input:focus-visible,
+body.gabinete select:focus-visible,
+body.gabinete textarea:focus-visible,
+body.gabinete [tabindex]:focus-visible, .navbar-gab [tabindex]:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* ---------- Botones ---------- */
+body.gabinete .btn-gab {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+body.gabinete .btn-gab--primary { background: var(--primary); color: #ffffff; }
+body.gabinete .btn-gab--primary:hover { background: var(--primary-dark); text-decoration: none; }
+body.gabinete .btn-gab--secondary { background: var(--surface); color: var(--ink); border-color: var(--line-input); }
+body.gabinete .btn-gab--secondary:hover { border-color: var(--primary); color: var(--primary); text-decoration: none; }
+body.gabinete .btn-gab--on-dark { background: var(--on-dark); color: var(--dark-panel); }
+body.gabinete .btn-gab--on-dark:hover { background: var(--rose); text-decoration: none; }
+
+/* ---------- Cards genéricas ---------- */
+body.gabinete .card-gab {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+body.gabinete .card-gab--hoverable:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-hover);
+}
+
+/* ---------- Navbar (chrome global, ver capa 1 más arriba) ---------- */
+.navbar-gab {
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    font-family: var(--font-body);
+}
+.navbar-gab__inner {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.navbar-gab__left { display: flex; align-items: center; gap: 2.1rem; }
+.navbar-gab__brand {
+    font-family: var(--font-display);
+    font-size: 1.375rem;
+    color: var(--ink);
+    padding: 1.125rem 0;
+    white-space: nowrap;
+    text-decoration: none;
+}
+.navbar-gab__brand:hover { text-decoration: none; }
+.navbar-gab__brand em { color: var(--primary); }
+.navbar-gab__links { display: flex; gap: 0.25rem; font-size: 0.875rem; }
+.navbar-gab__link {
+    padding: 1.1875rem 0.875rem;
+    color: var(--ink-soft);
+    border-bottom: 2px solid transparent;
+    font-weight: 400;
+    text-decoration: none;
+}
+.navbar-gab__link:hover { color: var(--ink); text-decoration: none; }
+.navbar-gab__link.is-active {
+    color: var(--ink);
+    font-weight: 500;
+    border-bottom-color: var(--primary);
+}
+.navbar-gab__right { display: flex; align-items: center; gap: 1rem; }
+
+.navbar-gab__util {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding-right: 0.85rem;
+    border-right: 1px solid var(--line);
+}
+.navbar-gab__icon-btn {
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0.35rem;
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+.navbar-gab__icon-btn:hover { color: var(--primary); }
+.navbar-gab__volume { width: 64px; accent-color: var(--primary); cursor: pointer; }
+.navbar-gab__mode {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+}
+.navbar-gab__mode-switch {
+    position: relative;
+    width: 30px;
+    height: 16px;
+    background: var(--line-input);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.navbar-gab__mode-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+}
+.navbar-gab__mode-switch.is-active { background: var(--primary); }
+.navbar-gab__mode-switch.is-active::after { transform: translateX(14px); }
+
+.navbar-gab__avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius);
+    background: var(--primary);
+    color: #ffffff;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.navbar-gab__menu { position: relative; }
+.navbar-gab__menu-trigger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: block;
+}
+.navbar-gab__menu-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 0.6rem);
+    right: 0;
+    min-width: 170px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-window);
+    padding: 0.4rem;
+    flex-direction: column;
+    z-index: 150;
+}
+.navbar-gab__menu.is-open .navbar-gab__menu-list { display: flex; }
+.navbar-gab__menu-item {
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: none;
+    display: block;
+}
+.navbar-gab__menu-item:hover { background: var(--primary-tint); color: var(--primary); text-decoration: none; }
+
+/* El botón flotante de tema (definido en base.html) es compartido por los
+   dos sistemas de diseño -- .tema-toggle-btn--gab (capa 1, arriba) le da sus
+   propios tokens para no heredar los del sistema viejo en ninguna página. */
+.tema-toggle-btn--gab {
+    background: var(--surface);
+    border-color: var(--line);
+    color: var(--ink);
+    box-shadow: var(--shadow-hover);
+}
+.tema-toggle-btn--gab:hover { border-color: var(--primary); }
+
+/* ---------- Footer (chrome global) ---------- */
+.footer-gab {
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    padding: 1.25rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--ink-soft);
+    font-family: var(--font-body);
+    margin-top: auto;
+}
+
+@media (max-width: 860px) {
+    .navbar-gab__links { display: none; }
+}

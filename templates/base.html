@@ -1,6 +1,7 @@
 {% load static %}
+{% load gabinete_extras %}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" {% block html_attrs %}{% endblock %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,8 +10,18 @@
          más abajo (o a extra_js), se vería un parpadeo del tema por defecto al cargar. -->
     <script>
         (function () {
+            // Dos sistemas de tema independientes conviven mientras el rediseño
+            // "Gabinete de estudio" se aplica pantalla por pantalla (ver
+            // static/css/gabinete.css para el porqué). data-gabinete-page lo pone
+            // cada plantilla ya migrada en la propia etiqueta html (vía el bloque
+            // html_attrs de base.html), así que ya está disponible acá aunque
+            // body todavía no se haya parseado.
             try {
-                if (localStorage.getItem('color_scheme') === 'claro') {
+                if (document.documentElement.hasAttribute('data-gabinete-page')) {
+                    if (localStorage.getItem('color_scheme_gabinete') === 'oscuro') {
+                        document.documentElement.setAttribute('data-tema-gabinete', 'oscuro');
+                    }
+                } else if (localStorage.getItem('color_scheme') === 'claro') {
                     document.documentElement.setAttribute('data-tema', 'claro');
                 }
             } catch (e) {}
@@ -18,6 +29,13 @@
     </script>
     <title>Música Digital</title>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,500&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Tipografía del rediseño "Gabinete de estudio" (navbar/footer globales +
+         pantallas ya migradas) -- coexiste con Fraunces/Work Sans de arriba,
+         que siguen sirviendo a las plantillas todavía no migradas. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/gabinete.css' %}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <!-- tonejs-instruments (nbrosowsky), pineado a un commit concreto (no @master) para
          que un cambio futuro ajeno en el repo no rompa el audio en silencio. Define el
@@ -166,157 +184,11 @@
             font-family: var(--font-display);
         }
 
-        /* Navbar Moderna con Glassmorphism */
-        .navbar {
-            background: color-mix(in srgb, var(--ink) 88%, transparent);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .nav-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .nav-brand {
-            font-family: var(--font-display);
-            font-size: 1.8rem;
-            font-weight: 800;
-            color: var(--text);
-            text-shadow: 0 0 16px color-mix(in srgb, var(--gold) 35%, transparent);
-            text-decoration: none;
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
-        }
-
-        /* El logo tiene fondo negro incorporado a la imagen y usa mix-blend-mode:screen
-           para que ese negro se funda con el navbar oscuro -- ese truco de blend SOLO
-           funciona sobre fondo oscuro (con el fondo claro, el contenido del logo se lava
-           hacia blanco en vez de "desaparecer"). En vez de depender del blend contra un
-           fondo que cambia de tema, el logo vive en su propio chip oscuro fijo,
-           independiente de --ink -- así se ve igual de nítido en los dos temas. */
-        .nav-brand__logo {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: #14110d;
-            border-radius: 10px;
-            padding: 2px 8px;
-            flex-shrink: 0;
-            line-height: 0;
-        }
-        /* flex-shrink:0 en los dos niveles -- .nav-brand (el <a>) y este span son AMBOS
-           contenedores flex anidados; sin esto, la imagen podía angostarse bajo presión
-           de espacio mientras el alto quedaba fijo (h-12), aplastándola. */
-        .nav-brand__logo img {
-            flex-shrink: 0;
-            display: block;
-        }
-
-        .nav-menu {
-            display: flex;
-            gap: 2rem;
-            align-items: center;
-        }
-
-        .nav-link {
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 0.95rem;
-            transition: color 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .nav-link:hover {
-            color: var(--gold-bright);
-        }
-
-        .nav-user {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding-left: 2rem;
-            border-left: 1px solid var(--border);
-        }
-
-        /* Reemplaza los links sueltos (Inicio/Biblioteca/Mis Proyectos/Estudio MIDI) por
-           un único dropdown "Recursos" que agrupa los mismos destinos que las cards de la
-           página principal -- decisión explícita del usuario para achicar el navbar. */
-        .nav-dropdown { position: relative; }
-
-        .nav-dropdown__trigger {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font: inherit;
-        }
-
-        .nav-dropdown__caret {
-            width: 0.65rem;
-            height: 0.65rem;
-            transition: transform 0.18s ease;
-        }
-
-        .nav-dropdown.is-open .nav-dropdown__caret { transform: rotate(180deg); }
-        .nav-dropdown.is-open .nav-dropdown__trigger { color: var(--gold-bright); }
-
-        .nav-dropdown__menu {
-            position: absolute;
-            top: calc(100% + 0.9rem);
-            left: 50%;
-            transform: translateX(-50%);
-            min-width: 300px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radio);
-            box-shadow: var(--sombra);
-            padding: 0.6rem;
-            display: none;
-            flex-direction: column;
-            gap: 0.15rem;
-            z-index: 150;
-        }
-
-        .nav-dropdown.is-open .nav-dropdown__menu { display: flex; }
-
-        .nav-dropdown__item {
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-            padding: 0.65rem 0.75rem;
-            border-radius: var(--radio-chico);
-            text-decoration: none;
-            transition: background 0.15s ease;
-        }
-
-        .nav-dropdown__item:hover {
-            background: color-mix(in srgb, var(--item-acento, var(--wine)) 12%, transparent);
-        }
-
-        .nav-dropdown__item svg {
-            width: 20px;
-            height: 20px;
-            stroke: var(--item-acento, var(--wine));
-            fill: none;
-            stroke-width: 1.6;
-            flex-shrink: 0;
-        }
-
-        .nav-dropdown__item-texto { display: flex; flex-direction: column; }
-        .nav-dropdown__item-titulo { font-size: 0.92rem; font-weight: 600; color: var(--text); line-height: 1.25; }
-        .nav-dropdown__item-desc { font-size: 0.76rem; color: var(--text-secondary); font-weight: 500; margin-top: 0.1rem; }
-
-        .nav-dropdown__sep { height: 1px; background: var(--border); margin: 0.4rem 0.3rem; }
+        /* La navbar vieja ("Navbar Moderna con Glassmorphism", dropdown Recursos)
+           se retiró del lado del markup -- el rediseño "Gabinete de estudio"
+           (static/css/gabinete.css, clases .navbar-gab*) es ahora la navbar
+           única y global del sitio. Ver esa hoja de estilos para el porqué de
+           que sus tokens no vivan acá en :root. */
 
         /* Posición fija (no dentro de la navbar) a propósito: es inmune a cualquier
            problema de layout del flex de la navbar, y coincide con dónde vivía en el
@@ -397,26 +269,12 @@
             transition: color 0.2s;
         }
         .theory-modal-close:hover { color: var(--text); }
-        .audio-volume-control { display: flex; align-items: center; gap: 0.4rem; }
-        .audio-volume-mute-btn { background: none; border: none; cursor: pointer; font-size: 1.15rem; line-height: 1; padding: 0.2rem; }
-        .audio-volume-range { width: 80px; accent-color: var(--primary); cursor: pointer; }
-        .learning-toggle {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: color-mix(in srgb, var(--parchment) 5%, transparent);
-            padding: 0.5rem 1rem;
-            border-radius: 2rem;
-            border: 1px solid var(--border);
-        }
-        .toggle-switch {
-            position: relative; width: 40px; height: 20px; background-color: var(--border); border-radius: 20px; cursor: pointer; transition: background-color 0.3s;
-        }
-        .toggle-switch::after {
-            content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background-color: white; border-radius: 50%; transition: transform 0.3s;
-        }
-        .toggle-switch.active { background-color: var(--primary); }
-        .toggle-switch.active::after { transform: translateX(20px); }
+        /* El control de volumen y el toggle Aprendizaje/Evaluación de la navbar vieja
+           (.audio-volume-*/.learning-toggle/.toggle-switch) se restylearon como
+           .navbar-gab__volume/.navbar-gab__mode* en static/css/gabinete.css -- mismos
+           IDs de elemento (audio-mute-toggle, audio-volume-slider, global-mode-toggle,
+           mode-label), así que audio_engine.js y el script de abajo siguen andando sin
+           tocarlos. */
 
         /* --- Formularios Django sin clases (login, registro, etc.) --- */
         .form-group { margin-bottom: 1.1rem; text-align: left; }
@@ -471,103 +329,66 @@
     </style>
     {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
 
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="{% url 'dashboard' %}" class="nav-brand flex items-center gap-2">
-                <span class="nav-brand__logo">
-                    <img src="{% static 'img/logo.png' %}" alt="Logo Música Digital" class="h-12 w-auto" style="mix-blend-mode: screen;">
-                </span>
-                MÚSICA DIGITAL
-            </a>
+    <!-- Navbar "Gabinete de estudio" -- chrome global, ver static/css/gabinete.css.
+         5 destinos planos (README): Panel/Biblioteca/Entrenamiento/Analizador/
+         Orquestar. Estudio MIDI y Proyectos ya no tienen entrada directa acá --
+         pasan a vivir como cards en el panel de bienvenida (dashboard.html). -->
+    <nav class="navbar-gab">
+        <div class="navbar-gab__inner">
+            <div class="navbar-gab__left">
+                <a href="{% url 'dashboard' %}" class="navbar-gab__brand">Música <em>Digital</em></a>
+                {% if user.is_authenticated %}
+                <div class="navbar-gab__links">
+                    <a href="{% url 'dashboard' %}" class="navbar-gab__link {% block nav_active_panel %}{% endblock %}">Panel</a>
+                    <a href="{% url 'biblioteca_list' %}" class="navbar-gab__link {% block nav_active_biblioteca %}{% endblock %}">Biblioteca</a>
+                    <a href="{% url 'entrenador_index' %}" class="navbar-gab__link {% block nav_active_entrenamiento %}{% endblock %}">Entrenamiento</a>
+                    <a href="{% url 'orquestador_analizar' %}" class="navbar-gab__link {% block nav_active_analizador %}{% endblock %}">Analizador</a>
+                    <a href="{% url 'orquestacion_ejercicio_lista' %}" class="navbar-gab__link {% block nav_active_orquestar %}{% endblock %}">Orquestar</a>
+                </div>
+                {% endif %}
+            </div>
 
             {% if user.is_authenticated %}
-            <div class="nav-menu">
-                <div class="nav-dropdown" id="recursos-dropdown">
-                    <button type="button" class="nav-link nav-dropdown__trigger" id="recursos-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="recursos-menu">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                        Recursos
-                        <svg class="nav-dropdown__caret" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                    <div class="nav-dropdown__menu" id="recursos-menu" role="menu" aria-labelledby="recursos-trigger">
-                        <a href="{% url 'midi_trainer_hub' %}" class="nav-dropdown__item" style="--item-acento: var(--gold);" role="menuitem">
-                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
-                            <span class="nav-dropdown__item-texto">
-                                <span class="nav-dropdown__item-titulo">Estudio MIDI</span>
-                                <span class="nav-dropdown__item-desc">Identificación de acordes en vivo</span>
-                            </span>
-                        </a>
-                        <a href="{% url 'biblioteca_list' %}" class="nav-dropdown__item" style="--item-acento: var(--wine);" role="menuitem">
-                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
-                            <span class="nav-dropdown__item-texto">
-                                <span class="nav-dropdown__item-titulo">Estudio Digital</span>
-                                <span class="nav-dropdown__item-desc">Partituras con metrónomo y tempo</span>
-                            </span>
-                        </a>
-                        <a href="{% url 'entrenador_index' %}" class="nav-dropdown__item" style="--item-acento: var(--petroleo);" role="menuitem">
-                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                            <span class="nav-dropdown__item-texto">
-                                <span class="nav-dropdown__item-titulo">Entrenador</span>
-                                <span class="nav-dropdown__item-desc">Juegos de oído y lectura</span>
-                            </span>
-                        </a>
-                        <a href="{% url 'proyectos_list' %}" class="nav-dropdown__item" style="--item-acento: var(--gold);" role="menuitem">
-                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                            <span class="nav-dropdown__item-texto">
-                                <span class="nav-dropdown__item-titulo">Proyectos</span>
-                                <span class="nav-dropdown__item-desc">Obras en estudio a largo plazo</span>
-                            </span>
-                        </a>
-                        <a href="{% url 'orquestacion_ejercicio_lista' %}" class="nav-dropdown__item" style="--item-acento: var(--wine);" role="menuitem">
-                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v8m0 0l4-4m-4 4l-4-4"></path></svg>
-                            <span class="nav-dropdown__item-texto">
-                                <span class="nav-dropdown__item-titulo">Ejercicio de orquestación</span>
-                                <span class="nav-dropdown__item-desc">Pintá voces de un fragmento de piano</span>
-                            </span>
-                        </a>
-                        <div class="nav-dropdown__sep"></div>
-                        <a href="{% url 'orquestador_analizar' %}" class="nav-dropdown__item" style="--item-acento: var(--wine);" role="menuitem">
-                            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"></path></svg>
-                            <span class="nav-dropdown__item-texto">
-                                <span class="nav-dropdown__item-titulo">Director de Estudio</span>
-                                <span class="nav-dropdown__item-desc">Analizar una partitura con IA</span>
-                            </span>
-                        </a>
+            <div class="navbar-gab__right">
+                <div class="navbar-gab__util">
+                    <button type="button" id="audio-mute-toggle" class="navbar-gab__icon-btn" aria-label="Silenciar sonido" title="Volumen">🔊</button>
+                    <input type="range" id="audio-volume-slider" min="0" max="100" value="88" class="navbar-gab__volume" aria-label="Volumen">
+                    <div class="navbar-gab__mode">
+                        <span id="mode-label">Evaluación</span>
+                        <div class="navbar-gab__mode-switch" id="global-mode-toggle"></div>
                     </div>
                 </div>
-
-                <div class="nav-user">
-                    <div class="audio-volume-control" title="Volumen del audio">
-                        <button type="button" id="audio-mute-toggle" class="audio-volume-mute-btn" aria-label="Silenciar sonido">🔊</button>
-                        <input type="range" id="audio-volume-slider" min="0" max="100" value="88" class="audio-volume-range" aria-label="Volumen">
+                <div class="navbar-gab__menu" id="user-menu">
+                    <button type="button" class="navbar-gab__menu-trigger" id="user-menu-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-list" aria-label="Menú de usuario">
+                        <span class="navbar-gab__avatar">{{ user|initials }}</span>
+                    </button>
+                    <div class="navbar-gab__menu-list" id="user-menu-list" role="menu" aria-labelledby="user-menu-trigger">
+                        <a href="{% url 'proyectos_list' %}" class="navbar-gab__menu-item" role="menuitem">Proyectos</a>
+                        <a href="{% url 'midi_trainer_hub' %}" class="navbar-gab__menu-item" role="menuitem">Estudio MIDI</a>
+                        <a href="{% url 'perfil' %}" class="navbar-gab__menu-item" role="menuitem">Mi perfil</a>
+                        <form method="post" action="{% url 'logout' %}" style="margin: 0;">
+                            {% csrf_token %}
+                            <button type="submit" class="navbar-gab__menu-item" style="width: 100%;">Salir</button>
+                        </form>
                     </div>
-                    <div class="learning-toggle">
-                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);" id="mode-label">Evaluación</span>
-                        <div class="toggle-switch" id="global-mode-toggle"></div>
-                    </div>
-                    <a href="{% url 'perfil' %}" class="nav-link !text-[var(--wine-bright)] hover:!text-[var(--wine)]">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                        Mi Perfil
-                    </a>
-                    <form method="post" action="{% url 'logout' %}" style="margin: 0;">
-                        {% csrf_token %}
-                        <button type="submit" class="nav-link !text-red-400 hover:!text-red-300" style="background: none; border: none; cursor: pointer; font: inherit;">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                            Salir
-                        </button>
-                    </form>
                 </div>
             </div>
             {% endif %}
         </div>
     </nav>
 
-    <button type="button" id="tema-toggle-btn" class="tema-toggle-btn" aria-label="Cambiar a tema claro" title="Cambiar tema">🌙</button>
+    <button type="button" id="tema-toggle-btn" class="tema-toggle-btn tema-toggle-btn--gab" aria-label="Cambiar a tema claro" title="Cambiar tema">🌙</button>
 
     <main class="main-content">
         {% block content %}{% endblock %}
     </main>
+
+    <footer class="footer-gab">
+        <span>Música Digital · herramienta de estudio para músicos</span>
+        <span>Ayuda · Atajos de teclado · Dispositivos MIDI</span>
+    </footer>
 
     <!-- Theory Modal -->
     <div id="theory-modal">
@@ -586,66 +407,91 @@
             if(toggle) {
                 const currentMode = localStorage.getItem("app_mode") || "eval";
                 if(currentMode === "learning") {
-                    toggle.classList.add("active");
+                    toggle.classList.add("is-active");
                     label.innerText = "Aprendizaje";
                     label.style.color = "var(--primary)";
                 }
                 toggle.addEventListener("click", () => {
-                    toggle.classList.toggle("active");
-                    if(toggle.classList.contains("active")) {
+                    toggle.classList.toggle("is-active");
+                    if(toggle.classList.contains("is-active")) {
                         localStorage.setItem("app_mode", "learning");
                         label.innerText = "Aprendizaje";
                         label.style.color = "var(--primary)";
                     } else {
                         localStorage.setItem("app_mode", "eval");
                         label.innerText = "Evaluación";
-                        label.style.color = "var(--text-secondary)";
+                        label.style.color = "var(--ink-soft)";
                     }
                 });
             }
 
+            // Dos sistemas de tema independientes (ver el comentario largo en
+            // static/css/gabinete.css y en el script anti-flash de <head>).
+            // data-gabinete-page en <html> decide cuál de los dos gobierna el
+            // botón flotante en ESTA página.
             const temaBtn = document.getElementById("tema-toggle-btn");
             if (temaBtn) {
+                const esGabinete = document.documentElement.hasAttribute("data-gabinete-page");
+                const atributoTema = esGabinete ? "data-tema-gabinete" : "data-tema";
+                const claveStorage = esGabinete ? "color_scheme_gabinete" : "color_scheme";
+                // Sistema viejo: default (sin atributo) = oscuro, "claro" = claro.
+                // Gabinete: default (sin atributo) = claro, "oscuro" = oscuro.
+                // Por eso "está en claro ahora" se calcula distinto en cada uno.
+                const estaEnClaro = () => esGabinete
+                    ? document.documentElement.getAttribute(atributoTema) !== "oscuro"
+                    : document.documentElement.getAttribute(atributoTema) === "claro";
+
                 const actualizarBotonTema = () => {
-                    const claro = document.documentElement.getAttribute("data-tema") === "claro";
+                    const claro = estaEnClaro();
                     temaBtn.textContent = claro ? "☀" : "🌙";
                     temaBtn.setAttribute("aria-label", claro ? "Cambiar a tema oscuro" : "Cambiar a tema claro");
                 };
                 temaBtn.addEventListener("click", () => {
-                    const claro = document.documentElement.getAttribute("data-tema") === "claro";
-                    if (claro) {
-                        document.documentElement.removeAttribute("data-tema");
-                        localStorage.setItem("color_scheme", "oscuro");
+                    if (estaEnClaro()) {
+                        // Pasar a oscuro: Gabinete lo hace SETEANDO el atributo (su default
+                        // es claro); el sistema viejo lo hace SACÁNDOLO (su default es oscuro).
+                        if (esGabinete) {
+                            document.documentElement.setAttribute(atributoTema, "oscuro");
+                        } else {
+                            document.documentElement.removeAttribute(atributoTema);
+                        }
+                        localStorage.setItem(claveStorage, "oscuro");
                     } else {
-                        document.documentElement.setAttribute("data-tema", "claro");
-                        localStorage.setItem("color_scheme", "claro");
+                        // Pasar a claro: Gabinete lo hace sacando el atributo (default);
+                        // el sistema viejo lo hace poniendo "claro" explícito.
+                        if (esGabinete) {
+                            document.documentElement.removeAttribute(atributoTema);
+                        } else {
+                            document.documentElement.setAttribute(atributoTema, "claro");
+                        }
+                        localStorage.setItem(claveStorage, "claro");
                     }
                     actualizarBotonTema();
                 });
                 actualizarBotonTema();
             }
 
-            const recursosDropdown = document.getElementById("recursos-dropdown");
-            const recursosTrigger = document.getElementById("recursos-trigger");
-            if (recursosDropdown && recursosTrigger) {
-                const cerrarRecursos = () => {
-                    recursosDropdown.classList.remove("is-open");
-                    recursosTrigger.setAttribute("aria-expanded", "false");
+            const userMenu = document.getElementById("user-menu");
+            const userMenuTrigger = document.getElementById("user-menu-trigger");
+            if (userMenu && userMenuTrigger) {
+                const cerrarUserMenu = () => {
+                    userMenu.classList.remove("is-open");
+                    userMenuTrigger.setAttribute("aria-expanded", "false");
                 };
-                const abrirRecursos = () => {
-                    recursosDropdown.classList.add("is-open");
-                    recursosTrigger.setAttribute("aria-expanded", "true");
+                const abrirUserMenu = () => {
+                    userMenu.classList.add("is-open");
+                    userMenuTrigger.setAttribute("aria-expanded", "true");
                 };
-                recursosTrigger.addEventListener("click", (e) => {
+                userMenuTrigger.addEventListener("click", (e) => {
                     e.stopPropagation();
-                    if (recursosDropdown.classList.contains("is-open")) cerrarRecursos();
-                    else abrirRecursos();
+                    if (userMenu.classList.contains("is-open")) cerrarUserMenu();
+                    else abrirUserMenu();
                 });
                 document.addEventListener("click", (e) => {
-                    if (!recursosDropdown.contains(e.target)) cerrarRecursos();
+                    if (!userMenu.contains(e.target)) cerrarUserMenu();
                 });
                 document.addEventListener("keydown", (e) => {
-                    if (e.key === "Escape") cerrarRecursos();
+                    if (e.key === "Escape") cerrarUserMenu();
                 });
             }
 

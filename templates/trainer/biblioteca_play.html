@@ -553,7 +553,13 @@
         // (y >3, para no confundir un genuino 3/8 simple) es la señal estándar de compás
         // compuesto.
         const esCompuesto = denominator === 8 && numerator % 3 === 0 && numerator > 3;
-        beatUnitQuarters = esCompuesto ? 0.5 : 1.0;
+        // En compuesto el pulso de audio SIEMPRE es la corchea (0.5), fijo -- eso ya andaba
+        // bien. En simple, el pulso real es UNA nota del valor del denominador (4/denominator
+        // negras): negra en X/4 (4/4=1.0), pero CORCHEA en X/8 simple como 3/8 (4/8=0.5) -- no
+        // siempre negra como asumía este código antes. Con 1.0 fijo, un compás de 3/8 (1.5
+        // negras) recibía ~1.5 ticks en vez de 3, desalineando el pulso visual del director
+        // respecto de los compases reales (el bug reportado: "director de 2 tiempos" en 3/8).
+        beatUnitQuarters = esCompuesto ? 0.5 : (4 / denominator);
         timeNumerator = numerator;
         pulsosPorGrupoVisual = esCompuesto ? 3 : 1;
         patronVisualLength = esCompuesto ? (numerator / 3) : numerator;
@@ -1966,7 +1972,9 @@
                     // segmento con sus propios valores mientras el segmento anterior/
                     // siguiente puede tener otros distintos.
                     const esCompuestoSegmento = segmento.denominator === 8 && segmento.numerator % 3 === 0 && segmento.numerator > 3;
-                    const beatUnitQuartersSegmento = esCompuestoSegmento ? 0.5 : 1.0;
+                    // Misma fórmula que renderConductor() -- ver comentario ahí. 4/denominator,
+                    // no 1.0 fijo, para no desalinear el click en compases simples X/8 (3/8, etc).
+                    const beatUnitQuartersSegmento = esCompuestoSegmento ? 0.5 : (4 / segmento.denominator);
                     const timeNumeratorSegmento = segmento.numerator;
                     const pulsosPorGrupoVisualSegmento = esCompuestoSegmento ? 3 : 1;
 
