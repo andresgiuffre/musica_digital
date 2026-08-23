@@ -1,4 +1,7 @@
 {% extends 'base.html' %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+{% block nav_active_entrenamiento %}is-active{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -12,11 +15,11 @@
     }
 
     #staff-container {
-        background: white;
-        border-radius: 1rem;
+        background: var(--score-paper);
+        border-radius: var(--radius);
         padding: 2rem;
-        box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.5);
-        border: 2px solid var(--border);
+        box-shadow: var(--shadow-window);
+        border: 1px solid var(--line);
         transition: border-color 0.3s;
     }
 
@@ -39,14 +42,12 @@
 
 {% block content %}
 <div class="trainer-container">
-    <div class="top-nav">
-        <a href="{% url 'entrenador_index' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-            </svg>
-            Volver al Menú
-        </a>
-    </div>
+    <a href="{% url 'entrenador_index' %}" class="volver-gab" style="align-self: flex-start;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        Volver al entrenador
+    </a>
 
     <div style="text-align: center;">
         <h2 style="margin-bottom: 0.5rem;">{{ game.name }}</h2>
@@ -66,10 +67,10 @@
     <div class="status-bar" style="align-items: center;">
         <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
         <div style="display: flex; gap: 1rem; align-items: center;">
-            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--text);">
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--ink);">
                 <input type="radio" name="play-mode" value="melodic" checked style="accent-color: var(--primary);"> Melódico
             </label>
-            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--text);">
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--ink);">
                 <input type="radio" name="play-mode" value="harmonic" style="accent-color: var(--primary);"> Armónico
             </label>
         </div>
@@ -77,7 +78,7 @@
 
     <div style="position: relative;">
         <div id="staff-container"></div>
-        <button id="btn-replay-interval" class="btn" style="position: absolute; bottom: 12px; right: 12px; padding: 0; border-radius: 50%; background: var(--surface); border: 2px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; z-index: 10; font-size: 1.25rem; transition: all 0.2s;">
+        <button id="btn-replay-interval" class="btn" style="position: absolute; bottom: 12px; right: 12px; padding: 0; border-radius: 50%; background: var(--surface); border: 2px solid var(--line-input); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; z-index: 10; font-size: 1.25rem; transition: all 0.2s;">
             🔊
         </button>
     </div>
@@ -247,7 +248,7 @@
             renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
             renderer.resize(300, 150);
             context = renderer.getContext();
-            context.setFont("Arial", 10, "").setBackgroundFillStyle(getComputedStyle(document.documentElement).getPropertyValue('--paper').trim() || "#eeeedd");
+            context.setFont("Arial", 10, "").setBackgroundFillStyle(getComputedStyle(document.body).getPropertyValue('--score-paper').trim() || "#ffffff");
             stave = new VF.Stave(10, 20, 280);
             stave.addClef("treble");
             stave.setContext(context).draw();
@@ -294,7 +295,7 @@
             if (isCorrect) {
                 div.classList.add("flash-correct");
                 feedbackMsg.innerText = "¡Correcto!";
-                feedbackMsg.style.color = "var(--success)";
+                feedbackMsg.style.color = "var(--green)";
             } else {
                 div.classList.add("flash-incorrect");
                 feedbackMsg.innerText = "Incorrecto. Era " + expectedName + ".";

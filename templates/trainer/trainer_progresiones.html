@@ -1,4 +1,7 @@
 {% extends 'base.html' %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+{% block nav_active_entrenamiento %}is-active{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -12,11 +15,11 @@
     }
 
     #playback-area {
-        background: white;
-        border-radius: 1rem;
+        background: var(--score-paper);
+        border-radius: var(--radius);
         padding: 1.5rem;
-        box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.5);
-        border: 2px solid var(--border);
+        box-shadow: var(--shadow-window);
+        border: 1px solid var(--line);
         width: 100%;
         display: flex;
         flex-direction: column;
@@ -33,19 +36,19 @@
     }
 
     .key-badge {
-        background: rgba(47, 184, 255, 0.1);
+        background: color-mix(in srgb, var(--primary) 10%, transparent);
         color: var(--primary);
         padding: 0.5rem 1rem;
         border-radius: 0.5rem;
         font-weight: bold;
         font-size: 1.2rem;
-        border: 1px solid rgba(47, 184, 255, 0.3);
+        border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
     }
 
     .btn-play {
         background: var(--surface);
-        color: var(--text);
-        border: 1px solid var(--border);
+        color: var(--ink);
+        border: 1px solid var(--line-input);
         padding: 0.5rem 1rem;
         border-radius: 0.5rem;
         font-weight: bold;
@@ -75,7 +78,7 @@
         font-weight: bold;
         letter-spacing: 2px;
         margin-bottom: 1.5rem;
-        color: var(--text);
+        color: var(--ink);
     }
 
     .slots-container {
@@ -90,7 +93,7 @@
     .slot {
         width: 60px;
         height: 60px;
-        border: 2px dashed var(--border);
+        border: 2px dashed var(--line-input);
         border-radius: 0.5rem;
         display: flex;
         align-items: center;
@@ -105,13 +108,13 @@
     .slot.active {
         border-color: var(--primary);
         border-style: solid;
-        box-shadow: 0 0 0 4px rgba(47, 184, 255, 0.2);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent);
     }
 
     .slot.filled {
         border-color: var(--primary);
         border-style: solid;
-        background: rgba(47, 184, 255, 0.1);
+        background: color-mix(in srgb, var(--primary) 10%, transparent);
         color: var(--primary);
     }
 
@@ -119,7 +122,7 @@
         background: var(--surface);
         padding: 1.5rem;
         border-radius: 1rem;
-        border: 1px solid var(--border);
+        border: 1px solid var(--line-input);
         width: 100%;
     }
 
@@ -133,8 +136,8 @@
 
     .key-btn {
         background: var(--bg);
-        border: 2px solid var(--border);
-        color: var(--text);
+        border: 2px solid var(--line-input);
+        color: var(--ink);
         padding: 0.75rem 1rem;
         border-radius: 0.5rem;
         font-weight: bold;
@@ -146,7 +149,7 @@
 
     .key-btn:hover {
         border-color: var(--primary);
-        background: rgba(47, 184, 255, 0.1);
+        background: color-mix(in srgb, var(--primary) 10%, transparent);
     }
 
     .btn-submit {
@@ -166,18 +169,16 @@
 
 {% block content %}
 <div class="trainer-container">
-    <div class="top-nav">
-        <a href="{% url 'entrenador_index' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-            </svg>
-            Volver al Menú
-        </a>
-    </div>
+    <a href="{% url 'entrenador_index' %}" class="volver-gab" style="align-self: flex-start;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        Volver al entrenador
+    </a>
 
     <div style="text-align: center; width: 100%;">
         <h1 style="margin-bottom: 0.5rem;">🧠 {{ game.name }}</h1>
-        <p style="color: var(--text-secondary);">Analiza la progresión armónica e identifica los grados romanos correspondientes.</p>
+        <p style="color: var(--ink-soft);">Analiza la progresión armónica e identifica los grados romanos correspondientes.</p>
     </div>
 
     <!-- Progress Bar -->
@@ -213,7 +214,7 @@
         </div>
 
         <div class="keyboard-container" id="keyboard-container">
-            <div style="text-align: center; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+            <div style="text-align: center; margin-bottom: 1rem; color: var(--ink-soft); font-size: 0.9rem;">
                 Selecciona una casilla arriba y elige el grado romano correcto:
             </div>
             <div class="keyboard-row">
@@ -451,7 +452,7 @@
                 div.innerHTML = "";
                 slotsContainer.innerHTML = "";
                 feedbackMsg.innerHTML = "";
-                playbackArea.style.borderColor = "var(--border)";
+                playbackArea.style.borderColor = "var(--line-input)";
                 btnSubmit.disabled = true;
                 btnSubmit.innerText = "Comprobar";
                 
@@ -487,7 +488,7 @@
                 let width = 150 + currentProgressionInfo.chords.length * 100;
                 renderer.resize(width, 150);
                 context = renderer.getContext();
-                context.setFont("Arial", 10, "").setBackgroundFillStyle(getComputedStyle(document.documentElement).getPropertyValue('--paper').trim() || "#eeeedd");
+                context.setFont("Arial", 10, "").setBackgroundFillStyle(getComputedStyle(document.body).getPropertyValue('--score-paper').trim() || "#ffffff");
 
                 stave = new VF.Stave(10, 20, width - 20);
                 stave.addClef("treble").addKeySignature(currentProgressionInfo.keySig).setContext(context).draw();
@@ -566,8 +567,8 @@
                         slotsContainer.children[idx].style.borderColor = "var(--danger)";
                         slotsContainer.children[idx].style.color = "var(--danger)";
                     } else {
-                        slotsContainer.children[idx].style.borderColor = "var(--success)";
-                        slotsContainer.children[idx].style.color = "var(--success)";
+                        slotsContainer.children[idx].style.borderColor = "var(--green)";
+                        slotsContainer.children[idx].style.color = "var(--green)";
                     }
                 });
 
@@ -575,8 +576,8 @@
 
                 if (isCorrect) {
                     feedbackMsg.innerText = "¡Correcto!";
-                    feedbackMsg.style.color = "var(--success)";
-                    playbackArea.style.borderColor = "var(--success)";
+                    feedbackMsg.style.color = "var(--green)";
+                    playbackArea.style.borderColor = "var(--green)";
                 } else {
                     feedbackMsg.innerText = "Revisa los grados marcados en rojo.";
                     feedbackMsg.style.color = "var(--danger)";
@@ -619,7 +620,7 @@
                 exp += `<h3 style="margin-top: 0; color: var(--primary);">Análisis: ${currentProgressionInfo.keyDisplay}</h3>`;
                 
                 currentProgressionInfo.chords.forEach(c => {
-                    exp += `<p style="margin: 0.5rem 0;"><strong>${c.name} = ${c.degree}</strong> <span style="color: var(--text-secondary); margin-left: 1rem;">▶ ${c.fun}</span></p>`;
+                    exp += `<p style="margin: 0.5rem 0;"><strong>${c.name} = ${c.degree}</strong> <span style="color: var(--ink-soft); margin-left: 1rem;">▶ ${c.fun}</span></p>`;
                 });
                 
                 exp += `</div>`;

@@ -1,4 +1,7 @@
 {% extends 'base.html' %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+{% block nav_active_entrenamiento %}is-active{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -12,11 +15,11 @@
     }
 
     #playback-area {
-        background: white;
-        border-radius: 1rem;
+        background: var(--score-paper);
+        border-radius: var(--radius);
         padding: 3rem;
-        box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.5);
-        border: 2px solid var(--border);
+        box-shadow: var(--shadow-window);
+        border: 1px solid var(--line);
         transition: border-color 0.3s;
         text-align: center;
         width: 100%;
@@ -31,12 +34,12 @@
 
     .option-btn {
         background: var(--surface);
-        border: 2px solid var(--border);
+        border: 2px solid var(--line-input);
         padding: 1.25rem;
         border-radius: 0.5rem;
         font-size: 1.25rem;
         font-weight: 700;
-        color: var(--text);
+        color: var(--ink);
         cursor: pointer;
         transition: all 0.2s;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -45,7 +48,7 @@
     .option-btn:hover:not(:disabled) {
         border-color: var(--primary);
         transform: translateY(-2px);
-        box-shadow: 0 4px 6px rgba(47, 184, 255, 0.2);
+        box-shadow: 0 4px 6px color-mix(in srgb, var(--primary) 20%, transparent);
     }
 
     .option-btn:disabled {
@@ -54,13 +57,13 @@
     }
 
     .option-btn.correct {
-        background: rgba(16, 185, 129, 0.1);
-        border-color: var(--success);
-        color: var(--success);
+        background: color-mix(in srgb, var(--green) 10%, transparent);
+        border-color: var(--green);
+        color: var(--green);
     }
 
     .option-btn.incorrect {
-        background: rgba(239, 68, 68, 0.1);
+        background: color-mix(in srgb, var(--danger) 10%, transparent);
         border-color: var(--danger);
         color: var(--danger);
     }
@@ -75,16 +78,16 @@
         border-radius: 50px;
         cursor: pointer;
         transition: transform 0.2s, box-shadow 0.2s;
-        box-shadow: 0 4px 15px rgba(47, 184, 255, 0.4);
+        box-shadow: 0 4px 15px color-mix(in srgb, var(--primary) 40%, transparent);
     }
 
     .play-btn:hover:not(:disabled) {
         transform: scale(1.05);
-        box-shadow: 0 6px 20px rgba(47, 184, 255, 0.6);
+        box-shadow: 0 6px 20px color-mix(in srgb, var(--primary) 60%, transparent);
     }
 
     .play-btn:disabled {
-        background: var(--text-secondary);
+        background: var(--line-input);
         box-shadow: none;
         cursor: wait;
     }
@@ -99,23 +102,21 @@
 
 {% block content %}
 <div class="trainer-container">
-    <div class="top-nav" style="width: 100%; max-width: 600px; margin-bottom: -1rem;">
-        <a href="{% url 'entrenador_index' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-            </svg>
-            Volver al Menú
-        </a>
-    </div>
+    <a href="{% url 'entrenador_index' %}" class="volver-gab" style="align-self: flex-start;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        Volver al entrenador
+    </a>
 
     <div style="text-align: center; margin-bottom: 1rem;">
         <h1 style="margin-bottom: 0.5rem;">{{ game.name }}</h1>
-        <p style="color: var(--text-secondary);">Escucha la melodía y selecciona la opción correcta.</p>
+        <p style="color: var(--ink-soft);">Escucha la melodía y selecciona la opción correcta.</p>
     </div>
 
     <!-- Progress Bar -->
-    <div class="progress-container" style="width: 100%; max-width: 600px; background: var(--surface); padding: 1rem; border-radius: 1rem; border: 1px solid var(--border);">
-        <div class="progress-labels" style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 0.5rem; color: var(--text); font-size: 0.9rem;">
+    <div class="progress-container" style="width: 100%; max-width: 600px; background: var(--surface); padding: 1rem; border-radius: 1rem; border: 1px solid var(--line-input);">
+        <div class="progress-labels" style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 0.5rem; color: var(--ink); font-size: 0.9rem;">
             <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
             <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
         </div>
@@ -235,8 +236,8 @@
         if (isCorrect) {
             btn.classList.add('correct');
             feedbackMsg.textContent = '¡Correcto! 🎉';
-            feedbackMsg.style.color = 'var(--success)';
-            document.getElementById('playback-area').style.borderColor = 'var(--success)';
+            feedbackMsg.style.color = 'var(--green)';
+            document.getElementById('playback-area').style.borderColor = 'var(--green)';
             AudioEngine.playNotes(currentMelody, null, 1.5); // Acorde de victoria (?) o repetirla junta
         } else {
             btn.classList.add('incorrect');
@@ -284,7 +285,7 @@
         const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto';
         
         let resetFunc = () => {
-            document.getElementById('playback-area').style.borderColor = 'var(--border)';
+            document.getElementById('playback-area').style.borderColor = 'var(--line-input)';
             playBtn.textContent = '▶ Reproducir Siguiente';
             currentMelody = []; // Reset para forzar nueva ronda
             playBtn.disabled = false;
