@@ -1,112 +1,108 @@
 {% extends 'base.html' %}
 {% block title %}Rutas de Entrenamiento{% endblock %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+{% block nav_active_entrenamiento %}is-active{% endblock %}
 
 {% block extra_css %}
 <style>
-    .path { position: relative; margin-top: 2.5rem; }
-    .path::before {
+    /* ============================================================
+       "Gabinete de estudio" -- Entrenador (ruta de entrenamiento). No
+       estaba entre las 5 pantallas del README; sigue el mismo lenguaje
+       visual del resto (tarjetas blancas, ciruela de acción, verde solo
+       para el estado "completado").
+       ============================================================ */
+    .senda-gab { position: relative; margin-top: 2rem; }
+    .senda-gab::before {
         content: '';
         position: absolute;
         left: 27px; top: 8px; bottom: 8px; width: 2px;
-        background: linear-gradient(180deg, var(--success) 0%, var(--border) 40%, var(--border) 100%);
+        background: var(--line);
         z-index: 0;
     }
-    .stage { position: relative; z-index: 1; display: flex; gap: 1.5rem; margin-bottom: 1.1rem; }
-    .stage-badge {
+    .etapa-gab { position: relative; z-index: 1; display: flex; gap: 1.5rem; margin-bottom: 1.1rem; }
+    .etapa-gab__insignia {
         flex-shrink: 0; width: 56px; height: 56px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
-        font-family: var(--font-body); font-weight: 600; font-size: 1.1rem;
-        background: var(--surface); border: 2px solid var(--border); color: var(--text-secondary);
+        font-weight: 600; font-size: 1.1rem;
+        background: var(--surface); border: 2px solid var(--line); color: var(--ink-soft);
     }
-    .stage.completed .stage-badge { border-color: var(--success); color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
-    .stage-card {
-        flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 1rem;
+    .etapa-gab.completada .etapa-gab__insignia { border-color: var(--green); color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+    .etapa-gab__card {
+        flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
         padding: 1.4rem 1.6rem; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
-        box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 16px 30px -26px rgba(0,0,0,0.7);
-        transition: border-color 0.2s ease, transform 0.2s ease;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
-    .stage.completed .stage-card { border-color: color-mix(in srgb, var(--success) 35%, transparent); }
-    .stage-card:hover { transform: translateY(-2px); }
-    .stage-body { flex: 1; min-width: 15rem; }
-    .stage-eyebrow { font-family: var(--font-body); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--parchment-eyebrow); margin-bottom: 0.3rem; }
-    .stage-card h3 { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 0.2rem; font-family: var(--font-display); }
-    .stage-card p { color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 0.9rem; }
-    .stage-metrics { display: flex; gap: 1.75rem; flex-wrap: wrap; }
-    .metric { min-width: 9rem; }
-    .metric-label { display: flex; justify-content: space-between; font-family: var(--font-body); font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.3rem; }
-    .metric-label b { color: var(--text); font-weight: 600; }
-    .metric-bar { height: 5px; border-radius: 3px; background: var(--bg); overflow: hidden; }
-    .metric-bar span { display: block; height: 100%; background: var(--border); }
-    .metric-bar span.ok { background: var(--success); }
-    .stage-cta {
-        flex-shrink: 0; display: inline-flex; align-items: center; gap: 0.5rem;
-        background: var(--primary); color: #241505; font-weight: 700; font-size: 0.9rem;
-        padding: 0.7rem 1.5rem; border-radius: 0.7rem; text-decoration: none;
-        transition: transform 0.15s ease, background 0.15s ease;
-    }
-    .stage-cta:hover { transform: translateY(-2px); background: var(--primary-hover); }
-    .stage.completed .stage-cta { background: var(--success); color: #241505; }
+    .etapa-gab.completada .etapa-gab__card { border-color: color-mix(in srgb, var(--green) 35%, transparent); }
+    .etapa-gab__card:hover { box-shadow: var(--shadow-hover); }
+    .etapa-gab__cuerpo { flex: 1; min-width: 15rem; }
+    .etapa-gab__eyebrow { font-weight: 600; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 0.3rem; }
+    .etapa-gab__card h3 { font-size: 1.3rem; color: var(--ink); margin-bottom: 0.25rem; }
+    .etapa-gab__card p { color: var(--ink-soft); font-size: 0.88rem; margin-bottom: 0.9rem; }
+    .etapa-gab__metricas { display: flex; gap: 1.75rem; flex-wrap: wrap; }
+    .etapa-gab__metrica { min-width: 9rem; }
+    .etapa-gab__metrica-label { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-soft); margin-bottom: 0.3rem; }
+    .etapa-gab__metrica-label b { color: var(--ink); font-weight: 600; }
+    .etapa-gab__metrica-pista { height: 5px; border-radius: 3px; background: var(--line-soft); overflow: hidden; }
+    .etapa-gab__metrica-fill { display: block; height: 100%; background: var(--line-input); }
+    .etapa-gab__metrica-fill.ok { background: var(--green); }
 
-    .path-summary { display: flex; gap: 1.75rem; margin-top: 1.75rem; flex-wrap: wrap; }
-    .path-stat { font-family: var(--font-body); }
-    .path-stat .n { font-size: 1.6rem; font-weight: 600; color: var(--primary); font-family: var(--font-display); }
-    .path-stat .l { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--parchment-eyebrow); }
+    .senda-gab__resumen { display: flex; gap: 1.75rem; margin-top: 1.75rem; flex-wrap: wrap; }
+    .senda-gab__stat .n { font-family: var(--font-display); font-size: 1.6rem; color: var(--primary); }
+    .senda-gab__stat .l { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-legacy" style="max-width: 900px;">
-    <div class="top-nav">
-        <a href="{% url 'dashboard' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all mb-6">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-            </svg>
-            Volver
-        </a>
+<div class="envoltorio-gab" style="max-width: 56rem; padding-top: 1.75rem; padding-bottom: 2.5rem;">
+    <a href="{% url 'dashboard' %}" class="volver-gab">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        Volver
+    </a>
+
+    <div class="eyebrow-gab" style="margin-bottom: 0.5rem;">Entrenador</div>
+    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 0.5rem;">Tu ruta de entrenamiento</h1>
+    <p style="color: var(--ink-soft); max-width: 40ch;">Cada etapa desbloquea reflejos distintos — de reconocer una nota en el pentagrama a distinguir un intervalo de oído.</p>
+
+    <div class="senda-gab__resumen">
+        <div class="senda-gab__stat"><div class="n">{{ progress|length }}</div><div class="l">Etapas totales</div></div>
+        <div class="senda-gab__stat"><div class="n" id="completedCount" style="color: var(--green);">0</div><div class="l">Completadas</div></div>
     </div>
 
-    <div class="eyebrow" style="font-family:var(--font-body);font-weight:600;font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--parchment-eyebrow);margin-bottom:0.7rem;">Entrenador</div>
-    <h1 style="font-size:clamp(2rem,4vw,2.8rem);font-weight:800;">Tu ruta de entrenamiento</h1>
-    <p style="color:var(--text-secondary);margin-top:0.5rem;max-width:34rem;">Cada etapa desbloquea reflejos distintos — de reconocer una nota en el pentagrama a distinguir un intervalo de oído.</p>
-
-    <div class="path-summary">
-        <div class="path-stat"><div class="n">{{ progress|length }}</div><div class="l">Etapas totales</div></div>
-        <div class="path-stat"><div class="n" id="completedCount" style="color:var(--success);">0</div><div class="l">Completadas</div></div>
-    </div>
-
-    <div class="path">
+    <div class="senda-gab">
         {% for p in progress %}
-            <div class="stage {% if p.completed %}completed{% endif %}">
-                <div class="stage-badge">{% if p.completed %}✓{% else %}{{ forloop.counter }}{% endif %}</div>
-                <div class="stage-card">
-                    <div class="stage-body">
-                        <div class="stage-eyebrow">Etapa {{ forloop.counter }}</div>
+            <div class="etapa-gab {% if p.completed %}completada{% endif %}">
+                <div class="etapa-gab__insignia">{% if p.completed %}✓{% else %}{{ forloop.counter }}{% endif %}</div>
+                <div class="etapa-gab__card">
+                    <div class="etapa-gab__cuerpo">
+                        <div class="etapa-gab__eyebrow">Etapa {{ forloop.counter }}</div>
                         <h3>{{ p.game.name }}</h3>
                         <p>{{ p.game.description }}</p>
-                        <div class="stage-metrics">
-                            <div class="metric">
-                                <div class="metric-label"><span>Precisión</span><b>{{ p.accuracy }}% / {{ p.game.recommended_accuracy }}%</b></div>
+                        <div class="etapa-gab__metricas">
+                            <div class="etapa-gab__metrica">
+                                <div class="etapa-gab__metrica-label"><span>Precisión</span><b>{{ p.accuracy }}% / {{ p.game.recommended_accuracy }}%</b></div>
                                 {% widthratio p.accuracy p.game.recommended_accuracy 100 as acc_pct %}
-                                <div class="metric-bar"><span class="{% if p.accuracy >= p.game.recommended_accuracy %}ok{% endif %}" style="width: {% if acc_pct > 100 %}100{% else %}{{ acc_pct }}{% endif %}%;"></span></div>
+                                <div class="etapa-gab__metrica-pista"><span class="etapa-gab__metrica-fill {% if p.accuracy >= p.game.recommended_accuracy %}ok{% endif %}" style="width: {% if acc_pct > 100 %}100{% else %}{{ acc_pct }}{% endif %}%;"></span></div>
                             </div>
-                            <div class="metric">
-                                <div class="metric-label"><span>Ejercicios</span><b>{{ p.score.total_answers }} / {{ p.game.recommended_attempts }}</b></div>
+                            <div class="etapa-gab__metrica">
+                                <div class="etapa-gab__metrica-label"><span>Ejercicios</span><b>{{ p.score.total_answers }} / {{ p.game.recommended_attempts }}</b></div>
                                 {% widthratio p.score.total_answers p.game.recommended_attempts 100 as att_pct %}
-                                <div class="metric-bar"><span class="{% if p.score.total_answers >= p.game.recommended_attempts %}ok{% endif %}" style="width: {% if att_pct > 100 %}100{% else %}{{ att_pct }}{% endif %}%;"></span></div>
+                                <div class="etapa-gab__metrica-pista"><span class="etapa-gab__metrica-fill {% if p.score.total_answers >= p.game.recommended_attempts %}ok{% endif %}" style="width: {% if att_pct > 100 %}100{% else %}{{ att_pct }}{% endif %}%;"></span></div>
                             </div>
                         </div>
                     </div>
-                    <a href="{% url p.url_name %}" class="stage-cta">{% if p.completed %}Repasar{% else %}Entrar{% endif %} →</a>
+                    <a href="{% url p.url_name %}" class="btn-gab btn-gab--primary">{% if p.completed %}Repasar{% else %}Entrar{% endif %} →</a>
                 </div>
             </div>
         {% endfor %}
     </div>
-
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    document.getElementById('completedCount').textContent = document.querySelectorAll('.stage.completed').length;
+    document.getElementById('completedCount').textContent = document.querySelectorAll('.etapa-gab.completada').length;
 </script>
 {% endblock %}

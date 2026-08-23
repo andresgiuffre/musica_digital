@@ -10,6 +10,14 @@
 
 {% block content %}
 <div class="orquestador-container" style="padding-top: 1.5rem;">
+    <div style="width: 100%;">
+        <a href="{% url 'dashboard' %}" class="volver-gab">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+            </svg>
+            Volver
+        </a>
+    </div>
     <div style="text-align: center; width: 100%;">
         <h1 style="margin-bottom: 0.5rem;">Mis análisis anteriores</h1>
         <p style="color: var(--ink-soft);">Historial de partituras analizadas con el Analizador de Orquestación.</p>
