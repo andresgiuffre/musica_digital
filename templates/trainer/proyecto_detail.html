@@ -1,132 +1,178 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}Proyecto: {{ proyecto.sheet_music.title|default:proyecto.sheet_music.xml_file.name }}{% endblock %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ============================================================
+       "Gabinete de estudio" -- Detalle de Proyecto.
+       ============================================================ */
+    .proy-gab__header { background: var(--dark-panel); color: var(--on-dark); border-radius: var(--radius); padding: 2.5rem 2.75rem; position: relative; overflow: hidden; margin-bottom: 1.75rem; }
+    .proy-gab__header-deco { position: absolute; top: 0; right: 0; padding: 1rem; opacity: 0.08; font-size: 9rem; line-height: 1; }
+    .proy-gab__badges { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+    .proy-gab__badge { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.25rem 0.7rem; border-radius: 999px; }
+    .proy-gab__badge.tipo { background: color-mix(in srgb, var(--rose) 22%, transparent); color: var(--rose); }
+    .proy-gab__badge.completado { background: color-mix(in srgb, var(--green) 26%, transparent); color: var(--green); }
+    .proy-gab__badge.activo { background: color-mix(in srgb, var(--ochre) 26%, transparent); color: var(--ochre); }
+    .proy-gab__titulo { font-size: clamp(2rem, 4vw, 2.75rem); color: var(--on-dark); margin: 0 0 0.5rem; max-width: 32ch; }
+    .proy-gab__compositor { color: var(--on-dark-body); font-size: 1.125rem; margin: 0; }
+    .proy-gab__acciones { margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+    .proy-gab__continuar { background: var(--green); color: #fff; font-weight: 700; padding: 1rem 2rem; border-radius: var(--radius); display: inline-flex; align-items: center; gap: 0.6rem; font-size: 1.0625rem; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .proy-gab__continuar:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); text-decoration: none; color: #fff; }
+    .proy-gab__ultimo-punto { background: rgba(255,255,255,0.06); border: 1px solid var(--on-dark-line); border-radius: var(--radius); padding: 0.75rem 1.25rem; }
+    .proy-gab__ultimo-punto span { font-size: 0.8125rem; color: var(--on-dark-soft); display: block; }
+    .proy-gab__ultimo-punto strong { color: var(--on-dark); font-weight: 600; }
+
+    .proy-gab__stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
+    @media (min-width: 640px) { .proy-gab__stats { grid-template-columns: repeat(4, 1fr); } }
+    .proy-gab__stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.375rem; text-align: center; }
+    .proy-gab__stat-label { color: var(--ink-soft); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.35rem; display: block; }
+    .proy-gab__stat-valor { font-size: 1.75rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .proy-gab__stat-valor small { font-size: 1rem; font-weight: 500; color: var(--ink-soft); margin-left: 0.15rem; }
+
+    .proy-gab__paneles { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+    @media (min-width: 1024px) { .proy-gab__paneles { grid-template-columns: 1fr 1fr; } }
+    .proy-gab__panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+    .proy-gab__panel-head { background: var(--bg); padding: 1rem 1.5rem; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+    .proy-gab__panel-head h3 { font-size: 1.1875rem; margin: 0; }
+    .proy-gab__panel-body { padding: 1.5rem; flex: 1; }
+    .proy-gab__lista { display: flex; flex-direction: column; gap: 0.6rem; }
+    .proy-gab__fila { display: flex; align-items: center; justify-content: space-between; background: var(--bg); padding: 0.75rem 1rem; border-radius: var(--radius); border: 1px solid var(--line-soft); gap: 0.75rem; }
+    .proy-gab__fila-titulo { font-weight: 600; color: var(--ink); }
+    .proy-gab__pill { font-size: 0.6875rem; font-weight: 700; padding: 0.25rem 0.65rem; border-radius: 999px; white-space: nowrap; }
+    .proy-gab__pill.dominado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+    .proy-gab__pill.progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
+    .proy-gab__pill.pendiente { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+    .proy-gab__check { width: 1.5rem; height: 1.5rem; border-radius: var(--radius); border: 2px solid var(--line-input); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8125rem; }
+    .proy-gab__check.done { border-color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+    .proy-gab__meta-sub { font-size: 0.8125rem; color: var(--ink-soft); }
+    .proy-gab__vacio { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0.7; padding: 2rem 0; }
+    .proy-gab__vacio span { font-size: 2.25rem; margin-bottom: 0.5rem; display: block; }
+    .proy-gab__link-nuevo { background: none; border: none; color: var(--primary); font-size: 0.8125rem; font-weight: 700; cursor: pointer; }
+    .proy-gab__link-nuevo:hover { color: var(--primary-dark); }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8 max-w-5xl">
-    <div class="top-nav">
-        <a href="{% url 'proyectos_list' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all mb-6">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-            </svg>
-            Volver a Mis Proyectos
-        </a>
-    </div>
+<div class="envoltorio-gab" style="padding-top: 1.75rem; padding-bottom: 2.5rem;">
+    <a href="{% url 'proyectos_list' %}" class="volver-gab">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        Volver a Mis Proyectos
+    </a>
+
     <!-- Header del Proyecto -->
-    <div class="bg-gray-800 rounded-2xl p-8 border border-gray-700 shadow-2xl relative overflow-hidden mb-8">
-        <div class="absolute top-0 right-0 p-4 opacity-10">
-            <span class="text-9xl">🎼</span>
-        </div>
-        
-        <div class="relative z-10">
-            <div class="flex items-center gap-3 mb-2">
-                <span class="bg-[var(--gold)] text-[#241505] text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">Proyecto de Estudio</span>
+    <div class="proy-gab__header">
+        <div class="proy-gab__header-deco">🎼</div>
+        <div style="position: relative; z-index: 1;">
+            <div class="proy-gab__badges">
+                <span class="proy-gab__badge tipo">Proyecto de Estudio</span>
                 {% if proyecto.status == 'COMPLETED' %}
-                <span class="bg-emerald-600 text-white text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">Completado</span>
+                <span class="proy-gab__badge completado">Completado</span>
                 {% else %}
-                <span class="bg-yellow-500 text-black text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">Activo</span>
+                <span class="proy-gab__badge activo">Activo</span>
                 {% endif %}
             </div>
-            
-            <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[var(--gold)] to-emerald-400 drop-shadow-lg mb-4">
-                {{ proyecto.sheet_music.title|default:proyecto.sheet_music.xml_file.name }}
-            </h1>
-            <p class="text-gray-400 text-xl">Compositor: {{ proyecto.sheet_music.composer|default:"Desconocido" }}</p>
-            
-            <div class="mt-8 flex flex-wrap gap-4">
-                <a href="{% url 'biblioteca_play' proyecto.sheet_music.id %}?project_id={{ proyecto.id }}" class="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 px-8 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all hover:scale-105 flex items-center gap-3 text-lg">
+
+            <h1 class="proy-gab__titulo">{{ proyecto.sheet_music.title|default:proyecto.sheet_music.xml_file.name }}</h1>
+            <p class="proy-gab__compositor">Compositor: {{ proyecto.sheet_music.composer|default:"Desconocido" }}</p>
+
+            <div class="proy-gab__acciones">
+                <a href="{% url 'biblioteca_play' proyecto.sheet_music.id %}?project_id={{ proyecto.id }}" class="proy-gab__continuar">
                     <span>▶</span> Continuar donde lo dejé
                 </a>
-                
-                <div class="bg-gray-900/50 rounded-xl px-6 py-4 border border-gray-700/50 flex flex-col justify-center">
-                    <span class="text-sm text-gray-400">Último punto:</span>
-                    <span class="text-white font-bold">Compás {{ proyecto.last_measure }} a {{ proyecto.last_tempo }} BPM</span>
+                <div class="proy-gab__ultimo-punto">
+                    <span>Último punto:</span>
+                    <strong>Compás {{ proyecto.last_measure }} a {{ proyecto.last_tempo }} BPM</strong>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Panel de Estadísticas -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 text-center">
-            <p class="text-gray-400 text-sm font-bold mb-1">TIEMPO INVERTIDO</p>
-            <p class="text-3xl font-black text-white">
-                <script>document.write(Math.floor({{ proyecto.time_invested_seconds }} / 60))</script><span class="text-lg text-gray-500 ml-1">min</span>
+    <div class="proy-gab__stats">
+        <div class="proy-gab__stat">
+            <span class="proy-gab__stat-label">Tiempo invertido</span>
+            <p class="proy-gab__stat-valor">
+                <script>document.write(Math.floor({{ proyecto.time_invested_seconds }} / 60))</script><small>min</small>
             </p>
         </div>
-        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 text-center">
-            <p class="text-gray-400 text-sm font-bold mb-1">MÁX. VELOCIDAD</p>
-            <p class="text-3xl font-black text-[var(--gold)]">{{ proyecto.max_bpm_reached }}<span class="text-lg text-gray-500 ml-1">BPM</span></p>
+        <div class="proy-gab__stat">
+            <span class="proy-gab__stat-label">Máx. velocidad</span>
+            <p class="proy-gab__stat-valor" style="color: var(--primary);">{{ proyecto.max_bpm_reached }}<small>BPM</small></p>
         </div>
-        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 text-center">
-            <p class="text-gray-400 text-sm font-bold mb-1">PROGRESO GLOBAL</p>
-            <p class="text-3xl font-black text-emerald-400">{{ proyecto.progress_percentage }}<span class="text-lg text-gray-500 ml-1">%</span></p>
+        <div class="proy-gab__stat">
+            <span class="proy-gab__stat-label">Progreso global</span>
+            <p class="proy-gab__stat-valor" style="color: var(--green);">{{ proyecto.progress_percentage }}<small>%</small></p>
         </div>
-        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 text-center">
-            <p class="text-gray-400 text-sm font-bold mb-1">ÚLTIMA PRÁCTICA</p>
-            <p class="text-lg font-black text-white mt-2">{{ proyecto.last_practice|date:"d M, H:i" }}</p>
+        <div class="proy-gab__stat">
+            <span class="proy-gab__stat-label">Última práctica</span>
+            <p class="proy-gab__stat-valor" style="font-size: 1.125rem;">{{ proyecto.last_practice|date:"d M, H:i" }}</p>
         </div>
     </div>
 
     <!-- Secciones y Objetivos -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="proy-gab__paneles">
         <!-- Mapa de Secciones -->
-        <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden flex flex-col">
-            <div class="bg-gray-900 px-6 py-4 border-b border-gray-700 flex justify-between items-center">
-                <h3 class="text-xl font-bold text-white">Mapa de Secciones</h3>
+        <div class="proy-gab__panel">
+            <div class="proy-gab__panel-head">
+                <h3>Mapa de Secciones</h3>
             </div>
-            <div class="p-6 flex-1 overflow-auto">
+            <div class="proy-gab__panel-body">
                 {% if proyecto.sections.all %}
-                    <div class="space-y-3">
+                    <div class="proy-gab__lista">
                         {% for sec in proyecto.sections.all %}
-                        <div class="flex items-center justify-between bg-gray-900/50 p-3 rounded-lg border border-gray-700">
-                            <span class="text-white font-bold">Compases {{ sec.start_measure }} - {{ sec.end_measure }}</span>
+                        <div class="proy-gab__fila">
+                            <span class="proy-gab__fila-titulo">Compases {{ sec.start_measure }} - {{ sec.end_measure }}</span>
                             {% if sec.status == 'MASTERED' %}
-                                <span class="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-bold border border-emerald-500/30">Dominado</span>
+                                <span class="proy-gab__pill dominado">Dominado</span>
                             {% elif sec.status == 'IN_PROGRESS' %}
-                                <span class="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-bold border border-yellow-500/30">En Progreso</span>
+                                <span class="proy-gab__pill progreso">En Progreso</span>
                             {% else %}
-                                <span class="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-xs font-bold border border-red-500/30">Necesita Práctica</span>
+                                <span class="proy-gab__pill pendiente">Necesita Práctica</span>
                             {% endif %}
                         </div>
                         {% endfor %}
                     </div>
                 {% else %}
-                    <div class="h-full flex flex-col items-center justify-center text-center opacity-50 py-8">
-                        <span class="text-4xl mb-2">🗺️</span>
-                        <p>No has definido secciones todavía.</p>
-                        <p class="text-sm">Ve al modo estudio para dividir tu obra.</p>
+                    <div class="proy-gab__vacio">
+                        <span>🗺️</span>
+                        <p>No definiste secciones todavía.</p>
+                        <p class="proy-gab__meta-sub">Andá al modo estudio para dividir tu obra.</p>
                     </div>
                 {% endif %}
             </div>
         </div>
 
         <!-- Objetivos -->
-        <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden flex flex-col">
-            <div class="bg-gray-900 px-6 py-4 border-b border-gray-700 flex justify-between items-center">
-                <h3 class="text-xl font-bold text-white">Objetivos del Proyecto</h3>
-                <button class="text-[var(--gold)] hover:text-[var(--gold-bright)] text-sm font-bold">+ Nuevo</button>
+        <div class="proy-gab__panel">
+            <div class="proy-gab__panel-head">
+                <h3>Objetivos del Proyecto</h3>
+                <button class="proy-gab__link-nuevo">+ Nuevo</button>
             </div>
-            <div class="p-6 flex-1">
+            <div class="proy-gab__panel-body">
                 {% if proyecto.goals.all %}
-                    <div class="space-y-3">
+                    <div class="proy-gab__lista">
                         {% for goal in proyecto.goals.all %}
-                        <div class="flex items-center gap-4 bg-gray-900/50 p-4 rounded-lg border {% if goal.is_completed %}border-emerald-500/50{% else %}border-gray-700{% endif %}">
-                            <div class="w-6 h-6 rounded border-2 flex items-center justify-center {% if goal.is_completed %}border-emerald-500 bg-emerald-500/20 text-emerald-400{% else %}border-gray-600{% endif %}">
+                        <div class="proy-gab__fila">
+                            <div class="proy-gab__check {% if goal.is_completed %}done{% endif %}">
                                 {% if goal.is_completed %}✓{% endif %}
                             </div>
-                            <div class="flex-1">
-                                <p class="text-white font-bold">{{ goal.get_goal_type_display }}</p>
-                                <p class="text-sm text-gray-400">Meta: {{ goal.target_value }}</p>
+                            <div style="flex: 1;">
+                                <p class="proy-gab__fila-titulo" style="margin: 0;">{{ goal.get_goal_type_display }}</p>
+                                <p class="proy-gab__meta-sub" style="margin: 0;">Meta: {{ goal.target_value }}</p>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
                 {% else %}
-                    <div class="h-full flex flex-col items-center justify-center text-center opacity-50 py-8">
-                        <span class="text-4xl mb-2">🎯</span>
+                    <div class="proy-gab__vacio">
+                        <span>🎯</span>
                         <p>Sin objetivos definidos.</p>
-                        <p class="text-sm">Agrega objetivos para mantener la motivación.</p>
+                        <p class="proy-gab__meta-sub">Agregá objetivos para mantener la motivación.</p>
                     </div>
                 {% endif %}
             </div>

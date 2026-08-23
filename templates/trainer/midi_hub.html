@@ -1,100 +1,132 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}MIDI Trainer Hub{% endblock %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
 
 {% block extra_css %}
 <style>
-    .midi-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 1.1rem; box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 18px 34px -28px rgba(0,0,0,0.7); }
-    .harmony-panel { background: var(--surface); border: 1px solid color-mix(in srgb, var(--petroleo) 35%, transparent); box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 0 40px -10px color-mix(in srgb, var(--petroleo) 18%, transparent); }
-    .midi-note-chip { background: color-mix(in srgb, var(--petroleo) 16%, transparent); border: 1px solid color-mix(in srgb, var(--petroleo) 45%, transparent); color: var(--petroleo-bright); font-family: var(--font-body); font-weight: 600; }
-    .game-tile {
-        background: var(--surface); border: 1px solid var(--border); border-radius: 1rem; padding: 1.5rem;
-        box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 16px 30px -26px rgba(0,0,0,0.7);
-        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    /* ============================================================
+       "Gabinete de estudio" -- Estudio MIDI. No estaba entre las 5
+       pantallas del README (se llega acá desde el menú de usuario, no
+       la navbar); sigue el mismo lenguaje visual del resto (tarjetas
+       blancas, ciruela de acción, verde/rojo solo para estado de
+       conexión, que es semántico y no un token de marca).
+       ============================================================ */
+    .midi-gab__panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.5rem; }
+    .midi-gab__estado { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.75rem; }
+    .midi-gab__estado-izq { display: flex; align-items: center; gap: 1rem; }
+    .midi-gab__icono {
+        width: 3rem; height: 3rem; border-radius: 50%; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        border: 2px solid; transition: border-color 0.2s ease, color 0.2s ease;
     }
-    .game-tile:hover { transform: translateY(-3px); border-color: var(--wine); box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 22px 40px -22px color-mix(in srgb, var(--wine) 30%, transparent); }
+    .midi-gab__icono svg { width: 1.5rem; height: 1.5rem; }
+    .midi-gab__icono.desconectado { border-color: #b5484a; color: #b5484a; background: color-mix(in srgb, #b5484a 12%, transparent); }
+    .midi-gab__icono.conectado { border-color: var(--green); color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+    .midi-gab__device { background: var(--bg); border: 1px solid var(--line-input); border-radius: var(--radius); padding: 0.45rem 0.7rem; font-size: 0.875rem; color: var(--ink); min-width: 220px; }
+
+    .midi-gab__paneles { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2.5rem; }
+    @media (max-width: 760px) { .midi-gab__paneles { grid-template-columns: 1fr; } }
+
+    .midi-gab__monitor { min-height: 150px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 0.5rem; }
+    .midi-gab__nota-chip { background: var(--primary-tint); border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent); color: var(--primary-dark); font-weight: 600; padding: 0.4rem 0.75rem; border-radius: var(--radius); }
+
+    .midi-gab__armonia { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 220px; }
+    .midi-gab__acorde { font-family: var(--font-display); font-weight: 500; font-size: 3.25rem; color: var(--ink); margin: 0.5rem 0; }
+
+    .midi-gab__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1.1rem; }
+    .midi-gab__tile {
+        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+        padding: 1.375rem 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;
+        text-decoration: none; color: inherit;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    .midi-gab__tile:hover { border-color: var(--primary); box-shadow: var(--shadow-lift); transform: translateY(-6px); text-decoration: none; }
+    .midi-gab__tile.disabled { opacity: 0.55; cursor: default; }
+    .midi-gab__tile.disabled:hover { border-color: var(--line); box-shadow: none; transform: none; }
+    .midi-gab__tile-icono {
+        width: 2.75rem; height: 2.75rem; border-radius: var(--radius); display: flex; align-items: center; justify-content: center;
+        background: var(--primary-tint); color: var(--primary); margin-bottom: 0.3rem;
+    }
+    .midi-gab__tile-icono svg { width: 1.375rem; height: 1.375rem; }
+    .midi-gab__tile h3 { font-size: 1.1875rem; margin: 0; }
+    .midi-gab__tile p { font-size: 0.8125rem; color: var(--ink-soft); line-height: 1.6; margin: 0; }
+    .midi-gab__tile-badge { align-self: flex-start; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--primary); color: #fff; margin-top: 0.3rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8 max-w-6xl">
-    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <div>
-            <div class="font-body text-xs tracking-widest uppercase mb-2" style="color: var(--parchment-eyebrow); font-weight: 600;">Estudio MIDI</div>
-            <h1 class="text-5xl font-black mb-2 font-display" style="color: var(--text);">
-                Tu teclado, <span style="color: var(--petroleo-bright);">en vivo</span>
-            </h1>
-            <p class="text-lg" style="color: var(--text-secondary);">Conectá tu controlador y empezá a interactuar en tiempo real.</p>
-        </div>
-        <a href="{% url 'dashboard' %}" class="bg-surf hover:bg-slate-700 text-white font-bold py-2 px-6 rounded-lg transition-colors border border-[var(--border)]">
-            ← Volver al Inicio
-        </a>
-    </div>
+<div class="envoltorio-gab" style="padding-top: 1.75rem; padding-bottom: 2.5rem;">
+    <a href="{% url 'dashboard' %}" class="volver-gab">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        Volver
+    </a>
+
+    <div class="eyebrow-gab" style="margin-bottom: 0.5rem;">Estudio MIDI</div>
+    <h1 style="font-size: clamp(2rem, 4vw, 2.75rem); margin-bottom: 0.5rem;">Tu teclado, <em>en vivo</em></h1>
+    <p style="color: var(--ink-soft); max-width: 46ch; margin-bottom: 1.75rem;">Conectá tu controlador y empezá a interactuar en tiempo real.</p>
 
     <!-- Estado de Conexión MIDI -->
-    <div class="midi-panel p-6 mb-8 flex items-center justify-between">
-        <div class="flex items-center gap-4">
-            <div id="midi-status-icon" class="w-12 h-12 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-all duration-300">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+    <div class="midi-gab__panel midi-gab__estado">
+        <div class="midi-gab__estado-izq">
+            <div id="midi-status-icon" class="midi-gab__icono desconectado">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
             </div>
             <div>
-                <h3 class="text-xl font-bold text-white mb-1">Controlador MIDI</h3>
-                <select id="midi-device-select" class="bg-surf border border-[var(--border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:border-[var(--petroleo)] w-full min-w-[200px]" style="color: var(--text);">
+                <h3 style="font-size: 1.1875rem; margin: 0 0 0.4rem;">Controlador MIDI</h3>
+                <select id="midi-device-select" class="midi-gab__device">
                     <option>Buscando dispositivos...</option>
                 </select>
             </div>
         </div>
         <div>
-            <button id="btn-request-midi" class="hover:brightness-110 font-bold py-2 px-4 rounded-lg transition-colors hidden" style="background: var(--petroleo); color: #fff;">
+            <button id="btn-request-midi" class="btn-gab btn-gab--primary hidden">
                 Permitir Acceso MIDI
             </button>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+    <div class="midi-gab__paneles">
         <!-- Monitor de Notas -->
-        <div class="midi-panel p-6 relative overflow-hidden flex flex-col">
-            <div class="flex justify-between w-full">
-                <h3 class="text-xs font-bold mb-4 uppercase tracking-wider font-body" style="color: var(--parchment-eyebrow);">Monitor MIDI</h3>
-            </div>
-            <div id="midi-monitor-display" class="flex-1 flex flex-wrap content-start gap-2 min-h-[150px]">
-                <p class="w-full text-center mt-8" style="color: var(--parchment-faint);">Tocá una tecla en tu controlador</p>
+        <div class="midi-gab__panel">
+            <div class="eyebrow-gab" style="font-style: normal; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin-bottom: 0.9rem;">Monitor MIDI</div>
+            <div id="midi-monitor-display" class="midi-gab__monitor">
+                <p style="width: 100%; text-align: center; margin-top: 2rem; color: var(--ink-soft);">Tocá una tecla en tu controlador</p>
             </div>
         </div>
 
         <!-- Análisis Armónico -->
-        <div class="harmony-panel rounded-[1.1rem] p-6 flex flex-col items-center justify-center text-center min-h-[250px]">
-            <h3 class="text-xs font-bold mb-2 uppercase tracking-wider w-full text-left font-body" style="color: var(--petroleo-bright);">Análisis Armónico</h3>
-            <div class="flex-1 flex flex-col justify-center w-full">
-                <h2 id="detected-chord-name" class="text-6xl font-black drop-shadow-lg mb-4 font-display" style="color: var(--text);">-</h2>
-                <div class="flex flex-col gap-2">
-                    <p style="color: var(--text-secondary);">Notas: <span id="detected-chord-notes" class="font-bold font-mono" style="color: var(--text);">Ninguna</span></p>
-                    <p class="text-sm" id="detected-chord-aliases" style="color: var(--text-secondary);"></p>
-                </div>
-            </div>
+        <div class="midi-gab__panel midi-gab__armonia">
+            <div class="eyebrow-gab" style="font-style: normal; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--primary); width: 100%; text-align: left; margin-bottom: 0.4rem;">Análisis Armónico</div>
+            <h2 id="detected-chord-name" class="midi-gab__acorde">-</h2>
+            <p style="color: var(--ink-soft); margin: 0;">Notas: <span id="detected-chord-notes" style="font-weight: 600; color: var(--ink); font-family: var(--font-body);">Ninguna</span></p>
+            <p style="font-size: 0.8125rem; color: var(--ink-soft); margin: 0.3rem 0 0;" id="detected-chord-aliases"></p>
         </div>
     </div>
 
     <!-- Juegos -->
     <div>
-        <h2 class="text-2xl font-black mb-6 border-b border-[var(--border)] pb-2 font-display" style="color: var(--text);">Juegos y Ejercicios</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <h2 style="font-size: 1.375rem; margin-bottom: 1.1rem; border-bottom: 1px solid var(--line); padding-bottom: 0.75rem;">Juegos y Ejercicios</h2>
+        <div class="midi-gab__grid">
             <!-- Juego: Identificación de Acordes -->
-            <a href="{% url 'midi_game_chords' %}" class="game-tile block">
-                <div class="w-12 h-12 rounded-lg flex items-center justify-center mb-4" style="background: color-mix(in srgb, var(--petroleo) 16%, transparent); border: 1px solid color-mix(in srgb, var(--petroleo) 40%, transparent); color: var(--petroleo-bright);">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+            <a href="{% url 'midi_game_chords' %}" class="midi-gab__tile">
+                <div class="midi-gab__tile-icono">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
                 </div>
-                <h3 class="text-xl font-bold mb-2" style="color: var(--text);">Identificación de Acordes</h3>
-                <p class="text-sm mb-4" style="color: var(--text-secondary);">Practicá tocando los acordes que te pida la plataforma lo más rápido posible.</p>
-                <span class="text-xs font-bold px-3 py-1 rounded-full font-body uppercase tracking-wide" style="background: var(--petroleo); color: #fff;">Jugar</span>
+                <h3>Identificación de Acordes</h3>
+                <p>Practicá tocando los acordes que te pida la plataforma lo más rápido posible.</p>
+                <span class="midi-gab__tile-badge">Jugar</span>
             </a>
 
-            <div class="game-tile opacity-50" style="cursor: default;">
-                <div class="w-12 h-12 bg-surf border border-[var(--border)] rounded-lg flex items-center justify-center mb-4" style="color: var(--parchment-faint);">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <div class="midi-gab__tile disabled">
+                <div class="midi-gab__tile-icono" style="background: var(--line-soft); color: var(--ink-soft);">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 </div>
-                <h3 class="text-xl font-bold mb-2" style="color: var(--text);">Progresiones (Próximamente)</h3>
-                <p class="text-sm" style="color: var(--text-secondary);">Entrená tocando progresiones armónicas populares en diferentes tonalidades.</p>
+                <h3>Progresiones (Próximamente)</h3>
+                <p>Entrená tocando progresiones armónicas populares en diferentes tonalidades.</p>
             </div>
         </div>
     </div>
@@ -107,13 +139,13 @@
     // Set global para mantener las notas activas (guardamos el pitch MIDI directamente)
     const activeNotes = new Set(); // Guarda los pitches (ej: 60, 64, 67)
     const activeNotesDict = {}; // Guarda la velocidad { 60: 100 }
-    
+
     const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    
+
     function getNoteName(pitch) {
         return NOTE_NAMES[pitch % 12] + (Math.floor(pitch / 12) - 1);
     }
-    
+
     function getNotePC(pitch) {
         return NOTE_NAMES[pitch % 12];
     }
@@ -128,7 +160,7 @@
     const chordNameEl = document.getElementById('detected-chord-name');
     const chordNotesEl = document.getElementById('detected-chord-notes');
     const chordAliasesEl = document.getElementById('detected-chord-aliases');
-    
+
     // --- SINTETIZADOR DE PIANO ---
     let samplerLoaded = false;
     const pianoSampler = new Tone.Sampler({
@@ -151,15 +183,11 @@
 
     function updateConnectionUI(connected) {
         if(connected) {
-            statusIcon.className = "w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all duration-300";
-            statusIcon.innerHTML = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
-            deviceSelect.classList.add('border-emerald-500/50');
-            deviceSelect.classList.remove('border-red-500/50', 'border-gray-600');
+            statusIcon.className = "midi-gab__icono conectado";
+            statusIcon.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
         } else {
-            statusIcon.className = "w-12 h-12 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-all duration-300";
-            statusIcon.innerHTML = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
-            deviceSelect.classList.add('border-red-500/50');
-            deviceSelect.classList.remove('border-emerald-500/50', 'border-gray-600');
+            statusIcon.className = "midi-gab__icono desconectado";
+            statusIcon.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
         }
     }
 
@@ -167,14 +195,14 @@
         let status = event.data[0];
         let pitch = event.data[1] || 0;
         let velocity = (event.data.length > 2) ? event.data[2] : 0;
-        
+
         let cmd = status >> 4; // Los 4 bits más significativos
-        
+
         // Iniciar Tone.js context si está suspendido
         if (Tone.context.state !== 'running') {
             Tone.start();
         }
-        
+
         // Ignorar mensajes que no sean notas para no saturar
         if(cmd === 9 || cmd === 8) {
             try {
@@ -213,7 +241,7 @@
 
     function renderMonitor() {
         if(activeNotes.size === 0) {
-            monitorDisplay.innerHTML = `<p class="text-gray-600 w-full text-center mt-8">Toca una tecla en tu controlador</p>`;
+            monitorDisplay.innerHTML = `<p style="width: 100%; text-align: center; margin-top: 2rem; color: var(--ink-soft);">Tocá una tecla en tu controlador</p>`;
             return;
         }
 
@@ -221,11 +249,11 @@
         Array.from(activeNotes).sort((a,b) => a - b).forEach(pitch => {
             let vel = activeNotesDict[pitch];
             let noteName = getNoteName(pitch);
-            let opacity = Math.max(0.3, vel / 127);
+            let opacity = Math.max(0.4, vel / 127);
             monitorDisplay.innerHTML += `
-                <div class="bg-[var(--petroleo)] text-white px-3 py-2 rounded shadow-lg border border-[var(--petroleo-bright)]" style="opacity: ${opacity};">
-                    <span class="font-bold text-lg">${noteName}</span>
-                    <span class="text-xs ml-2" style="color: var(--petroleo-bright);">v${vel}</span>
+                <div class="midi-gab__nota-chip" style="opacity: ${opacity};">
+                    <span>${noteName}</span>
+                    <span style="font-size: 0.75rem; margin-left: 0.4rem; opacity: 0.8;">v${vel}</span>
                 </div>
             `;
         });
@@ -233,10 +261,10 @@
 
     function analyzeHarmony() {
         let sortedPitches = Array.from(activeNotes).sort((a,b) => a - b);
-        
+
         if(sortedPitches.length === 0) {
             chordNameEl.innerText = "-";
-            chordNameEl.className = "text-6xl font-black text-gray-700 drop-shadow-lg mb-4";
+            chordNameEl.style.color = "var(--ink)";
             chordNotesEl.innerText = "Ninguna";
             chordAliasesEl.innerText = "";
             return;
@@ -247,7 +275,7 @@
         if(sortedPitches.length < 3) {
             // Unísono o Intervalo
             chordNameEl.innerText = "?";
-            chordNameEl.className = "text-6xl font-black text-gray-500 drop-shadow-lg mb-4";
+            chordNameEl.style.color = "var(--ink-soft)";
             chordNotesEl.innerText = noteNames.join(" - ");
             chordAliasesEl.innerText = sortedPitches.length === 2 ? "Intervalo" : "Nota simple";
             return;
@@ -260,7 +288,7 @@
 
             if(detected && detected.length > 0) {
                 chordNameEl.innerText = detected[0];
-                chordNameEl.className = "text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500 drop-shadow-lg mb-4";
+                chordNameEl.style.color = "var(--green)";
                 chordNotesEl.innerText = noteNames.join(" - ");
                 if(detected.length > 1) {
                     chordAliasesEl.innerText = "También: " + detected.slice(1).join(", ");
@@ -269,7 +297,7 @@
                 }
             } else {
                 chordNameEl.innerText = "Acorde no común";
-                chordNameEl.className = "text-3xl font-black text-yellow-500 drop-shadow-lg mb-4";
+                chordNameEl.style.color = "var(--ochre)";
                 chordNotesEl.innerText = noteNames.join(" - ");
                 chordAliasesEl.innerText = "";
             }
@@ -295,17 +323,17 @@
 
     function updateDeviceList(midiAccess) {
         midiInputs = Array.from(midiAccess.inputs.values());
-        
+
         if(midiInputs.length > 0) {
             updateConnectionUI(true);
             deviceSelect.innerHTML = '';
-            
+
             midiInputs.forEach(input => {
                 let option = document.createElement('option');
                 option.value = input.id;
                 option.text = input.name;
                 deviceSelect.appendChild(option);
-                
+
                 // Clear old listeners
                 input.onmidimessage = null;
             });
@@ -329,10 +357,10 @@
                 // Remove listener from previous
                 let oldInput = midiInputs.find(i => i.id === selectedInputId);
                 if(oldInput) oldInput.onmidimessage = null;
-                
+
                 selectedInputId = e.target.value;
                 localStorage.setItem('selectedMidiInputId', selectedInputId);
-                
+
                 // Add listener to new
                 let newInput = midiInputs.find(i => i.id === selectedInputId);
                 if(newInput) newInput.onmidimessage = onMIDIMessage;
