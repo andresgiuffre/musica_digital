@@ -1,24 +1,22 @@
 {% extends 'base.html' %}
 {% load static %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+{% block nav_active_analizador %}is-active{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/orquestador.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="orquestador-container">
-    <div class="top-nav">
-        <a href="{% url 'orquestador_historial' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-            </svg>
-            Volver al historial
-        </a>
+<div class="orquestador-container" style="padding-top: 1.5rem;">
+    <div class="orquestador-tabs" style="max-width: 260px;">
+        <a href="{% url 'orquestador_historial' %}" class="orquestador-tab">← Historial</a>
     </div>
 
     <div style="text-align: center; width: 100%;">
         <h1 style="margin-bottom: 0.5rem;">{{ analysis.name }}</h1>
-        <p style="color: var(--text-secondary);">Analizado el {{ analysis.created_at|date:"d M Y, H:i" }}</p>
+        <p style="color: var(--ink-soft);">Analizado el {{ analysis.created_at|date:"d M Y, H:i" }}</p>
     </div>
 
     <div class="compartir-box" id="compartir-box" data-analysis-id="{{ analysis.id }}">
