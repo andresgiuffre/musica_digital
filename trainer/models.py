@@ -482,3 +482,133 @@ class FragmentoOrquestacion(models.Model):
 
     def __str__(self):
         return self.nombre
+
+
+class Curso(models.Model):
+    nombre = models.CharField(max_length=200)
+    descripcion_corta = models.CharField(max_length=300, blank=True)
+    activo = models.BooleanField(default=True, help_text="Solo los cursos activos aparecen listados para los usuarios.")
+
+    class Meta:
+        verbose_name = "Curso"
+        verbose_name_plural = "Cursos"
+
+    def __str__(self):
+        return self.nombre
+
+
+class Grado(models.Model):
+    curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name='grados')
+    numero = models.PositiveIntegerField(help_text='Orden dentro del curso Y etiqueta visible ("Grado 0", "Grado 1", ...).')
+    titulo = models.CharField(max_length=200, help_text='Ej: "Fundamentos de lectura".')
+    activo = models.BooleanField(default=True, help_text="Solo los grados activos aparecen listados para los usuarios.")
+
+    class Meta:
+        unique_together = ('curso', 'numero')
+        ordering = ['numero']
+        verbose_name = "Grado"
+        verbose_name_plural = "Grados"
+
+    def __str__(self):
+        return f"Grado {self.numero} - {self.titulo} ({self.curso.nombre})"
+
+
+class Tema(models.Model):
+    grado = models.ForeignKey(Grado, on_delete=models.CASCADE, related_name='temas')
+    titulo = models.CharField(max_length=200)
+    orden = models.PositiveIntegerField(default=0, help_text="Orden dentro del grado.")
+    slug = models.SlugField(help_text="Se escribe a mano, no se autogenera (misma convención que Game.slug/Achievement.slug/Collection.slug). Único dentro del grado -- se usa en la URL del tema.")
+    activo = models.BooleanField(default=True, help_text="Solo los temas activos son accesibles para los usuarios.")
+
+    class Meta:
+        unique_together = ('grado', 'slug')
+        ordering = ['orden']
+        verbose_name = "Tema"
+        verbose_name_plural = "Temas"
+
+    def __str__(self):
+        return f"{self.titulo} ({self.grado})"
+
+
+class BloqueContenido(models.Model):
+    """
+    Un bloque de contenido dentro de un Tema. `tipo` determina cuáles de los campos
+    de abajo son relevantes -- todos nullable/blank a propósito, cada fila llena
+    solo el subconjunto que le corresponde a su tipo (ver clean()). Diseñado para
+    poder sumar un tipo QUIZ más adelante sin reestructurar: alcanza con un valor
+    más en TIPO_CHOICES y su propio grupo de campos nullable, igual que conviven
+    hoy EJEMPLO_PARTITURA y PRACTICA.
+    """
+    TEXTO = 'TEXTO'
+    EJEMPLO_PARTITURA = 'EJEMPLO_PARTITURA'
+    PRACTICA = 'PRACTICA'
+    TIPO_CHOICES = (
+        (TEXTO, 'Texto'),
+        (EJEMPLO_PARTITURA, 'Ejemplo de partitura'),
+        (PRACTICA, 'Práctica'),
+    )
+
+    tema = models.ForeignKey(Tema, on_delete=models.CASCADE, related_name='bloques')
+    orden = models.PositiveIntegerField(default=0)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+
+    # --- TEXTO ---
+    texto_markdown = models.TextField(blank=True, help_text="Fuente Markdown (nunca HTML crudo). Se sanitiza y renderiza en el detalle del tema.")
+
+    # --- EJEMPLO_PARTITURA (exactamente uno de los dos FK de abajo) ---
+    sheet_music = models.ForeignKey(
+        SheetMusic, on_delete=models.SET_NULL, null=True, blank=True, related_name='bloques_curso',
+        help_text="Partitura de la Biblioteca a mostrar como ejemplo. Exactamente uno entre esto y 'fragmento orquestación' cuando el tipo es Ejemplo de partitura."
+    )
+    fragmento_orquestacion = models.ForeignKey(
+        FragmentoOrquestacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='bloques_curso',
+        help_text="Fragmento del Ejercicio de Orquestación a mostrar como ejemplo. Exactamente uno entre esto y 'sheet music' cuando el tipo es Ejemplo de partitura."
+    )
+    contexto_ejemplo = models.CharField(max_length=300, blank=True, help_text='Texto corto opcional arriba del ejemplo, ej: "En este ejemplo, fijate cómo...".')
+
+    # --- PRACTICA ---
+    practica_texto = models.CharField(max_length=300, blank=True, help_text='Ej: "Practicá esto en Identificación de Notas". Requerido cuando el tipo es Práctica.')
+    practica_url = models.CharField(
+        max_length=300, blank=True,
+        help_text="URL/path opcional escrito a mano hacia una página existente (ej: /juego/notas/). Si queda vacío, se muestra como texto plano sin link. Deliberadamente NO es una FK a Game ni a nada más."
+    )
+
+    class Meta:
+        ordering = ['orden']
+        verbose_name = "Bloque de Contenido"
+        verbose_name_plural = "Bloques de Contenido"
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} #{self.orden} - {self.tema}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        errores = {}
+
+        if self.tipo == self.TEXTO:
+            if not self.texto_markdown:
+                errores['texto_markdown'] = "Requerido cuando el tipo es Texto."
+            if self.sheet_music_id or self.fragmento_orquestacion_id:
+                errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Texto."
+            if self.practica_texto:
+                errores['practica_texto'] = "No debería llenarse en un bloque de Texto."
+
+        elif self.tipo == self.EJEMPLO_PARTITURA:
+            if bool(self.sheet_music_id) == bool(self.fragmento_orquestacion_id):
+                # cubre "ninguno de los dos" y "los dos a la vez"
+                errores['sheet_music'] = "Elegí exactamente una: partitura de biblioteca O fragmento de orquestación, no ninguna ni las dos."
+            if self.texto_markdown:
+                errores['texto_markdown'] = "No debería llenarse acá (usá 'contexto_ejemplo' para texto corto)."
+            if self.practica_texto:
+                errores['practica_texto'] = "No debería llenarse en un bloque de Ejemplo de partitura."
+
+        elif self.tipo == self.PRACTICA:
+            if not self.practica_texto:
+                errores['practica_texto'] = "Requerido cuando el tipo es Práctica."
+            if self.texto_markdown:
+                errores['texto_markdown'] = "No debería llenarse en un bloque de Práctica."
+            if self.sheet_music_id or self.fragmento_orquestacion_id:
+                errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Práctica."
+
+        if errores:
+            raise ValidationError(errores)
