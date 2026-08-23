@@ -1,15 +1,31 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}{{ sheet.title|default:sheet.xml_file.name }} - Modo Estudio{% endblock %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+{% block nav_active_biblioteca %}is-active{% endblock %}
 
 {% block extra_css %}
 <style>
-    /* Estilos del Pentagrama */
+    /* ============================================================
+       "Gabinete de estudio" -- Biblioteca y reproductor (pantalla 02).
+       El mockup del README solo cubre cabecera + papel + transporte;
+       todo el resto de este archivo (Modo Estudio: práctica MIDI,
+       metrónomo, loop, marcadores, playlist, ensayo) no tiene spec del
+       README -- se repinta acá siguiendo el mismo lenguaje visual
+       (ciruela de acción, tarjetas blancas, acentos solo para distinguir
+       categorías), decisión explícita pedida además de lo que cubre el
+       mockup en sí.
+       ============================================================ */
+
+    /* Estilos del Pentagrama -- el papel SIEMPRE blanco con tinta casi
+       negra, sea cual sea el tema del resto de la página (ya lo hacía
+       bien antes; solo referencia el token semántico ahora). */
     #playback-area {
-        background: white;
-        border-radius: 12px;
+        background: var(--score-paper);
+        border-radius: var(--radius);
         padding: 20px;
-        box-shadow: 0 24px 46px -26px rgba(0,0,0,0.7);
+        box-shadow: var(--shadow-window);
         overflow-x: auto;
         min-height: 400px;
     }
@@ -24,7 +40,11 @@
         position: relative;
     }
 
-    /* Brújula (Conductor) */
+    /* Brújula (Conductor) -- widget flotante sobre la partitura, no una
+       tarjeta del sistema de diseño; se queda oscuro a propósito (mismo
+       criterio que el panel oscuro del analizador: --rose es "acento
+       sobre fondo oscuro" en el propio README) para no competir con el
+       papel blanco que tiene debajo. */
     #conductor-widget {
         position: fixed;
         /* 6rem, no 30px: el botón de tema claro/oscuro (.tema-toggle-btn en base.html) vive
@@ -40,7 +60,7 @@
         border: 2px solid rgba(255, 255, 255, 0.1);
         border-radius: 50%;
         backdrop-filter: blur(10px);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px color-mix(in srgb, var(--success) 20%, transparent);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px color-mix(in srgb, var(--rose) 20%, transparent);
         z-index: 50;
         display: flex;
         justify-content: center;
@@ -49,8 +69,8 @@
     }
 
     .beat-pulse {
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 40px color-mix(in srgb, var(--success) 60%, transparent) !important;
-        border-color: color-mix(in srgb, var(--success) 80%, transparent) !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 40px color-mix(in srgb, var(--rose) 60%, transparent) !important;
+        border-color: color-mix(in srgb, var(--rose) 80%, transparent) !important;
     }
 
     .beat-dot {
@@ -64,9 +84,9 @@
     }
 
     .beat-dot.active {
-        background: var(--success);
+        background: var(--rose);
         transform: scale(1.5);
-        box-shadow: 0 0 15px var(--success), 0 0 30px var(--success);
+        box-shadow: 0 0 15px var(--rose), 0 0 30px var(--rose);
     }
 
     .pos-down { bottom: 15px; left: 50%; transform: translateX(-50%); }
@@ -74,45 +94,75 @@
     .pos-right { top: 50%; right: 15px; transform: translateY(-50%); }
     .pos-up { top: 15px; left: 50%; transform: translateX(-50%); }
 
-    /* Custom Controls */
+    /* ---------- Cabecera de la obra ---------- */
+    .lector-gab__cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.75rem; }
+    .lector-gab__kicker { font-size: 0.9375rem; color: var(--ink-soft); }
+    .lector-gab__titulo { font-size: clamp(1.75rem, 3vw, 2.375rem); margin: 0.3rem 0 0; line-height: 1.12; }
+    .lector-gab__acciones { display: flex; gap: 0.65rem; flex-wrap: wrap; }
+
+    /* ---------- Controles del Modo Estudio ---------- */
+    .panel-box {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 1.125rem 1.125rem 1.25rem;
+        margin-bottom: 1rem;
+    }
+    .panel-box__titulo { font-size: 0.875rem; font-weight: 600; color: var(--ink); margin: 0 0 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+    .panel-box__separador { border-top: 1px solid var(--line-soft); padding-top: 0.6rem; margin-top: 0.4rem; }
+    .campo-label-gab { font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft); display: flex; align-items: center; gap: 0.3rem; }
+    .hint-gab { font-size: 0.75rem; color: var(--ink-soft); line-height: 1.5; }
+
+    .campo-gab {
+        width: 100%; background: var(--bg); color: var(--ink); border: 1px solid var(--line-input);
+        border-radius: var(--radius); padding: 0.5rem 0.6rem; font-family: var(--font-body); font-size: 0.8125rem;
+    }
+    .campo-gab:focus { outline: none; border-color: var(--primary); }
+    .campo-gab--centrado { text-align: center; }
+
+    .fila-switch-gab { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0; }
+    .fila-switch-gab input[type="checkbox"] { width: 1.05rem; height: 1.05rem; accent-color: var(--primary); cursor: pointer; }
+
+    .lista-chips-gab { display: flex; flex-direction: column; gap: 0.4rem; max-height: 8rem; overflow-y: auto; }
+    .chip-fila-gab { font-size: 0.75rem; background: var(--bg); padding: 0.45rem 0.55rem; border-radius: var(--radius); display: flex; justify-content: space-between; gap: 0.5rem; border-left: 2px solid var(--primary); }
+    .chip-fila-gab__texto { color: var(--ink); }
+    .chip-vacio-gab { font-size: 0.75rem; color: var(--ink-soft); text-align: center; padding: 0.5rem 0; }
+
     .btn-control {
-        background: linear-gradient(135deg, var(--gold-bright) 0%, var(--gold) 100%);
-        color: #241505;
+        background: var(--primary);
+        color: #ffffff;
         border: none;
         padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: bold;
+        border-radius: var(--radius);
+        font-weight: 600;
+        font-family: var(--font-body);
         cursor: pointer;
-        transition: transform 0.1s, box-shadow 0.1s;
+        transition: background-color 0.15s ease, transform 0.1s ease;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
     }
+    .btn-control:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); }
+    .btn-control:disabled { background: var(--line-input); color: var(--ink-soft); cursor: not-allowed; transform: none; }
+    .btn-control--secundario { background: var(--surface); color: var(--ink); border: 1px solid var(--line-input); }
+    .btn-control--secundario:hover:not(:disabled) { background: var(--bg); border-color: var(--primary); color: var(--primary); }
+    .btn-control--rose { background: var(--rose); color: var(--dark-panel); }
+    .btn-control--rose:hover:not(:disabled) { filter: brightness(0.94); }
+    .btn-control--slate { background: var(--slate); color: #ffffff; }
+    .btn-control--slate:hover:not(:disabled) { filter: brightness(1.1); }
+    .btn-control--danger { background: var(--danger); color: #ffffff; }
+    .btn-control--danger:hover:not(:disabled) { filter: brightness(1.1); }
+    .btn-control--ochre { background: var(--ochre); color: #ffffff; }
+    .btn-control--ochre:hover:not(:disabled) { filter: brightness(1.08); }
 
-    .btn-control:hover:not(:disabled) {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px color-mix(in srgb, var(--gold) 40%, transparent);
-    }
+    /* Modo Ensayo -- mismo tratamiento de "franja de categoría" que las
+       cards del panel de bienvenida, con ocre (no es un error, es una
+       llamada de atención a una función específica). */
+    .panel-box--ensayo { border-left: 3px solid var(--ochre); }
+    .panel-box--ensayo .panel-box__titulo span:last-child { font-family: monospace; font-size: 0.6875rem; color: var(--ochre); }
 
-    .btn-control:disabled {
-        background: #374151;
-        color: #9ca3af;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-    }
-
-    .panel-box {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 16px;
-        box-shadow: 0 1px 0 color-mix(in srgb, var(--parchment) 5%, transparent) inset, 0 18px 34px -28px rgba(0,0,0,0.7);
-    }
-
-
+    #session-timer { font-family: 'IBM Plex Mono', monospace; }
 </style>
 {% endblock %}
 
@@ -121,41 +171,33 @@
     <!-- Renderizado dinámicamente -->
 </div>
 
-<div class="container mx-auto px-4 py-8 max-w-7xl">
-    
+<div class="envoltorio-gab" style="padding-top: 1.75rem; padding-bottom: 2.5rem;">
+
     <!-- Cabecera -->
-    <div class="flex justify-between items-center mb-6">
+    <div class="lector-gab__cabecera">
         <div>
-            <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[var(--gold)] to-emerald-400 drop-shadow-lg mb-2">
-                {{ sheet.title|default:sheet.xml_file.name }}
-            </h1>
-            <p class="text-gray-400 mt-2 text-lg">Modo Estudio | Compositor: {{ sheet.composer|default:"Desconocido" }}</p>
+            <div class="lector-gab__kicker">{{ sheet.composer|default:"Compositor desconocido" }}</div>
+            <h1 class="lector-gab__titulo">{{ sheet.title|default:sheet.xml_file.name }}</h1>
         </div>
-        <div class="flex gap-4">
+        <div class="lector-gab__acciones">
             {% if active_project %}
-            <a href="{% url 'proyecto_detail' active_project.id %}" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-lg flex items-center gap-2">
-                Ver Proyecto
-            </a>
+            <a href="{% url 'proyecto_detail' active_project.id %}" class="btn-gab btn-gab--secondary">Ver proyecto</a>
             {% else %}
-            <button onclick="convertToProject()" class="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#241505] font-bold py-2 px-6 rounded-lg transition-colors shadow-lg flex items-center gap-2">
-                Convertir a Proyecto
-            </button>
+            <button onclick="convertToProject()" class="btn-gab btn-gab--primary">Convertir a proyecto</button>
             {% endif %}
-            <a href="{% url 'biblioteca_list' %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-lg">
-                🔙 Volver a Biblioteca
-            </a>
+            <a href="{% url 'biblioteca_list' %}" class="btn-gab btn-gab--secondary">Volver a biblioteca</a>
         </div>
     </div>
 
     <!-- Grid Layout -->
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        
+
         <!-- Área Principal (Pentagrama) -->
         <div class="lg:col-span-3">
             <div id="playback-area">
                 <div id="osmdCanvas"></div>
             </div>
-            
+
             <div id="debug-panel" style="display: none; margin-top: 10px; background: #222; color: #0f0; padding: 10px; font-family: monospace; border-radius: 8px;">
                 <div class="flex justify-between">
                     <div>Compás: <strong id="dbg-measure">0</strong></div>
@@ -167,71 +209,62 @@
 
         <!-- Panel Lateral (Modo Estudio) -->
         <div class="lg:col-span-1">
-            
+
             <!-- Stats Sesión -->
-            <div class="panel-box text-center">
-                <h3 class="text-gray-400 uppercase text-xs font-bold tracking-wider mb-2">⏱️ Tiempo de Sesión</h3>
-                <div id="session-timer" class="text-4xl font-mono text-emerald-400 font-bold tracking-widest mb-2">00:00</div>
-                <div class="text-gray-500 text-sm">Repeticiones: <span id="session-plays" class="text-white font-bold">0</span></div>
+            <div class="panel-box" style="text-align: center;">
+                <h3 class="panel-box__titulo" style="justify-content: center; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.75rem; color: var(--ink-soft);">⏱️ Tiempo de sesión</h3>
+                <div id="session-timer" style="font-size: 2.25rem; font-weight: 700; color: var(--primary); letter-spacing: 0.04em;">00:00</div>
+                <div style="font-size: 0.8125rem; color: var(--ink-soft);">Repeticiones: <span id="session-plays" style="color: var(--ink); font-weight: 600;">0</span></div>
             </div>
 
             <!-- Controles Principales -->
-            <div class="panel-box flex flex-col gap-3">
-                <button id="btn-play" class="btn-control bg-emerald-600 hover:bg-emerald-500" disabled>▶ Reproducir</button>
-                <button id="btn-pause" class="btn-control bg-amber-600 hover:bg-amber-500" disabled>⏸ Pausar</button>
-                <button id="btn-stop" class="btn-control bg-red-600 hover:bg-red-500" disabled>⏹ Detener</button>
+            <div class="panel-box" style="display: flex; flex-direction: column; gap: 0.6rem;">
+                <button id="btn-play" class="btn-control" disabled>▶ Reproducir</button>
+                <button id="btn-pause" class="btn-control btn-control--ochre" disabled>⏸ Pausar</button>
+                <button id="btn-stop" class="btn-control btn-control--danger" disabled>⏹ Detener</button>
 
-                <div class="flex justify-between items-center pt-2 border-t border-white/10">
-                    <label class="text-gray-400 text-sm font-bold flex items-center gap-1">🎹 Piano</label>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="piano-toggle" class="sr-only peer" checked>
-                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--gold)]"></div>
-                    </label>
+                <div class="fila-switch-gab panel-box__separador">
+                    <label class="campo-label-gab">🎹 Piano</label>
+                    <input type="checkbox" id="piano-toggle" checked>
                 </div>
-                <div class="flex justify-between items-center">
-                    <label class="text-gray-400 text-sm font-bold flex items-center gap-1">🥁 Metrónomo</label>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="metronomo-toggle" class="sr-only peer" checked>
-                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--gold)]"></div>
-                    </label>
+                <div class="fila-switch-gab">
+                    <label class="campo-label-gab">🥁 Metrónomo</label>
+                    <input type="checkbox" id="metronomo-toggle" checked>
                 </div>
-                <div class="flex justify-between items-center pt-2 border-t border-white/10">
-                    <label class="text-gray-400 text-sm font-bold flex items-center gap-1" title="Con repeticiones y voltas expandidas; apagalo para tocar la partitura impresa una sola vez">🔁 Repeticiones</label>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="repeticiones-toggle" class="sr-only peer" checked>
-                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--gold)]"></div>
-                    </label>
+                <div class="fila-switch-gab panel-box__separador">
+                    <label class="campo-label-gab" title="Con repeticiones y voltas expandidas; apagalo para tocar la partitura impresa una sola vez">🔁 Repeticiones</label>
+                    <input type="checkbox" id="repeticiones-toggle" checked>
                 </div>
             </div>
 
             <!-- Modo Práctica (MIDI) -->
             <div class="panel-box" id="practica-panel">
                 <div id="practica-inicio">
-                    <button id="btn-practica" class="btn-control w-full" style="background: linear-gradient(135deg, var(--wine-bright), var(--wine)); color: white;">🎯 Iniciar práctica</button>
-                    <p class="text-xs text-gray-500 mt-2">Tocá tu teclado MIDI sobre la partitura — el cursor avanza cuando tocás la nota correcta. El piano de la app no suena en este modo.</p>
+                    <button id="btn-practica" class="btn-control btn-control--rose" style="width: 100%;">🎯 Iniciar práctica</button>
+                    <p class="hint-gab" style="margin-top: 0.5rem;">Tocá tu teclado MIDI sobre la partitura — el cursor avanza cuando tocás la nota correcta. El piano de la app no suena en este modo.</p>
                 </div>
                 <div id="practica-activa" class="hidden">
-                    <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-white text-sm font-bold">🎯 Modo Práctica</h3>
-                        <button id="btn-terminar-practica" class="text-xs text-gray-400 hover:text-white underline">Terminar práctica</button>
+                    <div class="panel-box__titulo">
+                        <span>🎯 Modo Práctica</span>
+                        <button id="btn-terminar-practica" style="background: none; border: none; cursor: pointer; font-size: 0.75rem; color: var(--ink-soft); text-decoration: underline;">Terminar práctica</button>
                     </div>
-                    <select id="practica-device-select" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-2 text-xs mb-2 hidden"></select>
-                    <p id="practica-status" class="text-sm text-gray-300 mb-2">Esperando...</p>
-                    <div class="flex justify-between items-center text-xs text-gray-400">
-                        <span>Errores: <span id="practica-errores" class="text-white font-bold">0</span></span>
-                        <label class="flex items-center gap-1 cursor-pointer">
+                    <select id="practica-device-select" class="campo-gab hidden" style="margin-bottom: 0.5rem;"></select>
+                    <p id="practica-status" style="font-size: 0.8125rem; color: var(--ink-body); margin-bottom: 0.5rem;">Esperando...</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--ink-soft);">
+                        <span>Errores: <span id="practica-errores" style="color: var(--ink); font-weight: 600;">0</span></span>
+                        <label style="display: flex; align-items: center; gap: 0.3rem; cursor: pointer;">
                             <input type="checkbox" id="practica-sonido-teclado" checked>
                             🔊 Sonido del teclado
                         </label>
                     </div>
                 </div>
-                <div id="practica-resumen" class="hidden text-sm text-gray-300"></div>
+                <div id="practica-resumen" class="hidden" style="font-size: 0.8125rem; color: var(--ink-body);"></div>
             </div>
 
             <!-- Velocidad -->
             <div class="panel-box">
-                <label class="block text-gray-400 text-sm font-bold mb-2">⚡ Velocidad (BPM)</label>
-                <select id="tempo-selector" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-2 focus:outline-none focus:border-[var(--gold)]">
+                <label class="campo-label-gab" style="display: block; margin-bottom: 0.5rem;">⚡ Velocidad (BPM)</label>
+                <select id="tempo-selector" class="campo-gab">
                     <option value="0.5">50% (Muy Lento)</option>
                     <option value="0.6">60%</option>
                     <option value="0.7">70%</option>
@@ -245,103 +278,100 @@
 
             <!-- Loop por Compases -->
             <div class="panel-box">
-                <div class="flex justify-between items-center mb-3">
-                    <label class="text-gray-400 text-sm font-bold">🔁 Repetir Sección</label>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="loop-toggle" class="sr-only peer">
-                        <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--gold)]"></div>
-                    </label>
+                <div class="fila-switch-gab" style="margin-bottom: 0.5rem;">
+                    <label class="campo-label-gab">🔁 Repetir Sección</label>
+                    <input type="checkbox" id="loop-toggle">
                 </div>
-                
-                <div class="flex gap-2">
-                    <div class="flex-1">
-                        <label class="block text-xs text-gray-500 mb-1">Del Compás:</label>
-                        <input type="number" id="loop-start" min="1" value="1" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-2 text-center">
+
+                <div style="display: flex; gap: 0.5rem;">
+                    <div style="flex: 1;">
+                        <label class="hint-gab" style="display: block; margin-bottom: 0.25rem;">Del Compás:</label>
+                        <input type="number" id="loop-start" min="1" value="1" class="campo-gab campo-gab--centrado">
                     </div>
-                    <div class="flex-1">
-                        <label class="block text-xs text-gray-500 mb-1">Al Compás:</label>
-                        <input type="number" id="loop-end" min="1" value="4" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-2 text-center">
+                    <div style="flex: 1;">
+                        <label class="hint-gab" style="display: block; margin-bottom: 0.25rem;">Al Compás:</label>
+                        <input type="number" id="loop-end" min="1" value="4" class="campo-gab campo-gab--centrado">
                     </div>
                 </div>
             </div>
 
-            <button id="btn-debug" class="w-full py-2 text-xs text-gray-500 hover:text-white transition-colors mb-4">Modo Debug</button>
+            <button id="btn-debug" style="width: 100%; padding: 0.5rem 0; font-size: 0.75rem; color: var(--ink-soft); background: none; border: none; cursor: pointer; margin-bottom: 1rem;">Modo Debug</button>
 
             <!-- Marcadores y Notas -->
-            <div class="panel-box mb-4">
-                <h3 class="text-white text-sm font-bold mb-2">📌 Marcadores (Compás)</h3>
-                <div class="flex gap-2 mb-3">
-                    <input type="number" id="marker-measure" placeholder="Compás" class="w-1/3 bg-gray-800 text-white border border-gray-600 rounded p-2 text-xs">
-                    <input type="text" id="marker-text" placeholder="Ej: Difícil" class="w-2/3 bg-gray-800 text-white border border-gray-600 rounded p-2 text-xs">
+            <div class="panel-box">
+                <h3 class="panel-box__titulo">📌 Marcadores (Compás)</h3>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <input type="number" id="marker-measure" placeholder="Compás" class="campo-gab" style="width: 33%;">
+                    <input type="text" id="marker-text" placeholder="Ej: Difícil" class="campo-gab" style="width: 67%;">
                 </div>
-                <button onclick="addMarker()" class="w-full bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#241505] font-bold py-1 px-2 rounded text-xs mb-3 transition">Agregar Marcador</button>
-                <div id="markers-list" class="space-y-2 max-h-32 overflow-y-auto">
+                <button onclick="addMarker()" class="btn-gab btn-gab--primary" style="width: 100%; margin-bottom: 0.75rem; justify-content: center;">Agregar marcador</button>
+                <div id="markers-list" class="lista-chips-gab">
                     {% for marker in markers %}
-                        <div class="text-xs bg-gray-800 p-2 rounded flex justify-between border-l-2 border-[var(--gold)]">
-                            <span class="text-gray-300 font-bold">C.{{ marker.measure }}</span>
-                            <span class="text-white">{{ marker.text }}</span>
+                        <div class="chip-fila-gab">
+                            <span class="chip-fila-gab__texto" style="font-weight: 600;">C.{{ marker.measure }}</span>
+                            <span class="chip-fila-gab__texto">{{ marker.text }}</span>
                         </div>
                     {% empty %}
-                        <div class="text-xs text-gray-500 text-center">No hay marcadores.</div>
+                        <div class="chip-vacio-gab">No hay marcadores.</div>
                     {% endfor %}
                 </div>
             </div>
 
             <!-- Playlists -->
-            <div class="panel-box mb-4">
-                <h3 class="text-white text-sm font-bold mb-2">🎵 Añadir a Playlist</h3>
-                <div class="flex gap-2">
-                    <select id="playlist-select" class="w-2/3 bg-gray-800 text-white border border-gray-600 rounded p-2 text-xs">
+            <div class="panel-box">
+                <h3 class="panel-box__titulo">🎵 Añadir a Playlist</h3>
+                <div style="display: flex; gap: 0.5rem;">
+                    <select id="playlist-select" class="campo-gab" style="width: 67%;">
                         <option value="">Selecciona...</option>
                         {% for pl in playlists %}
                             <option value="{{ pl.id }}">{{ pl.name }}</option>
                         {% endfor %}
                     </select>
-                    <button onclick="addToPlaylist()" class="w-1/3 bg-[var(--petroleo)] hover:bg-[var(--petroleo-bright)] text-white font-bold py-1 px-2 rounded text-xs transition">Añadir</button>
+                    <button onclick="addToPlaylist()" class="btn-control btn-control--slate" style="width: 33%; padding: 0.5rem;">Añadir</button>
                 </div>
             </div>
 
             <!-- MODO ENSAYO -->
-            <div class="panel-box mb-4 border-l-4 border-amber-500 bg-amber-900/20">
-                <h3 class="text-white text-sm font-bold mb-2 flex items-center justify-between">
+            <div class="panel-box panel-box--ensayo">
+                <h3 class="panel-box__titulo">
                     <span>🔥 Modo Ensayo</span>
-                    <span id="rehearsal-status" class="text-xs text-amber-400 hidden font-mono">Inactivo</span>
+                    <span id="rehearsal-status" class="hidden">Inactivo</span>
                 </h3>
-                
-                <div class="space-y-2 text-xs text-gray-300 mb-3" id="rehearsal-setup">
-                    <div class="flex justify-between items-center gap-2">
+
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.75rem; color: var(--ink-body); margin-bottom: 0.75rem;" id="rehearsal-setup">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
                         <span>Compases:</span>
-                        <input type="number" id="rehearsal-start" placeholder="Inicio" class="w-12 bg-gray-800 text-white border border-gray-600 rounded p-1 text-center" value="1">
+                        <input type="number" id="rehearsal-start" placeholder="Inicio" class="campo-gab campo-gab--centrado" style="width: 3.25rem;" value="1">
                         <span>a</span>
-                        <input type="number" id="rehearsal-end" placeholder="Fin" class="w-12 bg-gray-800 text-white border border-gray-600 rounded p-1 text-center" value="4">
+                        <input type="number" id="rehearsal-end" placeholder="Fin" class="campo-gab campo-gab--centrado" style="width: 3.25rem;" value="4">
                     </div>
-                    <div class="flex justify-between items-center gap-2">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
                         <span>BPM Inicial:</span>
-                        <input type="number" id="rehearsal-bpm-start" class="w-16 bg-gray-800 text-white border border-gray-600 rounded p-1 text-center" value="60">
+                        <input type="number" id="rehearsal-bpm-start" class="campo-gab campo-gab--centrado" style="width: 4rem;" value="60">
                     </div>
-                    <div class="flex justify-between items-center gap-2">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
                         <span>BPM Final:</span>
-                        <input type="number" id="rehearsal-bpm-end" class="w-16 bg-gray-800 text-white border border-gray-600 rounded p-1 text-center" value="100">
+                        <input type="number" id="rehearsal-bpm-end" class="campo-gab campo-gab--centrado" style="width: 4rem;" value="100">
                     </div>
-                    <div class="flex justify-between items-center gap-2">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
                         <span>Incremento (+BPM):</span>
-                        <input type="number" id="rehearsal-bpm-step" class="w-16 bg-gray-800 text-white border border-gray-600 rounded p-1 text-center" value="5">
+                        <input type="number" id="rehearsal-bpm-step" class="campo-gab campo-gab--centrado" style="width: 4rem;" value="5">
                     </div>
-                    <button onclick="startRehearsal()" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-2 rounded text-xs transition mt-2">🚀 Iniciar Ensayo</button>
-                    <button onclick="saveRehearsalConfig()" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded text-xs transition">💾 Guardar Configuración</button>
+                    <button onclick="startRehearsal()" class="btn-control btn-control--ochre" style="width: 100%; margin-top: 0.5rem; padding: 0.5rem;">🚀 Iniciar Ensayo</button>
+                    <button onclick="saveRehearsalConfig()" class="btn-control btn-control--secundario" style="width: 100%; padding: 0.4rem;">💾 Guardar Configuración</button>
                 </div>
-                
-                <div id="rehearsal-active-ui" class="hidden text-xs text-gray-300">
-                    <div class="flex justify-between mb-1"><span>BPM Actual:</span> <span id="rehearsal-current-bpm" class="font-bold text-white">60</span></div>
-                    <div class="flex justify-between mb-1"><span>Meta:</span> <span id="rehearsal-target-bpm" class="font-bold text-emerald-400">100</span></div>
-                    <div class="flex justify-between mb-3"><span>Vuelta:</span> <span id="rehearsal-rep" class="font-bold text-white">1</span></div>
-                    <button onclick="stopRehearsal()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-2 rounded text-xs transition">🛑 Detener Ensayo</button>
+
+                <div id="rehearsal-active-ui" class="hidden" style="font-size: 0.75rem; color: var(--ink-body);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;"><span>BPM Actual:</span> <span id="rehearsal-current-bpm" style="font-weight: 600; color: var(--ink);">60</span></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;"><span>Meta:</span> <span id="rehearsal-target-bpm" style="font-weight: 600; color: var(--green);">100</span></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;"><span>Vuelta:</span> <span id="rehearsal-rep" style="font-weight: 600; color: var(--ink);">1</span></div>
+                    <button onclick="stopRehearsal()" class="btn-control btn-control--danger" style="width: 100%; padding: 0.5rem;">🛑 Detener Ensayo</button>
                 </div>
-                
+
                 {% if rehearsal_configs %}
-                <div class="mt-3 border-t border-white/10 pt-2" id="rehearsal-presets">
-                    <label class="block text-xs text-gray-500 mb-1">Cargar Guardado:</label>
-                    <select id="rehearsal-presets-select" onchange="loadRehearsalPreset()" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-1 text-xs">
+                <div class="panel-box__separador" id="rehearsal-presets">
+                    <label class="hint-gab" style="display: block; margin-bottom: 0.25rem;">Cargar Guardado:</label>
+                    <select id="rehearsal-presets-select" onchange="loadRehearsalPreset()" class="campo-gab">
                         <option value="">Selecciona...</option>
                         {% for cfg in rehearsal_configs %}
                             <option value="{{ cfg.id }}" data-sm="{{ cfg.start_measure }}" data-em="{{ cfg.end_measure }}" data-sb="{{ cfg.start_bpm }}" data-eb="{{ cfg.end_bpm }}" data-step="{{ cfg.bpm_step }}">{{ cfg.name }}</option>
@@ -352,20 +382,20 @@
             </div>
 
             <div class="panel-box">
-                <h3 class="text-white text-sm font-bold mb-2">📝 Anotaciones</h3>
-                <textarea id="note-text" placeholder="Anota algo sobre esta obra..." class="w-full bg-gray-800 text-white border border-gray-600 rounded p-2 text-xs mb-2 h-16"></textarea>
-                <button onclick="addNote()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1 px-2 rounded text-xs mb-3 transition">Guardar Nota</button>
-                <div id="notes-list" class="space-y-2 max-h-32 overflow-y-auto">
+                <h3 class="panel-box__titulo">📝 Anotaciones</h3>
+                <textarea id="note-text" placeholder="Anota algo sobre esta obra..." class="campo-gab" style="margin-bottom: 0.5rem; height: 4rem;"></textarea>
+                <button onclick="addNote()" class="btn-gab btn-gab--primary" style="width: 100%; margin-bottom: 0.75rem; justify-content: center;">Guardar nota</button>
+                <div id="notes-list" class="lista-chips-gab">
                     {% for note in notes %}
-                        <div class="text-xs bg-gray-800 p-2 rounded text-gray-300">
-                            {{ note.text }}
+                        <div class="chip-fila-gab" style="border-left-color: var(--slate);">
+                            <span class="chip-fila-gab__texto">{{ note.text }}</span>
                         </div>
                     {% empty %}
-                        <div class="text-xs text-gray-500 text-center">No hay notas.</div>
+                        <div class="chip-vacio-gab">No hay notas.</div>
                     {% endfor %}
                 </div>
             </div>
-            
+
         </div>
     </div>
 </div>
@@ -439,7 +469,7 @@
     let eventosEjecucionCrudos = null;
     let secuenciaEjecucionResuelta = null;
 
-    // Notas que se encienden al sonar durante la reproducción pasiva (--gold, transitorio)
+    // Notas que se encienden al sonar durante la reproducción pasiva (--primary, transitorio)
     // -- ver encenderNota/apagarNota más abajo.
     let notasIluminadas = new Set();
     let contadorIluminado = new Map(); // svgEl -> cuántos encendidos siguen sin su apagado
@@ -607,7 +637,9 @@
         // Color leído de la paleta viva del sitio (no reactivo al toggle de tema en caliente,
         // igual que el resto de las lecturas de custom properties en JS de este proyecto --
         // se fija una vez al cargar la página).
-        const colorCursor = getComputedStyle(document.documentElement).getPropertyValue('--gold').trim() || '#e8a83d';
+        // "Gabinete de estudio": el cursor de seguimiento es ciruela (--primary),
+        // no dorado -- ver el tratamiento de cursor pedido en el rediseño.
+        const colorCursor = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#6b3550';
         osmd.setOptions({
             backend: "svg",
             drawTitle: false,
@@ -1187,7 +1219,7 @@
     function encenderNota(svgEl) {
         if (!svgEl) return;
         contadorIluminado.set(svgEl, (contadorIluminado.get(svgEl) || 0) + 1);
-        svgEl.style.filter = 'drop-shadow(0 0 3px var(--gold)) drop-shadow(0 0 6px var(--gold))';
+        svgEl.style.filter = 'drop-shadow(0 0 3px var(--primary)) drop-shadow(0 0 6px var(--primary))';
         notasIluminadas.add(svgEl);
     }
 
@@ -1422,10 +1454,10 @@
     // sobre el SVG ya renderizado, sin pasar por NoteheadColor (que exige un render nuevo).
     function pintarNotaAcierto(entry) {
         if (!entry.svgEl) return;
-        entry.svgEl.style.filter = 'drop-shadow(0 0 3px var(--success)) drop-shadow(0 0 6px var(--success))';
+        entry.svgEl.style.filter = 'drop-shadow(0 0 3px var(--green)) drop-shadow(0 0 6px var(--green))';
         // Bonus, sin garantía: si VexFlow fija el fill con más especificidad en un hijo,
         // esto puede no verse -- el glow de arriba es el mecanismo que sí está probado.
-        entry.svgEl.style.fill = 'var(--success)';
+        entry.svgEl.style.fill = 'var(--green)';
     }
 
     function flashNotasError(pendientes, motorDelEvento) {
@@ -1712,11 +1744,11 @@
         practicaActivaEl.classList.add('hidden');
         practicaResumenEl.classList.remove('hidden');
         practicaResumenEl.innerHTML = `
-            <h3 class="text-white text-sm font-bold mb-2">🏁 Práctica terminada</h3>
-            <p>Eventos completados: <strong class="text-white">${eventosCompletados} / ${totalEventos}</strong></p>
-            <p>Errores: <strong class="text-white">${practicaErrores}</strong></p>
-            <p>Tiempo: <strong class="text-white">${mm}:${ss}</strong></p>
-            <button id="btn-nueva-practica" class="w-full mt-3 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition">Volver a empezar</button>
+            <h3 class="panel-box__titulo">🏁 Práctica terminada</h3>
+            <p>Eventos completados: <strong style="color: var(--ink);">${eventosCompletados} / ${totalEventos}</strong></p>
+            <p>Errores: <strong style="color: var(--ink);">${practicaErrores}</strong></p>
+            <p>Tiempo: <strong style="color: var(--ink);">${mm}:${ss}</strong></p>
+            <button id="btn-nueva-practica" class="btn-control btn-control--secundario" style="width: 100%; margin-top: 0.75rem; padding: 0.5rem;">Volver a empezar</button>
         `;
         document.getElementById('btn-nueva-practica').addEventListener('click', () => {
             practicaResumenEl.classList.add('hidden');

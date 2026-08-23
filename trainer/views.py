@@ -2092,23 +2092,32 @@ def orquestacion_ejercicio_generar(request, fragmento_id):
 
 @login_required
 def biblioteca_list(request):
+    from django.db.models import Q
     col_slug = request.GET.get('collection')
     favorites_only = request.GET.get('favorites') == 'true'
+    query = request.GET.get('q', '').strip()
 
     scores = SheetMusic.objects.all().order_by('-created_at')
-    
+
     if col_slug:
         scores = scores.filter(collections__slug=col_slug)
-        
+
     if favorites_only:
         scores = scores.filter(favorited_by__user=request.user)
+
+    if query:
+        scores = scores.filter(Q(title__icontains=query) | Q(composer__icontains=query))
 
     collections = Collection.objects.all()
     user_favorites = Favorite.objects.filter(user=request.user).values_list('sheet_music_id', flat=True)
     user_progress = {
-        p.sheet_music_id: p.completion_percentage 
+        p.sheet_music_id: p.completion_percentage
         for p in SheetMusicProgress.objects.filter(user=request.user)
     }
+    # "Abiertas hace poco" (sidebar del rediseño "Gabinete de estudio") -- reusa
+    # SheetMusicProgress.last_practiced, que ya se actualiza solo (auto_now) cada
+    # vez que se guarda progreso, no hace falta trackear nada nuevo.
+    recientes = SheetMusicProgress.objects.filter(user=request.user).select_related('sheet_music').order_by('-last_practiced')[:5]
 
     context = {
         'scores': scores,
@@ -2116,7 +2125,9 @@ def biblioteca_list(request):
         'user_favorites': user_favorites,
         'user_progress': user_progress,
         'current_collection': col_slug,
-        'favorites_only': favorites_only
+        'favorites_only': favorites_only,
+        'query': query,
+        'recientes': recientes,
     }
     return render(request, 'trainer/biblioteca_list.html', context)
 
