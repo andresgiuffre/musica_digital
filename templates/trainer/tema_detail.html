@@ -1,34 +1,57 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}{{ tema.titulo }}{% endblock %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+
+{% block extra_css %}
+<style>
+    .tema-gab__migas { font-size: 0.8125rem; color: var(--ink-soft); margin-bottom: 0.5rem; }
+    .tema-gab__migas a { color: var(--ink-soft); }
+    .tema-gab__migas a:hover { color: var(--primary); }
+
+    .bloque-gab { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.75rem; margin-bottom: 1.1rem; }
+    .bloque-gab :first-child { margin-top: 0; }
+    .bloque-gab :last-child { margin-bottom: 0; }
+    /* El papel de la partitura es siempre blanco/tinta oscura, en cualquier tema del
+       sitio -- mismos tokens --score-paper/--score-ink que usa el resto del sitio
+       (biblioteca_play, orquestacion_ejercicio). */
+    .bloque-gab__partitura { background: var(--score-paper); color: var(--score-ink); padding: 1.25rem; border-radius: var(--radius-data); overflow-x: auto; }
+    .bloque-gab__contexto { color: var(--ink-soft); font-size: 0.9375rem; margin: 0 0 1rem; }
+    .tema-gab__vacio { color: var(--ink-soft); }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-legacy">
-    <p>
-        <a href="{% url 'curso_detail' curso.id %}">&larr; {{ curso.nombre }}</a>
-        &middot; Grado {{ grado.numero }}
-    </p>
-    <h1>{{ tema.titulo }}</h1>
+<div class="envoltorio-gab" style="padding-top: 1.75rem; padding-bottom: 2.5rem; max-width: 52rem;">
+    <a href="{% url 'curso_detail' curso.id %}" class="volver-gab">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        {{ curso.nombre }}
+    </a>
+    <p class="tema-gab__migas">Grado {{ grado.numero }} — {{ grado.titulo }}</p>
+    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 1.75rem;">{{ tema.titulo }}</h1>
 
     {% for bloque in bloques %}
-        <div class="card" style="margin-bottom: 1rem;">
+        <div class="bloque-gab">
             {% if bloque.tipo == 'TEXTO' %}
                 {{ bloque.html_renderizado }}
             {% elif bloque.tipo == 'EJEMPLO_PARTITURA' %}
-                {% if bloque.contexto_ejemplo %}<p>{{ bloque.contexto_ejemplo }}</p>{% endif %}
-                <div style="background: #fff; padding: 1rem; border-radius: 0.5rem; overflow-x: auto;">
+                {% if bloque.contexto_ejemplo %}<p class="bloque-gab__contexto">{{ bloque.contexto_ejemplo }}</p>{% endif %}
+                <div class="bloque-gab__partitura">
                     <div id="osmd-bloque-{{ bloque.id }}"></div>
                 </div>
             {% elif bloque.tipo == 'PRACTICA' %}
                 {% if bloque.practica_url %}
-                    <a class="btn btn-primary" href="{{ bloque.practica_url }}">{{ bloque.practica_texto }}</a>
+                    <a class="btn-gab btn-gab--primary" href="{{ bloque.practica_url }}">{{ bloque.practica_texto }}</a>
                 {% else %}
-                    <p>{{ bloque.practica_texto }}</p>
+                    <p style="margin: 0;">{{ bloque.practica_texto }}</p>
                 {% endif %}
             {% endif %}
         </div>
     {% empty %}
-        <p>Este tema todavía no tiene contenido cargado.</p>
+        <p class="tema-gab__vacio">Este tema todavía no tiene contenido cargado.</p>
     {% endfor %}
 </div>
 {% endblock %}

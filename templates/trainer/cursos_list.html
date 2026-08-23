@@ -1,16 +1,46 @@
 {% extends 'base.html' %}
 {% block title %}Cursos{% endblock %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cursos-gab__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.1rem; }
+    .curso-gab {
+        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+        padding: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; text-decoration: none; color: inherit;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    .curso-gab:hover { border-color: var(--primary); box-shadow: var(--shadow-lift); transform: translateY(-6px); text-decoration: none; }
+    .curso-gab__titulo { font-size: 1.375rem; margin: 0; }
+    .curso-gab__texto { font-size: 0.875rem; color: var(--ink-soft); line-height: 1.6; margin: 0; }
+    .cursos-gab__vacio { text-align: center; padding: 4rem 1rem; color: var(--ink-soft); }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-legacy">
-    <h1>Cursos</h1>
-    {% for curso in cursos %}
-        <div class="card" style="margin-bottom: 1rem;">
-            <h2><a href="{% url 'curso_detail' curso.id %}">{{ curso.nombre }}</a></h2>
-            <p>{{ curso.descripcion_corta }}</p>
-        </div>
-    {% empty %}
-        <p>No hay cursos disponibles todavía.</p>
-    {% endfor %}
+<div class="envoltorio-gab" style="padding-top: 1.75rem; padding-bottom: 2.5rem;">
+    <a href="{% url 'dashboard' %}" class="volver-gab">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        Volver
+    </a>
+
+    <div class="eyebrow-gab" style="margin-bottom: 0.5rem;">Contenido educativo</div>
+    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 1.75rem;">Cursos</h1>
+
+    {% if cursos %}
+    <div class="cursos-gab__grid">
+        {% for curso in cursos %}
+        <a href="{% url 'curso_detail' curso.id %}" class="curso-gab">
+            <h2 class="curso-gab__titulo">{{ curso.nombre }}</h2>
+            <p class="curso-gab__texto">{{ curso.descripcion_corta }}</p>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="cursos-gab__vacio">No hay cursos disponibles todavía.</p>
+    {% endif %}
 </div>
 {% endblock %}
