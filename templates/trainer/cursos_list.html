@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Cursos{% endblock %}
+
+{% block content %}
+<div class="container-legacy">
+    <h1>Cursos</h1>
+    {% for curso in cursos %}
+        <div class="card" style="margin-bottom: 1rem;">
+            <h2><a href="{% url 'curso_detail' curso.id %}">{{ curso.nombre }}</a></h2>
+            <p>{{ curso.descripcion_corta }}</p>
+        </div>
+    {% empty %}
+        <p>No hay cursos disponibles todavía.</p>
+    {% endfor %}
+</div>
+{% endblock %}

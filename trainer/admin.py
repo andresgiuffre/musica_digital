@@ -2,12 +2,15 @@ from django import forms
 from django.contrib import admin, messages
 from django.db.models import F
 from django.shortcuts import render
+from django.urls import reverse
+from django.utils.html import format_html
 from .models import (
     Game, Score, Attempt, SheetMusic, Collection, Favorite, StudySession,
     SheetMusicProgress, DailyGoal, UserDailyGoal, Playlist, PlaylistSheet,
     SheetMarker, SheetNote, SessionAudio, RehearsalConfig, RehearsalLog,
     MusicalProject, ProjectGoal, ProjectSection,
-    MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis
+    MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis,
+    Curso, Grado, Tema, BloqueContenido,
 )
 
 class PlaylistSheetInline(admin.TabularInline):
@@ -17,6 +20,61 @@ class PlaylistSheetInline(admin.TabularInline):
 @admin.register(Playlist)
 class PlaylistAdmin(admin.ModelAdmin):
     inlines = [PlaylistSheetInline]
+
+
+class GradoInline(admin.TabularInline):
+    model = Grado
+    extra = 1
+    fields = ('numero', 'titulo', 'activo')
+
+
+@admin.register(Curso)
+class CursoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'activo')
+    list_editable = ('activo',)
+    inlines = [GradoInline]
+
+
+class TemaInline(admin.TabularInline):
+    model = Tema
+    extra = 1
+    fields = ('orden', 'titulo', 'slug', 'activo')
+
+
+@admin.register(Grado)
+class GradoAdmin(admin.ModelAdmin):
+    list_display = ('titulo', 'numero', 'curso', 'activo')
+    list_editable = ('activo',)
+    inlines = [TemaInline]
+
+
+class BloqueContenidoInline(admin.StackedInline):
+    """
+    StackedInline, no Tabular (a diferencia del único otro inline del proyecto,
+    PlaylistSheetInline): BloqueContenido tiene varios campos tipo-específicos que
+    quedarían vacíos en su mayoría por fila en una tabla. Los fieldsets agrupan
+    visualmente qué campos son de cada tipo -- Tabular no soporta eso.
+    """
+    model = BloqueContenido
+    extra = 1
+    fieldsets = (
+        (None, {'fields': ('orden', 'tipo')}),
+        ('Texto', {'fields': ('texto_markdown',), 'classes': ('collapse',)}),
+        ('Ejemplo de partitura', {'fields': ('sheet_music', 'fragmento_orquestacion', 'contexto_ejemplo'), 'classes': ('collapse',)}),
+        ('Práctica', {'fields': ('practica_texto', 'practica_url'), 'classes': ('collapse',)}),
+    )
+
+
+@admin.register(Tema)
+class TemaAdmin(admin.ModelAdmin):
+    list_display = ('titulo', 'grado', 'orden', 'activo', 'ver_renderizado')
+    list_editable = ('orden', 'activo')
+    inlines = [BloqueContenidoInline]
+
+    def ver_renderizado(self, obj):
+        url = reverse('tema_detail', args=[obj.grado.curso_id, obj.grado.numero, obj.slug])
+        return format_html('<a href="{}" target="_blank">Ver cómo se renderiza ↗</a>', url)
+    ver_renderizado.short_description = "Vista previa"
 
 
 class AgregarCreditosBonusForm(forms.Form):

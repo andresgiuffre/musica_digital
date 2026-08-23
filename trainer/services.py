@@ -1,11 +1,43 @@
 import logging
+import markdown
+import nh3
 from django.db import transaction
 from django.utils import timezone
+from django.utils.safestring import mark_safe
 from datetime import timedelta
 from django.db.models import Count, Sum, Avg, F
 from .models import StudySession, SheetMusic, UserProfile
 
 logger = logging.getLogger(__name__)
+
+# h1 incluido a propósito: markdown.markdown("# Título") produce <h1>, y si no
+# estuviera en el allow-list nh3 lo saca -- probado empíricamente antes de asumir
+# que alcanzaba con h2-h4.
+MARKDOWN_TAGS_PERMITIDOS = {
+    'p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'a', 'code', 'pre', 'blockquote',
+}
+MARKDOWN_ATTRS_PERMITIDOS = {'a': {'href'}}
+
+
+def render_markdown_seguro(texto_markdown):
+    """
+    Convierte Markdown crudo (BloqueContenido.texto_markdown, Cursos) a HTML
+    sanitizado listo para insertar en el template. Único lugar de todo el proyecto
+    que usa mark_safe(): el HTML que sale de nh3.clean() ya pasó por un allow-list
+    explícito de tags/atributos -- se marca segura la SALIDA ya sanitizada, nunca
+    el texto crudo del admin. Confirmado empíricamente (no asumido): nh3 saca
+    <script> por completo (tag y contenido) y vacía atributos href con esquemas
+    peligrosos como javascript: (además de agregar rel="noopener noreferrer" a los
+    links). No usar mark_safe/|safe/format_html en ningún otro lugar del flujo de
+    Cursos -- si hace falta otro campo de texto en el HTML, que lo maneje el
+    auto-escape normal de Django.
+    """
+    if not texto_markdown:
+        return ''
+    html_crudo = markdown.markdown(texto_markdown)
+    html_limpio = nh3.clean(html_crudo, tags=MARKDOWN_TAGS_PERMITIDOS, attributes=MARKDOWN_ATTRS_PERMITIDOS)
+    return mark_safe(html_limpio)
+
 
 def get_weekly_summary(user):
     """

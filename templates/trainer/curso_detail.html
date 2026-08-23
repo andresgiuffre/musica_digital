@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}{{ curso.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container-legacy">
+    <p><a href="{% url 'cursos_list' %}">&larr; Cursos</a></p>
+    <h1>{{ curso.nombre }}</h1>
+    <p>{{ curso.descripcion_corta }}</p>
+
+    {% for grado in grados %}
+        <div class="card" style="margin-bottom: 1rem;">
+            <h2>Grado {{ grado.numero }} - {{ grado.titulo }}</h2>
+            <ul>
+                {% for tema in grado.temas.all %}
+                    {% if tema.activo %}
+                        <li><a href="{% url 'tema_detail' curso.id grado.numero tema.slug %}">{{ tema.titulo }}</a></li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        </div>
+    {% empty %}
+        <p>Este curso todavía no tiene grados.</p>
+    {% endfor %}
+</div>
+{% endblock %}

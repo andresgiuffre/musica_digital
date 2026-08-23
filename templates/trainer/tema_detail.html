@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ tema.titulo }}{% endblock %}
+
+{% block content %}
+<div class="container-legacy">
+    <p>
+        <a href="{% url 'curso_detail' curso.id %}">&larr; {{ curso.nombre }}</a>
+        &middot; Grado {{ grado.numero }}
+    </p>
+    <h1>{{ tema.titulo }}</h1>
+
+    {% for bloque in bloques %}
+        <div class="card" style="margin-bottom: 1rem;">
+            {% if bloque.tipo == 'TEXTO' %}
+                {{ bloque.html_renderizado }}
+            {% elif bloque.tipo == 'EJEMPLO_PARTITURA' %}
+                {% if bloque.contexto_ejemplo %}<p>{{ bloque.contexto_ejemplo }}</p>{% endif %}
+                <div style="background: #fff; padding: 1rem; border-radius: 0.5rem; overflow-x: auto;">
+                    <div id="osmd-bloque-{{ bloque.id }}"></div>
+                </div>
+            {% elif bloque.tipo == 'PRACTICA' %}
+                {% if bloque.practica_url %}
+                    <a class="btn btn-primary" href="{{ bloque.practica_url }}">{{ bloque.practica_texto }}</a>
+                {% else %}
+                    <p>{{ bloque.practica_texto }}</p>
+                {% endif %}
+            {% endif %}
+        </div>
+    {% empty %}
+        <p>Este tema todavía no tiene contenido cargado.</p>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
+<script>
+(function () {
+    // Mismo patrón fetch -> load -> render ya probado en orquestacion_ejercicio.html,
+    // uno por cada bloque EJEMPLO_PARTITURA de la página. es_mxl viene calculado del
+    // lado del servidor (tema_detail en views.py), no se adivina la extensión acá.
+    const bloquesPartitura = [
+        {% for bloque in bloques %}
+        {% if bloque.tipo == 'EJEMPLO_PARTITURA' %}
+        {
+            containerId: 'osmd-bloque-{{ bloque.id }}',
+            {% if bloque.sheet_music %}
+            archivoUrl: '{% url "biblioteca_archivo" bloque.sheet_music.id %}',
+            {% else %}
+            archivoUrl: '{% url "orquestacion_ejercicio_archivo" bloque.fragmento_orquestacion.id %}',
+            {% endif %}
+            esMxl: {{ bloque.es_mxl|yesno:"true,false" }},
+        },
+        {% endif %}
+        {% endfor %}
+    ];
+
+    bloquesPartitura.forEach(function (info) {
+        const contenedor = document.getElementById(info.containerId);
+        const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(contenedor, {
+            drawTitle: false,
+            autoResize: false,
+        });
+        fetch(info.archivoUrl)
+            .then(res => {
+                if (!res.ok) throw new Error('No se pudo descargar el archivo (' + res.status + ')');
+                return res.arrayBuffer();
+            })
+            .then(buffer => info.esMxl ? osmd.load(buffer) : osmd.load(new TextDecoder('utf-8').decode(buffer)))
+            .then(() => osmd.render())
+            .catch(err => {
+                contenedor.textContent = 'No se pudo cargar la partitura.';
+                console.error('[cursos] Error cargando ejemplo de partitura:', err);
+            });
+    });
+})();
+</script>
+{% endblock %}

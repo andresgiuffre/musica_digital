@@ -1763,6 +1763,45 @@ def orquestacion_ejercicio_archivo(request, fragmento_id):
 
 
 @login_required
+def cursos_list(request):
+    from .models import Curso
+    cursos = Curso.objects.filter(activo=True)
+    return render(request, 'trainer/cursos_list.html', {'cursos': cursos})
+
+
+@login_required
+def curso_detail(request, curso_id):
+    from .models import Curso
+    curso = get_object_or_404(Curso, id=curso_id, activo=True)
+    grados = curso.grados.filter(activo=True)
+    return render(request, 'trainer/curso_detail.html', {'curso': curso, 'grados': grados})
+
+
+@login_required
+def tema_detail(request, curso_id, grado_numero, tema_slug):
+    from .models import Curso, Grado, Tema
+    from .services import render_markdown_seguro
+
+    curso = get_object_or_404(Curso, id=curso_id, activo=True)
+    grado = get_object_or_404(Grado, curso=curso, numero=grado_numero, activo=True)
+    tema = get_object_or_404(Tema, grado=grado, slug=tema_slug, activo=True)
+
+    bloques = list(tema.bloques.all())  # ya vienen en orden por Meta.ordering
+    for bloque in bloques:
+        if bloque.tipo == bloque.TEXTO:
+            bloque.html_renderizado = render_markdown_seguro(bloque.texto_markdown)
+        elif bloque.tipo == bloque.EJEMPLO_PARTITURA:
+            # es_mxl calculado server-side (mismo patrón que biblioteca_archivo/
+            # orquestacion_ejercicio_archivo) -- nada de adivinar la extensión en JS.
+            archivo_name = bloque.sheet_music.xml_file.name if bloque.sheet_music else bloque.fragmento_orquestacion.archivo.name
+            bloque.es_mxl = pathlib.Path(archivo_name).suffix.lower() == '.mxl'
+
+    return render(request, 'trainer/tema_detail.html', {
+        'curso': curso, 'grado': grado, 'tema': tema, 'bloques': bloques,
+    })
+
+
+@login_required
 def orquestacion_ejercicio_datos(request, fragmento_id):
     from .models import FragmentoOrquestacion
     fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
