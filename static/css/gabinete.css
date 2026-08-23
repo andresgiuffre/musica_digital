@@ -290,6 +290,18 @@ body.gabinete .btn {
     font-family: var(--font-body);
     transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
+/* .btn-submit (base.html) -- botón de enviar respuesta que usan varios juegos
+   (progresiones, síncopas, tiempos fuertes, acordes). Mismo motivo que .btn-input:
+   color de texto y de deshabilitado del sistema viejo no funcionan sobre fondo claro. */
+body.gabinete .btn-submit {
+    background: var(--primary);
+    color: #ffffff;
+    font-family: var(--font-body);
+    border-radius: var(--radius);
+    box-shadow: none;
+}
+body.gabinete .btn-submit:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+body.gabinete .btn-submit:disabled { background: var(--line-input); color: var(--ink-soft); box-shadow: none; }
 body.gabinete .btn-primary { background-color: var(--primary); color: #ffffff; }
 body.gabinete .btn-primary:hover { background-color: var(--primary-dark); transform: translateY(-2px); box-shadow: var(--shadow-hover); }
 
@@ -310,6 +322,11 @@ body.gabinete .btn-input.selected { background: var(--primary); color: #ffffff; 
 
 body.gabinete .flash-correct { border-color: var(--green) !important; background-color: color-mix(in srgb, var(--green) 12%, transparent) !important; }
 body.gabinete .flash-incorrect { border-color: var(--danger) !important; background-color: color-mix(in srgb, var(--danger) 12%, transparent) !important; }
+
+/* .card (base.html) resuelve --surface bien (blanco) pero --border NO está
+   redefinido acá -- sin esto, un juego que use la card compartida queda con
+   fondo blanco y borde oscuro del sistema viejo. */
+body.gabinete .card { border-color: var(--line); box-shadow: none; }
 
 /* ---------- Navbar (chrome global, ver capa 1 más arriba) ---------- */
 .navbar-gab {

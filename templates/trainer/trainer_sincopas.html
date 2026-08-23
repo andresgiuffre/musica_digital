@@ -1,4 +1,7 @@
 {% extends 'base.html' %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+{% block nav_active_entrenamiento %}is-active{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -12,11 +15,11 @@
     }
 
     #playback-area {
-        background: white;
-        border-radius: 1rem;
+        background: var(--score-paper);
+        border-radius: var(--radius);
         padding: 2rem;
-        box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.5);
-        border: 2px solid var(--border);
+        box-shadow: var(--shadow-window);
+        border: 1px solid var(--line);
         width: 100%;
         position: relative;
         display: flex;
@@ -81,7 +84,7 @@
         background: var(--surface);
         padding: 1rem;
         border-radius: 0.5rem;
-        border: 1px solid var(--border);
+        border: 1px solid var(--line-input);
     }
 
     .mode-selector label {
@@ -90,7 +93,7 @@
         align-items: center;
         gap: 0.5rem;
         font-weight: bold;
-        color: var(--text);
+        color: var(--ink);
         font-size: 1.1rem;
     }
 </style>
@@ -98,18 +101,16 @@
 
 {% block content %}
 <div class="trainer-container">
-    <div class="top-nav">
-        <a href="{% url 'entrenador_index' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-gray-300 hover:text-white rounded-lg font-semibold transition-all shadow-md">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-            </svg>
-            Volver al Menú
-        </a>
-    </div>
+    <a href="{% url 'entrenador_index' %}" class="volver-gab" style="align-self: flex-start;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        Volver al entrenador
+    </a>
 
     <div style="text-align: center; width: 100%;">
         <h1 style="margin-bottom: 0.5rem;">🔗 {{ game.name }}</h1>
-        <p style="color: var(--text-secondary);">Selecciona el tipo de desplazamiento rítmico y marca las casillas de las notas que lo provocan.</p>
+        <p style="color: var(--ink-soft);">Selecciona el tipo de desplazamiento rítmico y marca las casillas de las notas que lo provocan.</p>
     </div>
 
     <!-- Progress Bar -->
@@ -342,7 +343,7 @@
                 div.innerHTML = "";
                 checkboxContainer.innerHTML = "";
                 feedbackMsg.innerHTML = "";
-                playbackArea.style.borderColor = "var(--border)";
+                playbackArea.style.borderColor = "var(--line)";
                 btnSubmit.disabled = false;
                 btnSubmit.innerText = "Comprobar";
                 
@@ -358,7 +359,7 @@
                 renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
                 renderer.resize(400, 150);
                 context = renderer.getContext();
-                context.setFont("Arial", 10, "").setBackgroundFillStyle(getComputedStyle(document.documentElement).getPropertyValue('--paper').trim() || "#eeeedd");
+                context.setFont("Arial", 10, "").setBackgroundFillStyle(getComputedStyle(document.body).getPropertyValue('--score-paper').trim() || "#ffffff");
 
                 stave = new VF.Stave(10, 20, 380);
                 stave.addClef("treble").addTimeSignature(currentMeasureInfo.timeSignature);
@@ -465,7 +466,7 @@
                             nd.checkbox.parentElement.style.borderBottom = "3px solid var(--danger)";
                             nd.checkbox.parentElement.style.paddingBottom = "5px";
                         } else if (shouldBeChecked) {
-                            nd.checkbox.parentElement.style.borderBottom = "3px solid var(--success)";
+                            nd.checkbox.parentElement.style.borderBottom = "3px solid var(--green)";
                             nd.checkbox.parentElement.style.paddingBottom = "5px";
                         }
                     }
@@ -477,8 +478,8 @@
 
                 if (isAllCorrect) {
                     feedbackMsg.innerText = "¡Correcto!";
-                    feedbackMsg.style.color = "var(--success)";
-                    playbackArea.style.borderColor = "var(--success)";
+                    feedbackMsg.style.color = "var(--green)";
+                    playbackArea.style.borderColor = "var(--green)";
                 } else {
                     feedbackMsg.innerText = "Incorrecto.";
                     feedbackMsg.style.color = "var(--danger)";
