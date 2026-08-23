@@ -5,44 +5,58 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ analysis.name }} — Análisis compartido</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/orquestador.css' %}">
     <style>
+        /* Vista pública de solo lectura -- la única del feature sin @login_required,
+           por eso no extiende base.html (sin navbar, sin sesión). Define acá mismo los
+           mismos nombres de token que static/css/gabinete.css usa en body.gabinete
+           (ver el comentario en orquestador.css) para que las reglas compartidas del
+           informe se vean idénticas sin duplicar CSS. Siempre en claro -- esta página
+           no tiene el botón de tema del sitio. */
         :root {
-            --primary: #e8a83d;
-            --bg: #191919;
-            --surface: #232322;
-            --text: #f1e6d3;
-            --text-secondary: #cdbba0;
-            --parchment: #f1e6d3;
-            --success: #7c9463;
-            --warning: #c98a3d;
-            --danger: #b5484a;
-            --wine: #a63d4e;
-            --petroleo: #2c6b74;
-            --paper: #fdfbf3;
-            --border: #3d3c39;
+            --bg: #eef0ea;
+            --surface: #ffffff;
+            --ink: #23282a;
+            --ink-soft: #55605e;
+            --ink-body: #4c5553;
+            --line: #d3d8cf;
+            --line-soft: #e4e8e0;
+            --line-input: #cbd2c8;
+            --primary: #6b3550;
+            --primary-dark: #56283f;
+            --primary-tint: #f6eff2;
+            --slate: #3f5a6b;
+            --ochre: #b5822e;
+            --green: #4b6b52;
+            --brown: #8c5a3f;
+            --danger: #a33a2b;
+            --radius: 3px;
+            --shadow-window: 0 12px 32px rgba(45, 43, 43, 0.20);
+            --font-display: 'Newsreader', 'Iowan Old Style', Georgia, serif;
+            --font-body: 'Archivo', 'Segoe UI', system-ui, sans-serif;
         }
         body {
-            font-family: 'IBM Plex Sans', sans-serif;
+            font-family: var(--font-body);
             background-color: var(--bg);
-            color: var(--text);
+            color: var(--ink);
             line-height: 1.5;
             min-height: 100vh;
             margin: 0;
             padding: 2rem 1rem;
         }
-        h1, h2, h3, h4 { font-family: 'Bricolage Grotesque', sans-serif; }
+        h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 300; }
         .publico-header {
             text-align: center;
             margin-bottom: 1.5rem;
         }
         .publico-badge {
             display: inline-block;
-            font-family: 'IBM Plex Mono', monospace;
             font-size: 0.75rem;
-            color: var(--text-secondary);
-            border: 1px solid var(--border);
+            color: var(--ink-soft);
+            border: 1px solid var(--line);
             border-radius: 999px;
             padding: 0.25rem 0.9rem;
             margin-bottom: 1rem;
@@ -54,7 +68,7 @@
         <div class="publico-header">
             <span class="publico-badge">🔗 Reporte compartido — solo lectura</span>
             <h1 style="margin-bottom: 0.25rem;">{{ analysis.name }}</h1>
-            <p style="color: var(--text-secondary);">Analizado el {{ analysis.created_at|date:"d M Y, H:i" }}</p>
+            <p style="color: var(--ink-soft);">Analizado el {{ analysis.created_at|date:"d M Y, H:i" }}</p>
         </div>
         <div id="results-container" style="width: 100%;"></div>
     </div>
