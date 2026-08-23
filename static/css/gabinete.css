@@ -219,6 +219,13 @@ body.gabinete .btn-gab--secondary:hover { border-color: var(--primary); color: v
 body.gabinete .btn-gab--on-dark { background: var(--on-dark); color: var(--dark-panel); }
 body.gabinete .btn-gab--on-dark:hover { background: var(--rose); text-decoration: none; }
 
+/* ---------- Contenedor centrado -- compartido por todas las pantallas de
+   contenido (dashboard, biblioteca_play, orquestacion_ejercicio*). Vivía
+   duplicada solo en dashboard.html; cualquier otra página que la usara sin
+   su propia copia quedaba con el max-width puesto pero SIN centrar (pegada
+   a la izquierda) -- el bug real reportado en "Orquestar". ---------- */
+body.gabinete .envoltorio-gab { max-width: 1180px; margin: 0 auto; padding: 0 2rem; }
+
 /* ---------- Cards genéricas ---------- */
 body.gabinete .card-gab {
     background: var(--surface);
