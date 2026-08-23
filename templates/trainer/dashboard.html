@@ -62,16 +62,23 @@
     .espacio-gab__pie { margin-top: auto; border-top: 1px solid var(--line-soft); padding-top: 0.75rem; display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-soft); }
     .espacio-gab__pie span:last-child { color: var(--card-acento, var(--primary)); }
 
-    /* ---------- Director de Estudio (analizador con IA) ---------- */
-    .placa-gab { background: var(--dark-panel); color: var(--on-dark); border-radius: var(--radius); padding: 2.5rem 2.75rem; }
+    /* ---------- Director de Estudio + Cursos (destacados premium, lado a lado) --- */
+    .placas-gab__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+    .placa-gab { background: var(--dark-panel); color: var(--on-dark); border-radius: var(--radius); padding: 2.5rem 2.75rem; display: flex; flex-direction: column; }
     .placa-gab__eyebrow { font-size: 0.9375rem; color: var(--rose); }
     .placa-gab__titulo { font-size: clamp(1.625rem, 2.6vw, 2.25rem); max-width: 26ch; margin: 0.75rem 0 0.9rem; color: var(--on-dark); }
     .placa-gab__texto { color: var(--on-dark-body); max-width: 58ch; margin: 0; line-height: 1.7; }
-    .placa-gab__acciones { margin-top: 1.5rem; display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
+    .placa-gab__acciones { margin-top: auto; padding-top: 1.5rem; display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
     .placa-gab__creditos { font-size: 0.8125rem; color: var(--on-dark-soft); }
+    .placa-gab__premium {
+        display: inline-block; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.04em; background: color-mix(in srgb, var(--rose) 22%, transparent); color: var(--rose);
+        padding: 0.15rem 0.55rem; border-radius: 999px; margin-left: 0.5rem; vertical-align: middle;
+    }
 
     @media (max-width: 760px) {
         .saludo-gab { grid-template-columns: 1fr; }
+        .placas-gab__grid { grid-template-columns: 1fr; }
     }
 </style>
 {% endblock %}
@@ -180,13 +187,26 @@
     </section>
 
     <section style="padding-bottom: 3rem;">
-        <div class="placa-gab">
-            <div class="placa-gab__eyebrow">Análisis con IA</div>
-            <h2 class="placa-gab__titulo">Director de Estudio</h2>
-            <p class="placa-gab__texto">Subí tu orquestación y recibí una crítica estructurada — dobles verificados, densidad por compás y sugerencias de registro — antes de mostrarla a tu profesor.</p>
-            <div class="placa-gab__acciones">
-                <a href="{% url 'orquestador_analizar' %}" class="btn-gab btn-gab--on-dark">Analizar una partitura</a>
-                <span class="placa-gab__creditos">{{ profile.creditos_analisis|add:profile.creditos_bonus }} análisis disponibles</span>
+        <div class="placas-gab__grid">
+            <div class="placa-gab">
+                <div class="placa-gab__eyebrow">Análisis con IA</div>
+                <h2 class="placa-gab__titulo">Director de Estudio</h2>
+                <p class="placa-gab__texto">Subí tu orquestación y recibí una crítica estructurada — dobles verificados, densidad por compás y sugerencias de registro — antes de mostrarla a tu profesor.</p>
+                <div class="placa-gab__acciones">
+                    <a href="{% url 'orquestador_analizar' %}" class="btn-gab btn-gab--on-dark">Analizar una partitura</a>
+                    <span class="placa-gab__creditos">{{ profile.creditos_analisis|add:profile.creditos_bonus }} análisis disponibles</span>
+                </div>
+            </div>
+            <div class="placa-gab">
+                <div class="placa-gab__eyebrow">Contenido educativo<span class="placa-gab__premium">Premium</span></div>
+                <h2 class="placa-gab__titulo">Cursos</h2>
+                <p class="placa-gab__texto">Teoría musical organizada en grados, con ejemplos de partitura interactivos y práctica guiada en cada tema.</p>
+                <div class="placa-gab__acciones">
+                    <a href="{% url 'cursos_list' %}" class="btn-gab btn-gab--on-dark">Ver cursos</a>
+                    {% if cursos_disponibles_count %}
+                    <span class="placa-gab__creditos">{{ cursos_disponibles_count }} curso{{ cursos_disponibles_count|pluralize }} disponible{{ cursos_disponibles_count|pluralize }}</span>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </section>
