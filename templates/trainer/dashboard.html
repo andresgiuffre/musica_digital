@@ -47,26 +47,35 @@
     /* ---------- Espacios de trabajo ---------- */
     /* Pentagrama decorativo recuperado del diseño anterior ("Explorar" en la
        vieja dashboard.html, ver commit 1da7aaf1) -- mismo SVG (clave de sol real
-       de Wikimedia Commons + notas), reescalado a los tokens Gabinete: gold fijo
-       -> var(--primary) (se adapta solo al toggle de tema, ciruela en claro /
-       rose en oscuro), sin necesidad de un override aparte para tema claro como
-       tenía el sistema viejo. */
-    .espacios-gab { position: relative; overflow: hidden; }
-    .espacios-gab__pauta-fondo { position: absolute; top: 50%; left: 50%; width: 100vw; max-width: 1600px; transform: translate(-50%, -50%); z-index: 0; pointer-events: none; }
+       de Wikimedia Commons + notas), reescalado a los tokens Gabinete.
+       El "full-bleed" (100vw, se sale del envoltorio-gab de 1180px) funciona
+       centrando el elemento absoluto respecto al viewport (left:50% sobre un
+       contenedor que ya está centrado con margin:auto + translateX(-50%)) --
+       NO puede haber overflow:hidden en .espacios-gab (lo recortaba al ancho
+       de la columna, el bug reportado); el overflow-x:hidden que evita scroll
+       horizontal fantasma por el redondeo de 100vw vive en el body, más arriba
+       en la cadena, donde no recorta nada. */
+    body.gabinete { overflow-x: hidden; }
+    .espacios-gab { position: relative; }
+    .espacios-gab__pauta-fondo { position: absolute; top: 50%; left: 50%; width: 100vw; transform: translate(-50%, -50%); z-index: 0; pointer-events: none; }
     .espacios-gab__pauta-fondo svg { width: 100%; height: auto; display: block; }
     .espacios-gab__contenido { position: relative; z-index: 1; }
-    .pauta-lineas line { stroke: var(--primary); stroke-width: 1.5; opacity: 0.09; vector-effect: non-scaling-stroke; }
-    .pauta-clave, .pauta-flag, .pauta-viga { fill: var(--primary); opacity: 0.08; }
-    .pauta-nota ellipse { fill: var(--primary); opacity: 0.08; }
-    .pauta-nota line { stroke: var(--primary); stroke-width: 3; opacity: 0.08; vector-effect: non-scaling-stroke; }
-    .pauta-nota--blanca ellipse { fill: none; stroke: var(--primary); stroke-width: 3; opacity: 0.08; }
+    /* var(--ink) en vez de var(--primary): se adapta solo al toggle de tema (gris
+       casi negro en claro, marfil en oscuro) y en claro es justo el "gris más
+       oscuro, que se vea" pedido -- la ciruela de --primary a esta opacidad
+       quedaba demasiado apagada sobre el fondo claro. */
+    .pauta-lineas line { stroke: var(--ink); stroke-width: 1.5; opacity: 0.16; vector-effect: non-scaling-stroke; }
+    .pauta-clave, .pauta-flag, .pauta-viga { fill: var(--ink); opacity: 0.15; }
+    .pauta-nota ellipse { fill: var(--ink); opacity: 0.15; }
+    .pauta-nota line { stroke: var(--ink); stroke-width: 3; opacity: 0.15; vector-effect: non-scaling-stroke; }
+    .pauta-nota--blanca ellipse { fill: none; stroke: var(--ink); stroke-width: 3; opacity: 0.15; }
     html[data-tema-gabinete="oscuro"] .pauta-lineas line,
-    html[data-tema-gabinete="oscuro"] .pauta-nota line { opacity: 0.15; }
+    html[data-tema-gabinete="oscuro"] .pauta-nota line { opacity: 0.11; }
     html[data-tema-gabinete="oscuro"] .pauta-clave,
     html[data-tema-gabinete="oscuro"] .pauta-flag,
     html[data-tema-gabinete="oscuro"] .pauta-viga,
     html[data-tema-gabinete="oscuro"] .pauta-nota ellipse,
-    html[data-tema-gabinete="oscuro"] .pauta-nota--blanca ellipse { opacity: 0.13; }
+    html[data-tema-gabinete="oscuro"] .pauta-nota--blanca ellipse { opacity: 0.1; }
 
     .espacios-gab__cabecera { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 1.1rem; flex-wrap: wrap; gap: 0.5rem; }
     .espacios-gab__titulo { font-size: 1.375rem; margin: 0; }
