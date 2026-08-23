@@ -148,12 +148,29 @@ def dashboard(request):
         for s in sessions
     }
 
+    # 4. "En el atril" -- último proyecto practicado, para el panel de bienvenida
+    #    (rediseño "Gabinete de estudio"). MusicalProject ya trackea compás/tempo
+    #    actuales (mismo dato que usa proyecto_detail.html) -- no hace falta un
+    #    modelo nuevo, solo tomar el más reciente por last_practice.
+    from .models import MusicalProject
+    atril = MusicalProject.objects.filter(user=request.user).select_related('sheet_music').order_by('-last_practice').first()
+
+    # 5. Barras de habilidad del panel -- reusa get_user_progress() (ya calcula
+    #    accuracy por Game) y toma 3 juegos representativos de las tres familias
+    #    del entrenador (lectura / oído / ritmo), en vez de inventar una métrica
+    #    nueva.
+    habilidades_slugs = ['lectura-musical', 'intervalos-auditivos', 'tiempos-fuertes-debiles']
+    progreso_por_slug = {p['game'].slug: p for p in get_user_progress(request.user)}
+    habilidades = [progreso_por_slug[slug] for slug in habilidades_slugs if slug in progreso_por_slug]
+
     context = {
         'profile': profile,
         'today_goals': today_goals,
         'recommendations': recommendations,
         'weekly_summary': weekly_summary,
-        'calendar_data': json.dumps(calendar_data)
+        'calendar_data': json.dumps(calendar_data),
+        'atril': atril,
+        'habilidades': habilidades,
     }
     return render(request, 'trainer/dashboard.html', context)
 
