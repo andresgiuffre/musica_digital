@@ -19,6 +19,27 @@
     .bloque-gab__partitura { background: var(--score-paper); color: var(--score-ink); padding: 1.25rem; border-radius: var(--radius-data); overflow-x: auto; }
     .bloque-gab__contexto { color: var(--ink-soft); font-size: 0.9375rem; margin: 0 0 1rem; }
     .tema-gab__vacio { color: var(--ink-soft); }
+
+    /* ============================================================
+       PROVISORIO -- no es el pase visual final de Cursos (eso se hace
+       después con un mockup de Design). Tailwind (cargado por CDN en
+       base.html) resetea márgenes de p/h1-h4 y list-style de ul/ol vía
+       su preflight, así que el HTML que sale de render_markdown_seguro()
+       (correcto -- confirmado con "ver código fuente") se veía sin
+       separación entre párrafos ni viñetas en las listas. Escopeado a
+       esta única clase para no filtrarse a ninguna otra pantalla del sitio.
+       ============================================================ */
+    .tema-contenido-markdown p { margin: 0 0 1rem; }
+    .tema-contenido-markdown ul, .tema-contenido-markdown ol { margin: 0 0 1rem; padding-left: 1.5rem; }
+    .tema-contenido-markdown ul { list-style: disc; }
+    .tema-contenido-markdown ol { list-style: decimal; }
+    .tema-contenido-markdown li { margin-bottom: 0.35rem; }
+    .tema-contenido-markdown li > ul, .tema-contenido-markdown li > ol { margin-top: 0.35rem; margin-bottom: 0; }
+    .tema-contenido-markdown h1, .tema-contenido-markdown h2, .tema-contenido-markdown h3, .tema-contenido-markdown h4 { margin: 1.5rem 0 0.75rem; }
+    .tema-contenido-markdown blockquote { margin: 0 0 1rem; padding: 0.4rem 1.1rem; border-left: 3px solid var(--line-input); color: var(--ink-soft); }
+    .tema-contenido-markdown pre { margin: 0 0 1rem; padding: 1rem; background: var(--bg); border-radius: var(--radius-data); overflow-x: auto; }
+    .tema-contenido-markdown code { font-family: 'IBM Plex Mono', ui-monospace, monospace; background: var(--bg); padding: 0.15rem 0.35rem; border-radius: 3px; font-size: 0.875em; }
+    .tema-contenido-markdown pre code { background: none; padding: 0; }
 </style>
 {% endblock %}
 
@@ -36,7 +57,7 @@
     {% for bloque in bloques %}
         <div class="bloque-gab">
             {% if bloque.tipo == 'TEXTO' %}
-                {{ bloque.html_renderizado }}
+                <div class="tema-contenido-markdown">{{ bloque.html_renderizado }}</div>
             {% elif bloque.tipo == 'EJEMPLO_PARTITURA' %}
                 {% if bloque.contexto_ejemplo %}<p class="bloque-gab__contexto">{{ bloque.contexto_ejemplo }}</p>{% endif %}
                 <div class="bloque-gab__partitura">
