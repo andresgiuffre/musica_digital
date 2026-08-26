@@ -110,7 +110,13 @@ body.gabinete {
     --unassigned: #c9c3b8;
     --danger: #a33a2b;
 
-    --dark-panel: #23282a;
+    /* Negro-vino derivado de --primary/--rose, no un carbon neutro -- un
+       carbon sin tinte (el valor anterior, #23282a) no tiene relacion con
+       el resto de la paleta calida del tema claro y lee como una pieza de
+       otro sistema pegada ahi (auditoria redesign-skill, hallazgo #1). La
+       variante de tema oscuro de este token no se toca: ya es un negro
+       calido coherente con --bg de esa variante. */
+    --dark-panel: #2a1620;
     --on-dark: #eef0ea;
     --on-dark-body: rgba(238, 240, 234, 0.72);
     --on-dark-soft: rgba(238, 240, 234, 0.6);

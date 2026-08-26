@@ -16,3 +16,11 @@ db.sqlite3
 # Django static & media
 staticfiles/
 media/
+
+# Herramientas locales (Playwright CLI, Claude Code skills) -- nada de esto
+# es parte del sitio, no va a PythonAnywhere.
+.playwright-cli/
+.agents/
+.claude/skills/
+.claude/settings.local.json
+skills-lock.json
