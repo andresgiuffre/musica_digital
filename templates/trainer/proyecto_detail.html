@@ -17,10 +17,19 @@
     .proy-gab__badge.completado { background: color-mix(in srgb, var(--green) 26%, transparent); color: var(--green); }
     .proy-gab__badge.activo { background: color-mix(in srgb, var(--ochre) 26%, transparent); color: var(--ochre); }
     .proy-gab__titulo { font-size: clamp(2rem, 4vw, 2.75rem); color: var(--on-dark); margin: 0 0 0.5rem; max-width: 32ch; }
-    .proy-gab__compositor { color: var(--on-dark-body); font-size: 1.125rem; margin: 0; }
+    /* Selector .proy-gab__header .proy-gab__compositor, mismo motivo que en
+       dashboard.html (.placa-gab .placa-gab__texto): body.gabinete p le
+       gana a una sola clase por especificidad y deja el texto casi
+       ilegible sobre el header oscuro. */
+    .proy-gab__header .proy-gab__compositor { color: var(--on-dark-body); font-size: 1.125rem; margin: 0; }
     .proy-gab__acciones { margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
-    .proy-gab__continuar { background: var(--green); color: #fff; font-weight: 700; padding: 1rem 2rem; border-radius: var(--radius); display: inline-flex; align-items: center; gap: 0.6rem; font-size: 1.0625rem; transition: transform 0.15s ease, box-shadow 0.15s ease; }
-    .proy-gab__continuar:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); text-decoration: none; color: #fff; }
+    /* Selector .proy-gab__header .proy-gab__continuar (no solo la clase sola):
+       es un <a>, y body.gabinete a { color: var(--primary) } le gana en
+       especificidad a una sola clase -- mismo bug de fondo que el de
+       .proy-gab__compositor, encontrado en la misma verificacion visual
+       (el boton se veia ciruela apagado sobre verde, casi ilegible). */
+    .proy-gab__header .proy-gab__continuar { background: var(--green); color: #fff; font-weight: 700; padding: 1rem 2rem; border-radius: var(--radius); display: inline-flex; align-items: center; gap: 0.6rem; font-size: 1.0625rem; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .proy-gab__header .proy-gab__continuar:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); text-decoration: none; color: #fff; }
     .proy-gab__ultimo-punto { background: rgba(255,255,255,0.06); border: 1px solid var(--on-dark-line); border-radius: var(--radius); padding: 0.75rem 1.25rem; }
     .proy-gab__ultimo-punto span { font-size: 0.8125rem; color: var(--on-dark-soft); display: block; }
     .proy-gab__ultimo-punto strong { color: var(--on-dark); font-weight: 600; }

@@ -81,25 +81,81 @@
     .espacios-gab__titulo { font-size: 1.375rem; margin: 0; }
     .espacios-gab__nota { font-size: 0.8125rem; color: var(--ink-soft); }
     .espacios-gab__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1.1rem; margin-bottom: 2.75rem; }
+    /* Fix #2 de la auditoría redesign-skill: las 6 tarjetas ya definian su
+       propio --card-acento (via style="--card-acento: ..." en el markup)
+       pero solo se usaba en el eyebrow y en "Entrar ->" -- practicamente
+       invisible, las 6 se leian como fotocopias. La franja superior de color
+       y el eyebrow como chip lo hacen visible sin tocar el resto del layout
+       ni el hover que ya funcionaba bien. */
+    /* Motion pass (redesign-skill, seccion "Motion Upgrades"): easing tipo
+       ease-out-expo (cubic-bezier(0.16,1,0.3,1)) en vez de ease lineal --
+       arranca rapido y frena suave, sin rebote, la referencia "Linear/Stripe"
+       que pidieron. 320ms (antes 150ms): perceptible sin sentirse lento.
+       fill-mode "backwards", NUNCA "both"/"forwards" acá: con "both" la
+       animación de entrada se queda reclamando la propiedad transform para
+       siempre después de terminar, y le gana al transform del :hover -- bug
+       real que encontré grabando el video de verificación (la tarjeta no
+       se elevaba al pasar el mouse). "backwards" solo pre-llena el estado
+       ANTES de que arranque (evita el flash de contenido durante el delay);
+       una vez termina la animación, la propiedad queda libre para que el
+       :hover la controle con su propia transición. */
     .espacio-gab {
         background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+        border-top: 3px solid var(--card-acento, var(--primary));
         padding: 1.375rem 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;
         text-decoration: none; color: inherit;
-        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+        transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1), transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+        animation: gab-entrada 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
     }
     .espacio-gab:hover { border-color: var(--card-acento, var(--primary)); box-shadow: var(--shadow-lift); transform: translateY(-6px); text-decoration: none; }
-    .espacio-gab__eyebrow { font-size: 0.875rem; color: var(--card-acento, var(--primary)); }
+    /* Stagger de entrada: 6 tarjetas de .espacios-gab__grid + 2 de
+       .placas-gab__grid comparten la misma secuencia (60ms de paso), los
+       paneles oscuros retoman el conteo donde las tarjetas lo dejan. */
+    .espacios-gab__grid .espacio-gab:nth-child(1) { animation-delay: 0ms; }
+    .espacios-gab__grid .espacio-gab:nth-child(2) { animation-delay: 60ms; }
+    .espacios-gab__grid .espacio-gab:nth-child(3) { animation-delay: 120ms; }
+    .espacios-gab__grid .espacio-gab:nth-child(4) { animation-delay: 180ms; }
+    .espacios-gab__grid .espacio-gab:nth-child(5) { animation-delay: 240ms; }
+    .espacios-gab__grid .espacio-gab:nth-child(6) { animation-delay: 300ms; }
+    @keyframes gab-entrada { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    .espacio-gab__eyebrow {
+        display: inline-block; align-self: flex-start;
+        font-size: 0.75rem; font-weight: 600; color: var(--card-acento, var(--primary));
+        background: color-mix(in srgb, var(--card-acento, var(--primary)) 14%, transparent);
+        padding: 0.2rem 0.6rem; border-radius: 999px; margin-bottom: 0.15rem;
+    }
     .espacio-gab__titulo { font-size: 1.5rem; margin: 0; }
     .espacio-gab__texto { font-size: 0.8125rem; color: var(--ink-soft); line-height: 1.6; margin: 0 0 0.5rem; }
     .espacio-gab__pie { margin-top: auto; border-top: 1px solid var(--line-soft); padding-top: 0.75rem; display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-soft); }
     .espacio-gab__pie span:last-child { color: var(--card-acento, var(--primary)); }
 
-    /* ---------- Director de Estudio + Cursos (destacados premium, lado a lado) --- */
+    /* ---------- Director de Estudio + Cursos (destacados premium, lado a lado) ---
+       Fix #2 tambien resuelve lo pendiente del fix #1: los dos paneles eran
+       gemelos identicos salvo la pildora "PREMIUM". Cada uno suma su propio
+       --card-acento (mismo mecanismo que .espacio-gab) tomado de un acento que
+       YA usaba ese panel en otro lado -- Director de Estudio con --primary
+       (su boton "Analizar" ya es ciruela via .btn-gab--on-dark), Cursos con
+       --rose (su propia pildora "PREMIUM" ya es rose) -- no se inventa un
+       acento nuevo para ninguno de los dos. */
     .placas-gab__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
-    .placa-gab { background: var(--dark-panel); color: var(--on-dark); border-radius: var(--radius); padding: 2.5rem 2.75rem; display: flex; flex-direction: column; }
-    .placa-gab__eyebrow { font-size: 0.9375rem; color: var(--rose); }
+    .placa-gab {
+        background: var(--dark-panel); color: var(--on-dark); border-radius: var(--radius);
+        border-top: 3px solid var(--card-acento, var(--rose)); padding: 2.5rem 2.75rem;
+        display: flex; flex-direction: column;
+        transition: box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1), transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+        animation: gab-entrada 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    }
+    .placa-gab:hover { box-shadow: var(--shadow-lift); transform: translateY(-6px); }
+    .placas-gab__grid .placa-gab:nth-child(1) { animation-delay: 360ms; }
+    .placas-gab__grid .placa-gab:nth-child(2) { animation-delay: 420ms; }
+    .placa-gab__eyebrow { font-size: 0.9375rem; color: var(--card-acento, var(--rose)); }
     .placa-gab__titulo { font-size: clamp(1.625rem, 2.6vw, 2.25rem); max-width: 26ch; margin: 0.75rem 0 0.9rem; color: var(--on-dark); }
-    .placa-gab__texto { color: var(--on-dark-body); max-width: 58ch; margin: 0; line-height: 1.7; }
+    /* Selector .placa-gab .placa-gab__texto (no solo .placa-gab__texto): el
+       <p> global de gabinete.css (body.gabinete p, color: var(--ink-body))
+       tiene mas especificidad que una sola clase y ganaba, dejando el
+       parrafo casi ilegible sobre el panel oscuro (2.21:1 de contraste,
+       encontrado en la verificacion del fix de --dark-panel). */
+    .placa-gab .placa-gab__texto { color: var(--on-dark-body); max-width: 58ch; margin: 0; line-height: 1.7; }
     .placa-gab__acciones { margin-top: auto; padding-top: 1.5rem; display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
     .placa-gab__creditos { font-size: 0.8125rem; color: var(--on-dark-soft); }
     .placa-gab__premium {
@@ -111,6 +167,45 @@
     @media (max-width: 760px) {
         .saludo-gab { grid-template-columns: 1fr; }
         .placas-gab__grid { grid-template-columns: 1fr; }
+    }
+
+    /* Micro-feedback de click en los botones de acento (Continuar practicando /
+       Analizar una partitura / Ver cursos) -- escopeado a sus contenedores en
+       vez de tocar .btn-gab en gabinete.css, para no salirse del alcance de
+       "solo dashboard.html" de este paso. Mismo btn-gab:hover (elevar -2px) se
+       mantiene sin tocar; esto solo agrega el estado :active que faltaba.
+       Prefijo body.gabinete acá: gabinete.css YA define
+       "body.gabinete .btn-gab:active { transform: translateY(0); ... }"
+       (especificidad 0,3,1) que le ganaba a esta regla sin el prefijo
+       (0,3,0) -- mismo patrón de especificidad que quedó anotado como "a
+       tener en el radar" en el fix #1, apareció acá (encontrado con el
+       mismo método: getComputedStyle real durante un mousedown real, no
+       asumido). Con el prefijo esta regla pasa a 0,4,1 y gana. */
+    body.gabinete .saludo-gab__acciones .btn-gab:active,
+    body.gabinete .placa-gab__acciones .btn-gab:active {
+        transform: scale(0.97);
+        transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: none;
+    }
+
+    /* Accesibilidad (restricción explícita: esto es movimiento, no puede romper
+       nada de lo ya verificado en los fixes #1/#2 de color/contraste). Con
+       prefers-reduced-motion:reduce se saca la animación de entrada por completo
+       (las tarjetas aparecen ya visibles, sin fade/slide) y se recorta la
+       distancia del hover/press a algo casi imperceptible en vez de sacarlo del
+       todo -- deja la señal de "esto es interactivo" sin el movimiento grande
+       que puede resultar incómodo. */
+    @media (prefers-reduced-motion: reduce) {
+        .espacio-gab, .placa-gab {
+            animation: none; opacity: 1; transform: none;
+        }
+        .espacio-gab:hover, .placa-gab:hover {
+            transform: translateY(-1px);
+        }
+        .saludo-gab__acciones .btn-gab:active,
+        .placa-gab__acciones .btn-gab:active {
+            transform: none;
+        }
     }
 </style>
 {% endblock %}
@@ -267,7 +362,7 @@
 
     <section style="padding-bottom: 3rem;">
         <div class="placas-gab__grid">
-            <div class="placa-gab">
+            <div class="placa-gab" style="--card-acento: var(--primary);">
                 <div class="placa-gab__eyebrow">Análisis con IA</div>
                 <h2 class="placa-gab__titulo">Director de Estudio</h2>
                 <p class="placa-gab__texto">Subí tu orquestación y recibí una crítica estructurada — dobles verificados, densidad por compás y sugerencias de registro — antes de mostrarla a tu profesor.</p>
@@ -276,7 +371,7 @@
                     <span class="placa-gab__creditos">{{ profile.creditos_analisis|add:profile.creditos_bonus }} análisis disponibles</span>
                 </div>
             </div>
-            <div class="placa-gab">
+            <div class="placa-gab" style="--card-acento: var(--rose);">
                 <div class="placa-gab__eyebrow">Contenido educativo<span class="placa-gab__premium">Premium</span></div>
                 <h2 class="placa-gab__titulo">Cursos</h2>
                 <p class="placa-gab__texto">Teoría musical organizada en grados, con ejemplos de partitura interactivos y práctica guiada en cada tema.</p>
