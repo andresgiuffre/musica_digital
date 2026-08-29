@@ -1,8 +1,12 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load i18n %}
 {% block title %}{{ tema.titulo }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
+{# El idioma REAL del contenido mostrado, no el idioma de sesión activo --
+   ver la misma nota en curso_detail.html. #}
+{% block html_lang %}{{ curso.idioma }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -44,14 +48,14 @@
 {% endblock %}
 
 {% block content %}
-<div class="envoltorio-gab" style="padding-top: 1.75rem; padding-bottom: 2.5rem; max-width: 52rem;">
+<div class="envoltorio-gab" style="padding-top: 1.75rem; padding-bottom: 2.5rem; max-width: 52rem;" data-txt-error-partitura="{% trans 'No se pudo cargar la partitura.' %}">
     <a href="{% url 'curso_detail' curso.id %}" class="volver-gab">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
         {{ curso.nombre }}
     </a>
-    <p class="tema-gab__migas">Grado {{ grado.numero }} — {{ grado.titulo }}</p>
+    <p class="tema-gab__migas">{% blocktrans with n=grado.numero titulo=grado.titulo %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</p>
     <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 1.75rem;">{{ tema.titulo }}</h1>
 
     {% for bloque in bloques %}
@@ -72,7 +76,7 @@
             {% endif %}
         </div>
     {% empty %}
-        <p class="tema-gab__vacio">Este tema todavía no tiene contenido cargado.</p>
+        <p class="tema-gab__vacio">{% trans "Este tema todavía no tiene contenido cargado." %}</p>
     {% endfor %}
 </div>
 {% endblock %}
@@ -114,7 +118,7 @@
             .then(buffer => info.esMxl ? osmd.load(buffer) : osmd.load(new TextDecoder('utf-8').decode(buffer)))
             .then(() => osmd.render())
             .catch(err => {
-                contenedor.textContent = 'No se pudo cargar la partitura.';
+                contenedor.textContent = document.querySelector('.envoltorio-gab').dataset.txtErrorPartitura;
                 console.error('[cursos] Error cargando ejemplo de partitura:', err);
             });
     });

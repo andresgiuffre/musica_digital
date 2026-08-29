@@ -1,3 +1,4 @@
+{% load i18n %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -37,15 +38,15 @@
 </head>
 <body>
     <h1>{{ analysis.name }}</h1>
-    <p class="subtitulo">Analizado el {{ analysis.created_at|date:"d M Y, H:i" }}</p>
+    <p class="subtitulo">{% blocktrans with fecha=analysis.created_at|date:"d M Y, H:i" %}Analizado el {{ fecha }}{% endblocktrans %}</p>
 
-    <h2>Resumen General</h2>
+    <h2>{% trans "Resumen General" %}</h2>
     <p class="prosa">{{ data.resumen_general }}</p>
 
     {% if data.resumen_por_instrumento %}
-    <h2>Resumen por Instrumento</h2>
+    <h2>{% trans "Resumen por Instrumento" %}</h2>
     <table class="tabla">
-        <tr><th>Instrumento</th><th>Análisis</th></tr>
+        <tr><th>{% trans "Instrumento" %}</th><th>{% trans "Análisis" %}</th></tr>
         {% for r in data.resumen_por_instrumento %}
         <tr><td class="instrumento">{{ r.instrumento }}</td><td>{{ r.descripcion }}</td></tr>
         {% endfor %}
@@ -53,7 +54,7 @@
     {% endif %}
 
     {% if mapa_registros %}
-    <h2>Mapa de Registros</h2>
+    <h2>{% trans "Mapa de Registros" %}</h2>
     {% for item in mapa_registros %}
     <table class="mapa-fila" width="100%" cellpadding="0" cellspacing="0">
         <tr>
@@ -74,7 +75,7 @@
     {% endif %}
 
     {% if densidad_pdf %}
-    <h2>Mapa de Densidad por Compás</h2>
+    <h2>{% trans "Mapa de Densidad por Compás" %}</h2>
     <table class="densidad-tabla" width="100%" cellpadding="0" cellspacing="0">
         <tr>
         {% for item in densidad_pdf %}
@@ -85,34 +86,34 @@
     {% endif %}
 
     {% if data.alertas_viabilidad %}
-    <h2>Alertas de Viabilidad Instrumental</h2>
+    <h2>{% trans "Alertas de Viabilidad Instrumental" %}</h2>
     {% for a in data.alertas_viabilidad %}
     <p class="alerta-pdf">{{ a.mensaje }}</p>
     {% endfor %}
     {% endif %}
 
     {% if data.bloques %}
-    <h2>Análisis por Bloques de Compases</h2>
+    <h2>{% trans "Análisis por Bloques de Compases" %}</h2>
     {% for bloque in data.bloques %}
     <div class="bloque">
-        <div class="bloque-titulo">Compases {{ bloque.rango_compases }}</div>
+        <div class="bloque-titulo">{% blocktrans with rango=bloque.rango_compases %}Compases {{ rango }}{% endblocktrans %}</div>
         <div class="bloque-sub">
-            <div class="bloque-sub-label">Cuerdas</div>
+            <div class="bloque-sub-label">{% trans "Cuerdas" %}</div>
             <p>{{ bloque.analisis_cuerdas }}</p>
-            <div class="bloque-sub-label">Maderas</div>
+            <div class="bloque-sub-label">{% trans "Maderas" %}</div>
             <p>{{ bloque.analisis_maderas }}</p>
-            <div class="bloque-sub-label">Metales / Percusión</div>
+            <div class="bloque-sub-label">{% trans "Metales / Percusión" %}</div>
             <p>{{ bloque.analisis_metales_percusion }}</p>
-            <div class="bloque-sub-label">Balance y Fango</div>
+            <div class="bloque-sub-label">{% trans "Balance y Fango" %}</div>
             <p>{{ bloque.analisis_balance_y_fango }}</p>
         </div>
         <div class="solucion">
-            <div class="bloque-sub-label">Solución</div>
+            <div class="bloque-sub-label">{% trans "Solución" %}</div>
             <p>{{ bloque.solucion_prosa }}</p>
         </div>
         {% if bloque.ediciones_sugeridas %}
         <table class="tabla ediciones">
-            <tr><th>Compás</th><th>Parte</th><th>Acción</th><th>Detalle</th></tr>
+            <tr><th>{% trans "Compás" %}</th><th>{% trans "Parte" %}</th><th>{% trans "Acción" %}</th><th>{% trans "Detalle" %}</th></tr>
             {% for e in bloque.ediciones_sugeridas %}
             <tr><td>{{ e.compases }}</td><td>{{ e.parte }}</td><td>{{ e.accion }}</td><td>{{ e.detalle }}</td></tr>
             {% endfor %}

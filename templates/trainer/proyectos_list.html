@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Mis Proyectos Musicales{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Mis Proyectos Musicales" %}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 
@@ -43,12 +44,12 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver
+        {% trans "Volver" %}
     </a>
 
     <div class="proyectos-gab__cabecera">
-        <h1 style="font-size: clamp(1.75rem, 3.5vw, 2.5rem); margin: 0;">Mis Proyectos</h1>
-        <a href="{% url 'biblioteca_list' %}" class="btn-gab btn-gab--primary">+ Nuevo Proyecto</a>
+        <h1 style="font-size: clamp(1.75rem, 3.5vw, 2.5rem); margin: 0;">{% trans "Mis Proyectos" %}</h1>
+        <a href="{% url 'biblioteca_list' %}" class="btn-gab btn-gab--primary">+ {% trans "Nuevo Proyecto" %}</a>
     </div>
 
     <div class="proyectos-gab__grid">
@@ -56,24 +57,24 @@
         <div class="proyecto-gab">
             <div>
                 <div class="proyecto-gab__cabecera">
-                    <h2 class="proyecto-gab__titulo">{{ proyecto.sheet_music.title|default:proyecto.sheet_music.xml_file.name }}</h2>
+                    <h2 class="proyecto-gab__titulo">{% if proyecto.sheet_music.title %}{{ proyecto.sheet_music.title }}{% else %}{{ proyecto.sheet_music.xml_file.name }}{% endif %}</h2>
                     {% if proyecto.status == 'COMPLETED' %}
-                    <span class="proyecto-gab__estado completado">Completado</span>
+                    <span class="proyecto-gab__estado completado">{% trans "Completado" %}</span>
                     {% else %}
-                    <span class="proyecto-gab__estado activo">Activo</span>
+                    <span class="proyecto-gab__estado activo">{% trans "Activo" %}</span>
                     {% endif %}
                 </div>
-                <p class="proyecto-gab__fecha">Iniciado: {{ proyecto.start_date|date:"d M Y" }}</p>
+                <p class="proyecto-gab__fecha">{% blocktrans with fecha=proyecto.start_date|date:"d M Y" %}Iniciado: {{ fecha }}{% endblocktrans %}</p>
 
                 <div class="proyecto-gab__tags" style="margin-top: 0.75rem;">
-                    <span class="proyecto-gab__tag">Última práctica: {{ proyecto.last_practice|timesince }}</span>
-                    <span class="proyecto-gab__tag">BPM Máx: {{ proyecto.max_bpm_reached }}</span>
+                    <span class="proyecto-gab__tag">{% blocktrans with tiempo=proyecto.last_practice|timesince %}Última práctica: {{ tiempo }}{% endblocktrans %}</span>
+                    <span class="proyecto-gab__tag">{% blocktrans with bpm=proyecto.max_bpm_reached %}BPM Máx: {{ bpm }}{% endblocktrans %}</span>
                 </div>
             </div>
 
             <div>
                 <div class="proyecto-gab__progreso-label">
-                    <span>Avance General</span>
+                    <span>{% trans "Avance General" %}</span>
                     <span>{{ proyecto.progress_percentage }}%</span>
                 </div>
                 <div class="proyecto-gab__progreso-pista">
@@ -82,14 +83,14 @@
             </div>
 
             <div class="proyecto-gab__pie">
-                <a href="{% url 'proyecto_detail' proyecto.id %}" class="btn-gab btn-gab--secondary">Ver Proyecto</a>
+                <a href="{% url 'proyecto_detail' proyecto.id %}" class="btn-gab btn-gab--secondary">{% trans "Ver Proyecto" %}</a>
             </div>
         </div>
         {% empty %}
         <div class="proyectos-gab__vacio">
             <span class="proyectos-gab__vacio-icono">📝</span>
-            <p style="font-size: 1.0625rem; color: var(--ink);">No tenés proyectos activos</p>
-            <p>Andá a la biblioteca y convertí una partitura en un proyecto para empezar a estudiar en serio.</p>
+            <p style="font-size: 1.0625rem; color: var(--ink);">{% trans "No tenés proyectos activos" %}</p>
+            <p>{% trans "Andá a la biblioteca y convertí una partitura en un proyecto para empezar a estudiar en serio." %}</p>
         </div>
         {% endfor %}
     </div>

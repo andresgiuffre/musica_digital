@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Identificación de Acordes MIDI{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Identificación de Acordes MIDI" %}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 
@@ -79,48 +80,53 @@
 {% endblock %}
 
 {% block content %}
-<div class="envoltorio-gab" style="position: relative; min-height: 80vh; display: flex; flex-direction: column; justify-content: center; padding-bottom: 10rem;">
+<div class="envoltorio-gab" style="position: relative; min-height: 80vh; display: flex; flex-direction: column; justify-content: center; padding-bottom: 10rem;"
+    data-txt-sin-conexion="{% trans 'Sin conexión MIDI' %}"
+    data-txt-sin-soporte-midi="{% trans 'Tu navegador no soporta Web MIDI API.' %}"
+    data-txt-permiso-denegado="{% trans 'Permiso MIDI denegado.' %}"
+    data-txt-midi-conectado="{% trans 'MIDI Conectado' %}"
+    data-txt-sin-midi="{% trans 'Sin MIDI' %}">
 
     <!-- Header Oculto o Pequeño -->
     <div class="midi-juego-cabecera">
-        <a href="{% url 'midi_trainer_hub' %}" class="midi-juego-salir">← Salir del Juego</a>
+        <a href="{% url 'midi_trainer_hub' %}" class="midi-juego-salir">← {% trans "Salir del Juego" %}</a>
         <div style="display: flex; align-items: center; gap: 0.75rem;">
             <select id="midi-device-select" class="midi-juego-device hidden"></select>
             <div id="midi-conn-indicator" class="midi-juego-conn">
-                <div class="punto"></div> Sin conexión MIDI
+                <div class="punto"></div> {% trans "Sin conexión MIDI" %}
             </div>
         </div>
     </div>
 
     <!-- Pantalla Inicial -->
     <div id="screen-start" style="text-align: center;">
-        <h1 style="font-size: clamp(2.5rem, 5vw, 3.75rem); margin-bottom: 1rem;">Identificación de <em>Acordes</em></h1>
+        <h1 style="font-size: clamp(2.5rem, 5vw, 3.75rem); margin-bottom: 1rem;">{% blocktrans %}Identificación de <em>Acordes</em>{% endblocktrans %}</h1>
         <p style="font-size: 1.125rem; color: var(--ink-soft); max-width: 42rem; margin: 0 auto 2rem;">
-            La plataforma te pedirá un acorde. Tócalo en tu controlador MIDI lo más rápido posible.
-            Tenés <strong style="color: var(--ink);">60 segundos</strong>. ¡Preparate!
+            {% blocktrans %}La plataforma te pedirá un acorde. Tócalo en tu controlador MIDI lo más rápido posible.
+            Tenés <strong style="color: var(--ink);">60 segundos</strong>. ¡Preparate!{% endblocktrans %}
         </p>
         <button id="btn-start" class="btn-gab btn-gab--primary" style="font-size: 1.125rem; padding: 1rem 2.5rem; border-radius: 999px;" disabled>
-            EMPEZAR JUEGO
+            {% trans "EMPEZAR JUEGO" %}
         </button>
-        <p id="msg-waiting-midi" style="color: var(--danger); margin-top: 1rem; font-weight: 700;">Por favor, conectá un controlador MIDI para jugar.</p>
+        <p id="msg-waiting-midi" style="color: var(--danger); margin-top: 1rem; font-weight: 700;">{% trans "Por favor, conectá un controlador MIDI para jugar." %}</p>
     </div>
 
     <!-- Pantalla de Juego -->
     <div id="screen-game" class="hidden" style="flex-direction: column; align-items: center; justify-content: center; width: 100%;">
         <div class="midi-juego-hud">
             <div class="midi-juego-hud__caja">
-                <span class="midi-juego-hud__label">Tiempo</span>
+                <span class="midi-juego-hud__label">{% trans "Tiempo" %}</span>
                 <span id="game-time" class="midi-juego-hud__valor">60</span><span style="color: var(--ink-soft);">s</span>
             </div>
             <div class="midi-juego-hud__caja derecha">
-                <span class="midi-juego-hud__label">Puntos</span>
+                <span class="midi-juego-hud__label">{% trans "Puntos" %}</span>
                 <span id="game-score" class="midi-juego-hud__valor" style="color: var(--green);">0</span>
             </div>
         </div>
 
         <!-- Pregunta Central -->
         <div style="text-align: center; margin-bottom: 2rem; position: relative; width: 100%; max-width: 42rem;">
-            <h2 style="font-size: 1.125rem; color: var(--ink-soft); font-weight: 700; margin-bottom: 0.5rem; letter-spacing: 0.08em; text-transform: uppercase;">TOCÁ EL ACORDE:</h2>
+            <h2 style="font-size: 1.125rem; color: var(--ink-soft); font-weight: 700; margin-bottom: 0.5rem; letter-spacing: 0.08em; text-transform: uppercase;">{% trans "TOCÁ EL ACORDE:" %}</h2>
             <div id="target-chord" style="font-family: var(--font-display); font-weight: 500; font-size: clamp(3.5rem, 10vw, 9.5rem); color: var(--ink); transition: color 0.3s ease;">
                 C Maj7
             </div>
@@ -138,28 +144,28 @@
 
     <!-- Pantalla de Resultados -->
     <div id="screen-result" class="hidden" style="text-align: center;">
-        <h2 style="font-size: 2.75rem; margin-bottom: 2rem;">¡Tiempo Terminado!</h2>
+        <h2 style="font-size: 2.75rem; margin-bottom: 2rem;">{% trans "¡Tiempo Terminado!" %}</h2>
         <div class="midi-juego-res-grid">
             <div class="midi-juego-res-card">
-                <span class="midi-juego-res-label">Puntuación</span>
+                <span class="midi-juego-res-label">{% trans "Puntuación" %}</span>
                 <span id="res-score" class="midi-juego-res-valor" style="color: var(--green);">0</span>
             </div>
             <div class="midi-juego-res-card">
-                <span class="midi-juego-res-label">XP obtenida</span>
+                <span class="midi-juego-res-label">{% trans "XP obtenida" %}</span>
                 <span id="res-xp" class="midi-juego-res-valor" style="color: var(--primary);">+0</span>
             </div>
             <div class="midi-juego-res-card">
-                <span class="midi-juego-res-label">Acordes correctos</span>
+                <span class="midi-juego-res-label">{% trans "Acordes correctos" %}</span>
                 <span id="res-correct" class="midi-juego-res-valor" style="color: var(--green);">0</span>
             </div>
             <div class="midi-juego-res-card">
-                <span class="midi-juego-res-label">Errores</span>
+                <span class="midi-juego-res-label">{% trans "Errores" %}</span>
                 <span id="res-incorrect" class="midi-juego-res-valor" style="color: var(--danger);">0</span>
             </div>
         </div>
         <div style="display: flex; gap: 1rem; justify-content: center;">
-            <button onclick="startGame()" class="btn-gab btn-gab--primary">Jugar de Nuevo</button>
-            <a href="{% url 'midi_trainer_hub' %}" class="btn-gab btn-gab--secondary">Volver al Hub</a>
+            <button onclick="startGame()" class="btn-gab btn-gab--primary">{% trans "Jugar de Nuevo" %}</button>
+            <a href="{% url 'midi_trainer_hub' %}" class="btn-gab btn-gab--secondary">{% trans "Volver al Hub" %}</a>
         </div>
     </div>
 </div>
@@ -167,12 +173,14 @@
 <!-- Teclado en pantalla: se ilumina en tiempo real con cada nota MIDI recibida (color = velocity) -->
 <div id="pulso-keyboard-bar" class="hidden" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;">
     <div class="pulso-keyboard" id="pulso-keyboard"></div>
-    <p class="pulso-keyboard-caption">Lo que tocás en tu controlador se enciende acá</p>
+    <p class="pulso-keyboard-caption">{% trans "Lo que tocás en tu controlador se enciende acá" %}</p>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    const i18nMidiChords = document.querySelector('.envoltorio-gab').dataset;
+
     // --- ESTADO Y DATOS DEL JUEGO ---
     const GAME_DURATION = 60; // segundos
     let timeLeft = GAME_DURATION;
@@ -304,7 +312,7 @@
         if (navigator.requestMIDIAccess) {
             navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
         } else {
-            msgWaiting.innerText = "Tu navegador no soporta Web MIDI API.";
+            msgWaiting.innerText = i18nMidiChords.txtSinSoporteMidi;
         }
     }
 
@@ -362,19 +370,19 @@
     }
 
     function onMIDIFailure() {
-        msgWaiting.innerText = "Permiso MIDI denegado.";
+        msgWaiting.innerText = i18nMidiChords.txtPermisoDenegado;
         updateConnectionState(false);
     }
 
     function updateConnectionState(isConnected) {
         hasMidiConnection = isConnected;
         if(isConnected) {
-            connIndicator.innerHTML = `<div class="punto"></div> MIDI Conectado`;
+            connIndicator.innerHTML = `<div class="punto"></div> ${i18nMidiChords.txtMidiConectado}`;
             connIndicator.classList.add('ok');
             btnStart.disabled = false;
             msgWaiting.style.display = 'none';
         } else {
-            connIndicator.innerHTML = `<div class="punto"></div> Sin MIDI`;
+            connIndicator.innerHTML = `<div class="punto"></div> ${i18nMidiChords.txtSinMidi}`;
             connIndicator.classList.remove('ok');
             btnStart.disabled = true;
             msgWaiting.style.display = 'block';

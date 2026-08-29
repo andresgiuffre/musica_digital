@@ -84,6 +84,10 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    # Entre Session y Common -- orden exigido por Django (necesita la sesión ya
+    # resuelta para leer el idioma guardado, y tiene que correr antes que
+    # Common para poder actuar sobre la URL con prefijo de idioma).
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -93,18 +97,44 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'config.urls'
 
+# Django SIEMPRE envuelve los loaders por default en cached.Loader (ver
+# django/template/engine.py: pasa exactamente igual con APP_DIRS=True sin
+# 'loaders' explícito) -- independientemente de DEBUG. Ese cache es un dict en
+# memoria de proceso que nunca se invalida por mtime, solo con un restart real
+# del proceso. Contradice un supuesto que este proyecto daba por cierto ("con
+# DEBUG=True no cachea") -- confirmado leyendo el traceback real de un
+# TemplateSyntaxError que pasaba por django/template/loaders/cached.py pese a
+# DJANGO_DEBUG=True, no asumido. En DEBUG se fuerzan los loaders sin el
+# wrapper cacheado para que runserver reeleje templates en cada request sin
+# necesitar reiniciar el proceso a mano; en producción (DEBUG=False) se deja
+# el comportamiento default de Django (cacheado, mejor para performance) --
+# ahí el Reload de PythonAnywhere sigue siendo necesario igual que siempre,
+# eso no cambia.
+_TEMPLATE_OPTIONS = {
+    'context_processors': [
+        'django.template.context_processors.request',
+        'django.contrib.auth.context_processors.auth',
+        'django.contrib.messages.context_processors.messages',
+        # Expone LANGUAGE_CODE/LANGUAGES en todos los templates sin
+        # necesitar {% get_current_language %} en cada uno.
+        'django.template.context_processors.i18n',
+    ],
+}
+if DEBUG:
+    _TEMPLATE_OPTIONS['loaders'] = [
+        'django.template.loaders.filesystem.Loader',
+        'django.template.loaders.app_directories.Loader',
+    ]
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [BASE_DIR / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-            ],
-        },
+        # APP_DIRS y 'loaders' son mutuamente excluyentes para Django (levanta
+        # ImproperlyConfigured si se dan los dos) -- por eso va en False acá y
+        # app_directories.Loader se agrega a mano en _TEMPLATE_OPTIONS arriba.
+        'APP_DIRS': not DEBUG,
+        'OPTIONS': _TEMPLATE_OPTIONS,
     },
 ]
 
@@ -144,7 +174,17 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+# Antes 'en-us' -- descuido preexistente sin relación con el soporte de i18n
+# (grep del proyecto entero confirmó que ningún otro código dependía de ese
+# valor literal). Español es el idioma real por default del sitio.
+LANGUAGE_CODE = 'es'
+
+LANGUAGES = [
+    ('es', 'Español'),
+    ('en', 'English'),
+]
+
+LOCALE_PATHS = [BASE_DIR / 'locale']
 
 TIME_ZONE = 'UTC'
 

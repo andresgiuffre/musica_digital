@@ -1,165 +1,172 @@
-const TheoryKB = {
-    notesMap: { 'c': 'Do', 'd': 'Re', 'e': 'Mi', 'f': 'Fa', 'g': 'Sol', 'a': 'La', 'b': 'Si' },
-    accMap: { 'n': 'natural', '#': 'sostenido', 'b': 'bemol', '##': 'doble sostenido', 'bb': 'doble bemol' },
-    qualityMap: { 'M': 'Mayor', 'm': 'Menor', 'J': 'Justa', 'A': 'Aumentada', 'd': 'Disminuida', 'AA': 'Doble Aumentada', 'dd': 'Doble Disminuida' },
-    intervalMap: { 2: 'Segunda', 3: 'Tercera', 4: 'Cuarta', 5: 'Quinta', 6: 'Sexta', 7: 'Séptima', 8: 'Octava' },
+// Traducciones cargadas desde el bloque JSON en base.html (#teoria-i18n-data),
+// poblado vía {% trans %}/{% blocktrans %} del lado del servidor -- este archivo es
+// estático (no pasa por el motor de templates de Django), así que no puede usar
+// esas tags directamente. Fallback a español si por algún motivo el bloque no
+// está presente (no debería pasar en uso normal, pero evita un crash duro).
+const TeoriaI18n = (() => {
+    const el = document.getElementById('teoria-i18n-data');
+    if (el) {
+        try { return JSON.parse(el.textContent); } catch (e) { console.error('[teoria] Error parseando teoria-i18n-data:', e); }
+    }
+    return {
+        notesMap: { c: 'Do', d: 'Re', e: 'Mi', f: 'Fa', g: 'Sol', a: 'La', b: 'Si' },
+        accMap: {}, qualityMap: {}, intervalMap: {}, staffPositions: {},
+        fueraDeRangoCentral: 'fuera del rango central',
+        note: {}, interval: {}, melody: {}, reading: {}
+    };
+})();
 
-    staffPositions: {
-        'c/3': 'primera línea adicional inferior (octava 3)',
-        'd/3': 'espacio debajo de primera línea adicional inferior',
-        'e/3': 'tercera línea adicional inferior',
-        'f/3': 'espacio debajo de tercera línea adicional inferior',
-        'g/3': 'segunda línea adicional inferior',
-        'a/3': 'espacio debajo de segunda línea adicional inferior',
-        'b/3': 'espacio debajo de la primera línea adicional inferior', 
-        'c/4': 'primera línea adicional inferior',
-        'd/4': 'espacio justo debajo del pentagrama',
-        'e/4': 'primera línea del pentagrama',
-        'f/4': 'primer espacio del pentagrama',
-        'g/4': 'segunda línea del pentagrama',
-        'a/4': 'segundo espacio del pentagrama',
-        'b/4': 'tercera línea del pentagrama',
-        'c/5': 'tercer espacio del pentagrama',
-        'd/5': 'cuarta línea del pentagrama',
-        'e/5': 'cuarto espacio del pentagrama',
-        'f/5': 'quinta línea del pentagrama',
-        'g/5': 'espacio justo sobre el pentagrama',
-        'a/5': 'primera línea adicional superior',
-        'b/5': 'espacio sobre primera línea adicional superior',
-        'c/6': 'segunda línea adicional superior'
-    },
+// Sustituye placeholders {clave} por los valores de `vars` -- equivalente casero al
+// %(name)s de gettext/blocktrans del lado Python, ya que JS no trae nada análogo.
+function fmt(str, vars) {
+    if (!str) return '';
+    return str.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : `{${k}}`));
+}
+
+const TheoryKB = {
+    notesMap: TeoriaI18n.notesMap,
+    accMap: TeoriaI18n.accMap,
+    qualityMap: TeoriaI18n.qualityMap,
+    intervalMap: TeoriaI18n.intervalMap,
+    staffPositions: TeoriaI18n.staffPositions,
 
     getNoteExplanation: function(noteStr, accStr, mode) {
         // noteStr format: 'c/4'
+        const T = TeoriaI18n.note;
         const letter = noteStr.charAt(0);
         const name = this.notesMap[letter];
-        const accName = this.accMap[accStr];
-        const position = this.staffPositions[noteStr] || 'fuera del rango central';
+        const position = this.staffPositions[noteStr] || TeoriaI18n.fueraDeRangoCentral;
 
-        let explanation = `La nota ${name} se encuentra en la <strong>${position}</strong> en clave de Sol. `;
-        
+        // T.ubicacion ya trae el <strong>...</strong> alrededor de {position} en el
+        // propio blocktrans -- position va acá como texto plano, sin envolver de nuevo.
+        let explanation = fmt(T.ubicacion, { name, position });
+
         if (accStr === '#') {
-            explanation += `<br><br>El sostenido eleva la altura un semitono respecto de ${name} natural.`;
+            explanation += fmt(T.sostenidoEleva, { name });
         } else if (accStr === 'b') {
-            explanation += `<br><br>El bemol reduce la altura un semitono respecto de ${name} natural.`;
+            explanation += fmt(T.bemolReduce, { name });
         } else if (accStr === '##') {
-            explanation += `<br><br>El doble sostenido eleva la altura dos semitonos (un tono entero) respecto de ${name} natural.`;
+            explanation += fmt(T.dobleSostenidoEleva, { name });
         } else if (accStr === 'bb') {
-            explanation += `<br><br>El doble bemol reduce la altura dos semitonos (un tono entero) respecto de ${name} natural.`;
+            explanation += fmt(T.dobleBemolReduce, { name });
         } else {
-            explanation += `<br><br>Al ser una nota natural, no tiene alteraciones.`;
+            explanation += T.sinAlteraciones;
         }
 
         if (mode === 'learning') {
-            explanation += `<br><br>💡 <strong>Observación Teórica:</strong> Cada línea y espacio del pentagrama representa una nota natural consecutiva. Las alteraciones (♯, ♭) se colocan a la izquierda de la nota para modificar su altura sin cambiar su posición gráfica en el pentagrama.`;
+            explanation += `<br><br>${T.observacion}`;
         }
 
         return explanation;
     },
 
     getIntervalExplanation: function(degree, quality, mode, isAuditory) {
-        const intervalName = this.qualityMap[quality] + ' ' + this.intervalMap[degree];
-        
+        const T = TeoriaI18n.interval;
+
         // Exact semitones calc
         const baseSemitones = {2:2, 3:4, 4:5, 5:7, 6:9, 7:11, 8:12}[degree];
         let diff = 0;
         const perfect = [1,4,5,8].includes(degree);
-        
+
         if (quality === 'm') diff = -1;
         if (quality === 'd') diff = perfect ? -1 : -2;
         if (quality === 'dd') diff = perfect ? -2 : -3;
         if (quality === 'A') diff = 1;
         if (quality === 'AA') diff = 2;
-        
+
         const totalSemitones = baseSemitones + diff;
-        
+
         let explanation = `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; text-align: left;">`;
-        explanation += `<li><strong>Distancia diatónica:</strong> ${degree}</li>`;
-        explanation += `<li><strong>Semitonos exactos:</strong> ${totalSemitones}</li>`;
+        explanation += `<li><strong>${T.distanciaDiatonica}</strong> ${degree}</li>`;
+        explanation += `<li><strong>${T.semitonosExactos}</strong> ${totalSemitones}</li>`;
         explanation += `</ul>`;
-        
+
         // Theory rule
         let rule = "";
-        if (quality === 'M') rule = `Es un intervalo mayor estándar, originado de la escala mayor natural.`;
-        if (quality === 'J') rule = `Es un intervalo justo (perfecto), muy consonante y fundamental en la armonía.`;
-        if (quality === 'm') rule = `Una ${this.intervalMap[degree]} Menor se obtiene reduciendo un semitono respecto de una Mayor.`;
-        if (quality === 'A') rule = `Se obtiene elevando un semitono respecto de una ${perfect ? 'Justa' : 'Mayor'}.`;
-        if (quality === 'd') rule = `Se obtiene reduciendo un semitono respecto de una ${perfect ? 'Justa' : 'Menor'}.`;
-        
+        if (quality === 'M') rule = T.reglaMayor;
+        if (quality === 'J') rule = T.reglaJusta;
+        if (quality === 'm') rule = fmt(T.reglaMenor, { intervalo: this.intervalMap[degree] });
+        if (quality === 'A') rule = fmt(T.reglaAumentada, { ref: perfect ? T.refJusta : T.refMayor });
+        if (quality === 'd') rule = fmt(T.reglaDisminuida, { ref: perfect ? T.refJusta : T.refMenor });
+
         explanation += `<p style="text-align: left;">${rule}</p>`;
 
         if (totalSemitones === 6) {
-            explanation += `<p style="text-align: left; color: var(--primary);">También es conocida como <strong>Tritono</strong>, dividiendo la octava exactamente a la mitad.</p>`;
+            explanation += `<p style="text-align: left; color: var(--primary);">${T.tritono}</p>`;
         }
 
         if (isAuditory) {
             let tip = "";
-            if (degree === 5 && quality === 'J') tip = "Suena muy estable y abierto, como el comienzo del tema de Star Wars o Twinkle Twinkle.";
-            if (degree === 4 && quality === 'J') tip = "Suena estable pero con una ligera tensión que pide resolver, típico del himno de bodas.";
-            if (degree === 3 && quality === 'm') tip = "Tiene un carácter triste o melancólico.";
-            if (degree === 3 && quality === 'M') tip = "Tiene un carácter brillante y alegre.";
-            if (degree === 2 && quality === 'm') tip = "Es sumamente tenso y disonante, como la melodía de Tiburón.";
-            if (degree === 6 && quality === 'M') tip = "Suena muy melódico y romántico (ej. My Bonnie Lies Over the Ocean).";
-            if (totalSemitones === 6) tip = "Suena inestable, oscuro y disonante, propio del tritono (Los Simpson intro).";
-            if (degree === 8) tip = "Ambas notas suenan como la misma pero a diferente altura (octava).";
-            
-            if (tip) explanation += `<p style="text-align: left; margin-top: 1rem;">🎧 <em>Consejo Auditivo:</em> ${tip}</p>`;
+            if (degree === 5 && quality === 'J') tip = T.tip5J;
+            if (degree === 4 && quality === 'J') tip = T.tip4J;
+            if (degree === 3 && quality === 'm') tip = T.tip3m;
+            if (degree === 3 && quality === 'M') tip = T.tip3M;
+            if (degree === 2 && quality === 'm') tip = T.tip2m;
+            if (degree === 6 && quality === 'M') tip = T.tip6M;
+            if (totalSemitones === 6) tip = T.tipTritono;
+            if (degree === 8) tip = T.tip8;
+
+            if (tip) explanation += `<p style="text-align: left; margin-top: 1rem;">${T.consejoAuditivo} ${tip}</p>`;
         }
 
         if (mode === 'learning') {
-            explanation += `<div style="text-align: left; background: rgba(79, 70, 229, 0.05); padding: 1rem; border-radius: 0.5rem; margin-top: 1rem; border-left: 3px solid var(--primary);">💡 <strong>Observación Teórica:</strong> Los intervalos se definen por dos componentes: su número (distancia diatónica contando el nombre de las notas) y su calidad (ajuste fino en semitonos alterando esas notas).</div>`;
+            explanation += `<div style="text-align: left; background: rgba(79, 70, 229, 0.05); padding: 1rem; border-radius: 0.5rem; margin-top: 1rem; border-left: 3px solid var(--primary);">${T.observacion}</div>`;
         }
 
         return explanation;
     },
 
     getMelodyExplanation: function(correctArr, guessedArr, mode) {
+        const T = TeoriaI18n.melody;
         let explanation = "";
-        
+
         if (correctArr[0] === guessedArr[0] && correctArr[1] === guessedArr[2] && correctArr[2] === guessedArr[1]) {
-            explanation = "La segunda y tercera nota fueron intercambiadas.";
+            explanation = T.intercambio23;
         } else if (correctArr[1] === guessedArr[1] && correctArr[0] === guessedArr[2] && correctArr[2] === guessedArr[0]) {
-            explanation = "La primera y tercera nota fueron intercambiadas.";
+            explanation = T.intercambio13;
         } else if (correctArr[0] === guessedArr[0] && correctArr[1] === guessedArr[1]) {
-            explanation = "Acertaste las dos primeras notas, pero fallaste en la última.";
+            explanation = T.primerasDosOk;
         } else if (correctArr[0] === guessedArr[0]) {
-            explanation = "La primera nota fue correcta, pero la dirección o el salto de la melodía posterior fue diferente.";
+            explanation = T.primeraOk;
         } else {
-            explanation = "La melodía completa tenía una forma o contorno diferente al que elegiste.";
+            explanation = T.formaDiferente;
         }
 
-        let ret = `<p style="text-align: left;"><strong>Análisis del error:</strong> ${explanation}</p>`;
+        let ret = `<p style="text-align: left;"><strong>${T.analisisError}</strong> ${explanation}</p>`;
 
         if (mode === 'learning') {
-            ret += `<div style="text-align: left; background: rgba(79, 70, 229, 0.05); padding: 1rem; border-radius: 0.5rem; margin-top: 1rem; border-left: 3px solid var(--primary);">💡 <strong>Consejo:</strong> Presta atención a la "forma" de la melodía (si sube, si baja, o si repite la nota) antes de intentar identificar las notas exactas. Puedes guiarte dibujando la curva en el aire con tu mano mientras escuchas.</div>`;
+            ret += `<div style="text-align: left; background: rgba(79, 70, 229, 0.05); padding: 1rem; border-radius: 0.5rem; margin-top: 1rem; border-left: 3px solid var(--primary);">${T.consejo}</div>`;
         }
 
         return ret;
     },
 
     getReadingExplanation: function(timeSignature, totalBeats, mode) {
-        let explanation = "";
+        const T = TeoriaI18n.reading;
         let numerator = parseInt(timeSignature.split('/')[0]);
         let denominator = parseInt(timeSignature.split('/')[1]);
 
         let beatsPerMeasure = numerator;
-        let beatUnit = denominator === 4 ? "negras" : denominator === 8 ? "corcheas" : "blancas";
+        let beatUnit = denominator === 4 ? T.negras : denominator === 8 ? T.corcheas : T.blancas;
 
-        explanation += `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; text-align: left;">`;
-        explanation += `<li><strong>Compás:</strong> ${timeSignature}</li>`;
-        explanation += `<li><strong>Duración Total Reproducida:</strong> ${totalBeats} tiempos</li>`;
+        let explanation = `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; text-align: left;">`;
+        explanation += `<li><strong>${T.compas}</strong> ${timeSignature}</li>`;
+        explanation += `<li><strong>${T.duracionTotalLabel}</strong> ${fmt(T.duracionTotalValor, { totalBeats })}</li>`;
         explanation += `</ul>`;
 
-        let rule = `El compás de ${timeSignature} indica que hay ${beatsPerMeasure} tiempos por compás, y la unidad de tiempo es equivalente a ${beatUnit}.`;
+        let rule = fmt(T.regla, { timeSignature, beatsPerMeasure, beatUnit });
         explanation += `<p style="text-align: left;">${rule}</p>`;
 
         if (mode === 'learning') {
-            explanation += `<div style="text-align: left; background: rgba(79, 70, 229, 0.05); padding: 1rem; border-radius: 0.5rem; margin-top: 1rem; border-left: 3px solid var(--primary);">💡 <strong>Observación Teórica:</strong> El número superior del compás (numerador) indica la cantidad de tiempos. El inferior (denominador) indica la figura que vale un tiempo (4 = negra, 8 = corchea, 2 = blanca).</div>`;
+            explanation += `<div style="text-align: left; background: rgba(79, 70, 229, 0.05); padding: 1rem; border-radius: 0.5rem; margin-top: 1rem; border-left: 3px solid var(--primary);">${T.observacion}</div>`;
         }
 
         return explanation;
     },
 
+    // NOTA: no llamado desde ningún template actualmente (trainer_tiempos_fuertes.html
+    // arma su propia explicación inline, con su propio i18n) -- se deja sin traducir
+    // por ser código muerto, mismo criterio que trainer.html/trainer_solfeo_ritmico.html.
     getBeatsExplanation: function(timeSignature, mode) {
         let explanation = "";
         let numerator = parseInt(timeSignature.split('/')[0]);
@@ -167,7 +174,7 @@ const TheoryKB = {
 
         explanation += `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; text-align: left;">`;
         explanation += `<li><strong>Compás utilizado:</strong> ${timeSignature}</li>`;
-        
+
         if (numerator === 2) {
             explanation += `<li><strong>Distribución:</strong> Tiempo 1 = fuerte, Tiempo 2 = débil</li>`;
             rule = `Por eso las notas ubicadas en el tiempo 1 fueron consideradas acentuadas.`;

@@ -1,10 +1,11 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
 {% block content %}
 <div style="max-width: 400px; margin: 4rem auto; text-align: center;">
-    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--primary); margin-bottom: 0.75rem;">Panel de práctica</div>
+    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--primary); margin-bottom: 0.75rem;">{% trans "Panel de práctica" %}</div>
     <div class="card" style="text-align: left;">
-        <h2 style="text-align: center; margin-bottom: 2rem; font-size: 1.8rem;">Creá tu cuenta</h2>
+        <h2 style="text-align: center; margin-bottom: 2rem; font-size: 1.8rem;">{% trans "Creá tu cuenta" %}</h2>
         {% if form.non_field_errors %}
             <div style="color: var(--danger); background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 0.6rem; padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 0.9rem;">
                 {{ form.non_field_errors }}
@@ -28,10 +29,10 @@
                     {% endif %}
                 </div>
             {% endfor %}
-            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Registrarme</button>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">{% trans "Registrarme" %}</button>
         </form>
         <p style="text-align: center; margin-top: 1.5rem; color: var(--text-secondary);">
-            ¿Ya tenés cuenta? <a href="{% url 'login' %}" style="color: var(--primary);">Iniciá sesión acá</a>
+            {% trans "¿Ya tenés cuenta?" %} <a href="{% url 'login' %}" style="color: var(--primary);">{% trans "Iniciá sesión acá" %}</a>
         </p>
     </div>
 </div>

@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Centro de Comando - Mi Perfil{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Centro de Comando - Mi Perfil" %}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -31,50 +32,50 @@
         </div>
         <div class="z-10">
             <h1 class="text-4xl font-extrabold text-white mb-1 drop-shadow-md">{{ user.username }}</h1>
-            <div class="text-[var(--petroleo-bright)] font-black tracking-widest text-sm uppercase drop-shadow">Músico Nivel {{ profile.user_level }}</div>
+            <div class="text-[var(--petroleo-bright)] font-black tracking-widest text-sm uppercase drop-shadow">{% blocktrans with nivel=profile.user_level %}Músico Nivel {{ nivel }}{% endblocktrans %}</div>
         </div>
         <div class="ml-auto text-right z-10">
             <div class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[var(--petroleo-bright)] to-emerald-400" style="letter-spacing: -0.05em;">{{ profile.total_xp }}</div>
-            <div class="text-gray-400 font-bold text-xs tracking-widest mt-1">PUNTOS DE EXPERIENCIA</div>
+            <div class="text-gray-400 font-bold text-xs tracking-widest mt-1">{% trans "PUNTOS DE EXPERIENCIA" %}</div>
         </div>
     </div>
 
     <div class="space-y-12">
-        
+
         <!-- Sección Superior: Stats Rápidas -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             <div class="perfil-card text-center border-t-4 border-t-amber-500">
-                <div class="text-sm text-gray-400 font-bold uppercase mb-2">Mejor Racha</div>
+                <div class="text-sm text-gray-400 font-bold uppercase mb-2">{% trans "Mejor Racha" %}</div>
                 <div class="stat-value text-amber-500">{{ profile.max_daily_streak }} 🔥</div>
-                <div class="text-xs text-gray-500 mt-2">Días consecutivos practicando</div>
+                <div class="text-xs text-gray-500 mt-2">{% trans "Días consecutivos practicando" %}</div>
             </div>
 
             <div class="perfil-card text-center border-t-4 border-t-emerald-500">
-                <div class="text-sm text-gray-400 font-bold uppercase mb-2">Precisión Histórica</div>
+                <div class="text-sm text-gray-400 font-bold uppercase mb-2">{% trans "Precisión Histórica" %}</div>
                 <div class="stat-value text-emerald-500">{{ global_acc }}%</div>
-                <div class="text-xs text-gray-500 mt-2">De {{ total_answers }} ejercicios realizados</div>
+                <div class="text-xs text-gray-500 mt-2">{% blocktrans count counter=total_answers %}De {{ counter }} ejercicio realizado{% plural %}De {{ counter }} ejercicios realizados{% endblocktrans %}</div>
             </div>
 
             <div class="perfil-card text-center border-t-4 border-t-[var(--petroleo)]">
-                <div class="text-sm text-gray-400 font-bold uppercase mb-2">Tiempo Estudiado</div>
+                <div class="text-sm text-gray-400 font-bold uppercase mb-2">{% trans "Tiempo Estudiado" %}</div>
                 <div class="stat-value text-[var(--petroleo-bright)]">{{ total_study_minutes }}<span class="text-2xl text-[var(--petroleo)]">m</span></div>
-                <div class="text-xs text-gray-500 mt-2">Minutos en Modo Estudio</div>
+                <div class="text-xs text-gray-500 mt-2">{% trans "Minutos en Modo Estudio" %}</div>
             </div>
 
             <div class="perfil-card text-center" style="border-top: 4px solid var(--gold);">
-                <div class="text-sm text-gray-400 font-bold uppercase mb-2">Analizador</div>
+                <div class="text-sm text-gray-400 font-bold uppercase mb-2">{% trans "Analizador" %}</div>
                 <div class="stat-value" style="color: var(--gold);">{{ profile.creditos_analisis }}</div>
                 <div class="text-xs text-gray-500 mt-2">
-                    {{ profile.creditos_analisis }} análisis disponibles
+                    {% blocktrans count counter=profile.creditos_analisis %}{{ counter }} análisis disponible{% plural %}{{ counter }} análisis disponibles{% endblocktrans %}
                     {% if profile.creditos_bonus > 0 %}
-                        <br><span class="text-emerald-400 font-bold">+ {{ profile.creditos_bonus }} créditos adicionales sin vencimiento</span>
+                        <br><span class="text-emerald-400 font-bold">{% blocktrans count counter=profile.creditos_bonus %}+ {{ counter }} crédito adicional sin vencimiento{% plural %}+ {{ counter }} créditos adicionales sin vencimiento{% endblocktrans %}</span>
                     {% endif %}
                 </div>
             </div>
 
             <!-- Objetivos Diarios -->
             <div class="perfil-card">
-                <h3 class="text-[var(--petroleo-bright)] font-bold mb-4 flex items-center gap-2">🎯 Objetivos Diarios</h3>
+                <h3 class="text-[var(--petroleo-bright)] font-bold mb-4 flex items-center gap-2">🎯 {% trans "Objetivos Diarios" %}</h3>
                 <div class="flex flex-col gap-4">
                     {% for ug in today_goals %}
                         <div>
@@ -94,7 +95,7 @@
                             </div>
                         </div>
                     {% empty %}
-                        <p class="text-gray-500 text-sm">No hay objetivos hoy.</p>
+                        <p class="text-gray-500 text-sm">{% trans "No hay objetivos hoy." %}</p>
                     {% endfor %}
                 </div>
             </div>
@@ -102,7 +103,7 @@
 
         <!-- Sección Inferior: Logros -->
         <div>
-            <h2 class="text-2xl font-bold text-white mb-6">Medallas y Logros</h2>
+            <h2 class="text-2xl font-bold text-white mb-6">{% trans "Medallas y Logros" %}</h2>
             <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                 {% for a in achievements %}
                 <div class="perfil-card text-center {% if not a.unlocked %}opacity-40 grayscale{% else %}border-emerald-500/50 bg-emerald-900/10{% endif %}">

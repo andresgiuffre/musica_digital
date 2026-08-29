@@ -1,8 +1,46 @@
 /*
  * Componente compartido para renderizar el resultado del Analizador de Partituras
- * (trainer/orquestador_analizar.html y trainer/orquestador_historial_detalle.html
- * lo usan por igual, para no duplicar el diseño de las "cuadros" de presentación).
+ * (trainer/orquestador_analizar.html, trainer/orquestador_historial_detalle.html y
+ * trainer/orquestador_publico.html lo usan por igual, para no duplicar el diseño de
+ * las "cuadros" de presentación).
  */
+
+// Traducciones cargadas desde el bloque JSON que cada template que carga este
+// archivo incluye vía trainer/_orquestador_render_i18n.html (poblado con
+// {% trans %}/{% blocktrans %} del lado del servidor) -- este .js es estático, no
+// pasa por el motor de templates de Django, así que no puede usar esas tags
+// directamente. Fallback a español si por algún motivo el bloque no está presente.
+const OrqI18n = (() => {
+    const el = document.getElementById('orquestador-render-i18n-data');
+    if (el) {
+        try { return JSON.parse(el.textContent); } catch (e) { console.error('[orquestador_render] Error parseando orquestador-render-i18n-data:', e); }
+    }
+    return {
+        mapaRegistros: 'Mapa de Registros', alertasViabilidad: 'Alertas de Viabilidad Instrumental',
+        compasTooltip: 'Compás {compas}: {activos}/{total} instrumentos', mapaDensidad: 'Mapa de Densidad por Compás',
+        comparacionVersion: 'Comparación con Versión Anterior', reproducir: '▶ Reproducir',
+        verPentagramasComparados: 'Ver pentagramas comparados', original: 'Original', editado: 'Editado',
+        edicionesSugeridas: 'Ediciones sugeridas', compas: 'Compás', parte: 'Parte', accion: 'Acción', detalle: 'Detalle',
+        cargando: 'Cargando...', errorPrefijo: 'Error:',
+        rangoComparacion: 'Compases {rangoDesde}-{rangoHasta} (edición: {edicionDesde}-{edicionHasta})',
+        errorRedFragmento: 'Error de red al cargar el fragmento.', sinDatos: 'Sin datos.',
+        noSeGeneroAnalisis: 'No se pudo generar el análisis con IA', verDatosExtraidos: 'Ver datos musicales extraídos',
+        descargarPdf: '⬇ Descargar PDF', resumenGeneral: 'Resumen General', resumenPorInstrumento: 'Resumen por Instrumento',
+        instrumento: 'Instrumento', analisis: 'Análisis', compasesRango: 'Compases {rango}',
+        cuerdas: 'Cuerdas', maderas: 'Maderas', metalesPercusion: 'Metales / Percusión',
+        balanceYFango: 'Balance y Fango', solucion: 'Solución'
+    };
+})();
+
+// Sustituye placeholders {clave} por los valores de `vars` -- ver el mismo patrón en
+// static/js/teoria.js (fmt() ahí), redefinido acá para que este archivo no dependa de
+// que teoria.js se haya cargado antes (orquestador_publico.html no extiende base.html
+// y no lo carga).
+function fmtR(str, vars) {
+    if (!str) return '';
+    return str.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : `{${k}}`));
+}
+
 function escapeHtml(str) {
     if (str === undefined || str === null) return '';
     const div = document.createElement('div');
@@ -37,7 +75,7 @@ function renderMapaRegistros(estadisticas) {
 
     return `
         <div class="analisis-panel">
-            <h3>Mapa de Registros</h3>
+            <h3>${OrqI18n.mapaRegistros}</h3>
             <div class="analisis-mapa-registros">${filas}</div>
         </div>
     `;
@@ -53,7 +91,7 @@ function renderAlertasViabilidad(alertas) {
     `).join('');
     return `
         <div class="analisis-panel">
-            <h3>Alertas de Viabilidad Instrumental</h3>
+            <h3>${OrqI18n.alertasViabilidad}</h3>
             <div class="analisis-alertas">${filas}</div>
         </div>
     `;
@@ -63,11 +101,12 @@ function renderMapaDensidad(densidad) {
     if (!densidad || !densidad.length) return '';
     const bloques = densidad.map(d => {
         const opacidad = d.total_instrumentos > 0 ? (d.instrumentos_activos / d.total_instrumentos) : 0;
-        return `<div class="densidad-bloque" style="background-color: color-mix(in srgb, var(--primary) ${(opacidad * 100).toFixed(0)}%, transparent);" title="Compás ${d.compas}: ${d.instrumentos_activos}/${d.total_instrumentos} instrumentos"></div>`;
+        const tooltip = fmtR(OrqI18n.compasTooltip, { compas: d.compas, activos: d.instrumentos_activos, total: d.total_instrumentos });
+        return `<div class="densidad-bloque" style="background-color: color-mix(in srgb, var(--primary) ${(opacidad * 100).toFixed(0)}%, transparent);" title="${escapeHtml(tooltip)}"></div>`;
     }).join('');
     return `
         <div class="analisis-panel">
-            <h3>Mapa de Densidad por Compás</h3>
+            <h3>${OrqI18n.mapaDensidad}</h3>
             <div class="densidad-tira-wrap">
                 <div class="densidad-tira">${bloques}</div>
             </div>
@@ -89,7 +128,7 @@ function renderComparacionVersion(comparacion) {
     `).join('');
     return `
         <div class="analisis-panel">
-            <h3>Comparación con Versión Anterior</h3>
+            <h3>${OrqI18n.comparacionVersion}</h3>
             <div class="analisis-version-lista">${filas}</div>
         </div>
     `;
@@ -143,7 +182,7 @@ function agregarBotonPlay(columna, osmd, bpm, instrumento) {
     const boton = document.createElement('button');
     boton.type = 'button';
     boton.className = 'analisis-btn-play';
-    boton.textContent = '▶ Reproducir';
+    boton.textContent = OrqI18n.reproducir;
     boton.addEventListener('click', () => {
         const eventos = extraerEventosOsmd(osmd);
         AudioEngine.playSequence(eventos, bpm, instrumento);
@@ -181,15 +220,15 @@ function renderEdicionesSugeridas(ediciones, analysisId) {
                         data-compas-desde="${e.compas_desde}"
                         data-compas-hasta="${e.compas_hasta}"
                         data-accion-tipo="${escapeHtml(e.accion_tipo)}"
-                        data-direccion="${escapeHtml(e.direccion || '')}">Ver pentagramas comparados</button>
+                        data-direccion="${escapeHtml(e.direccion || '')}">${OrqI18n.verPentagramasComparados}</button>
                     <div class="analisis-comparacion" id="${targetId}" style="display:none;">
                         <div class="analisis-comparacion-columna">
-                            <span class="analisis-sub-label">Original</span>
+                            <span class="analisis-sub-label">${OrqI18n.original}</span>
                             <span class="analisis-comparacion-rango"></span>
                             <div class="analisis-osmd-original"></div>
                         </div>
                         <div class="analisis-comparacion-columna">
-                            <span class="analisis-sub-label">Editado</span>
+                            <span class="analisis-sub-label">${OrqI18n.editado}</span>
                             <span class="analisis-comparacion-rango"></span>
                             <div class="analisis-osmd-editado"></div>
                         </div>
@@ -202,10 +241,10 @@ function renderEdicionesSugeridas(ediciones, analysisId) {
 
     return `
         <div class="analisis-ediciones">
-            <span class="analisis-sub-label">Ediciones sugeridas</span>
+            <span class="analisis-sub-label">${OrqI18n.edicionesSugeridas}</span>
             <div class="analisis-tabla-wrap">
                 <table class="analisis-tabla analisis-tabla--mini">
-                    <thead><tr><th>Compás</th><th>Parte</th><th>Acción</th><th>Detalle</th></tr></thead>
+                    <thead><tr><th>${OrqI18n.compas}</th><th>${OrqI18n.parte}</th><th>${OrqI18n.accion}</th><th>${OrqI18n.detalle}</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table>
             </div>
@@ -218,7 +257,7 @@ function cargarFragmentoComparado(btn, contenedor) {
     const editadoCol = contenedor.querySelectorAll('.analisis-comparacion-columna')[1];
     const originalDiv = contenedor.querySelector('.analisis-osmd-original');
     const editadoDiv = contenedor.querySelector('.analisis-osmd-editado');
-    originalDiv.textContent = 'Cargando...';
+    originalDiv.textContent = OrqI18n.cargando;
     editadoDiv.textContent = '';
 
     const params = new URLSearchParams({
@@ -233,7 +272,7 @@ function cargarFragmentoComparado(btn, contenedor) {
         .then(res => res.json())
         .then(data => {
             if (data.status !== 'success') {
-                originalDiv.textContent = 'Error: ' + data.message;
+                originalDiv.textContent = OrqI18n.errorPrefijo + ' ' + data.message;
                 editadoDiv.textContent = '';
                 return;
             }
@@ -241,7 +280,12 @@ function cargarFragmentoComparado(btn, contenedor) {
             editadoDiv.textContent = '';
 
             if (typeof data.rango_mostrado_desde === 'number' && typeof data.rango_mostrado_hasta === 'number') {
-                const textoRango = `Compases ${data.rango_mostrado_desde}-${data.rango_mostrado_hasta} (edición: ${btn.dataset.compasDesde}-${btn.dataset.compasHasta})`;
+                const textoRango = fmtR(OrqI18n.rangoComparacion, {
+                    rangoDesde: data.rango_mostrado_desde,
+                    rangoHasta: data.rango_mostrado_hasta,
+                    edicionDesde: btn.dataset.compasDesde,
+                    edicionHasta: btn.dataset.compasHasta,
+                });
                 originalCol.querySelector('.analisis-comparacion-rango').textContent = textoRango;
                 editadoCol.querySelector('.analisis-comparacion-rango').textContent = textoRango;
             }
@@ -259,7 +303,7 @@ function cargarFragmentoComparado(btn, contenedor) {
             });
         })
         .catch(err => {
-            originalDiv.textContent = 'Error de red al cargar el fragmento.';
+            originalDiv.textContent = OrqI18n.errorRedFragmento;
             editadoDiv.textContent = '';
             console.error(err);
         });
@@ -305,9 +349,9 @@ function renderErrorFallback(data, container) {
     const panel = document.createElement('div');
     panel.className = 'analisis-panel analisis-panel--error';
     panel.innerHTML = `
-        <h3>No se pudo generar el análisis con IA</h3>
+        <h3>${OrqI18n.noSeGeneroAnalisis}</h3>
         <p class="analisis-prosa">${escapeHtml(data.error)}</p>
-        ${data.raw_music_data ? '<details class="analisis-raw-details"><summary>Ver datos musicales extraídos</summary><pre></pre></details>' : ''}
+        ${data.raw_music_data ? `<details class="analisis-raw-details"><summary>${OrqI18n.verDatosExtraidos}</summary><pre></pre></details>` : ''}
     `;
     if (data.raw_music_data) {
         panel.querySelector('pre').textContent = JSON.stringify(data.raw_music_data, null, 2);
@@ -319,21 +363,21 @@ function renderAnalysisResult(data, container, analysisId) {
     container.innerHTML = '';
 
     if (!data || data.error) {
-        renderErrorFallback(data || { error: 'Sin datos.' }, container);
+        renderErrorFallback(data || { error: OrqI18n.sinDatos }, container);
         return;
     }
 
     if (analysisId) {
         const descargaWrap = document.createElement('div');
         descargaWrap.className = 'analisis-descarga';
-        descargaWrap.innerHTML = `<a href="/orquestador/exportar/${analysisId}/" class="analisis-btn-pdf" target="_blank" rel="noopener">⬇ Descargar PDF</a>`;
+        descargaWrap.innerHTML = `<a href="/orquestador/exportar/${analysisId}/" class="analisis-btn-pdf" target="_blank" rel="noopener">${OrqI18n.descargarPdf}</a>`;
         container.appendChild(descargaWrap);
     }
 
     const resumenPanel = document.createElement('div');
     resumenPanel.className = 'analisis-panel';
     resumenPanel.innerHTML = `
-        <h3>Resumen General</h3>
+        <h3>${OrqI18n.resumenGeneral}</h3>
         <p class="analisis-prosa">${escapeHtml(data.resumen_general)}</p>
     `;
     container.appendChild(resumenPanel);
@@ -348,10 +392,10 @@ function renderAnalysisResult(data, container, analysisId) {
         const tablaPanel = document.createElement('div');
         tablaPanel.className = 'analisis-panel';
         tablaPanel.innerHTML = `
-            <h3>Resumen por Instrumento</h3>
+            <h3>${OrqI18n.resumenPorInstrumento}</h3>
             <div class="analisis-tabla-wrap">
                 <table class="analisis-tabla">
-                    <thead><tr><th>Instrumento</th><th>Análisis</th></tr></thead>
+                    <thead><tr><th>${OrqI18n.instrumento}</th><th>${OrqI18n.analisis}</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table>
             </div>
@@ -395,28 +439,28 @@ function renderAnalysisResult(data, container, analysisId) {
             details.className = 'analisis-bloque';
             if (idx === 0) details.open = true;
             details.innerHTML = `
-                <summary class="analisis-bloque-summary">Compases ${escapeHtml(bloque.rango_compases)}</summary>
+                <summary class="analisis-bloque-summary">${escapeHtml(fmtR(OrqI18n.compasesRango, { rango: bloque.rango_compases }))}</summary>
                 <div class="analisis-bloque-body">
                     <div class="analisis-bloque-grid">
                         <div class="analisis-sub analisis-sub--cuerdas">
-                            <span class="analisis-sub-label">Cuerdas</span>
+                            <span class="analisis-sub-label">${OrqI18n.cuerdas}</span>
                             <p>${escapeHtml(bloque.analisis_cuerdas)}</p>
                         </div>
                         <div class="analisis-sub analisis-sub--maderas">
-                            <span class="analisis-sub-label">Maderas</span>
+                            <span class="analisis-sub-label">${OrqI18n.maderas}</span>
                             <p>${escapeHtml(bloque.analisis_maderas)}</p>
                         </div>
                         <div class="analisis-sub analisis-sub--metales">
-                            <span class="analisis-sub-label">Metales / Percusión</span>
+                            <span class="analisis-sub-label">${OrqI18n.metalesPercusion}</span>
                             <p>${escapeHtml(bloque.analisis_metales_percusion)}</p>
                         </div>
                         <div class="analisis-sub analisis-sub--balance">
-                            <span class="analisis-sub-label">Balance y Fango</span>
+                            <span class="analisis-sub-label">${OrqI18n.balanceYFango}</span>
                             <p>${escapeHtml(bloque.analisis_balance_y_fango)}</p>
                         </div>
                     </div>
                     <div class="analisis-solucion">
-                        <span class="analisis-sub-label">Solución</span>
+                        <span class="analisis-sub-label">${OrqI18n.solucion}</span>
                         <p>${escapeHtml(bloque.solucion_prosa)}</p>
                     </div>
                     ${renderEdicionesSugeridas(bloque.ediciones_sugeridas, analysisId)}

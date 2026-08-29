@@ -1,0 +1,2818 @@
+# English translations for Música Digital.
+# Copyright (C) 2026
+# This file is distributed under the same license as the Música Digital package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-28 22:51-0300\n"
+"PO-Revision-Date: 2026-08-27 00:00-0300\n"
+"Last-Translator: Claude\n"
+"Language-Team: English\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: .\templates\base.html:81
+msgid "natural"
+msgstr "natural"
+
+#: .\templates\base.html:82
+msgid "sostenido"
+msgstr "sharp"
+
+#: .\templates\base.html:83
+msgid "bemol"
+msgstr "flat"
+
+#: .\templates\base.html:84
+msgid "doble sostenido"
+msgstr "double sharp"
+
+#: .\templates\base.html:85
+msgid "doble bemol"
+msgstr "double flat"
+
+#: .\templates\base.html:88 .\templates\base.html:148
+msgid "Mayor"
+msgstr "Major"
+
+#: .\templates\base.html:89 .\templates\base.html:149
+msgid "Menor"
+msgstr "Minor"
+
+#: .\templates\base.html:90 .\templates\base.html:147
+msgid "Justa"
+msgstr "Perfect"
+
+#: .\templates\base.html:91
+msgid "Aumentada"
+msgstr "Augmented"
+
+#: .\templates\base.html:92
+msgid "Disminuida"
+msgstr "Diminished"
+
+#: .\templates\base.html:93
+msgid "Doble Aumentada"
+msgstr "Doubly Augmented"
+
+#: .\templates\base.html:94
+msgid "Doble Disminuida"
+msgstr "Doubly Diminished"
+
+#: .\templates\base.html:97
+msgid "Segunda"
+msgstr "Second"
+
+#: .\templates\base.html:98
+msgid "Tercera"
+msgstr "Third"
+
+#: .\templates\base.html:99
+msgid "Cuarta"
+msgstr "Fourth"
+
+#: .\templates\base.html:100
+msgid "Quinta"
+msgstr "Fifth"
+
+#: .\templates\base.html:101
+msgid "Sexta"
+msgstr "Sixth"
+
+#: .\templates\base.html:102
+msgid "Séptima"
+msgstr "Seventh"
+
+#: .\templates\base.html:103
+msgid "Octava"
+msgstr "Octave"
+
+#: .\templates\base.html:106
+msgid "primera línea adicional inferior (octava 3)"
+msgstr "first ledger line below the staff (octave 3)"
+
+#: .\templates\base.html:107
+msgid "espacio debajo de primera línea adicional inferior"
+msgstr "space below the first ledger line below the staff"
+
+#: .\templates\base.html:108
+msgid "tercera línea adicional inferior"
+msgstr "third ledger line below the staff"
+
+#: .\templates\base.html:109
+msgid "espacio debajo de tercera línea adicional inferior"
+msgstr "space below the third ledger line below the staff"
+
+#: .\templates\base.html:110
+msgid "segunda línea adicional inferior"
+msgstr "second ledger line below the staff"
+
+#: .\templates\base.html:111
+msgid "espacio debajo de segunda línea adicional inferior"
+msgstr "space below the second ledger line below the staff"
+
+#: .\templates\base.html:112
+msgid "espacio debajo de la primera línea adicional inferior"
+msgstr "space below the first ledger line below the staff"
+
+#: .\templates\base.html:113
+msgid "primera línea adicional inferior"
+msgstr "first ledger line below the staff"
+
+#: .\templates\base.html:114
+msgid "espacio justo debajo del pentagrama"
+msgstr "space just below the staff"
+
+#: .\templates\base.html:115
+msgid "primera línea del pentagrama"
+msgstr "first line of the staff"
+
+#: .\templates\base.html:116
+msgid "primer espacio del pentagrama"
+msgstr "first space of the staff"
+
+#: .\templates\base.html:117
+msgid "segunda línea del pentagrama"
+msgstr "second line of the staff"
+
+#: .\templates\base.html:118
+msgid "segundo espacio del pentagrama"
+msgstr "second space of the staff"
+
+#: .\templates\base.html:119
+msgid "tercera línea del pentagrama"
+msgstr "third line of the staff"
+
+#: .\templates\base.html:120
+msgid "tercer espacio del pentagrama"
+msgstr "third space of the staff"
+
+#: .\templates\base.html:121
+msgid "cuarta línea del pentagrama"
+msgstr "fourth line of the staff"
+
+#: .\templates\base.html:122
+msgid "cuarto espacio del pentagrama"
+msgstr "fourth space of the staff"
+
+#: .\templates\base.html:123
+msgid "quinta línea del pentagrama"
+msgstr "fifth line of the staff"
+
+#: .\templates\base.html:124
+msgid "espacio justo sobre el pentagrama"
+msgstr "space just above the staff"
+
+#: .\templates\base.html:125
+msgid "primera línea adicional superior"
+msgstr "first ledger line above the staff"
+
+#: .\templates\base.html:126
+msgid "espacio sobre primera línea adicional superior"
+msgstr "space above the first ledger line above the staff"
+
+#: .\templates\base.html:127
+msgid "segunda línea adicional superior"
+msgstr "second ledger line above the staff"
+
+#: .\templates\base.html:129
+msgid "fuera del rango central"
+msgstr "outside the central range"
+
+#: .\templates\base.html:131
+#, python-brace-format
+msgid ""
+"La nota {name} se encuentra en la <strong>{position}</strong> en clave de "
+"Sol. "
+msgstr ""
+"The note {name} is found on the <strong>{position}</strong> in treble clef. "
+
+#: .\templates\base.html:132
+#, python-brace-format
+msgid ""
+"<br><br>El sostenido eleva la altura un semitono respecto de {name} natural."
+msgstr ""
+"<br><br>The sharp raises the pitch a semitone relative to natural {name}."
+
+#: .\templates\base.html:133
+#, python-brace-format
+msgid ""
+"<br><br>El bemol reduce la altura un semitono respecto de {name} natural."
+msgstr ""
+"<br><br>The flat lowers the pitch a semitone relative to natural {name}."
+
+#: .\templates\base.html:134
+#, python-brace-format
+msgid ""
+"<br><br>El doble sostenido eleva la altura dos semitonos (un tono entero) "
+"respecto de {name} natural."
+msgstr ""
+"<br><br>The double sharp raises the pitch two semitones (a whole tone) "
+"relative to natural {name}."
+
+#: .\templates\base.html:135
+#, python-brace-format
+msgid ""
+"<br><br>El doble bemol reduce la altura dos semitonos (un tono entero) "
+"respecto de {name} natural."
+msgstr ""
+"<br><br>The double flat lowers the pitch two semitones (a whole tone) "
+"relative to natural {name}."
+
+#: .\templates\base.html:136
+msgid "<br><br>Al ser una nota natural, no tiene alteraciones."
+msgstr "<br><br>Being a natural note, it has no accidentals."
+
+#: .\templates\base.html:137
+msgid ""
+"💡 <strong>Observación Teórica:</strong> Cada línea y espacio del pentagrama "
+"representa una nota natural consecutiva. Las alteraciones (♯, ♭) se colocan "
+"a la izquierda de la nota para modificar su altura sin cambiar su posición "
+"gráfica en el pentagrama."
+msgstr ""
+"💡 <strong>Theory Note:</strong> Each line and space of the staff represents "
+"a consecutive natural note. Accidentals (♯, ♭) are placed to the left of the "
+"note to modify its pitch without changing its graphic position on the staff."
+
+#: .\templates\base.html:140
+msgid "Distancia diatónica:"
+msgstr "Diatonic distance:"
+
+#: .\templates\base.html:141
+msgid "Semitonos exactos:"
+msgstr "Exact semitones:"
+
+#: .\templates\base.html:142
+msgid "Es un intervalo mayor estándar, originado de la escala mayor natural."
+msgstr ""
+"It's a standard major interval, originating from the natural major scale."
+
+#: .\templates\base.html:143
+msgid ""
+"Es un intervalo justo (perfecto), muy consonante y fundamental en la armonía."
+msgstr "It's a perfect interval, very consonant and fundamental in harmony."
+
+#: .\templates\base.html:144
+#, python-brace-format
+msgid ""
+"Una {intervalo} Menor se obtiene reduciendo un semitono respecto de una "
+"Mayor."
+msgstr "A minor {intervalo} is obtained by lowering a major one by a semitone."
+
+#: .\templates\base.html:145
+#, python-brace-format
+msgid "Se obtiene elevando un semitono respecto de una {ref}."
+msgstr "It's obtained by raising a {ref} interval by a semitone."
+
+#: .\templates\base.html:146
+#, python-brace-format
+msgid "Se obtiene reduciendo un semitono respecto de una {ref}."
+msgstr "It's obtained by lowering a {ref} interval by a semitone."
+
+#: .\templates\base.html:150
+msgid ""
+"También es conocida como <strong>Tritono</strong>, dividiendo la octava "
+"exactamente a la mitad."
+msgstr ""
+"It's also known as the <strong>Tritone</strong>, dividing the octave exactly "
+"in half."
+
+#: .\templates\base.html:151
+msgid ""
+"Suena muy estable y abierto, como el comienzo del tema de Star Wars o "
+"Twinkle Twinkle."
+msgstr ""
+"Sounds very stable and open, like the start of the Star Wars theme or "
+"Twinkle Twinkle."
+
+#: .\templates\base.html:152
+msgid ""
+"Suena estable pero con una ligera tensión que pide resolver, típico del "
+"himno de bodas."
+msgstr ""
+"Sounds stable but with a slight tension that asks to be resolved, typical of "
+"the wedding march."
+
+#: .\templates\base.html:153
+msgid "Tiene un carácter triste o melancólico."
+msgstr "Has a sad or melancholic character."
+
+#: .\templates\base.html:154
+msgid "Tiene un carácter brillante y alegre."
+msgstr "Has a bright and cheerful character."
+
+#: .\templates\base.html:155
+msgid "Es sumamente tenso y disonante, como la melodía de Tiburón."
+msgstr "It's extremely tense and dissonant, like the Jaws theme."
+
+#: .\templates\base.html:156
+msgid "Suena muy melódico y romántico (ej. My Bonnie Lies Over the Ocean)."
+msgstr "Sounds very melodic and romantic (e.g. My Bonnie Lies Over the Ocean)."
+
+#: .\templates\base.html:157
+msgid ""
+"Suena inestable, oscuro y disonante, propio del tritono (Los Simpson intro)."
+msgstr ""
+"Sounds unstable, dark and dissonant, typical of the tritone (The Simpsons "
+"intro)."
+
+#: .\templates\base.html:158
+msgid "Ambas notas suenan como la misma pero a diferente altura (octava)."
+msgstr "Both notes sound like the same one but at a different pitch (octave)."
+
+#: .\templates\base.html:159
+msgid "🎧 <em>Consejo Auditivo:</em>"
+msgstr "🎧 <em>Ear Training Tip:</em>"
+
+#: .\templates\base.html:160
+msgid ""
+"💡 <strong>Observación Teórica:</strong> Los intervalos se definen por dos "
+"componentes: su número (distancia diatónica contando el nombre de las notas) "
+"y su calidad (ajuste fino en semitonos alterando esas notas)."
+msgstr ""
+"💡 <strong>Theory Note:</strong> Intervals are defined by two components: "
+"their number (diatonic distance counting note names) and their quality (fine "
+"adjustment in semitones altering those notes)."
+
+#: .\templates\base.html:163
+msgid "La segunda y tercera nota fueron intercambiadas."
+msgstr "The second and third notes were swapped."
+
+#: .\templates\base.html:164
+msgid "La primera y tercera nota fueron intercambiadas."
+msgstr "The first and third notes were swapped."
+
+#: .\templates\base.html:165
+msgid "Acertaste las dos primeras notas, pero fallaste en la última."
+msgstr "You got the first two notes right, but missed the last one."
+
+#: .\templates\base.html:166
+msgid ""
+"La primera nota fue correcta, pero la dirección o el salto de la melodía "
+"posterior fue diferente."
+msgstr ""
+"The first note was correct, but the direction or leap of the melody "
+"afterward was different."
+
+#: .\templates\base.html:167
+msgid ""
+"La melodía completa tenía una forma o contorno diferente al que elegiste."
+msgstr ""
+"The whole melody had a different shape or contour than the one you chose."
+
+#: .\templates\base.html:168
+msgid "Análisis del error:"
+msgstr "Error analysis:"
+
+#: .\templates\base.html:169
+msgid ""
+"💡 <strong>Consejo:</strong> Presta atención a la forma de la melodía (si "
+"sube, si baja, o si repite la nota) antes de intentar identificar las notas "
+"exactas. Puedes guiarte dibujando la curva en el aire con tu mano mientras "
+"escuchas."
+msgstr ""
+"💡 <strong>Tip:</strong> Pay attention to the shape of the melody (whether "
+"it goes up, down, or repeats the note) before trying to identify the exact "
+"notes. You can guide yourself by drawing the curve in the air with your hand "
+"while listening."
+
+#: .\templates\base.html:172
+msgid "negras"
+msgstr "quarter notes"
+
+#: .\templates\base.html:173
+msgid "corcheas"
+msgstr "eighth notes"
+
+#: .\templates\base.html:174
+msgid "blancas"
+msgstr "half notes"
+
+#: .\templates\base.html:175 .\templates\trainer\biblioteca_play.html:227
+#: .\templates\trainer\trainer_lectura_musical.html:164
+msgid "Compás:"
+msgstr "Measure:"
+
+#: .\templates\base.html:176
+msgid "Duración Total Reproducida:"
+msgstr "Total Duration Played:"
+
+#: .\templates\base.html:177
+#, python-brace-format
+msgid "{totalBeats} tiempos"
+msgstr "{totalBeats} beats"
+
+#: .\templates\base.html:178
+#, python-brace-format
+msgid ""
+"El compás de {timeSignature} indica que hay {beatsPerMeasure} tiempos por "
+"compás, y la unidad de tiempo es equivalente a {beatUnit}."
+msgstr ""
+"The {timeSignature} time signature indicates there are {beatsPerMeasure} "
+"beats per measure, and the beat unit is equivalent to {beatUnit}."
+
+#: .\templates\base.html:179
+msgid ""
+"💡 <strong>Observación Teórica:</strong> El número superior del compás "
+"(numerador) indica la cantidad de tiempos. El inferior (denominador) indica "
+"la figura que vale un tiempo (4 = negra, 8 = corchea, 2 = blanca)."
+msgstr ""
+"💡 <strong>Theory Note:</strong> The top number of the time signature "
+"(numerator) indicates the number of beats. The bottom one (denominator) "
+"indicates the note value worth one beat (4 = quarter note, 8 = eighth note, "
+"2 = half note)."
+
+#: .\templates\base.html:456
+msgid "Panel"
+msgstr "Dashboard"
+
+#: .\templates\base.html:457 .\templates\trainer\dashboard.html:332
+msgid "Biblioteca"
+msgstr "Library"
+
+#: .\templates\base.html:458 .\templates\trainer\dashboard.html:338
+msgid "Entrenamiento"
+msgstr "Training"
+
+#: .\templates\base.html:459 .\templates\trainer\dashboard.html:344
+#: .\templates\trainer\perfil.html:66
+msgid "Analizador"
+msgstr "Analyzer"
+
+#: .\templates\base.html:460 .\templates\trainer\dashboard.html:350
+msgid "Orquestar"
+msgstr "Orchestrate"
+
+#: .\templates\base.html:480
+msgid "Cambiar idioma"
+msgstr "Change language"
+
+#: .\templates\base.html:505
+msgid "Silenciar sonido"
+msgstr "Mute sound"
+
+#: .\templates\base.html:505 .\templates\base.html:506
+msgid "Volumen"
+msgstr "Volume"
+
+#: .\templates\base.html:511
+msgid "Aprendizaje"
+msgstr "Learning"
+
+#: .\templates\base.html:511 .\templates\base.html:512
+msgid "Evaluación"
+msgstr "Evaluation"
+
+#: .\templates\base.html:517
+msgid "Menú de usuario"
+msgstr "User menu"
+
+#: .\templates\base.html:521 .\templates\trainer\dashboard.html:356
+msgid "Proyectos"
+msgstr "Projects"
+
+#: .\templates\base.html:522 .\templates\trainer\dashboard.html:362
+#: .\templates\trainer\midi_hub.html:4 .\templates\trainer\midi_hub.html:78
+msgid "Estudio MIDI"
+msgstr "MIDI Studio"
+
+#: .\templates\base.html:523
+msgid "Mi perfil"
+msgstr "My profile"
+
+#: .\templates\base.html:526
+msgid "Salir"
+msgstr "Log out"
+
+#: .\templates\base.html:538
+msgid "Cambiar a tema claro"
+msgstr "Switch to light theme"
+
+#: .\templates\base.html:538
+msgid "Cambiar tema"
+msgstr "Change theme"
+
+#: .\templates\base.html:538
+msgid "Cambiar a tema oscuro"
+msgstr "Switch to dark theme"
+
+#: .\templates\base.html:545
+msgid "herramienta de estudio para músicos"
+msgstr "a study tool for musicians"
+
+#: .\templates\base.html:546
+msgid "Ayuda"
+msgstr "Help"
+
+#: .\templates\base.html:546
+msgid "Atajos de teclado"
+msgstr "Keyboard shortcuts"
+
+#: .\templates\base.html:546
+msgid "Dispositivos MIDI"
+msgstr "MIDI devices"
+
+#: .\templates\base.html:553
+msgid "Explicación Teórica"
+msgstr "Theory Explanation"
+
+#: .\templates\base.html:555 .\templates\trainer\orquestador_analizar.html:295
+msgid "Continuar"
+msgstr "Continue"
+
+#: .\templates\registration\login.html:6
+#: .\templates\registration\register.html:6
+msgid "Panel de práctica"
+msgstr "Practice Dashboard"
+
+#: .\templates\registration\login.html:8
+msgid "Bienvenido de nuevo"
+msgstr "Welcome back"
+
+#: .\templates\registration\login.html:27
+#: .\templates\trainer\entrenador_index.html:97
+msgid "Entrar"
+msgstr "Log in"
+
+#: .\templates\registration\login.html:30
+msgid "¿No tenés cuenta?"
+msgstr "Don't have an account?"
+
+#: .\templates\registration\login.html:30
+msgid "Registrate acá"
+msgstr "Sign up here"
+
+#: .\templates\registration\register.html:8
+msgid "Creá tu cuenta"
+msgstr "Create your account"
+
+#: .\templates\registration\register.html:32
+msgid "Registrarme"
+msgstr "Sign up"
+
+#: .\templates\registration\register.html:35
+msgid "¿Ya tenés cuenta?"
+msgstr "Already have an account?"
+
+#: .\templates\registration\register.html:35
+msgid "Iniciá sesión acá"
+msgstr "Log in here"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:4
+#: .\templates\trainer\orquestador_pdf.html:57
+msgid "Mapa de Registros"
+msgstr "Register Map"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:5
+#: .\templates\trainer\orquestador_pdf.html:89
+msgid "Alertas de Viabilidad Instrumental"
+msgstr "Instrumental Viability Alerts"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:6
+#, python-brace-format
+msgid "Compás {compas}: {activos}/{total} instrumentos"
+msgstr "Measure {compas}: {activos}/{total} instruments"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:7
+#: .\templates\trainer\orquestador_pdf.html:78
+msgid "Mapa de Densidad por Compás"
+msgstr "Density Map by Measure"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:8
+msgid "Comparación con Versión Anterior"
+msgstr "Comparison with Previous Version"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:9
+msgid "▶ Reproducir"
+msgstr "▶ Play"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:10
+msgid "Ver pentagramas comparados"
+msgstr "View compared scores"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:11
+#: .\templates\trainer\biblioteca_play.html:297
+#: .\templates\trainer\trainer_lectura_musical.html:219
+msgid "Original"
+msgstr "Original"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:12
+msgid "Editado"
+msgstr "Edited"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:13
+msgid "Ediciones sugeridas"
+msgstr "Suggested edits"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:14
+#: .\templates\trainer\biblioteca_play.html:328
+#: .\templates\trainer\orquestador_pdf.html:116
+msgid "Compás"
+msgstr "Measure"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:15
+#: .\templates\trainer\orquestador_pdf.html:116
+msgid "Parte"
+msgstr "Part"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:16
+#: .\templates\trainer\orquestador_pdf.html:116
+msgid "Acción"
+msgstr "Action"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:17
+#: .\templates\trainer\orquestador_pdf.html:116
+msgid "Detalle"
+msgstr "Detail"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:18
+msgid "Cargando..."
+msgstr "Loading..."
+
+#: .\templates\trainer\_orquestador_render_i18n.html:19
+#: .\templates\trainer\biblioteca_play.html:187
+msgid "Error:"
+msgstr "Error:"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:20
+#, python-brace-format
+msgid ""
+"Compases {rangoDesde}-{rangoHasta} (edición: {edicionDesde}-{edicionHasta})"
+msgstr ""
+"Measures {rangoDesde}-{rangoHasta} (edit: {edicionDesde}-{edicionHasta})"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:21
+msgid "Error de red al cargar el fragmento."
+msgstr "Network error loading the fragment."
+
+#: .\templates\trainer\_orquestador_render_i18n.html:22
+msgid "Sin datos."
+msgstr "No data."
+
+#: .\templates\trainer\_orquestador_render_i18n.html:23
+msgid "No se pudo generar el análisis con IA"
+msgstr "The AI analysis could not be generated"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:24
+msgid "Ver datos musicales extraídos"
+msgstr "View extracted musical data"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:25
+msgid "⬇ Descargar PDF"
+msgstr "⬇ Download PDF"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:26
+#: .\templates\trainer\orquestador_pdf.html:43
+msgid "Resumen General"
+msgstr "Overview"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:27
+#: .\templates\trainer\orquestador_pdf.html:47
+msgid "Resumen por Instrumento"
+msgstr "Summary by Instrument"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:28
+#: .\templates\trainer\orquestador_pdf.html:49
+msgid "Instrumento"
+msgstr "Instrument"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:29
+#: .\templates\trainer\orquestador_pdf.html:49
+msgid "Análisis"
+msgstr "Analysis"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:30
+#, python-brace-format
+msgid "Compases {rango}"
+msgstr "Measures {rango}"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:31
+#: .\templates\trainer\orquestador_pdf.html:101
+msgid "Cuerdas"
+msgstr "Strings"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:32
+#: .\templates\trainer\orquestador_pdf.html:103
+msgid "Maderas"
+msgstr "Woodwinds"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:33
+#: .\templates\trainer\orquestador_pdf.html:105
+msgid "Metales / Percusión"
+msgstr "Brass / Percussion"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:34
+#: .\templates\trainer\orquestador_pdf.html:107
+msgid "Balance y Fango"
+msgstr "Balance and Muddiness"
+
+#: .\templates\trainer\_orquestador_render_i18n.html:35
+#: .\templates\trainer\orquestador_pdf.html:111
+msgid "Solución"
+msgstr "Solution"
+
+#: .\templates\trainer\biblioteca_list.html:3
+msgid "Biblioteca de Partituras"
+msgstr "Sheet Music Library"
+
+#: .\templates\trainer\biblioteca_list.html:80
+#: .\templates\trainer\cursos_list.html:28
+#: .\templates\trainer\entrenador_index.html:63
+#: .\templates\trainer\midi_hub.html:75
+#: .\templates\trainer\orquestacion_ejercicio.html:234
+#: .\templates\trainer\orquestacion_ejercicio_lista.html:31
+#: .\templates\trainer\orquestador_analizar.html:221
+#: .\templates\trainer\orquestador_historial.html:20
+#: .\templates\trainer\proyectos_list.html:47
+msgid "Volver"
+msgstr "Back"
+
+#: .\templates\trainer\biblioteca_list.html:88
+msgid "Buscar por título o compositor"
+msgstr "Search by title or composer"
+
+#: .\templates\trainer\biblioteca_list.html:92
+msgid "Colecciones"
+msgstr "Collections"
+
+#: .\templates\trainer\biblioteca_list.html:95
+msgid "Todas"
+msgstr "All"
+
+#: .\templates\trainer\biblioteca_list.html:98
+msgid "Mis favoritos"
+msgstr "My favorites"
+
+#: .\templates\trainer\biblioteca_list.html:110
+msgid "Abiertas hace poco"
+msgstr "Recently opened"
+
+#: .\templates\trainer\biblioteca_list.html:115
+msgid "Desconocido"
+msgstr "Unknown"
+
+#: .\templates\trainer\biblioteca_list.html:125
+#, python-format
+msgid "Resultados para «%(query)s»"
+msgstr "Results for “%(query)s”"
+
+#: .\templates\trainer\biblioteca_list.html:125
+msgid "Biblioteca de partituras"
+msgstr "Sheet music library"
+
+#: .\templates\trainer\biblioteca_list.html:126
+#: .\templates\trainer\playlists_list.html:30
+#, python-format
+msgid "%(counter)s partitura"
+msgid_plural "%(counter)s partituras"
+msgstr[0] "%(counter)s score"
+msgstr[1] "%(counter)s scores"
+
+#: .\templates\trainer\biblioteca_list.html:132
+msgid "Marcar como favorito"
+msgstr "Mark as favorite"
+
+#: .\templates\trainer\biblioteca_list.html:137
+#: .\templates\trainer\biblioteca_play.html:203
+#: .\templates\trainer\dashboard.html:266
+#: .\templates\trainer\proyecto_detail.html:91
+msgid "Compositor desconocido"
+msgstr "Unknown composer"
+
+#: .\templates\trainer\biblioteca_list.html:140
+#, python-format
+msgid "Dif. %(dif)s"
+msgstr "Diff. %(dif)s"
+
+#: .\templates\trainer\biblioteca_list.html:148
+msgid "Progreso de estudio"
+msgstr "Study progress"
+
+#: .\templates\trainer\biblioteca_list.html:157
+#: .\templates\trainer\dashboard.html:340
+#: .\templates\trainer\dashboard.html:352
+msgid "Practicar"
+msgstr "Practice"
+
+#: .\templates\trainer\biblioteca_list.html:162
+msgid "No se encontraron partituras"
+msgstr "No scores found"
+
+#: .\templates\trainer\biblioteca_list.html:163
+msgid "Probá cambiar los filtros o la búsqueda."
+msgstr "Try changing the filters or your search."
+
+#: .\templates\trainer\biblioteca_play.html:4
+#, python-format
+msgid "%(titulo)s - Modo Estudio"
+msgstr "%(titulo)s - Study Mode"
+
+#: .\templates\trainer\biblioteca_play.html:176
+msgid "Esperando:"
+msgstr "Waiting for:"
+
+#: .\templates\trainer\biblioteca_play.html:177
+msgid "Esta partitura no tiene notas para practicar."
+msgstr "This score doesn't have any notes to practice."
+
+#: .\templates\trainer\biblioteca_play.html:178
+msgid "Tu navegador no soporta Web MIDI. Probá con Chrome o Edge."
+msgstr "Your browser doesn't support Web MIDI. Try Chrome or Edge."
+
+#: .\templates\trainer\biblioteca_play.html:179
+msgid "Se denegó el permiso de acceso MIDI."
+msgstr "MIDI access permission was denied."
+
+#: .\templates\trainer\biblioteca_play.html:180
+msgid "Se desconectó el teclado MIDI — reconectalo para seguir."
+msgstr "The MIDI keyboard disconnected — reconnect it to continue."
+
+#: .\templates\trainer\biblioteca_play.html:181
+msgid ""
+"No se encontró ningún teclado MIDI conectado. Conectalo y volvé a intentar."
+msgstr "No MIDI keyboard was found connected. Connect it and try again."
+
+#: .\templates\trainer\biblioteca_play.html:182
+#: .\templates\trainer\trainer_lectura_musical.html:161
+msgid "Error al reproducir:"
+msgstr "Playback error:"
+
+#: .\templates\trainer\biblioteca_play.html:183
+msgid "Completa compás y texto"
+msgstr "Fill in the measure and text"
+
+#: .\templates\trainer\biblioteca_play.html:184
+msgid "Escribe una nota"
+msgstr "Write a note"
+
+#: .\templates\trainer\biblioteca_play.html:185
+msgid "Selecciona una playlist"
+msgstr "Select a playlist"
+
+#: .\templates\trainer\biblioteca_play.html:186
+msgid "¡Añadido exitosamente!"
+msgstr "Added successfully!"
+
+#: .\templates\trainer\biblioteca_play.html:188
+msgid "¡Configuración guardada!"
+msgstr "Configuration saved!"
+
+#: .\templates\trainer\biblioteca_play.html:189
+msgid "Error al guardar."
+msgstr "Error saving."
+
+#: .\templates\trainer\biblioteca_play.html:190
+msgid "ACTIVO"
+msgstr "ACTIVE"
+
+#: .\templates\trainer\biblioteca_play.html:191
+msgid ""
+"¡Ensayo Completado! Has alcanzado el BPM objetivo con éxito. ¡Gran trabajo!"
+msgstr ""
+"Rehearsal Complete! You've successfully reached the target BPM. Great job!"
+
+#: .\templates\trainer\biblioteca_play.html:192
+msgid "Práctica terminada"
+msgstr "Practice finished"
+
+#: .\templates\trainer\biblioteca_play.html:193
+msgid "Eventos completados:"
+msgstr "Events completed:"
+
+#: .\templates\trainer\biblioteca_play.html:194
+#: .\templates\trainer\biblioteca_play.html:278
+msgid "Errores:"
+msgstr "Errors:"
+
+#: .\templates\trainer\biblioteca_play.html:195
+#: .\templates\trainer\biblioteca_play.html:228
+#: .\templates\trainer\trainer_lectura_musical.html:165
+msgid "Tiempo:"
+msgstr "Time:"
+
+#: .\templates\trainer\biblioteca_play.html:196
+msgid "Volver a empezar"
+msgstr "Start over"
+
+#: .\templates\trainer\biblioteca_play.html:197
+msgid "Nombre para este ensayo:"
+msgstr "Name for this rehearsal:"
+
+#: .\templates\trainer\biblioteca_play.html:198
+msgid "Mi Ensayo"
+msgstr "My Rehearsal"
+
+#: .\templates\trainer\biblioteca_play.html:208
+msgid "Ver proyecto"
+msgstr "View project"
+
+#: .\templates\trainer\biblioteca_play.html:210
+msgid "Convertir a proyecto"
+msgstr "Convert to project"
+
+#: .\templates\trainer\biblioteca_play.html:212
+msgid "Volver a biblioteca"
+msgstr "Back to library"
+
+#: .\templates\trainer\biblioteca_play.html:239
+msgid "Tiempo de sesión"
+msgstr "Session time"
+
+#: .\templates\trainer\biblioteca_play.html:241
+msgid "Repeticiones:"
+msgstr "Repetitions:"
+
+#: .\templates\trainer\biblioteca_play.html:246
+#: .\templates\trainer\trainer_lectura_musical.html:208
+msgid "Reproducir"
+msgstr "Play"
+
+#: .\templates\trainer\biblioteca_play.html:247
+#: .\templates\trainer\trainer_lectura_musical.html:209
+msgid "Pausar"
+msgstr "Pause"
+
+#: .\templates\trainer\biblioteca_play.html:248
+#: .\templates\trainer\trainer_lectura_musical.html:210
+msgid "Detener"
+msgstr "Stop"
+
+#: .\templates\trainer\biblioteca_play.html:251
+msgid "Piano"
+msgstr "Piano"
+
+#: .\templates\trainer\biblioteca_play.html:255
+msgid "Metrónomo"
+msgstr "Metronome"
+
+#: .\templates\trainer\biblioteca_play.html:259
+msgid ""
+"Con repeticiones y voltas expandidas; apagalo para tocar la partitura "
+"impresa una sola vez"
+msgstr ""
+"With repeats and voltas expanded; turn it off to play the printed score just "
+"once"
+
+#: .\templates\trainer\biblioteca_play.html:259
+msgid "Repeticiones"
+msgstr "Repeats"
+
+#: .\templates\trainer\biblioteca_play.html:267
+msgid "Iniciar práctica"
+msgstr "Start practice"
+
+#: .\templates\trainer\biblioteca_play.html:268
+msgid ""
+"Tocá tu teclado MIDI sobre la partitura — el cursor avanza cuando tocás la "
+"nota correcta. El piano de la app no suena en este modo."
+msgstr ""
+"Play your MIDI keyboard along with the score — the cursor advances when you "
+"play the correct note. The app's piano doesn't sound in this mode."
+
+#: .\templates\trainer\biblioteca_play.html:272
+msgid "Modo Práctica"
+msgstr "Practice Mode"
+
+#: .\templates\trainer\biblioteca_play.html:273
+msgid "Terminar práctica"
+msgstr "End practice"
+
+#: .\templates\trainer\biblioteca_play.html:276
+msgid "Esperando..."
+msgstr "Waiting..."
+
+#: .\templates\trainer\biblioteca_play.html:281
+msgid "Sonido del teclado"
+msgstr "Keyboard sound"
+
+#: .\templates\trainer\biblioteca_play.html:290
+msgid "Velocidad (BPM)"
+msgstr "Speed (BPM)"
+
+#: .\templates\trainer\biblioteca_play.html:292
+msgid "Muy Lento"
+msgstr "Very Slow"
+
+#: .\templates\trainer\biblioteca_play.html:299
+#: .\templates\trainer\trainer_lectura_musical.html:220
+msgid "Rápido"
+msgstr "Fast"
+
+#: .\templates\trainer\biblioteca_play.html:306
+msgid "Repetir Sección"
+msgstr "Repeat Section"
+
+#: .\templates\trainer\biblioteca_play.html:312
+msgid "Del Compás:"
+msgstr "From Measure:"
+
+#: .\templates\trainer\biblioteca_play.html:316
+msgid "Al Compás:"
+msgstr "To Measure:"
+
+#: .\templates\trainer\biblioteca_play.html:322
+msgid "Modo Debug"
+msgstr "Debug Mode"
+
+#: .\templates\trainer\biblioteca_play.html:326
+msgid "Marcadores (Compás)"
+msgstr "Markers (Measure)"
+
+#: .\templates\trainer\biblioteca_play.html:329
+msgid "Ej: Difícil"
+msgstr "E.g.: Difficult"
+
+#: .\templates\trainer\biblioteca_play.html:331
+msgid "Agregar marcador"
+msgstr "Add marker"
+
+#: .\templates\trainer\biblioteca_play.html:335
+#, python-format
+msgid "C.%(c)s"
+msgstr "M.%(c)s"
+
+#: .\templates\trainer\biblioteca_play.html:339
+msgid "No hay marcadores."
+msgstr "No markers."
+
+#: .\templates\trainer\biblioteca_play.html:346
+msgid "Añadir a Playlist"
+msgstr "Add to Playlist"
+
+#: .\templates\trainer\biblioteca_play.html:349
+#: .\templates\trainer\biblioteca_play.html:399
+msgid "Selecciona..."
+msgstr "Select..."
+
+#: .\templates\trainer\biblioteca_play.html:354
+msgid "Añadir"
+msgstr "Add"
+
+#: .\templates\trainer\biblioteca_play.html:361
+msgid "Modo Ensayo"
+msgstr "Rehearsal Mode"
+
+#: .\templates\trainer\biblioteca_play.html:362
+msgid "Inactivo"
+msgstr "Inactive"
+
+#: .\templates\trainer\biblioteca_play.html:367
+msgid "Compases:"
+msgstr "Measures:"
+
+#: .\templates\trainer\biblioteca_play.html:368
+msgctxt "rango de compases"
+msgid "Inicio"
+msgstr "Start"
+
+#: .\templates\trainer\biblioteca_play.html:369
+msgid "a"
+msgstr "to"
+
+#: .\templates\trainer\biblioteca_play.html:370
+msgid "Fin"
+msgstr "End"
+
+#: .\templates\trainer\biblioteca_play.html:373
+msgid "BPM Inicial:"
+msgstr "Starting BPM:"
+
+#: .\templates\trainer\biblioteca_play.html:377
+msgid "BPM Final:"
+msgstr "Ending BPM:"
+
+#: .\templates\trainer\biblioteca_play.html:381
+msgid "Incremento (+BPM):"
+msgstr "Increment (+BPM):"
+
+#: .\templates\trainer\biblioteca_play.html:384
+msgid "Iniciar Ensayo"
+msgstr "Start Rehearsal"
+
+#: .\templates\trainer\biblioteca_play.html:385
+msgid "Guardar Configuración"
+msgstr "Save Configuration"
+
+#: .\templates\trainer\biblioteca_play.html:389
+msgid "BPM Actual:"
+msgstr "Current BPM:"
+
+#: .\templates\trainer\biblioteca_play.html:390
+msgid "Meta:"
+msgstr "Target:"
+
+#: .\templates\trainer\biblioteca_play.html:391
+msgid "Vuelta:"
+msgstr "Lap:"
+
+#: .\templates\trainer\biblioteca_play.html:392
+msgid "Detener Ensayo"
+msgstr "Stop Rehearsal"
+
+#: .\templates\trainer\biblioteca_play.html:397
+msgid "Cargar Guardado:"
+msgstr "Load Saved:"
+
+#: .\templates\trainer\biblioteca_play.html:409
+msgid "Anotaciones"
+msgstr "Notes"
+
+#: .\templates\trainer\biblioteca_play.html:410
+msgid "Anota algo sobre esta obra..."
+msgstr "Write something about this piece..."
+
+#: .\templates\trainer\biblioteca_play.html:411
+msgid "Guardar nota"
+msgstr "Save note"
+
+#: .\templates\trainer\biblioteca_play.html:418
+msgid "No hay notas."
+msgstr "No notes."
+
+#: .\templates\trainer\curso_detail.html:31
+#: .\templates\trainer\cursos_list.html:3
+#: .\templates\trainer\cursos_list.html:32
+#: .\templates\trainer\dashboard.html:383
+msgid "Cursos"
+msgstr "Courses"
+
+#: .\templates\trainer\curso_detail.html:39
+#: .\templates\trainer\tema_detail.html:58
+#, python-format
+msgid "Grado %(n)s — %(titulo)s"
+msgstr "Grade %(n)s — %(titulo)s"
+
+#: .\templates\trainer\curso_detail.html:52
+msgid "Este curso todavía no tiene grados."
+msgstr "This course doesn't have any grades yet."
+
+#: .\templates\trainer\cursos_list.html:31
+#: .\templates\trainer\dashboard.html:382
+msgid "Contenido educativo"
+msgstr "Educational content"
+
+#: .\templates\trainer\cursos_list.html:44
+msgid "No hay cursos disponibles todavía."
+msgstr "No courses available yet."
+
+#: .\templates\trainer\dashboard.html:4
+msgid "Inicio"
+msgstr "Home"
+
+#: .\templates\trainer\dashboard.html:218
+msgid "Sesión de estudio"
+msgstr "Study session"
+
+#: .\templates\trainer\dashboard.html:219
+#, python-format
+msgid "Hola, <em>%(username)s</em>."
+msgstr "Hello, <em>%(username)s</em>."
+
+#: .\templates\trainer\dashboard.html:231
+#, python-format
+msgid "Llevás %(counter)s día seguido practicando. No cortes la racha hoy."
+msgid_plural ""
+"Llevás %(counter)s días seguidos practicando. No cortes la racha hoy."
+msgstr[0] ""
+"You've practiced %(counter)s day in a row. Don't break the streak today."
+msgstr[1] ""
+"You've practiced %(counter)s days in a row. Don't break the streak today."
+
+#: .\templates\trainer\dashboard.html:233
+msgid ""
+"Empezá hoy una racha nueva — ninguna sesión es demasiado corta para contar."
+msgstr "Start a new streak today — no session is too short to count."
+
+#: .\templates\trainer\dashboard.html:238
+msgid "Continuar practicando"
+msgstr "Continue practicing"
+
+#: .\templates\trainer\dashboard.html:239
+msgid "Ver mi progreso"
+msgstr "View my progress"
+
+#: .\templates\trainer\dashboard.html:245
+msgid "Esta semana"
+msgstr "This week"
+
+#: .\templates\trainer\dashboard.html:246
+#, python-format
+msgid "%(minutos)s min de estudio"
+msgstr "%(minutos)s min of study"
+
+#: .\templates\trainer\dashboard.html:255
+msgid "Racha de estudio"
+msgstr "Study streak"
+
+#: .\templates\trainer\dashboard.html:256
+#, python-format
+msgid "%(counter)s día"
+msgid_plural "%(counter)s días"
+msgstr[0] "%(counter)s day"
+msgstr[1] "%(counter)s days"
+
+#: .\templates\trainer\dashboard.html:264
+msgid "En el atril"
+msgstr "On your stand"
+
+#: .\templates\trainer\dashboard.html:269
+#, python-format
+msgid "Compás <b>%(compas)s</b> · <b>%(bpm)s</b> BPM"
+msgstr "Measure <b>%(compas)s</b> · <b>%(bpm)s</b> BPM"
+
+#: .\templates\trainer\dashboard.html:270
+#: .\templates\trainer\proyecto_detail.html:95
+msgid "Continuar donde lo dejé"
+msgstr "Continue where I left off"
+
+#: .\templates\trainer\dashboard.html:273
+msgid ""
+"Todavía no tenés ninguna obra en estudio — convertí una partitura de la "
+"biblioteca en un proyecto para verla acá."
+msgstr ""
+"You don't have any pieces in progress yet — turn a score from the library "
+"into a project to see it here."
+
+#: .\templates\trainer\dashboard.html:274
+msgid "Ir a la biblioteca"
+msgstr "Go to the library"
+
+#: .\templates\trainer\dashboard.html:326
+msgid "Espacios de trabajo"
+msgstr "Workspaces"
+
+#: .\templates\trainer\dashboard.html:327
+msgid "Todo el material queda sincronizado"
+msgstr "All your material stays in sync"
+
+#: .\templates\trainer\dashboard.html:331
+msgid "Repertorio"
+msgstr "Repertoire"
+
+#: .\templates\trainer\dashboard.html:333
+msgid "Partituras con reproductor y cursor que avanza sobre el pentagrama."
+msgstr "Scores with a player and a cursor that moves across the staff."
+
+#: .\templates\trainer\dashboard.html:334
+msgid "Explorar"
+msgstr "Explore"
+
+#: .\templates\trainer\dashboard.html:334
+#: .\templates\trainer\dashboard.html:340
+#: .\templates\trainer\dashboard.html:346
+#: .\templates\trainer\dashboard.html:352
+#: .\templates\trainer\dashboard.html:358
+#: .\templates\trainer\dashboard.html:364
+msgid "Entrar →"
+msgstr "Enter →"
+
+#: .\templates\trainer\dashboard.html:337
+msgid "Ejercicio diario"
+msgstr "Daily exercise"
+
+#: .\templates\trainer\dashboard.html:339
+msgid "Oído, solfeo y lectura para afilar reflejos."
+msgstr "Ear training, sight-singing, and reading to sharpen your reflexes."
+
+#: .\templates\trainer\dashboard.html:343
+msgid "Escritura"
+msgstr "Writing"
+
+#: .\templates\trainer\dashboard.html:345
+msgid "Feedback de orquestación con IA, citado al compás."
+msgstr "AI orchestration feedback, cited by measure."
+
+#: .\templates\trainer\dashboard.html:346
+#: .\templates\trainer\orquestador_analizar.html:231
+#: .\templates\trainer\orquestador_historial.html:29
+msgid "Analizar"
+msgstr "Analyze"
+
+#: .\templates\trainer\dashboard.html:349
+#: .\templates\trainer\orquestacion_ejercicio_lista.html:33
+msgid "Taller"
+msgstr "Workshop"
+
+#: .\templates\trainer\dashboard.html:351
+msgid "Asigná instrumentos por color sobre una reducción de piano."
+msgstr "Assign instruments by color over a piano reduction."
+
+#: .\templates\trainer\dashboard.html:355
+msgid "Largo plazo"
+msgstr "Long term"
+
+#: .\templates\trainer\dashboard.html:357
+msgid "Tus obras en estudio, con metas y avance propio."
+msgstr "Your pieces in progress, with their own goals and progress."
+
+#: .\templates\trainer\dashboard.html:358
+msgid "Mis obras"
+msgstr "My pieces"
+
+#: .\templates\trainer\dashboard.html:361
+msgid "En vivo"
+msgstr "Live"
+
+#: .\templates\trainer\dashboard.html:363
+msgid "Conectá tu teclado y jugá con identificación de acordes."
+msgstr "Connect your keyboard and play chord-identification games."
+
+#: .\templates\trainer\dashboard.html:364
+msgid "Ir al piano"
+msgstr "Go to the piano"
+
+#: .\templates\trainer\dashboard.html:373
+#: .\templates\trainer\orquestador_analizar.html:225
+msgid "Análisis con IA"
+msgstr "AI Analysis"
+
+#: .\templates\trainer\dashboard.html:374
+msgid "Director de Estudio"
+msgstr "Study Director"
+
+#: .\templates\trainer\dashboard.html:375
+msgid ""
+"Subí tu orquestación y recibí una crítica estructurada — dobles verificados, "
+"densidad por compás y sugerencias de registro — antes de mostrarla a tu "
+"profesor."
+msgstr ""
+"Upload your orchestration and get a structured critique — verified "
+"doublings, density per measure, and register suggestions — before showing it "
+"to your teacher."
+
+#: .\templates\trainer\dashboard.html:377
+msgid "Analizar una partitura"
+msgstr "Analyze a score"
+
+#: .\templates\trainer\dashboard.html:378
+#: .\templates\trainer\orquestador_analizar.html:237
+#: .\templates\trainer\perfil.html:69
+#, python-format
+msgid "%(counter)s análisis disponible"
+msgid_plural "%(counter)s análisis disponibles"
+msgstr[0] "%(counter)s analysis available"
+msgstr[1] "%(counter)s analyses available"
+
+#: .\templates\trainer\dashboard.html:382
+msgid "Premium"
+msgstr "Premium"
+
+#: .\templates\trainer\dashboard.html:384
+msgid ""
+"Teoría musical organizada en grados, con ejemplos de partitura interactivos "
+"y práctica guiada en cada tema."
+msgstr ""
+"Music theory organized by grade, with interactive score examples and guided "
+"practice in every topic."
+
+#: .\templates\trainer\dashboard.html:386
+msgid "Ver cursos"
+msgstr "View courses"
+
+#: .\templates\trainer\dashboard.html:388
+#, python-format
+msgid "%(counter)s curso disponible"
+msgid_plural "%(counter)s cursos disponibles"
+msgstr[0] "%(counter)s course available"
+msgstr[1] "%(counter)s courses available"
+
+#: .\templates\trainer\entrenador_index.html:3
+msgid "Rutas de Entrenamiento"
+msgstr "Training Paths"
+
+#: .\templates\trainer\entrenador_index.html:66
+msgid "Entrenador"
+msgstr "Trainer"
+
+#: .\templates\trainer\entrenador_index.html:67
+msgid "Tu ruta de entrenamiento"
+msgstr "Your training path"
+
+#: .\templates\trainer\entrenador_index.html:68
+msgid ""
+"Cada etapa desbloquea reflejos distintos — de reconocer una nota en el "
+"pentagrama a distinguir un intervalo de oído."
+msgstr ""
+"Each stage unlocks different reflexes — from recognizing a note on the staff "
+"to telling an interval apart by ear."
+
+#: .\templates\trainer\entrenador_index.html:71
+msgid "Etapas totales"
+msgstr "Total stages"
+
+#: .\templates\trainer\entrenador_index.html:72
+msgid "Completadas"
+msgstr "Completed"
+
+#: .\templates\trainer\entrenador_index.html:81
+#, python-format
+msgid "Etapa %(n)s"
+msgstr "Stage %(n)s"
+
+#: .\templates\trainer\entrenador_index.html:86
+#: .\templates\trainer\trainer_intervalos_auditivos.html:168
+msgid "Precisión"
+msgstr "Accuracy"
+
+#: .\templates\trainer\entrenador_index.html:91
+msgid "Ejercicios"
+msgstr "Exercises"
+
+#: .\templates\trainer\entrenador_index.html:97
+msgid "Repasar"
+msgstr "Review"
+
+#: .\templates\trainer\midi_game_chords.html:4
+msgid "Identificación de Acordes MIDI"
+msgstr "MIDI Chord Identification"
+
+#: .\templates\trainer\midi_game_chords.html:84
+#: .\templates\trainer\midi_game_chords.html:96
+msgid "Sin conexión MIDI"
+msgstr "No MIDI connection"
+
+#: .\templates\trainer\midi_game_chords.html:85
+msgid "Tu navegador no soporta Web MIDI API."
+msgstr "Your browser doesn't support the Web MIDI API."
+
+#: .\templates\trainer\midi_game_chords.html:86
+msgid "Permiso MIDI denegado."
+msgstr "MIDI permission denied."
+
+#: .\templates\trainer\midi_game_chords.html:87
+msgid "MIDI Conectado"
+msgstr "MIDI Connected"
+
+#: .\templates\trainer\midi_game_chords.html:88
+msgid "Sin MIDI"
+msgstr "No MIDI"
+
+#: .\templates\trainer\midi_game_chords.html:92
+msgid "Salir del Juego"
+msgstr "Exit Game"
+
+#: .\templates\trainer\midi_game_chords.html:103
+msgid "Identificación de <em>Acordes</em>"
+msgstr "<em>Chord</em> Identification"
+
+#: .\templates\trainer\midi_game_chords.html:105
+msgid ""
+"La plataforma te pedirá un acorde. Tócalo en tu controlador MIDI lo más "
+"rápido posible.\n"
+"            Tenés <strong style=\"color: var(--ink);\">60 segundos</strong>. "
+"¡Preparate!"
+msgstr ""
+"The platform will ask you for a chord. Play it on your MIDI controller as "
+"fast as possible.\n"
+"            You have <strong style=\"color: var(--ink);\">60 seconds</"
+"strong>. Get ready!"
+
+#: .\templates\trainer\midi_game_chords.html:109
+msgid "EMPEZAR JUEGO"
+msgstr "START GAME"
+
+#: .\templates\trainer\midi_game_chords.html:111
+msgid "Por favor, conectá un controlador MIDI para jugar."
+msgstr "Please connect a MIDI controller to play."
+
+#: .\templates\trainer\midi_game_chords.html:118
+msgid "Tiempo"
+msgstr "Time"
+
+#: .\templates\trainer\midi_game_chords.html:122
+msgid "Puntos"
+msgstr "Points"
+
+#: .\templates\trainer\midi_game_chords.html:129
+msgid "TOCÁ EL ACORDE:"
+msgstr "PLAY THE CHORD:"
+
+#: .\templates\trainer\midi_game_chords.html:147
+msgid "¡Tiempo Terminado!"
+msgstr "Time's Up!"
+
+#: .\templates\trainer\midi_game_chords.html:150
+msgid "Puntuación"
+msgstr "Score"
+
+#: .\templates\trainer\midi_game_chords.html:154
+msgid "XP obtenida"
+msgstr "XP earned"
+
+#: .\templates\trainer\midi_game_chords.html:158
+msgid "Acordes correctos"
+msgstr "Correct chords"
+
+#: .\templates\trainer\midi_game_chords.html:162
+msgid "Errores"
+msgstr "Errors"
+
+#: .\templates\trainer\midi_game_chords.html:167
+msgid "Jugar de Nuevo"
+msgstr "Play Again"
+
+#: .\templates\trainer\midi_game_chords.html:168
+msgid "Volver al Hub"
+msgstr "Back to Hub"
+
+#: .\templates\trainer\midi_game_chords.html:176
+msgid "Lo que tocás en tu controlador se enciende acá"
+msgstr "What you play on your controller lights up here"
+
+#: .\templates\trainer\midi_hub.html:62 .\templates\trainer\midi_hub.html:115
+#: .\templates\trainer\orquestador_analizar.html:259
+msgid "Ninguna"
+msgstr "None"
+
+#: .\templates\trainer\midi_hub.html:63
+msgid "Intervalo"
+msgstr "Interval"
+
+#: .\templates\trainer\midi_hub.html:64
+msgid "Nota simple"
+msgstr "Single note"
+
+#: .\templates\trainer\midi_hub.html:65
+msgid "También:"
+msgstr "Also:"
+
+#: .\templates\trainer\midi_hub.html:66
+msgid "Acorde no común"
+msgstr "Uncommon chord"
+
+#: .\templates\trainer\midi_hub.html:67 .\templates\trainer\midi_hub.html:107
+msgid "Tocá una tecla en tu controlador"
+msgstr "Play a key on your controller"
+
+#: .\templates\trainer\midi_hub.html:68
+msgid "Ningún dispositivo conectado"
+msgstr "No device connected"
+
+#: .\templates\trainer\midi_hub.html:69
+msgid "Tu navegador no soporta Web MIDI API"
+msgstr "Your browser doesn't support the Web MIDI API"
+
+#: .\templates\trainer\midi_hub.html:70
+msgid "Permiso MIDI denegado"
+msgstr "MIDI permission denied"
+
+#: .\templates\trainer\midi_hub.html:79
+msgid "Tu teclado, <em>en vivo</em>"
+msgstr "Your keyboard, <em>live</em>"
+
+#: .\templates\trainer\midi_hub.html:80
+msgid "Conectá tu controlador y empezá a interactuar en tiempo real."
+msgstr "Connect your controller and start interacting in real time."
+
+#: .\templates\trainer\midi_hub.html:89
+msgid "Controlador MIDI"
+msgstr "MIDI Controller"
+
+#: .\templates\trainer\midi_hub.html:91
+msgid "Buscando dispositivos..."
+msgstr "Searching for devices..."
+
+#: .\templates\trainer\midi_hub.html:97
+msgid "Permitir Acceso MIDI"
+msgstr "Allow MIDI Access"
+
+#: .\templates\trainer\midi_hub.html:105
+msgid "Monitor MIDI"
+msgstr "MIDI Monitor"
+
+#: .\templates\trainer\midi_hub.html:113
+msgid "Análisis Armónico"
+msgstr "Harmonic Analysis"
+
+#: .\templates\trainer\midi_hub.html:115
+#: .\templates\trainer\trainer_acordes.html:140
+msgid "Notas:"
+msgstr "Notes:"
+
+#: .\templates\trainer\midi_hub.html:122
+msgid "Juegos y Ejercicios"
+msgstr "Games and Exercises"
+
+#: .\templates\trainer\midi_hub.html:129
+msgid "Identificación de Acordes"
+msgstr "Chord Identification"
+
+#: .\templates\trainer\midi_hub.html:130
+msgid ""
+"Practicá tocando los acordes que te pida la plataforma lo más rápido posible."
+msgstr "Practice playing the chords the platform asks for as fast as possible."
+
+#: .\templates\trainer\midi_hub.html:131
+msgid "Jugar"
+msgstr "Play"
+
+#: .\templates\trainer\midi_hub.html:138
+msgid "Progresiones (Próximamente)"
+msgstr "Progressions (Coming Soon)"
+
+#: .\templates\trainer\midi_hub.html:139
+msgid ""
+"Entrená tocando progresiones armónicas populares en diferentes tonalidades."
+msgstr "Practice playing popular chord progressions in different keys."
+
+#: .\templates\trainer\orquestacion_ejercicio.html:215
+msgid "Error de configuración:"
+msgstr "Configuration error:"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:216
+msgid ""
+"no resuelve a timbre de cuerda en AudioEngine.familiaInstrumento — revisar "
+"FAMILIAS_INSTRUMENTO en audio_engine.js. La página no puede continuar así."
+msgstr ""
+"does not resolve to a string timbre in AudioEngine.familiaInstrumento — "
+"check FAMILIAS_INSTRUMENTO in audio_engine.js. The page cannot continue."
+
+#: .\templates\trainer\orquestacion_ejercicio.html:217
+msgid "fuera de registro"
+msgstr "out of register"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:218
+msgid "nota(s) todavía sin asignar."
+msgstr "note(s) still unassigned."
+
+#: .\templates\trainer\orquestacion_ejercicio.html:219
+msgid "Todas las notas están asignadas a un instrumento."
+msgstr "All notes are assigned to an instrument."
+
+#: .\templates\trainer\orquestacion_ejercicio.html:220
+msgid "⏳ Cargando sonido…"
+msgstr "⏳ Loading sound…"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:221
+msgid "▶ Todo"
+msgstr "▶ All"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:222
+msgid "Error mostrando la partitura orquestal:"
+msgstr "Error displaying the orchestral score:"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:223
+msgid "Todavía no pintaste ninguna nota."
+msgstr "You haven't painted any notes yet."
+
+#: .\templates\trainer\orquestacion_ejercicio.html:224
+msgid "Generando..."
+msgstr "Generating..."
+
+#: .\templates\trainer\orquestacion_ejercicio.html:225
+#: .\templates\trainer\orquestacion_ejercicio.html:270
+msgid "Ver orquestación"
+msgstr "View orchestration"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:226
+msgid "No se pudo generar la partitura orquestal."
+msgstr "The orchestral score could not be generated."
+
+#: .\templates\trainer\orquestacion_ejercicio.html:227
+msgid "Error de red generando la partitura:"
+msgstr "Network error generating the score:"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:228
+msgid "No se pudo cargar el fragmento."
+msgstr "The fragment could not be loaded."
+
+#: .\templates\trainer\orquestacion_ejercicio.html:229
+msgid "Error cargando el fragmento:"
+msgstr "Error loading the fragment:"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:236
+msgid "Reducción de piano"
+msgstr "Piano reduction"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:239
+msgid ""
+"Elegí un instrumento y una octava (el pincel activo) y hacé click sobre cada "
+"cabeza de nota de la reducción de piano para asignarla — una misma nota "
+"puede ir a varios instrumentos a la vez (por ejemplo, duplicar en octavas "
+"entre Violín I y II). Click de nuevo con el mismo pincel y la misma octava "
+"para desasignar ese instrumento puntual, o con otra octava para "
+"actualizarla. La barra debajo de cada instrumento marca su registro cómodo — "
+"se evalúa sobre la altura real resultante, ya con la octava aplicada."
+msgstr ""
+"Pick an instrument and an octave (the active brush) and click each notehead "
+"in the piano reduction to assign it — the same note can go to several "
+"instruments at once (for example, doubling in octaves between Violin I and "
+"II). Click again with the same brush and octave to unassign that specific "
+"instrument, or with another octave to update it. The bar under each "
+"instrument marks its comfortable register — evaluated on the actual "
+"resulting pitch, already including the applied octave."
+
+#: .\templates\trainer\orquestacion_ejercicio.html:247
+msgid "Octava del pincel:"
+msgstr "Brush octave:"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:255
+msgid "Escuchar fragmento original (piano)"
+msgstr "Listen to the original fragment (piano)"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:258
+msgid "Reiniciar"
+msgstr "Reset"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:269
+msgid "Partitura de orquesta"
+msgstr "Orchestral score"
+
+#: .\templates\trainer\orquestacion_ejercicio.html:275
+msgid ""
+"Todavía no generaste la orquestación — pintá algunas notas y apretá \"Ver "
+"orquestación\"."
+msgstr ""
+"You haven't generated the orchestration yet — paint some notes and press "
+"\"View orchestration\"."
+
+#: .\templates\trainer\orquestacion_ejercicio_lista.html:3
+#: .\templates\trainer\orquestacion_ejercicio_lista.html:34
+msgid "Ejercicio de orquestación"
+msgstr "Orchestration Exercise"
+
+#: .\templates\trainer\orquestacion_ejercicio_lista.html:36
+msgid ""
+"Elegí un fragmento de piano y repartí sus notas entre los instrumentos de "
+"cuerdas."
+msgstr ""
+"Pick a piano fragment and distribute its notes among the string instruments."
+
+#: .\templates\trainer\orquestacion_ejercicio_lista.html:45
+msgid "Todavía no hay fragmentos disponibles para este ejercicio."
+msgstr "There are no fragments available for this exercise yet."
+
+#: .\templates\trainer\orquestador_analizar.html:4
+#: .\templates\trainer\orquestador_analizar.html:226
+msgid "Analizador de partituras"
+msgstr "Score Analyzer"
+
+#: .\templates\trainer\orquestador_analizar.html:209
+msgid "COUNT análisis disponible"
+msgstr "COUNT analysis available"
+
+#: .\templates\trainer\orquestador_analizar.html:210
+msgid "COUNT análisis disponibles"
+msgstr "COUNT analyses available"
+
+#: .\templates\trainer\orquestador_analizar.html:211
+msgid " · + COUNT créditos adicionales"
+msgstr " · + COUNT extra credits"
+
+#: .\templates\trainer\orquestador_analizar.html:212
+#: .\templates\trainer\orquestador_analizar.html:268
+msgid "Sin créditos disponibles"
+msgstr "No credits available"
+
+#: .\templates\trainer\orquestador_analizar.html:213
+#: .\templates\trainer\orquestador_analizar.html:268
+msgid "Analizar Partitura"
+msgstr "Analyze Score"
+
+#: .\templates\trainer\orquestador_analizar.html:214
+msgid "Error al procesar el archivo:"
+msgstr "Error processing the file:"
+
+#: .\templates\trainer\orquestador_analizar.html:215
+msgid "Error de red al subir el archivo."
+msgstr "Network error uploading the file."
+
+#: .\templates\trainer\orquestador_analizar.html:227
+msgid ""
+"Subí un archivo MIDI o MusicXML para analizar su orquestación y estructura."
+msgstr ""
+"Upload a MIDI or MusicXML file to analyze its orchestration and structure."
+
+#: .\templates\trainer\orquestador_analizar.html:232
+#: .\templates\trainer\orquestador_historial.html:4
+#: .\templates\trainer\orquestador_historial.html:24
+#: .\templates\trainer\orquestador_historial.html:30
+msgid "Mis análisis anteriores"
+msgstr "My Previous Analyses"
+
+#: .\templates\trainer\orquestador_analizar.html:238
+#, python-format
+msgid "· + %(counter)s crédito adicional"
+msgid_plural "· + %(counter)s créditos adicionales"
+msgstr[0] "· + %(counter)s extra credit"
+msgstr[1] "· + %(counter)s extra credits"
+
+#: .\templates\trainer\orquestador_analizar.html:243
+msgid "Nombre de la Obra (Opcional)"
+msgstr "Piece Name (Optional)"
+
+#: .\templates\trainer\orquestador_analizar.html:244
+msgid "Ej: Sinfonía No. 5 en Do Menor"
+msgstr "E.g.: Symphony No. 5 in C Minor"
+
+#: .\templates\trainer\orquestador_analizar.html:247
+msgid "Archivo (.mid, .midi, .musicxml, .mxl)"
+msgstr "File (.mid, .midi, .musicxml, .mxl)"
+
+#: .\templates\trainer\orquestador_analizar.html:249
+msgid "Seleccionar archivo"
+msgstr "Select file"
+
+#: .\templates\trainer\orquestador_analizar.html:250
+msgid "Ningún archivo seleccionado"
+msgstr "No file selected"
+
+#: .\templates\trainer\orquestador_analizar.html:257
+msgid "¿Es una nueva versión de un análisis anterior?"
+msgstr "Is this a new version of a previous analysis?"
+
+#: .\templates\trainer\orquestador_analizar.html:283
+msgid "Analizando tu obra…"
+msgstr "Analyzing your piece…"
+
+#: .\templates\trainer\orquestador_analizar.html:284
+msgid ""
+"La IA está revisando la orquestación compás a compás. Puede tardar uno o dos "
+"minutos."
+msgstr ""
+"The AI is reviewing the orchestration measure by measure. It can take a "
+"minute or two."
+
+#: .\templates\trainer\orquestador_analizar.html:284
+msgid "No refresques ni cierres esta página"
+msgstr "Don't refresh or close this page"
+
+#: .\templates\trainer\orquestador_analizar.html:284
+msgid "vas a perder el análisis."
+msgstr "you'll lose the analysis."
+
+#: .\templates\trainer\orquestador_analizar.html:291
+msgid "Obra grande detectada"
+msgstr "Large piece detected"
+
+#: .\templates\trainer\orquestador_analizar.html:294
+msgid "Cancelar"
+msgstr "Cancel"
+
+#: .\templates\trainer\orquestador_analizar.html:302
+msgid "Créditos insuficientes"
+msgstr "Insufficient credits"
+
+#: .\templates\trainer\orquestador_analizar.html:305
+msgid "Entendido"
+msgstr "Got it"
+
+#: .\templates\trainer\orquestador_historial.html:25
+msgid "Historial de partituras analizadas con el Analizador de Orquestación."
+msgstr "History of scores analyzed with the Orchestration Analyzer."
+
+#: .\templates\trainer\orquestador_historial.html:40
+msgid "Ver detalle →"
+msgstr "View detail →"
+
+#: .\templates\trainer\orquestador_historial.html:43
+msgid "Todavía no analizaste ninguna partitura."
+msgstr "You haven't analyzed any scores yet."
+
+#: .\templates\trainer\orquestador_historial.html:50
+msgid "← Anterior"
+msgstr "← Previous"
+
+#: .\templates\trainer\orquestador_historial.html:52
+#, python-format
+msgid "Página %(n)s de %(total)s"
+msgstr "Page %(n)s of %(total)s"
+
+#: .\templates\trainer\orquestador_historial.html:54
+#: .\templates\trainer\trainer_intervalos_auditivos.html:156
+msgid "Siguiente →"
+msgstr "Next →"
+
+#: .\templates\trainer\orquestador_historial_detalle.html:20
+msgid "Volver al historial"
+msgstr "Back to history"
+
+#: .\templates\trainer\orquestador_historial_detalle.html:26
+#: .\templates\trainer\orquestador_pdf.html:41
+#: .\templates\trainer\orquestador_publico.html:72
+#, python-format
+msgid "Analizado el %(fecha)s"
+msgstr "Analyzed on %(fecha)s"
+
+#: .\templates\trainer\orquestador_historial_detalle.html:30
+msgid "¡Copiado!"
+msgstr "Copied!"
+
+#: .\templates\trainer\orquestador_historial_detalle.html:30
+#: .\templates\trainer\orquestador_historial_detalle.html:37
+msgid "Copiar"
+msgstr "Copy"
+
+#: .\templates\trainer\orquestador_historial_detalle.html:32
+msgid "Generar link para compartir"
+msgstr "Generate share link"
+
+#: .\templates\trainer\orquestador_historial_detalle.html:35
+msgid "Link público (solo lectura):"
+msgstr "Public link (read-only):"
+
+#: .\templates\trainer\orquestador_historial_detalle.html:38
+msgid "Revocar"
+msgstr "Revoke"
+
+#: .\templates\trainer\orquestador_pdf.html:96
+msgid "Análisis por Bloques de Compases"
+msgstr "Analysis by Measure Blocks"
+
+#: .\templates\trainer\orquestador_pdf.html:99
+#, python-format
+msgid "Compases %(rango)s"
+msgstr "Measures %(rango)s"
+
+#: .\templates\trainer\orquestador_publico.html:8
+#, python-format
+msgid "%(nombre)s — Análisis compartido"
+msgstr "%(nombre)s — Shared Analysis"
+
+#: .\templates\trainer\orquestador_publico.html:70
+msgid "Reporte compartido — solo lectura"
+msgstr "Shared report — read only"
+
+#: .\templates\trainer\perfil.html:3
+msgid "Centro de Comando - Mi Perfil"
+msgstr "Command Center - My Profile"
+
+#: .\templates\trainer\perfil.html:35
+#, python-format
+msgid "Músico Nivel %(nivel)s"
+msgstr "Musician Level %(nivel)s"
+
+#: .\templates\trainer\perfil.html:39
+msgid "PUNTOS DE EXPERIENCIA"
+msgstr "EXPERIENCE POINTS"
+
+#: .\templates\trainer\perfil.html:48
+#: .\templates\trainer\trainer_intervalos_auditivos.html:183
+msgid "Mejor Racha"
+msgstr "Best Streak"
+
+#: .\templates\trainer\perfil.html:50
+msgid "Días consecutivos practicando"
+msgstr "Consecutive days practicing"
+
+#: .\templates\trainer\perfil.html:54
+msgid "Precisión Histórica"
+msgstr "Historical Accuracy"
+
+#: .\templates\trainer\perfil.html:56
+#, python-format
+msgid "De %(counter)s ejercicio realizado"
+msgid_plural "De %(counter)s ejercicios realizados"
+msgstr[0] "Out of %(counter)s exercise completed"
+msgstr[1] "Out of %(counter)s exercises completed"
+
+#: .\templates\trainer\perfil.html:60
+msgid "Tiempo Estudiado"
+msgstr "Time Studied"
+
+#: .\templates\trainer\perfil.html:62
+msgid "Minutos en Modo Estudio"
+msgstr "Minutes in Study Mode"
+
+#: .\templates\trainer\perfil.html:71
+#, python-format
+msgid "+ %(counter)s crédito adicional sin vencimiento"
+msgid_plural "+ %(counter)s créditos adicionales sin vencimiento"
+msgstr[0] "+ %(counter)s extra credit that never expires"
+msgstr[1] "+ %(counter)s extra credits that never expire"
+
+#: .\templates\trainer\perfil.html:78
+msgid "Objetivos Diarios"
+msgstr "Daily Goals"
+
+#: .\templates\trainer\perfil.html:98
+msgid "No hay objetivos hoy."
+msgstr "No goals today."
+
+#: .\templates\trainer\perfil.html:106
+msgid "Medallas y Logros"
+msgstr "Medals and Achievements"
+
+#: .\templates\trainer\playlists_list.html:3
+#: .\templates\trainer\playlists_list.html:10
+msgid "Mis Playlists"
+msgstr "My Playlists"
+
+#: .\templates\trainer\playlists_list.html:15
+msgid "Crear Nueva Playlist"
+msgstr "Create New Playlist"
+
+#: .\templates\trainer\playlists_list.html:18
+msgid "Nombre (Ej. Bach, Técnica)"
+msgstr "Name (e.g. Bach, Technique)"
+
+#: .\templates\trainer\playlists_list.html:20
+msgid "Crear"
+msgstr "Create"
+
+#: .\templates\trainer\playlists_list.html:38
+msgid "Playlist vacía. Agrega partituras desde la Biblioteca."
+msgstr "Empty playlist. Add scores from the Library."
+
+#: .\templates\trainer\playlists_list.html:44
+msgid "Aún no tienes playlists creadas."
+msgstr "You don't have any playlists yet."
+
+#: .\templates\trainer\proyecto_detail.html:4
+#, python-format
+msgid "Proyecto: %(titulo)s"
+msgstr "Project: %(titulo)s"
+
+#: .\templates\trainer\proyecto_detail.html:74
+msgid "Volver a Mis Proyectos"
+msgstr "Back to My Projects"
+
+#: .\templates\trainer\proyecto_detail.html:82
+msgid "Proyecto de Estudio"
+msgstr "Study Project"
+
+#: .\templates\trainer\proyecto_detail.html:84
+#: .\templates\trainer\proyectos_list.html:62
+msgid "Completado"
+msgstr "Completed"
+
+#: .\templates\trainer\proyecto_detail.html:86
+#: .\templates\trainer\proyectos_list.html:64
+msgid "Activo"
+msgstr "Active"
+
+#: .\templates\trainer\proyecto_detail.html:91
+#, python-format
+msgid "Compositor: %(compositor)s"
+msgstr "Composer: %(compositor)s"
+
+#: .\templates\trainer\proyecto_detail.html:98
+msgid "Último punto:"
+msgstr "Last point:"
+
+#: .\templates\trainer\proyecto_detail.html:99
+#, python-format
+msgid "Compás %(compas)s a %(tempo)s BPM"
+msgstr "Measure %(compas)s at %(tempo)s BPM"
+
+#: .\templates\trainer\proyecto_detail.html:108
+msgid "Tiempo invertido"
+msgstr "Time invested"
+
+#: .\templates\trainer\proyecto_detail.html:114
+msgid "Máx. velocidad"
+msgstr "Max. speed"
+
+#: .\templates\trainer\proyecto_detail.html:118
+msgid "Progreso global"
+msgstr "Overall progress"
+
+#: .\templates\trainer\proyecto_detail.html:122
+msgid "Última práctica"
+msgstr "Last practice"
+
+#: .\templates\trainer\proyecto_detail.html:132
+msgid "Mapa de Secciones"
+msgstr "Section Map"
+
+#: .\templates\trainer\proyecto_detail.html:139
+#, python-format
+msgid "Compases %(inicio)s - %(fin)s"
+msgstr "Measures %(inicio)s - %(fin)s"
+
+#: .\templates\trainer\proyecto_detail.html:141
+msgid "Dominado"
+msgstr "Mastered"
+
+#: .\templates\trainer\proyecto_detail.html:143
+msgid "En Progreso"
+msgstr "In Progress"
+
+#: .\templates\trainer\proyecto_detail.html:145
+msgid "Necesita Práctica"
+msgstr "Needs Practice"
+
+#: .\templates\trainer\proyecto_detail.html:153
+msgid "No definiste secciones todavía."
+msgstr "You haven't defined any sections yet."
+
+#: .\templates\trainer\proyecto_detail.html:154
+msgid "Andá al modo estudio para dividir tu obra."
+msgstr "Go to study mode to divide up your piece."
+
+#: .\templates\trainer\proyecto_detail.html:163
+msgid "Objetivos del Proyecto"
+msgstr "Project Goals"
+
+#: .\templates\trainer\proyecto_detail.html:164
+msgid "Nuevo"
+msgstr "New"
+
+#: .\templates\trainer\proyecto_detail.html:176
+#, python-format
+msgid "Meta: %(meta)s"
+msgstr "Target: %(meta)s"
+
+#: .\templates\trainer\proyecto_detail.html:184
+msgid "Sin objetivos definidos."
+msgstr "No goals defined."
+
+#: .\templates\trainer\proyecto_detail.html:185
+msgid "Agregá objetivos para mantener la motivación."
+msgstr "Add goals to keep yourself motivated."
+
+#: .\templates\trainer\proyectos_list.html:3
+msgid "Mis Proyectos Musicales"
+msgstr "My Musical Projects"
+
+#: .\templates\trainer\proyectos_list.html:51
+msgid "Mis Proyectos"
+msgstr "My Projects"
+
+#: .\templates\trainer\proyectos_list.html:52
+msgid "Nuevo Proyecto"
+msgstr "New Project"
+
+#: .\templates\trainer\proyectos_list.html:67
+#, python-format
+msgid "Iniciado: %(fecha)s"
+msgstr "Started: %(fecha)s"
+
+#: .\templates\trainer\proyectos_list.html:70
+#, python-format
+msgid "Última práctica: %(tiempo)s"
+msgstr "Last practice: %(tiempo)s"
+
+#: .\templates\trainer\proyectos_list.html:71
+#, python-format
+msgid "BPM Máx: %(bpm)s"
+msgstr "Max BPM: %(bpm)s"
+
+#: .\templates\trainer\proyectos_list.html:77
+msgid "Avance General"
+msgstr "Overall Progress"
+
+#: .\templates\trainer\proyectos_list.html:86
+msgid "Ver Proyecto"
+msgstr "View Project"
+
+#: .\templates\trainer\proyectos_list.html:92
+msgid "No tenés proyectos activos"
+msgstr "You don't have any active projects"
+
+#: .\templates\trainer\proyectos_list.html:93
+msgid ""
+"Andá a la biblioteca y convertí una partitura en un proyecto para empezar a "
+"estudiar en serio."
+msgstr ""
+"Go to the library and turn a score into a project to start practicing "
+"seriously."
+
+#: .\templates\trainer\tema_detail.html:51
+msgid "No se pudo cargar la partitura."
+msgstr "The score could not be loaded."
+
+#: .\templates\trainer\tema_detail.html:79
+msgid "Este tema todavía no tiene contenido cargado."
+msgstr "This topic doesn't have any content loaded yet."
+
+#: .\templates\trainer\trainer_acordes.html:110
+#: .\templates\trainer\trainer_dictado_melodico.html:111
+#: .\templates\trainer\trainer_intervalos.html:51
+#: .\templates\trainer\trainer_intervalos_auditivos.html:82
+#: .\templates\trainer\trainer_lectura_musical.html:176
+#: .\templates\trainer\trainer_notas.html:51
+#: .\templates\trainer\trainer_progresiones.html:178
+#: .\templates\trainer\trainer_sincopas.html:110
+#: .\templates\trainer\trainer_tiempos_fuertes.html:89
+msgid "Volver al entrenador"
+msgstr "Back to trainer"
+
+#: .\templates\trainer\trainer_acordes.html:115
+msgid ""
+"Identifica la nota fundamental, alteración y cualidad del acorde en el "
+"pentagrama."
+msgstr ""
+"Identify the root note, accidental, and quality of the chord on the staff."
+
+#: .\templates\trainer\trainer_acordes.html:121
+#: .\templates\trainer\trainer_dictado_melodico.html:122
+#: .\templates\trainer\trainer_intervalos.html:64
+#: .\templates\trainer\trainer_intervalos_auditivos.html:99
+#: .\templates\trainer\trainer_lectura_musical.html:182
+#: .\templates\trainer\trainer_notas.html:66
+#: .\templates\trainer\trainer_progresiones.html:189
+#: .\templates\trainer\trainer_sincopas.html:121
+#: .\templates\trainer\trainer_tiempos_fuertes.html:100
+msgid "Nivel"
+msgstr "Level"
+
+#: .\templates\trainer\trainer_acordes.html:130
+#: .\templates\trainer\trainer_dictado_melodico.html:131
+#: .\templates\trainer\trainer_intervalos.html:73
+#: .\templates\trainer\trainer_intervalos_auditivos.html:108
+#: .\templates\trainer\trainer_notas.html:75
+#: .\templates\trainer\trainer_progresiones.html:198
+#: .\templates\trainer\trainer_sincopas.html:130
+#: .\templates\trainer\trainer_tiempos_fuertes.html:109
+msgid "Racha:"
+msgstr "Streak:"
+
+#: .\templates\trainer\trainer_acordes.html:135
+#: .\templates\trainer\trainer_acordes.html:188
+#: .\templates\trainer\trainer_progresiones.html:255
+#: .\templates\trainer\trainer_progresiones.html:262
+#: .\templates\trainer\trainer_sincopas.html:150
+#: .\templates\trainer\trainer_sincopas.html:157
+#: .\templates\trainer\trainer_tiempos_fuertes.html:113
+#: .\templates\trainer\trainer_tiempos_fuertes.html:132
+msgid "Comprobar"
+msgstr "Check"
+
+#: .\templates\trainer\trainer_acordes.html:136
+#: .\templates\trainer\trainer_progresiones.html:263
+#: .\templates\trainer\trainer_sincopas.html:158
+#: .\templates\trainer\trainer_tiempos_fuertes.html:114
+msgid "Reintentando ejercicio..."
+msgstr "Retrying exercise..."
+
+#: .\templates\trainer\trainer_acordes.html:137
+msgid "Selecciona la nota fundamental primero."
+msgstr "Select the root note first."
+
+#: .\templates\trainer\trainer_acordes.html:138
+#: .\templates\trainer\trainer_intervalos.html:56
+#: .\templates\trainer\trainer_intervalos_auditivos.html:88
+#: .\templates\trainer\trainer_notas.html:56
+#: .\templates\trainer\trainer_progresiones.html:264
+#: .\templates\trainer\trainer_sincopas.html:159
+#: .\templates\trainer\trainer_tiempos_fuertes.html:115
+msgid "¡Correcto!"
+msgstr "Correct!"
+
+#: .\templates\trainer\trainer_acordes.html:139
+#: .\templates\trainer\trainer_sincopas.html:160
+#: .\templates\trainer\trainer_tiempos_fuertes.html:116
+msgid "Incorrecto."
+msgstr "Incorrect."
+
+#: .\templates\trainer\trainer_acordes.html:141
+msgid "Fórmula:"
+msgstr "Formula:"
+
+#: .\templates\trainer\trainer_acordes.html:142
+#: .\templates\trainer\trainer_dictado_melodico.html:140
+#: .\templates\trainer\trainer_intervalos.html:58
+#: .\templates\trainer\trainer_intervalos_auditivos.html:90
+#: .\templates\trainer\trainer_notas.html:59
+#: .\templates\trainer\trainer_progresiones.html:268
+#: .\templates\trainer\trainer_sincopas.html:163
+#: .\templates\trainer\trainer_tiempos_fuertes.html:125
+msgid "✅ ¡Correcto!"
+msgstr "✅ Correct!"
+
+#: .\templates\trainer\trainer_acordes.html:143
+#: .\templates\trainer\trainer_dictado_melodico.html:141
+#: .\templates\trainer\trainer_progresiones.html:269
+#: .\templates\trainer\trainer_tiempos_fuertes.html:126
+msgid "❌ Incorrecto"
+msgstr "❌ Incorrect"
+
+#: .\templates\trainer\trainer_acordes.html:148
+msgid "Nota Fundamental"
+msgstr "Root Note"
+
+#: .\templates\trainer\trainer_acordes.html:161
+msgid "Alteración"
+msgstr "Accidental"
+
+#: .\templates\trainer\trainer_acordes.html:163
+msgid "Natural"
+msgstr "Natural"
+
+#: .\templates\trainer\trainer_acordes.html:170
+msgid "Cualidad del Acorde"
+msgstr "Chord Quality"
+
+#: .\templates\trainer\trainer_dictado_melodico.html:116
+msgid "Escucha la melodía y selecciona la opción correcta."
+msgstr "Listen to the melody and select the correct option."
+
+#: .\templates\trainer\trainer_dictado_melodico.html:134
+msgid "▶ Reproducir Melodía"
+msgstr "▶ Play Melody"
+
+#: .\templates\trainer\trainer_dictado_melodico.html:135
+msgid "🔊 Reproduciendo..."
+msgstr "🔊 Playing..."
+
+#: .\templates\trainer\trainer_dictado_melodico.html:136
+msgid "▶ Volver a escuchar"
+msgstr "▶ Listen again"
+
+#: .\templates\trainer\trainer_dictado_melodico.html:137
+msgid "▶ Reproducir Siguiente"
+msgstr "▶ Play Next"
+
+#: .\templates\trainer\trainer_dictado_melodico.html:138
+msgid "¡Correcto! 🎉"
+msgstr "Correct! 🎉"
+
+#: .\templates\trainer\trainer_dictado_melodico.html:139
+msgid "Incorrecto. Era:"
+msgstr "Incorrect. It was:"
+
+#: .\templates\trainer\trainer_dictado_melodico.html:142
+msgid "Reproducir Melodía"
+msgstr "Play Melody"
+
+#: .\templates\trainer\trainer_intervalos.html:57
+#: .\templates\trainer\trainer_intervalos_auditivos.html:89
+msgid "Incorrecto. Era"
+msgstr "Incorrect. It was"
+
+#: .\templates\trainer\trainer_intervalos.html:59
+#: .\templates\trainer\trainer_intervalos_auditivos.html:91
+#: .\templates\trainer\trainer_notas.html:60
+msgid "❌ Incorrecto (Era"
+msgstr "❌ Incorrect (It was"
+
+#: .\templates\trainer\trainer_intervalos.html:76
+#: .\templates\trainer\trainer_intervalos_auditivos.html:111
+msgid "Melódico"
+msgstr "Melodic"
+
+#: .\templates\trainer\trainer_intervalos.html:79
+#: .\templates\trainer\trainer_intervalos_auditivos.html:114
+msgid "Armónico"
+msgstr "Harmonic"
+
+#: .\templates\trainer\trainer_intervalos_auditivos.html:92
+#: .\templates\trainer\trainer_intervalos_auditivos.html:129
+msgid "Reproducir Intervalo"
+msgstr "Play Interval"
+
+#: .\templates\trainer\trainer_intervalos_auditivos.html:93
+msgid "Reproduciendo..."
+msgstr "Playing..."
+
+#: .\templates\trainer\trainer_intervalos_auditivos.html:94
+msgid "Escuchar de nuevo"
+msgstr "Listen again"
+
+#: .\templates\trainer\trainer_intervalos_auditivos.html:124
+msgid "Escuchar Intervalo"
+msgstr "Listen to Interval"
+
+#: .\templates\trainer\trainer_intervalos_auditivos.html:155
+msgid "Escuchar nuevamente"
+msgstr "Listen again"
+
+#: .\templates\trainer\trainer_intervalos_auditivos.html:162
+msgid "Tus Estadísticas"
+msgstr "Your Statistics"
+
+#: .\templates\trainer\trainer_intervalos_auditivos.html:175
+msgid "Correctas"
+msgstr "Correct"
+
+#: .\templates\trainer\trainer_intervalos_auditivos.html:179
+msgid "Incorrectas"
+msgstr "Incorrect"
+
+#: .\templates\trainer\trainer_intervalos_auditivos.html:187
+msgid "Tiempo Prom."
+msgstr "Avg. Time"
+
+#: .\templates\trainer\trainer_lectura_musical.html:160
+msgid "Silencio"
+msgstr "Silence"
+
+#: .\templates\trainer\trainer_lectura_musical.html:162
+msgid "✅ Lectura Completada"
+msgstr "✅ Reading Completed"
+
+#: .\templates\trainer\trainer_lectura_musical.html:163
+msgid "Debug Sync"
+msgstr "Debug Sync"
+
+#: .\templates\trainer\trainer_lectura_musical.html:166
+msgid "Nota(s):"
+msgstr "Note(s):"
+
+#: .\templates\trainer\trainer_lectura_musical.html:167
+msgid "Duración:"
+msgstr "Duration:"
+
+#: .\templates\trainer\trainer_lectura_musical.html:192
+msgid "Nivel:"
+msgstr "Level:"
+
+#: .\templates\trainer\trainer_lectura_musical.html:196
+#, python-format
+msgid "Nivel %(n)s: %(titulo)s"
+msgstr "Level %(n)s: %(titulo)s"
+
+#: .\templates\trainer\trainer_lectura_musical.html:202
+#, python-format
+msgid "Firma: %(firma)s | Tonalidad: %(tonalidad)s"
+msgstr "Time signature: %(firma)s | Key: %(tonalidad)s"
+
+#: .\templates\trainer\trainer_lectura_musical.html:214
+msgid "Debug"
+msgstr "Debug"
+
+#: .\templates\trainer\trainer_lectura_musical.html:215
+msgid "Velocidad:"
+msgstr "Speed:"
+
+#: .\templates\trainer\trainer_lectura_musical.html:217
+msgid "Lento"
+msgstr "Slow"
+
+#: .\templates\trainer\trainer_lectura_musical.html:218
+msgid "Práctica"
+msgstr "Practice"
+
+#: .\templates\trainer\trainer_notas.html:57
+msgid "Incorrecto. Seleccionaste"
+msgstr "Incorrect. You selected"
+
+#: .\templates\trainer\trainer_notas.html:58
+msgid "pero era"
+msgstr "but it was"
+
+#: .\templates\trainer\trainer_notas.html:78
+msgid "Auto-reproducir"
+msgstr "Auto-play"
+
+#: .\templates\trainer\trainer_notas.html:84
+msgid "Escuchar nota"
+msgstr "Listen to note"
+
+#: .\templates\trainer\trainer_notas.html:91
+msgid "Nat"
+msgstr "Nat"
+
+#: .\templates\trainer\trainer_progresiones.html:183
+msgid ""
+"Analiza la progresión armónica e identifica los grados romanos "
+"correspondientes."
+msgstr ""
+"Analyze the chord progression and identify the corresponding Roman numerals."
+
+#: .\templates\trainer\trainer_progresiones.html:203
+#: .\templates\trainer\trainer_progresiones.html:266
+msgid "Tonalidad:"
+msgstr "Key:"
+
+#: .\templates\trainer\trainer_progresiones.html:206
+msgid "Escuchar Progresión"
+msgstr "Listen to Progression"
+
+#: .\templates\trainer\trainer_progresiones.html:220
+msgid "Selecciona una casilla arriba y elige el grado romano correcto:"
+msgstr "Select a slot above and choose the correct Roman numeral:"
+
+#: .\templates\trainer\trainer_progresiones.html:265
+msgid "Revisa los grados marcados en rojo."
+msgstr "Check the degrees marked in red."
+
+#: .\templates\trainer\trainer_progresiones.html:267
+msgid "Análisis:"
+msgstr "Analysis:"
+
+#: .\templates\trainer\trainer_progresiones.html:271
+msgid "Do Mayor"
+msgstr "C Major"
+
+#: .\templates\trainer\trainer_progresiones.html:272
+msgid "Sol Mayor"
+msgstr "G Major"
+
+#: .\templates\trainer\trainer_progresiones.html:273
+msgid "Fa Mayor"
+msgstr "F Major"
+
+#: .\templates\trainer\trainer_progresiones.html:274
+msgid "La menor (Natural / Armónica)"
+msgstr "A minor (Natural / Harmonic)"
+
+#: .\templates\trainer\trainer_progresiones.html:277
+msgid "Tónica"
+msgstr "Tonic"
+
+#: .\templates\trainer\trainer_progresiones.html:278
+msgid "Subdominante"
+msgstr "Subdominant"
+
+#: .\templates\trainer\trainer_progresiones.html:279
+msgid "Tónica relativa"
+msgstr "Relative tonic"
+
+#: .\templates\trainer\trainer_progresiones.html:280
+msgid "Dominante"
+msgstr "Dominant"
+
+#: .\templates\trainer\trainer_progresiones.html:281
+msgid "Dominante menor"
+msgstr "Minor dominant"
+
+#: .\templates\trainer\trainer_progresiones.html:282
+msgid "Dominante (Armónica)"
+msgstr "Dominant (Harmonic)"
+
+#: .\templates\trainer\trainer_progresiones.html:283
+msgid "Dominante relativo"
+msgstr "Relative dominant"
+
+#: .\templates\trainer\trainer_progresiones.html:284
+msgid "Dominante Secundario (hacia V)"
+msgstr "Secondary Dominant (to V)"
+
+#: .\templates\trainer\trainer_progresiones.html:285
+msgid "Dominante Secundario (hacia ii)"
+msgstr "Secondary Dominant (to ii)"
+
+#: .\templates\trainer\trainer_progresiones.html:286
+msgid "Dominante Secundario (hacia vi)"
+msgstr "Secondary Dominant (to vi)"
+
+#: .\templates\trainer\trainer_sincopas.html:115
+msgid ""
+"Selecciona el tipo de desplazamiento rítmico y marca las casillas de las "
+"notas que lo provocan."
+msgstr ""
+"Select the type of rhythmic displacement and check the boxes of the notes "
+"that cause it."
+
+#: .\templates\trainer\trainer_sincopas.html:136
+msgid "Contratiempo"
+msgstr "Off-beat"
+
+#: .\templates\trainer\trainer_sincopas.html:140
+msgid "Síncopa"
+msgstr "Syncopation"
+
+#: .\templates\trainer\trainer_sincopas.html:161
+#: .\templates\trainer\trainer_tiempos_fuertes.html:117
+msgid "Avanzando automáticamente..."
+msgstr "Moving on automatically..."
+
+#: .\templates\trainer\trainer_sincopas.html:162
+msgid "Modo Correcto:"
+msgstr "Correct Mode:"
+
+#: .\templates\trainer\trainer_sincopas.html:164
+msgid "❌ Incorrecto:"
+msgstr "❌ Incorrect:"
+
+#: .\templates\trainer\trainer_sincopas.html:165
+msgid "Contratiempo de recuperación"
+msgstr "Recovery off-beat"
+
+#: .\templates\trainer\trainer_sincopas.html:166
+msgid "Este es un ejercicio de recuperación."
+msgstr "This is a recovery exercise."
+
+#: .\templates\trainer\trainer_sincopas.html:168
+msgid "Contratiempo en 2/4"
+msgstr "Off-beat in 2/4"
+
+#: .\templates\trainer\trainer_sincopas.html:169
+msgid "Contratiempo en el 2do tiempo"
+msgstr "Off-beat on the 2nd beat"
+
+#: .\templates\trainer\trainer_sincopas.html:170
+msgid "Síncopa simple (Corchea-Negra-Corchea)"
+msgstr "Simple syncopation (Eighth-Quarter-Eighth)"
+
+#: .\templates\trainer\trainer_sincopas.html:171
+msgid "Síncopa en 4/4"
+msgstr "Syncopation in 4/4"
+
+#: .\templates\trainer\trainer_sincopas.html:172
+msgid "Contratiempo en 3/4"
+msgstr "Off-beat in 3/4"
+
+#: .\templates\trainer\trainer_sincopas.html:173
+msgid "Contratiempo de negra en 4/4"
+msgstr "Quarter-note off-beat in 4/4"
+
+#: .\templates\trainer\trainer_sincopas.html:174
+msgid "Doble contratiempo en 4/4"
+msgstr "Double off-beat in 4/4"
+
+#: .\templates\trainer\trainer_sincopas.html:175
+msgid "Síncopa por Ligadura"
+msgstr "Tied Syncopation"
+
+#: .\templates\trainer\trainer_sincopas.html:176
+msgid "Síncopa extensa"
+msgstr "Extended syncopation"
+
+#: .\templates\trainer\trainer_sincopas.html:177
+msgid "Síncopa irregular mixta"
+msgstr "Mixed irregular syncopation"
+
+#: .\templates\trainer\trainer_sincopas.html:178
+msgid "Síncopa irregular en 3/4"
+msgstr "Irregular syncopation in 3/4"
+
+#: .\templates\trainer\trainer_sincopas.html:181
+msgid ""
+"El silencio de corchea ocupa la parte fuerte del primer tiempo, y la corchea "
+"suena en la parte débil. Esto es un contratiempo clásico."
+msgstr ""
+"The eighth rest occupies the strong part of the first beat, and the eighth "
+"note sounds on the weak part. This is a classic off-beat."
+
+#: .\templates\trainer\trainer_sincopas.html:182
+msgid ""
+"El contratiempo se produce en el segundo tiempo: silencio en la parte fuerte "
+"y corchea en la parte débil."
+msgstr ""
+"The off-beat occurs on the second beat: rest on the strong part and eighth "
+"note on the weak part."
+
+#: .\templates\trainer\trainer_sincopas.html:183
+msgid ""
+"La negra central ataca en la parte débil del primer tiempo y se prolonga "
+"ocupando la parte fuerte del segundo tiempo. Esto desplaza el acento natural "
+"y forma una síncopa."
+msgstr ""
+"The middle quarter note attacks on the weak part of the first beat and "
+"extends into the strong part of the second beat. This shifts the natural "
+"accent and forms a syncopation."
+
+#: .\templates\trainer\trainer_sincopas.html:184
+msgid ""
+"La síncopa se produce entre el segundo y tercer tiempo, desplazando el "
+"acento esperado del tercer tiempo."
+msgstr ""
+"The syncopation occurs between the second and third beats, shifting the "
+"expected accent of the third beat."
+
+#: .\templates\trainer\trainer_sincopas.html:185
+msgid ""
+"El segundo tiempo fuerte fue reemplazado por un silencio, desplazando el "
+"acento a la corchea siguiente (parte débil)."
+msgstr ""
+"The second strong beat was replaced by a rest, shifting the accent to the "
+"following eighth note (weak part)."
+
+#: .\templates\trainer\trainer_sincopas.html:186
+msgid ""
+"El tercer tiempo (que es semifuerte) está en silencio. La nota ataca en el "
+"cuarto tiempo (débil), generando un contratiempo de mayor duración."
+msgstr ""
+"The third beat (which is semi-strong) is silent. The note attacks on the "
+"fourth beat (weak), producing a longer off-beat."
+
+#: .\templates\trainer\trainer_sincopas.html:187
+msgid ""
+"Los tiempos fuertes 1 y 3 están en silencio, por lo que las notas atacan en "
+"los tiempos débiles 2 y 4."
+msgstr ""
+"The strong beats 1 and 3 are silent, so the notes attack on the weak beats 2 "
+"and 4."
+
+#: .\templates\trainer\trainer_sincopas.html:188
+msgid ""
+"La ligadura une una nota de un tiempo débil (2do tiempo) con un tiempo "
+"fuerte o semifuerte (3er tiempo). El acento recae en la primera nota de la "
+"ligadura, creando una síncopa que atraviesa el compás."
+msgstr ""
+"The tie joins a note on a weak beat (2nd beat) with a strong or semi-strong "
+"beat (3rd beat). The accent falls on the first note of the tie, creating a "
+"syncopation that crosses the measure."
+
+#: .\templates\trainer\trainer_sincopas.html:189
+msgid ""
+"La síncopa se inicia en el segundo tiempo (débil) y se prolonga atravesando "
+"los tiempos 3 y 4 completos mediante una ligadura."
+msgstr ""
+"The syncopation starts on the second beat (weak) and extends across the full "
+"3rd and 4th beats through a tie."
+
+#: .\templates\trainer\trainer_sincopas.html:190
+msgid ""
+"Se produce un ataque en una corchea débil que se liga a una figura de mayor "
+"valor (negra) sobre el tiempo fuerte, alterando la métrica esperada."
+msgstr ""
+"An attack occurs on a weak eighth note that ties to a longer figure (quarter "
+"note) over the strong beat, altering the expected meter."
+
+#: .\templates\trainer\trainer_sincopas.html:191
+msgid ""
+"Una figura mayor (negra) comienza en parte débil y se liga a una menor "
+"(corchea) en tiempo fuerte."
+msgstr ""
+"A longer figure (quarter note) begins on a weak part and ties to a shorter "
+"one (eighth note) on a strong beat."
+
+#: .\templates\trainer\trainer_tiempos_fuertes.html:94
+msgid ""
+"Marca la casilla debajo de las notas que caen en tiempos FUERTES o "
+"SEMIFUERTES."
+msgstr ""
+"Check the box under the notes that fall on STRONG or SEMI-STRONG beats."
+
+#: .\templates\trainer\trainer_tiempos_fuertes.html:118
+msgid "Compás utilizado:"
+msgstr "Measure used:"
+
+#: .\templates\trainer\trainer_tiempos_fuertes.html:119
+msgid "Distribución:"
+msgstr "Distribution:"
+
+#: .\templates\trainer\trainer_tiempos_fuertes.html:120
+msgid "Tiempo 1 = fuerte, Tiempo 2 = débil"
+msgstr "Beat 1 = strong, Beat 2 = weak"
+
+#: .\templates\trainer\trainer_tiempos_fuertes.html:121
+msgid "Tiempo 1 = fuerte, Tiempos 2 y 3 = débiles"
+msgstr "Beat 1 = strong, Beats 2 and 3 = weak"
+
+#: .\templates\trainer\trainer_tiempos_fuertes.html:122
+msgid ""
+"Tiempo 1 = fuerte, Tiempo 2 = débil, Tiempo 3 = semifuerte, Tiempo 4 = débil"
+msgstr "Beat 1 = strong, Beat 2 = weak, Beat 3 = semi-strong, Beat 4 = weak"
+
+#: .\templates\trainer\trainer_tiempos_fuertes.html:123
+msgid "Por eso las notas en los tiempos 1 y 3 son acentuadas."
+msgstr "That's why the notes on beats 1 and 3 are accented."
+
+#: .\templates\trainer\trainer_tiempos_fuertes.html:124
+msgid "Por eso las notas ubicadas en el tiempo 1 son acentuadas."
+msgstr "That's why the notes on beat 1 are accented."
+
+#: .\trainer\services.py:91
+#, python-format
+msgid "Hace más de 7 días que no practicas '%(title)s'."
+msgstr "It's been more than 7 days since you last practiced '%(title)s'."
+
+#: .\trainer\services.py:103
+#, python-format
+msgid ""
+"Has repetido '%(title)s' muchas veces. ¡Intenta subirle el tempo (BPM) hoy!"
+msgstr ""
+"You've repeated '%(title)s' many times. Try raising the tempo (BPM) today!"
+
+#: .\trainer\services.py:109
+msgid "Continúa así. Intenta enfocarte en pasajes lentos hoy."
+msgstr "Keep it up. Try focusing on slow passages today."
+
+#: .\trainer\views.py:570
+#, python-format
+msgid "%(min)s a %(max)s"
+msgstr "%(min)s to %(max)s"
+
+#: .\trainer\views.py:576
+msgid "Sin notas"
+msgstr "No notes"
+
+#: .\trainer\views.py:700
+#, python-format
+msgid ""
+"Atención: %(instrumento)s excede el registro agudo cómodo (%(nombre_min)s a "
+"%(nombre_max)s) alcanzando %(nota)s en el compás %(compas)s."
+msgstr ""
+"Attention: %(instrumento)s exceeds the comfortable high register "
+"(%(nombre_min)s to %(nombre_max)s), reaching %(nota)s in measure "
+"%(compas)s."
+
+#: .\trainer\views.py:702
+#, python-format
+msgid ""
+"Atención: %(instrumento)s roza el registro agudo cómodo (%(nombre_min)s a "
+"%(nombre_max)s) alcanzando %(nota)s en el compás %(compas)s."
+msgstr ""
+"Attention: %(instrumento)s comes close to the comfortable high register "
+"(%(nombre_min)s to %(nombre_max)s), reaching %(nota)s in measure "
+"%(compas)s."
+
+#: .\trainer\views.py:718
+#, python-format
+msgid ""
+"Atención: %(instrumento)s excede el registro grave cómodo (%(nombre_min)s a "
+"%(nombre_max)s) descendiendo a %(nota)s en el compás %(compas)s."
+msgstr ""
+"Attention: %(instrumento)s exceeds the comfortable low register "
+"(%(nombre_min)s to %(nombre_max)s), dropping to %(nota)s in measure "
+"%(compas)s."
+
+#: .\trainer\views.py:720
+#, python-format
+msgid ""
+"Atención: %(instrumento)s roza el registro grave cómodo (%(nombre_min)s a "
+"%(nombre_max)s) descendiendo a %(nota)s en el compás %(compas)s."
+msgstr ""
+"Attention: %(instrumento)s comes close to the comfortable low register "
+"(%(nombre_min)s to %(nombre_max)s), dropping to %(nota)s in measure "
+"%(compas)s."

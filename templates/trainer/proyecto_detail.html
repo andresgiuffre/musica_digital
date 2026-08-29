@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Proyecto: {{ proyecto.sheet_music.title|default:proyecto.sheet_music.xml_file.name }}{% endblock %}
+{% load i18n %}
+{% block title %}{% blocktrans with titulo=proyecto.sheet_music.title|default:proyecto.sheet_music.xml_file.name %}Proyecto: {{ titulo }}{% endblocktrans %}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 
@@ -70,7 +71,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver a Mis Proyectos
+        {% trans "Volver a Mis Proyectos" %}
     </a>
 
     <!-- Header del Proyecto -->
@@ -78,24 +79,24 @@
         <div class="proy-gab__header-deco">🎼</div>
         <div style="position: relative; z-index: 1;">
             <div class="proy-gab__badges">
-                <span class="proy-gab__badge tipo">Proyecto de Estudio</span>
+                <span class="proy-gab__badge tipo">{% trans "Proyecto de Estudio" %}</span>
                 {% if proyecto.status == 'COMPLETED' %}
-                <span class="proy-gab__badge completado">Completado</span>
+                <span class="proy-gab__badge completado">{% trans "Completado" %}</span>
                 {% else %}
-                <span class="proy-gab__badge activo">Activo</span>
+                <span class="proy-gab__badge activo">{% trans "Activo" %}</span>
                 {% endif %}
             </div>
 
-            <h1 class="proy-gab__titulo">{{ proyecto.sheet_music.title|default:proyecto.sheet_music.xml_file.name }}</h1>
-            <p class="proy-gab__compositor">Compositor: {{ proyecto.sheet_music.composer|default:"Desconocido" }}</p>
+            <h1 class="proy-gab__titulo">{% if proyecto.sheet_music.title %}{{ proyecto.sheet_music.title }}{% else %}{{ proyecto.sheet_music.xml_file.name }}{% endif %}</h1>
+            <p class="proy-gab__compositor">{% if proyecto.sheet_music.composer %}{% blocktrans with compositor=proyecto.sheet_music.composer %}Compositor: {{ compositor }}{% endblocktrans %}{% else %}{% trans "Compositor desconocido" %}{% endif %}</p>
 
             <div class="proy-gab__acciones">
                 <a href="{% url 'biblioteca_play' proyecto.sheet_music.id %}?project_id={{ proyecto.id }}" class="proy-gab__continuar">
-                    <span>▶</span> Continuar donde lo dejé
+                    <span>▶</span> {% trans "Continuar donde lo dejé" %}
                 </a>
                 <div class="proy-gab__ultimo-punto">
-                    <span>Último punto:</span>
-                    <strong>Compás {{ proyecto.last_measure }} a {{ proyecto.last_tempo }} BPM</strong>
+                    <span>{% trans "Último punto:" %}</span>
+                    <strong>{% blocktrans with compas=proyecto.last_measure tempo=proyecto.last_tempo %}Compás {{ compas }} a {{ tempo }} BPM{% endblocktrans %}</strong>
                 </div>
             </div>
         </div>
@@ -104,21 +105,21 @@
     <!-- Panel de Estadísticas -->
     <div class="proy-gab__stats">
         <div class="proy-gab__stat">
-            <span class="proy-gab__stat-label">Tiempo invertido</span>
+            <span class="proy-gab__stat-label">{% trans "Tiempo invertido" %}</span>
             <p class="proy-gab__stat-valor">
                 <script>document.write(Math.floor({{ proyecto.time_invested_seconds }} / 60))</script><small>min</small>
             </p>
         </div>
         <div class="proy-gab__stat">
-            <span class="proy-gab__stat-label">Máx. velocidad</span>
+            <span class="proy-gab__stat-label">{% trans "Máx. velocidad" %}</span>
             <p class="proy-gab__stat-valor" style="color: var(--primary);">{{ proyecto.max_bpm_reached }}<small>BPM</small></p>
         </div>
         <div class="proy-gab__stat">
-            <span class="proy-gab__stat-label">Progreso global</span>
+            <span class="proy-gab__stat-label">{% trans "Progreso global" %}</span>
             <p class="proy-gab__stat-valor" style="color: var(--green);">{{ proyecto.progress_percentage }}<small>%</small></p>
         </div>
         <div class="proy-gab__stat">
-            <span class="proy-gab__stat-label">Última práctica</span>
+            <span class="proy-gab__stat-label">{% trans "Última práctica" %}</span>
             <p class="proy-gab__stat-valor" style="font-size: 1.125rem;">{{ proyecto.last_practice|date:"d M, H:i" }}</p>
         </div>
     </div>
@@ -128,20 +129,20 @@
         <!-- Mapa de Secciones -->
         <div class="proy-gab__panel">
             <div class="proy-gab__panel-head">
-                <h3>Mapa de Secciones</h3>
+                <h3>{% trans "Mapa de Secciones" %}</h3>
             </div>
             <div class="proy-gab__panel-body">
                 {% if proyecto.sections.all %}
                     <div class="proy-gab__lista">
                         {% for sec in proyecto.sections.all %}
                         <div class="proy-gab__fila">
-                            <span class="proy-gab__fila-titulo">Compases {{ sec.start_measure }} - {{ sec.end_measure }}</span>
+                            <span class="proy-gab__fila-titulo">{% blocktrans with inicio=sec.start_measure fin=sec.end_measure %}Compases {{ inicio }} - {{ fin }}{% endblocktrans %}</span>
                             {% if sec.status == 'MASTERED' %}
-                                <span class="proy-gab__pill dominado">Dominado</span>
+                                <span class="proy-gab__pill dominado">{% trans "Dominado" %}</span>
                             {% elif sec.status == 'IN_PROGRESS' %}
-                                <span class="proy-gab__pill progreso">En Progreso</span>
+                                <span class="proy-gab__pill progreso">{% trans "En Progreso" %}</span>
                             {% else %}
-                                <span class="proy-gab__pill pendiente">Necesita Práctica</span>
+                                <span class="proy-gab__pill pendiente">{% trans "Necesita Práctica" %}</span>
                             {% endif %}
                         </div>
                         {% endfor %}
@@ -149,8 +150,8 @@
                 {% else %}
                     <div class="proy-gab__vacio">
                         <span>🗺️</span>
-                        <p>No definiste secciones todavía.</p>
-                        <p class="proy-gab__meta-sub">Andá al modo estudio para dividir tu obra.</p>
+                        <p>{% trans "No definiste secciones todavía." %}</p>
+                        <p class="proy-gab__meta-sub">{% trans "Andá al modo estudio para dividir tu obra." %}</p>
                     </div>
                 {% endif %}
             </div>
@@ -159,8 +160,8 @@
         <!-- Objetivos -->
         <div class="proy-gab__panel">
             <div class="proy-gab__panel-head">
-                <h3>Objetivos del Proyecto</h3>
-                <button class="proy-gab__link-nuevo">+ Nuevo</button>
+                <h3>{% trans "Objetivos del Proyecto" %}</h3>
+                <button class="proy-gab__link-nuevo">+ {% trans "Nuevo" %}</button>
             </div>
             <div class="proy-gab__panel-body">
                 {% if proyecto.goals.all %}
@@ -172,7 +173,7 @@
                             </div>
                             <div style="flex: 1;">
                                 <p class="proy-gab__fila-titulo" style="margin: 0;">{{ goal.get_goal_type_display }}</p>
-                                <p class="proy-gab__meta-sub" style="margin: 0;">Meta: {{ goal.target_value }}</p>
+                                <p class="proy-gab__meta-sub" style="margin: 0;">{% blocktrans with meta=goal.target_value %}Meta: {{ meta }}{% endblocktrans %}</p>
                             </div>
                         </div>
                         {% endfor %}
@@ -180,8 +181,8 @@
                 {% else %}
                     <div class="proy-gab__vacio">
                         <span>🎯</span>
-                        <p>Sin objetivos definidos.</p>
-                        <p class="proy-gab__meta-sub">Agregá objetivos para mantener la motivación.</p>
+                        <p>{% trans "Sin objetivos definidos." %}</p>
+                        <p class="proy-gab__meta-sub">{% trans "Agregá objetivos para mantener la motivación." %}</p>
                     </div>
                 {% endif %}
             </div>

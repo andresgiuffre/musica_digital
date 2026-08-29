@@ -1,10 +1,11 @@
 {% load static %}
+{% load i18n %}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="{{ LANGUAGE_CODE }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ analysis.name }} — Análisis compartido</title>
+    <title>{% blocktrans with nombre=analysis.name %}{{ nombre }} — Análisis compartido{% endblocktrans %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -66,15 +67,16 @@
 <body>
     <div class="orquestador-container">
         <div class="publico-header">
-            <span class="publico-badge">🔗 Reporte compartido — solo lectura</span>
+            <span class="publico-badge">🔗 {% trans "Reporte compartido — solo lectura" %}</span>
             <h1 style="margin-bottom: 0.25rem;">{{ analysis.name }}</h1>
-            <p style="color: var(--ink-soft);">Analizado el {{ analysis.created_at|date:"d M Y, H:i" }}</p>
+            <p style="color: var(--ink-soft);">{% blocktrans with fecha=analysis.created_at|date:"d M Y, H:i" %}Analizado el {{ fecha }}{% endblocktrans %}</p>
         </div>
         <div id="results-container" style="width: 100%;"></div>
     </div>
 
     {{ analysis.analysis_data|json_script:"analysis-data" }}
-    <script src="{% static 'js/orquestador_render.js' %}"></script>
+    {% include 'trainer/_orquestador_render_i18n.html' %}
+    <script src="{% static 'js/orquestador_render.js' %}?v=2"></script>
     <script>
     document.addEventListener("DOMContentLoaded", () => {
         const dataEl = document.getElementById("analysis-data");

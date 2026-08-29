@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{{ game.display_name }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_entrenamiento %}is-active{% endblock %}
@@ -106,18 +108,18 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver al entrenador
+        {% trans "Volver al entrenador" %}
     </a>
 
     <div style="text-align: center; margin-bottom: 1rem;">
-        <h1 style="margin-bottom: 0.5rem;">{{ game.name }}</h1>
-        <p style="color: var(--ink-soft);">Escucha la melodía y selecciona la opción correcta.</p>
+        <h1 style="margin-bottom: 0.5rem;">{{ game.display_name }}</h1>
+        <p style="color: var(--ink-soft);">{% trans "Escucha la melodía y selecciona la opción correcta." %}</p>
     </div>
 
     <!-- Progress Bar -->
     <div class="progress-container" style="width: 100%; max-width: 600px; background: var(--surface); padding: 1rem; border-radius: 1rem; border: 1px solid var(--line-input);">
         <div class="progress-labels" style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 0.5rem; color: var(--ink); font-size: 0.9rem;">
-            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span>{% trans "Nivel" %} <span id="ui-level">{{ score.level_info.level }}</span></span>
             <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
         </div>
         <div class="progress-track" style="width: 100%; background: var(--bg); height: 8px; border-radius: 4px; overflow: hidden;">
@@ -126,11 +128,18 @@
     </div>
 
     <div class="status-bar">
-        <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+        <div>🔥 {% trans "Racha:" %} <span id="streak-counter">{{ score.current_streak }}</span></div>
     </div>
 
-    <div id="playback-area">
-        <button id="play-melody-btn" class="play-btn">▶ Reproducir Melodía</button>
+    <div id="playback-area" data-lang="{{ LANGUAGE_CODE }}" data-txt-reproducir="{% trans '▶ Reproducir Melodía' %}"
+        data-txt-reproduciendo="{% trans '🔊 Reproduciendo...' %}"
+        data-txt-volver-escuchar="{% trans '▶ Volver a escuchar' %}"
+        data-txt-siguiente="{% trans '▶ Reproducir Siguiente' %}"
+        data-txt-correcto="{% trans '¡Correcto! 🎉' %}"
+        data-txt-incorrecto-prefijo="{% trans 'Incorrecto. Era:' %}"
+        data-txt-modal-correcto="{% trans '✅ ¡Correcto!' %}"
+        data-txt-modal-incorrecto="{% trans '❌ Incorrecto' %}">
+        <button id="play-melody-btn" class="play-btn">▶ {% trans "Reproducir Melodía" %}</button>
     </div>
 
     <div id="feedback-msg"></div>
@@ -146,9 +155,9 @@
 {% block extra_js %}
 <script>
     const scale = ['C/4', 'D/4', 'E/4', 'F/4', 'G/4', 'A/4', 'B/4', 'C/5'];
-    const noteNames = {
-        'C/4': 'Do', 'D/4': 'Re', 'E/4': 'Mi', 'F/4': 'Fa', 'G/4': 'Sol', 'A/4': 'La', 'B/4': 'Si', 'C/5': 'Do alto'
-    };
+    const noteNames = document.getElementById('playback-area').dataset.lang === 'en'
+        ? { 'C/4': 'C', 'D/4': 'D', 'E/4': 'E', 'F/4': 'F', 'G/4': 'G', 'A/4': 'A', 'B/4': 'B', 'C/5': 'High C' }
+        : { 'C/4': 'Do', 'D/4': 'Re', 'E/4': 'Mi', 'F/4': 'Fa', 'G/4': 'Sol', 'A/4': 'La', 'B/4': 'Si', 'C/5': 'Do alto' };
 
     let currentMelody = [];
     let currentOptions = [];
@@ -158,6 +167,7 @@
     const playBtn = document.getElementById('play-melody-btn');
     const optionsContainer = document.getElementById('options-container');
     const feedbackMsg = document.getElementById('feedback-msg');
+    const i18nDictado = document.getElementById('playback-area').dataset;
 
     function getRandomNote() {
         return scale[Math.floor(Math.random() * scale.length)];
@@ -208,7 +218,7 @@
         }
         
         playBtn.disabled = true;
-        playBtn.textContent = '🔊 Reproduciendo...';
+        playBtn.textContent = i18nDictado.txtReproduciendo;
         
         // Asegurar que AudioEngine cargue
         if (!AudioEngine.isReady) {
@@ -221,7 +231,7 @@
         // Rehabilitar botón después de reproducir (aprox 2 segundos para 3 notas)
         setTimeout(() => {
             playBtn.disabled = false;
-            playBtn.textContent = '▶ Volver a escuchar';
+            playBtn.textContent = i18nDictado.txtVolverEscuchar;
         }, 2200);
     });
 
@@ -235,13 +245,13 @@
 
         if (isCorrect) {
             btn.classList.add('correct');
-            feedbackMsg.textContent = '¡Correcto! 🎉';
+            feedbackMsg.textContent = i18nDictado.txtCorrecto;
             feedbackMsg.style.color = 'var(--green)';
             document.getElementById('playback-area').style.borderColor = 'var(--green)';
             AudioEngine.playNotes(currentMelody, null, 1.5); // Acorde de victoria (?) o repetirla junta
         } else {
             btn.classList.add('incorrect');
-            feedbackMsg.textContent = `Incorrecto. Era: ${formatMelodyName(currentMelody)}`;
+            feedbackMsg.textContent = `${i18nDictado.txtIncorrectoPrefijo} ${formatMelodyName(currentMelody)}`;
             feedbackMsg.style.color = 'var(--danger)';
             document.getElementById('playback-area').style.borderColor = 'var(--danger)';
             
@@ -282,11 +292,11 @@
 
         const mode = window.getAppMode ? window.getAppMode() : 'eval';
         const explanation = TheoryKB.getMelodyExplanation(currentMelody, selectedMelody, mode);
-        const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto';
-        
+        const title = isCorrect ? i18nDictado.txtModalCorrecto : i18nDictado.txtModalIncorrecto;
+
         let resetFunc = () => {
             document.getElementById('playback-area').style.borderColor = 'var(--line-input)';
-            playBtn.textContent = '▶ Reproducir Siguiente';
+            playBtn.textContent = i18nDictado.txtSiguiente;
             currentMelody = []; // Reset para forzar nueva ronda
             playBtn.disabled = false;
         };

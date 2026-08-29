@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{{ game.display_name }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_entrenamiento %}is-active{% endblock %}
@@ -77,17 +79,24 @@
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
             </svg>
-            Volver al entrenador
+            {% trans "Volver al entrenador" %}
         </a>
 
         <div style="text-align: center; width: 100%;">
-            <h2 style="margin-bottom: 0.5rem; font-size: 1.75rem;">👂 {{ game.name }}</h2>
-            <div id="feedback-msg" style="height: 1.5rem; font-weight: 800; text-align: center; width: 100%; font-size: 1.15rem;"></div>
+            <h2 style="margin-bottom: 0.5rem; font-size: 1.75rem;">👂 {{ game.display_name }}</h2>
+            <div id="feedback-msg" style="height: 1.5rem; font-weight: 800; text-align: center; width: 100%; font-size: 1.15rem;"
+                data-txt-correcto="{% trans '¡Correcto!' %}"
+                data-txt-incorrecto-era="{% trans 'Incorrecto. Era' %}"
+                data-txt-modal-correcto="{% trans '✅ ¡Correcto!' %}"
+                data-txt-modal-incorrecto="{% trans '❌ Incorrecto (Era' %}"
+                data-txt-reproducir-intervalo="{% trans 'Reproducir Intervalo' %}"
+                data-txt-reproduciendo="{% trans 'Reproduciendo...' %}"
+                data-txt-escuchar-de-nuevo="{% trans 'Escuchar de nuevo' %}"></div>
         </div>
 
         <div class="progress-container">
             <div class="progress-labels">
-                <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+                <span>{% trans "Nivel" %} <span id="ui-level">{{ score.level_info.level }}</span></span>
                 <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
             </div>
             <div class="progress-track">
@@ -96,13 +105,13 @@
         </div>
 
         <div class="status-bar">
-            <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+            <div>🔥 {% trans "Racha:" %} <span id="streak-counter">{{ score.current_streak }}</span></div>
             <div style="display: flex; gap: 1rem; align-items: center;">
                 <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--ink);">
-                    <input type="radio" name="play-mode" value="melodic" checked style="accent-color: var(--primary);"> Melódico
+                    <input type="radio" name="play-mode" value="melodic" checked style="accent-color: var(--primary);"> {% trans "Melódico" %}
                 </label>
                 <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--ink);">
-                    <input type="radio" name="play-mode" value="harmonic" style="accent-color: var(--primary);"> Armónico
+                    <input type="radio" name="play-mode" value="harmonic" style="accent-color: var(--primary);"> {% trans "Armónico" %}
                 </label>
             </div>
         </div>
@@ -110,14 +119,14 @@
         <!-- Central Play Audio Section -->
         <div id="exercise-box" style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; min-height: 200px; background: var(--score-paper); border-radius: var(--radius); border: 1px solid var(--line); transition: all 0.3s; position: relative; padding: 1rem;">
             <div id="staff-container" style="width: 100%; display: flex; justify-content: center; margin-bottom: 0.5rem; display: none;"></div>
-            
+
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <button id="btn-play-interval" class="pulse-ring-btn" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: #ffffff; border: none; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px color-mix(in srgb, var(--primary) 30%, transparent); transition: all 0.2s;" title="Escuchar Intervalo">▶</button>
+                <button id="btn-play-interval" class="pulse-ring-btn" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: #ffffff; border: none; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px color-mix(in srgb, var(--primary) 30%, transparent); transition: all 0.2s;" title="{% trans 'Escuchar Intervalo' %}">▶</button>
                 <div class="soundwave-container" id="soundwave" style="margin-top: 0;">
                     <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
                 </div>
             </div>
-            <div style="margin-top: 0.5rem; font-weight: 600; color: var(--ink-soft); font-size: 0.85rem;" id="audio-btn-desc">Reproducir Intervalo</div>
+            <div style="margin-top: 0.5rem; font-weight: 600; color: var(--ink-soft); font-size: 0.85rem;" id="audio-btn-desc">{% trans "Reproducir Intervalo" %}</div>
         </div>
 
         <!-- Answers grid -->
@@ -143,39 +152,39 @@
         </div>
 
         <div id="controls-panel" style="display: none; justify-content: center; gap: 1rem; width: 100%; margin-top: 0.5rem;">
-            <button id="btn-replay" class="btn" style="background: transparent; border: 2px solid var(--line); color: var(--ink); display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem;">🔊 Escuchar nuevamente</button>
-            <button id="btn-next" class="btn btn-primary" style="padding: 0.75rem 2rem;">Siguiente →</button>
+            <button id="btn-replay" class="btn" style="background: transparent; border: 2px solid var(--line); color: var(--ink); display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem;">🔊 {% trans "Escuchar nuevamente" %}</button>
+            <button id="btn-next" class="btn btn-primary" style="padding: 0.75rem 2rem;">{% trans "Siguiente →" %}</button>
         </div>
     </div>
 
     <!-- Stats sidebar column -->
     <div class="card" style="display: flex; flex-direction: column; gap: 1.5rem;">
-        <h3 style="font-size: 1.25rem; color: var(--ink); border-bottom: 2px solid var(--line); padding-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">📊 Tus Estadísticas</h3>
-        
+        <h3 style="font-size: 1.25rem; color: var(--ink); border-bottom: 2px solid var(--line); padding-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">📊 {% trans "Tus Estadísticas" %}</h3>
+
         <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
             <div class="accuracy-circle" id="stat-accuracy-circle" style="background: conic-gradient(var(--primary) {{ score.accuracy }}%, var(--line) {{ score.accuracy }}% 100%);">
                 <div class="inner-circle">
                     <span id="stat-accuracy" style="font-size: 1.75rem; font-weight: 800; color: var(--ink);">{{ score.accuracy }}%</span>
-                    <span style="font-size: 0.75rem; color: var(--ink-soft); font-weight: 600;">Precisión</span>
+                    <span style="font-size: 0.75rem; color: var(--ink-soft); font-weight: 600;">{% trans "Precisión" %}</span>
                 </div>
             </div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
             <div style="background: rgba(0,0,0,0.02); padding: 0.75rem; border-radius: 0.75rem; border: 1px solid var(--line); text-align: center;">
-                <div style="font-size: 0.8rem; color: var(--ink-soft); font-weight: 600;">Correctas</div>
+                <div style="font-size: 0.8rem; color: var(--ink-soft); font-weight: 600;">{% trans "Correctas" %}</div>
                 <div id="stat-correct" style="font-size: 1.35rem; font-weight: 800; color: var(--green);">{{ score.correct_answers }}</div>
             </div>
             <div style="background: rgba(0,0,0,0.02); padding: 0.75rem; border-radius: 0.75rem; border: 1px solid var(--line); text-align: center;">
-                <div style="font-size: 0.8rem; color: var(--ink-soft); font-weight: 600;">Incorrectas</div>
+                <div style="font-size: 0.8rem; color: var(--ink-soft); font-weight: 600;">{% trans "Incorrectas" %}</div>
                 <div id="stat-incorrect" style="font-size: 1.35rem; font-weight: 800; color: var(--danger);">{{ incorrect_answers }}</div>
             </div>
             <div style="background: rgba(0,0,0,0.02); padding: 0.75rem; border-radius: 0.75rem; border: 1px solid var(--line); text-align: center;">
-                <div style="font-size: 0.8rem; color: var(--ink-soft); font-weight: 600;">Mejor Racha</div>
+                <div style="font-size: 0.8rem; color: var(--ink-soft); font-weight: 600;">{% trans "Mejor Racha" %}</div>
                 <div id="stat-max-streak" style="font-size: 1.35rem; font-weight: 800; color: var(--primary);">{{ score.max_streak }}</div>
             </div>
             <div style="background: rgba(0,0,0,0.02); padding: 0.75rem; border-radius: 0.75rem; border: 1px solid var(--line); text-align: center;">
-                <div style="font-size: 0.8rem; color: var(--ink-soft); font-weight: 600;">Tiempo Prom.</div>
+                <div style="font-size: 0.8rem; color: var(--ink-soft); font-weight: 600;">{% trans "Tiempo Prom." %}</div>
                 <div style="font-size: 1.35rem; font-weight: 800; color: var(--ink);"><span id="stat-avg-time">{{ avg_time }}</span>s</div>
             </div>
         </div>
@@ -195,6 +204,7 @@
         const wave = document.getElementById("soundwave");
         const btnDesc = document.getElementById("audio-btn-desc");
         const feedbackMsg = document.getElementById("feedback-msg");
+        const i18nIntAud = feedbackMsg.dataset;
         const exerciseBox = document.getElementById("exercise-box");
         const answerButtons = document.querySelectorAll(".btn-deg");
         const qualButtons = document.querySelectorAll(".btn-qual");
@@ -337,7 +347,7 @@
             hasPlayed = false;
             btnPlay.disabled = false;
             btnPlay.innerHTML = "▶";
-            btnDesc.innerText = "Reproducir Intervalo";
+            btnDesc.innerText = i18nIntAud.txtReproducirIntervalo;
             exerciseBox.style.borderColor = "var(--line)";
             feedbackMsg.innerText = "";
             controlsPanel.style.display = "none";
@@ -379,9 +389,9 @@
             if (!hasPlayed) {
                 hasPlayed = true;
                 startTime = Date.now();
-                btnDesc.innerText = "Reproduciendo...";
+                btnDesc.innerText = i18nIntAud.txtReproduciendo;
                 setTimeout(() => {
-                    btnDesc.innerText = "Escuchar de nuevo";
+                    btnDesc.innerText = i18nIntAud.txtEscucharDeNuevo;
                     btnPlay.innerHTML = "🔊";
                     answerButtons.forEach(btn => { btn.disabled = false; });
                     qualButtons.forEach(btn => { btn.disabled = false; });
@@ -409,11 +419,11 @@
 
             if (isCorrect) {
                 exerciseBox.style.borderColor = "var(--green)";
-                feedbackMsg.innerText = "¡Correcto!";
+                feedbackMsg.innerText = i18nIntAud.txtCorrecto;
                 feedbackMsg.style.color = "var(--green)";
             } else {
                 exerciseBox.style.borderColor = "var(--danger)";
-                feedbackMsg.innerText = "Incorrecto. Era " + expectedName + ".";
+                feedbackMsg.innerText = i18nIntAud.txtIncorrectoEra + " " + expectedName + ".";
                 feedbackMsg.style.color = "var(--danger)";
             }
 
@@ -455,7 +465,7 @@
 
             const mode = window.getAppMode ? window.getAppMode() : 'eval';
             const explanation = TheoryKB.getIntervalExplanation(currentInterval.degree, currentInterval.quality, mode, true);
-            const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto (Era ' + expectedName + ')';
+            const title = isCorrect ? i18nIntAud.txtModalCorrecto : i18nIntAud.txtModalIncorrecto + ' ' + expectedName + ')';
             
             if (window.showTheoryModal) {
                 setTimeout(() => {

@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Biblioteca de Partituras{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Biblioteca de Partituras" %}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_biblioteca %}is-active{% endblock %}
@@ -76,7 +77,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver
+        {% trans "Volver" %}
     </a>
 </div>
 <div class="biblio-gab">
@@ -84,17 +85,17 @@
         <form method="get">
             {% if current_collection %}<input type="hidden" name="collection" value="{{ current_collection }}">{% endif %}
             {% if favorites_only %}<input type="hidden" name="favorites" value="true">{% endif %}
-            <input type="text" name="q" value="{{ query }}" placeholder="Buscar por título o compositor" class="biblio-gab__buscador">
+            <input type="text" name="q" value="{{ query }}" placeholder="{% trans 'Buscar por título o compositor' %}" class="biblio-gab__buscador">
         </form>
 
         <div>
-            <div class="biblio-gab__seccion-titulo">Colecciones</div>
+            <div class="biblio-gab__seccion-titulo">{% trans "Colecciones" %}</div>
             <div class="biblio-gab__lista">
                 <a href="{% url 'biblioteca_list' %}" class="biblio-gab__item {% if not current_collection and not favorites_only %}is-active{% endif %}">
-                    <span>Todas</span>
+                    <span>{% trans "Todas" %}</span>
                 </a>
                 <a href="?favorites=true" class="biblio-gab__item {% if favorites_only %}is-active{% endif %}">
-                    <span>⭐ Mis favoritos</span>
+                    <span>⭐ {% trans "Mis favoritos" %}</span>
                 </a>
                 {% for col in collections %}
                 <a href="?collection={{ col.slug }}" class="biblio-gab__item {% if current_collection == col.slug %}is-active{% endif %}">
@@ -106,12 +107,12 @@
 
         {% if recientes %}
         <div>
-            <div class="biblio-gab__seccion-titulo">Abiertas hace poco</div>
+            <div class="biblio-gab__seccion-titulo">{% trans "Abiertas hace poco" %}</div>
             <div class="biblio-gab__lista">
                 {% for r in recientes %}
                 <a href="{% url 'biblioteca_play' r.sheet_music.id %}" class="biblio-gab__reciente">
                     <span class="biblio-gab__reciente-titulo">{{ r.sheet_music.title|default:r.sheet_music.xml_file.name }}</span>
-                    <span class="biblio-gab__reciente-sub">{{ r.sheet_music.composer|default:"Desconocido" }} · {{ r.completion_percentage }}%</span>
+                    <span class="biblio-gab__reciente-sub">{% if r.sheet_music.composer %}{{ r.sheet_music.composer }}{% else %}{% trans "Desconocido" %}{% endif %} · {{ r.completion_percentage }}%</span>
                 </a>
                 {% endfor %}
             </div>
@@ -121,22 +122,22 @@
 
     <div class="biblio-gab__main">
         <div class="biblio-gab__cabecera">
-            <h1 class="biblio-gab__titulo">{% if query %}Resultados para «{{ query }}»{% else %}Biblioteca de partituras{% endif %}</h1>
-            <span class="biblio-gab__cantidad">{{ scores|length }} partitura{{ scores|length|pluralize }}</span>
+            <h1 class="biblio-gab__titulo">{% if query %}{% blocktrans %}Resultados para «{{ query }}»{% endblocktrans %}{% else %}{% trans "Biblioteca de partituras" %}{% endif %}</h1>
+            <span class="biblio-gab__cantidad">{% blocktrans count counter=scores|length %}{{ counter }} partitura{% plural %}{{ counter }} partituras{% endblocktrans %}</span>
         </div>
 
         <div class="biblio-gab__grid">
             {% for score in scores %}
             <div class="partitura-gab">
-                <button onclick="toggleFavorite({{ score.id }}, this)" class="partitura-gab__fav {% if score.id in user_favorites %}is-fav{% endif %}" aria-label="Marcar como favorito">
+                <button onclick="toggleFavorite({{ score.id }}, this)" class="partitura-gab__fav {% if score.id in user_favorites %}is-fav{% endif %}" aria-label="{% trans 'Marcar como favorito' %}">
                     {% if score.id in user_favorites %}★{% else %}☆{% endif %}
                 </button>
 
                 <h2 class="partitura-gab__titulo">{{ score.title|default:score.xml_file.name }}</h2>
-                <p class="partitura-gab__compositor">{{ score.composer|default:"Compositor desconocido" }}</p>
+                <p class="partitura-gab__compositor">{% if score.composer %}{{ score.composer }}{% else %}{% trans "Compositor desconocido" %}{% endif %}</p>
 
                 <div class="partitura-gab__tags">
-                    <span class="partitura-gab__tag">Dif. {{ score.difficulty }}</span>
+                    <span class="partitura-gab__tag">{% blocktrans with dif=score.difficulty %}Dif. {{ dif }}{% endblocktrans %}</span>
                     {% for c in score.collections.all %}
                         <span class="partitura-gab__tag">{{ c.name }}</span>
                     {% endfor %}
@@ -144,7 +145,7 @@
 
                 <div>
                     <div class="partitura-gab__progreso-label">
-                        <span>Progreso de estudio</span>
+                        <span>{% trans "Progreso de estudio" %}</span>
                         <span>{% for pid, perc in user_progress.items %}{% if pid == score.id %}{{ perc }}%{% endif %}{% empty %}0%{% endfor %}</span>
                     </div>
                     <div class="partitura-gab__progreso-pista">
@@ -153,13 +154,13 @@
                 </div>
 
                 <div class="partitura-gab__pie">
-                    <a href="{% url 'biblioteca_play' score.id %}" class="btn-gab btn-gab--primary">Practicar</a>
+                    <a href="{% url 'biblioteca_play' score.id %}" class="btn-gab btn-gab--primary">{% trans "Practicar" %}</a>
                 </div>
             </div>
             {% empty %}
             <div class="biblio-gab__vacio">
-                <p style="font-size: 1.0625rem; color: var(--ink);">No se encontraron partituras</p>
-                <p>Probá cambiar los filtros o la búsqueda.</p>
+                <p style="font-size: 1.0625rem; color: var(--ink);">{% trans "No se encontraron partituras" %}</p>
+                <p>{% trans "Probá cambiar los filtros o la búsqueda." %}</p>
             </div>
             {% endfor %}
         </div>
