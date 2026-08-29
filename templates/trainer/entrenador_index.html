@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Rutas de Entrenamiento{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Rutas de Entrenamiento" %}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_entrenamiento %}is-active{% endblock %}
@@ -59,16 +60,16 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver
+        {% trans "Volver" %}
     </a>
 
-    <div class="eyebrow-gab" style="margin-bottom: 0.5rem;">Entrenador</div>
-    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 0.5rem;">Tu ruta de entrenamiento</h1>
-    <p style="color: var(--ink-soft); max-width: 40ch;">Cada etapa desbloquea reflejos distintos — de reconocer una nota en el pentagrama a distinguir un intervalo de oído.</p>
+    <div class="eyebrow-gab" style="margin-bottom: 0.5rem;">{% trans "Entrenador" %}</div>
+    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 0.5rem;">{% trans "Tu ruta de entrenamiento" %}</h1>
+    <p style="color: var(--ink-soft); max-width: 40ch;">{% trans "Cada etapa desbloquea reflejos distintos — de reconocer una nota en el pentagrama a distinguir un intervalo de oído." %}</p>
 
     <div class="senda-gab__resumen">
-        <div class="senda-gab__stat"><div class="n">{{ progress|length }}</div><div class="l">Etapas totales</div></div>
-        <div class="senda-gab__stat"><div class="n" id="completedCount" style="color: var(--green);">0</div><div class="l">Completadas</div></div>
+        <div class="senda-gab__stat"><div class="n">{{ progress|length }}</div><div class="l">{% trans "Etapas totales" %}</div></div>
+        <div class="senda-gab__stat"><div class="n" id="completedCount" style="color: var(--green);">0</div><div class="l">{% trans "Completadas" %}</div></div>
     </div>
 
     <div class="senda-gab">
@@ -77,23 +78,23 @@
                 <div class="etapa-gab__insignia">{% if p.completed %}✓{% else %}{{ forloop.counter }}{% endif %}</div>
                 <div class="etapa-gab__card">
                     <div class="etapa-gab__cuerpo">
-                        <div class="etapa-gab__eyebrow">Etapa {{ forloop.counter }}</div>
-                        <h3>{{ p.game.name }}</h3>
-                        <p>{{ p.game.description }}</p>
+                        <div class="etapa-gab__eyebrow">{% blocktrans with n=forloop.counter %}Etapa {{ n }}{% endblocktrans %}</div>
+                        <h3>{{ p.game.display_name }}</h3>
+                        <p>{{ p.game.display_description }}</p>
                         <div class="etapa-gab__metricas">
                             <div class="etapa-gab__metrica">
-                                <div class="etapa-gab__metrica-label"><span>Precisión</span><b>{{ p.accuracy }}% / {{ p.game.recommended_accuracy }}%</b></div>
+                                <div class="etapa-gab__metrica-label"><span>{% trans "Precisión" %}</span><b>{{ p.accuracy }}% / {{ p.game.recommended_accuracy }}%</b></div>
                                 {% widthratio p.accuracy p.game.recommended_accuracy 100 as acc_pct %}
                                 <div class="etapa-gab__metrica-pista"><span class="etapa-gab__metrica-fill {% if p.accuracy >= p.game.recommended_accuracy %}ok{% endif %}" style="width: {% if acc_pct > 100 %}100{% else %}{{ acc_pct }}{% endif %}%;"></span></div>
                             </div>
                             <div class="etapa-gab__metrica">
-                                <div class="etapa-gab__metrica-label"><span>Ejercicios</span><b>{{ p.score.total_answers }} / {{ p.game.recommended_attempts }}</b></div>
+                                <div class="etapa-gab__metrica-label"><span>{% trans "Ejercicios" %}</span><b>{{ p.score.total_answers }} / {{ p.game.recommended_attempts }}</b></div>
                                 {% widthratio p.score.total_answers p.game.recommended_attempts 100 as att_pct %}
                                 <div class="etapa-gab__metrica-pista"><span class="etapa-gab__metrica-fill {% if p.score.total_answers >= p.game.recommended_attempts %}ok{% endif %}" style="width: {% if att_pct > 100 %}100{% else %}{{ att_pct }}{% endif %}%;"></span></div>
                             </div>
                         </div>
                     </div>
-                    <a href="{% url p.url_name %}" class="btn-gab btn-gab--primary">{% if p.completed %}Repasar{% else %}Entrar{% endif %} →</a>
+                    <a href="{% url p.url_name %}" class="btn-gab btn-gab--primary">{% if p.completed %}{% trans "Repasar" %}{% else %}{% trans "Entrar" %}{% endif %} →</a>
                 </div>
             </div>
         {% endfor %}

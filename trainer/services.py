@@ -4,6 +4,7 @@ import nh3
 from django.db import transaction
 from django.utils import timezone
 from django.utils.safestring import mark_safe
+from django.utils.translation import gettext as _
 from datetime import timedelta
 from django.db.models import Count, Sum, Avg, F
 from .models import StudySession, SheetMusic, UserProfile
@@ -87,7 +88,7 @@ def get_study_recommendations(user):
         if not recent:
             recommendations.append({
                 'type': 'reminder',
-                'message': f"Hace más de 7 días que no practicas '{title}'."
+                'message': _("Hace más de 7 días que no practicas '%(title)s'.") % {'title': title}
             })
             break # Only show one reminder of this type to not overwhelm
             
@@ -99,13 +100,13 @@ def get_study_recommendations(user):
         if most_played and most_played['play_count_sum'] > 5:
             recommendations.append({
                 'type': 'motivation',
-                'message': f"Has repetido '{most_played['sheet_music__title']}' muchas veces. ¡Intenta subirle el tempo (BPM) hoy!"
+                'message': _("Has repetido '%(title)s' muchas veces. ¡Intenta subirle el tempo (BPM) hoy!") % {'title': most_played['sheet_music__title']}
             })
-            
+
     if not recommendations:
         recommendations.append({
             'type': 'suggestion',
-            'message': "Continúa así. Intenta enfocarte en pasajes lentos hoy."
+            'message': _("Continúa así. Intenta enfocarte en pasajes lentos hoy.")
         })
         
     return recommendations

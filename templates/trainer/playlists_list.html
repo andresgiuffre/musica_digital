@@ -1,22 +1,23 @@
 {% extends 'base.html' %}
-{% block title %}Mis Playlists - Música Digital{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Mis Playlists" %} - Música Digital{% endblock %}
 
 {% block content %}
 <div class="relative min-h-screen pt-24 pb-12">
     <div class="container mx-auto px-4 relative z-10">
-        
+
         <div class="flex justify-between items-center mb-8">
-            <h1 class="text-4xl font-bold text-white tracking-tight">Mis Playlists</h1>
+            <h1 class="text-4xl font-bold text-white tracking-tight">{% trans "Mis Playlists" %}</h1>
         </div>
 
         <!-- Formulario para nueva playlist -->
         <div class="bg-gray-900/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-8 max-w-xl">
-            <h3 class="text-xl font-bold text-white mb-4">Crear Nueva Playlist</h3>
+            <h3 class="text-xl font-bold text-white mb-4">{% trans "Crear Nueva Playlist" %}</h3>
             <form method="POST" action="{% url 'playlists_list' %}" class="flex gap-4">
                 {% csrf_token %}
-                <input type="text" name="name" placeholder="Nombre (Ej. Bach, Técnica)" class="flex-1 bg-gray-800 text-white border border-gray-600 rounded-xl p-3 focus:outline-none focus:border-[var(--gold)]" required>
+                <input type="text" name="name" placeholder="{% trans 'Nombre (Ej. Bach, Técnica)' %}" class="flex-1 bg-gray-800 text-white border border-gray-600 rounded-xl p-3 focus:outline-none focus:border-[var(--gold)]" required>
                 <button type="submit" class="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#241505] font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:shadow-[var(--gold)]">
-                    Crear
+                    {% trans "Crear" %}
                 </button>
             </form>
         </div>
@@ -26,21 +27,21 @@
             {% for playlist in playlists %}
             <div class="bg-gray-900/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:border-[var(--gold)] transition-all group">
                 <h2 class="text-2xl font-bold text-white mb-2">{{ playlist.name }}</h2>
-                <p class="text-gray-400 mb-4">{{ playlist.items.count }} partituras</p>
-                
+                <p class="text-gray-400 mb-4">{% blocktrans count counter=playlist.items.count %}{{ counter }} partitura{% plural %}{{ counter }} partituras{% endblocktrans %}</p>
+
                 <div class="space-y-2 mb-6">
                     {% for item in playlist.items.all %}
                         <a href="{% url 'biblioteca_play' item.sheet_music.id %}" class="block text-sm text-gray-300 hover:text-[var(--gold)] truncate">
                             {{ forloop.counter }}. {{ item.sheet_music.title|default:item.sheet_music.xml_file.name }}
                         </a>
                     {% empty %}
-                        <p class="text-sm text-gray-500">Playlist vacía. Agrega partituras desde la Biblioteca.</p>
+                        <p class="text-sm text-gray-500">{% trans "Playlist vacía. Agrega partituras desde la Biblioteca." %}</p>
                     {% endfor %}
                 </div>
             </div>
             {% empty %}
             <div class="col-span-full text-center py-12">
-                <p class="text-gray-400 text-xl">Aún no tienes playlists creadas.</p>
+                <p class="text-gray-400 text-xl">{% trans "Aún no tienes playlists creadas." %}</p>
             </div>
             {% endfor %}
         </div>

@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{{ game.display_name }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_entrenamiento %}is-active{% endblock %}
@@ -46,17 +48,20 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver al entrenador
+        {% trans "Volver al entrenador" %}
     </a>
 
     <div style="text-align: center;">
-        <h2 style="margin-bottom: 0.5rem;">{{ game.name }}</h2>
-        <div id="feedback-msg"></div>
+        <h2 style="margin-bottom: 0.5rem;">{{ game.display_name }}</h2>
+        <div id="feedback-msg" data-txt-correcto="{% trans '¡Correcto!' %}"
+            data-txt-incorrecto-era="{% trans 'Incorrecto. Era' %}"
+            data-txt-modal-correcto="{% trans '✅ ¡Correcto!' %}"
+            data-txt-modal-incorrecto="{% trans '❌ Incorrecto (Era' %}"></div>
     </div>
 
     <div class="progress-container">
         <div class="progress-labels">
-            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span>{% trans "Nivel" %} <span id="ui-level">{{ score.level_info.level }}</span></span>
             <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
         </div>
         <div class="progress-track">
@@ -65,13 +70,13 @@
     </div>
 
     <div class="status-bar" style="align-items: center;">
-        <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+        <div>🔥 {% trans "Racha:" %} <span id="streak-counter">{{ score.current_streak }}</span></div>
         <div style="display: flex; gap: 1rem; align-items: center;">
             <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--ink);">
-                <input type="radio" name="play-mode" value="melodic" checked style="accent-color: var(--primary);"> Melódico
+                <input type="radio" name="play-mode" value="melodic" checked style="accent-color: var(--primary);"> {% trans "Melódico" %}
             </label>
             <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem; font-size: 0.95rem; font-weight: 600; color: var(--ink);">
-                <input type="radio" name="play-mode" value="harmonic" style="accent-color: var(--primary);"> Armónico
+                <input type="radio" name="play-mode" value="harmonic" style="accent-color: var(--primary);"> {% trans "Armónico" %}
             </label>
         </div>
     </div>
@@ -113,6 +118,7 @@
         const VF = Vex.Flow;
         const div = document.getElementById("staff-container");
         const feedbackMsg = document.getElementById("feedback-msg");
+        const i18nIntervalos = feedbackMsg.dataset;
         const btnReplay = document.getElementById("btn-replay-interval");
         
         // Progress UI
@@ -294,11 +300,11 @@
 
             if (isCorrect) {
                 div.classList.add("flash-correct");
-                feedbackMsg.innerText = "¡Correcto!";
+                feedbackMsg.innerText = i18nIntervalos.txtCorrecto;
                 feedbackMsg.style.color = "var(--green)";
             } else {
                 div.classList.add("flash-incorrect");
-                feedbackMsg.innerText = "Incorrecto. Era " + expectedName + ".";
+                feedbackMsg.innerText = i18nIntervalos.txtIncorrectoEra + " " + expectedName + ".";
                 feedbackMsg.style.color = "var(--danger)";
             }
 
@@ -336,7 +342,7 @@
 
             const mode = window.getAppMode ? window.getAppMode() : 'eval';
             const explanation = TheoryKB.getIntervalExplanation(currentInterval.degree, currentInterval.quality, mode, false);
-            const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto (Era ' + expectedName + ')';
+            const title = isCorrect ? i18nIntervalos.txtModalCorrecto : i18nIntervalos.txtModalIncorrecto + ' ' + expectedName + ')';
             
             if (window.showTheoryModal) {
                 setTimeout(() => {

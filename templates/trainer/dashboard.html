@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Inicio - Música Digital{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Inicio" %} - Música Digital{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_panel %}is-active{% endblock %}
@@ -214,39 +215,44 @@
 <div class="envoltorio-gab">
     <header class="saludo-gab">
         <div>
-            <div class="eyebrow-gab saludo-gab__kicker">Sesión de estudio</div>
-            <h1 class="saludo-gab__titulo">Hola, <em>{{ user.username }}</em>.</h1>
+            <div class="eyebrow-gab saludo-gab__kicker">{% trans "Sesión de estudio" %}</div>
+            <h1 class="saludo-gab__titulo">{% blocktrans with username=user.username %}Hola, <em>{{ username }}</em>.{% endblocktrans %}</h1>
             <p class="saludo-gab__texto">
                 {% with top_rec=recommendations.0 %}
                 {% if top_rec %}
+                    {% comment %}
+                    Mensaje generado en trainer/services.py (get_study_recommendations),
+                    no texto literal del template -- ya traducido del lado de Python con
+                    gettext() (import gettext as _), no con {% trans %}/{% blocktrans %}.
+                    {% endcomment %}
                     {{ top_rec.message }}
                 {% elif profile.current_daily_streak > 0 %}
-                    Llevás {{ profile.current_daily_streak }} día{{ profile.current_daily_streak|pluralize }} seguido{{ profile.current_daily_streak|pluralize }} practicando. No cortes la racha hoy.
+                    {% blocktrans count counter=profile.current_daily_streak %}Llevás {{ counter }} día seguido practicando. No cortes la racha hoy.{% plural %}Llevás {{ counter }} días seguidos practicando. No cortes la racha hoy.{% endblocktrans %}
                 {% else %}
-                    Empezá hoy una racha nueva — ninguna sesión es demasiado corta para contar.
+                    {% trans "Empezá hoy una racha nueva — ninguna sesión es demasiado corta para contar." %}
                 {% endif %}
                 {% endwith %}
             </p>
             <div class="saludo-gab__acciones">
-                <a href="{% url 'entrenador_index' %}" class="btn-gab btn-gab--primary">Continuar practicando</a>
-                <a href="{% url 'perfil' %}" class="btn-gab btn-gab--secondary">Ver mi progreso</a>
+                <a href="{% url 'entrenador_index' %}" class="btn-gab btn-gab--primary">{% trans "Continuar practicando" %}</a>
+                <a href="{% url 'perfil' %}" class="btn-gab btn-gab--secondary">{% trans "Ver mi progreso" %}</a>
             </div>
         </div>
 
         <div class="semana-gab">
             <div class="semana-gab__cabecera">
-                <h2 class="semana-gab__titulo">Esta semana</h2>
-                <span class="semana-gab__minutos">{{ weekly_summary.total_minutes }} min de estudio</span>
+                <h2 class="semana-gab__titulo">{% trans "Esta semana" %}</h2>
+                <span class="semana-gab__minutos">{% blocktrans with minutos=weekly_summary.total_minutes %}{{ minutos }} min de estudio{% endblocktrans %}</span>
             </div>
             {% for h in habilidades %}
             <div class="semana-gab__barra-fila">
-                <div class="semana-gab__barra-label"><span>{{ h.game.name }}</span><b>{{ h.accuracy }}%</b></div>
+                <div class="semana-gab__barra-label"><span>{{ h.game.display_name }}</span><b>{{ h.accuracy }}%</b></div>
                 <div class="semana-gab__barra-pista"><div class="semana-gab__barra-fill" style="width: {{ h.accuracy }}%;"></div></div>
             </div>
             {% endfor %}
             <div class="semana-gab__pie">
-                <span>Racha de estudio</span>
-                <strong>{{ profile.current_daily_streak }} día{{ profile.current_daily_streak|pluralize }}</strong>
+                <span>{% trans "Racha de estudio" %}</span>
+                <strong>{% blocktrans count counter=profile.current_daily_streak %}{{ counter }} día{% plural %}{{ counter }} días{% endblocktrans %}</strong>
             </div>
         </div>
     </header>
@@ -254,17 +260,17 @@
     <div class="atril-gab">
         {% if atril %}
         <div>
-            <div class="atril-gab__eyebrow">En el atril</div>
+            <div class="atril-gab__eyebrow">{% trans "En el atril" %}</div>
             <h3 class="atril-gab__titulo">{{ atril.sheet_music.title|default:atril.sheet_music.xml_file.name }}</h3>
-            <p class="atril-gab__compositor">{{ atril.sheet_music.composer|default:"Compositor desconocido" }}</p>
+            <p class="atril-gab__compositor">{% if atril.sheet_music.composer %}{{ atril.sheet_music.composer }}{% else %}{% trans "Compositor desconocido" %}{% endif %}</p>
         </div>
         <div style="text-align: right;">
-            <p class="atril-gab__punto">Compás <b>{{ atril.last_measure }}</b> · <b>{{ atril.last_tempo }}</b> BPM</p>
-            <a href="{% url 'biblioteca_play' atril.sheet_music.id %}?project_id={{ atril.id }}" class="btn-gab btn-gab--primary" style="margin-top: 0.6rem;">Continuar donde lo dejé</a>
+            <p class="atril-gab__punto">{% blocktrans with compas=atril.last_measure bpm=atril.last_tempo %}Compás <b>{{ compas }}</b> · <b>{{ bpm }}</b> BPM{% endblocktrans %}</p>
+            <a href="{% url 'biblioteca_play' atril.sheet_music.id %}?project_id={{ atril.id }}" class="btn-gab btn-gab--primary" style="margin-top: 0.6rem;">{% trans "Continuar donde lo dejé" %}</a>
         </div>
         {% else %}
-        <p class="atril-gab__vacio">Todavía no tenés ninguna obra en estudio — convertí una partitura de la biblioteca en un proyecto para verla acá.</p>
-        <a href="{% url 'biblioteca_list' %}" class="btn-gab btn-gab--secondary">Ir a la biblioteca</a>
+        <p class="atril-gab__vacio">{% trans "Todavía no tenés ninguna obra en estudio — convertí una partitura de la biblioteca en un proyecto para verla acá." %}</p>
+        <a href="{% url 'biblioteca_list' %}" class="btn-gab btn-gab--secondary">{% trans "Ir a la biblioteca" %}</a>
         {% endif %}
     </div>
 
@@ -316,45 +322,45 @@
         </div>
         <div class="espacios-gab__contenido">
         <div class="espacios-gab__cabecera">
-            <h2 class="espacios-gab__titulo">Espacios de trabajo</h2>
-            <span class="espacios-gab__nota">Todo el material queda sincronizado</span>
+            <h2 class="espacios-gab__titulo">{% trans "Espacios de trabajo" %}</h2>
+            <span class="espacios-gab__nota">{% trans "Todo el material queda sincronizado" %}</span>
         </div>
         <div class="espacios-gab__grid">
             <a href="{% url 'biblioteca_list' %}" class="espacio-gab" style="--card-acento: var(--primary);">
-                <div class="espacio-gab__eyebrow">Repertorio</div>
-                <h3 class="espacio-gab__titulo">Biblioteca</h3>
-                <p class="espacio-gab__texto">Partituras con reproductor y cursor que avanza sobre el pentagrama.</p>
-                <div class="espacio-gab__pie"><span>Explorar</span><span>Entrar →</span></div>
+                <div class="espacio-gab__eyebrow">{% trans "Repertorio" %}</div>
+                <h3 class="espacio-gab__titulo">{% trans "Biblioteca" %}</h3>
+                <p class="espacio-gab__texto">{% trans "Partituras con reproductor y cursor que avanza sobre el pentagrama." %}</p>
+                <div class="espacio-gab__pie"><span>{% trans "Explorar" %}</span><span>{% trans "Entrar →" %}</span></div>
             </a>
             <a href="{% url 'entrenador_index' %}" class="espacio-gab" style="--card-acento: var(--slate);">
-                <div class="espacio-gab__eyebrow">Ejercicio diario</div>
-                <h3 class="espacio-gab__titulo">Entrenamiento</h3>
-                <p class="espacio-gab__texto">Oído, solfeo y lectura para afilar reflejos.</p>
-                <div class="espacio-gab__pie"><span>Practicar</span><span>Entrar →</span></div>
+                <div class="espacio-gab__eyebrow">{% trans "Ejercicio diario" %}</div>
+                <h3 class="espacio-gab__titulo">{% trans "Entrenamiento" %}</h3>
+                <p class="espacio-gab__texto">{% trans "Oído, solfeo y lectura para afilar reflejos." %}</p>
+                <div class="espacio-gab__pie"><span>{% trans "Practicar" %}</span><span>{% trans "Entrar →" %}</span></div>
             </a>
             <a href="{% url 'orquestador_analizar' %}" class="espacio-gab" style="--card-acento: var(--ochre);">
-                <div class="espacio-gab__eyebrow">Escritura</div>
-                <h3 class="espacio-gab__titulo">Analizador</h3>
-                <p class="espacio-gab__texto">Feedback de orquestación con IA, citado al compás.</p>
-                <div class="espacio-gab__pie"><span>Analizar</span><span>Entrar →</span></div>
+                <div class="espacio-gab__eyebrow">{% trans "Escritura" %}</div>
+                <h3 class="espacio-gab__titulo">{% trans "Analizador" %}</h3>
+                <p class="espacio-gab__texto">{% trans "Feedback de orquestación con IA, citado al compás." %}</p>
+                <div class="espacio-gab__pie"><span>{% trans "Analizar" %}</span><span>{% trans "Entrar →" %}</span></div>
             </a>
             <a href="{% url 'orquestacion_ejercicio_lista' %}" class="espacio-gab" style="--card-acento: var(--green);">
-                <div class="espacio-gab__eyebrow">Taller</div>
-                <h3 class="espacio-gab__titulo">Orquestar</h3>
-                <p class="espacio-gab__texto">Asigná instrumentos por color sobre una reducción de piano.</p>
-                <div class="espacio-gab__pie"><span>Practicar</span><span>Entrar →</span></div>
+                <div class="espacio-gab__eyebrow">{% trans "Taller" %}</div>
+                <h3 class="espacio-gab__titulo">{% trans "Orquestar" %}</h3>
+                <p class="espacio-gab__texto">{% trans "Asigná instrumentos por color sobre una reducción de piano." %}</p>
+                <div class="espacio-gab__pie"><span>{% trans "Practicar" %}</span><span>{% trans "Entrar →" %}</span></div>
             </a>
             <a href="{% url 'proyectos_list' %}" class="espacio-gab" style="--card-acento: var(--brown);">
-                <div class="espacio-gab__eyebrow">Largo plazo</div>
-                <h3 class="espacio-gab__titulo">Proyectos</h3>
-                <p class="espacio-gab__texto">Tus obras en estudio, con metas y avance propio.</p>
-                <div class="espacio-gab__pie"><span>Mis obras</span><span>Entrar →</span></div>
+                <div class="espacio-gab__eyebrow">{% trans "Largo plazo" %}</div>
+                <h3 class="espacio-gab__titulo">{% trans "Proyectos" %}</h3>
+                <p class="espacio-gab__texto">{% trans "Tus obras en estudio, con metas y avance propio." %}</p>
+                <div class="espacio-gab__pie"><span>{% trans "Mis obras" %}</span><span>{% trans "Entrar →" %}</span></div>
             </a>
             <a href="{% url 'midi_trainer_hub' %}" class="espacio-gab" style="--card-acento: var(--rose);">
-                <div class="espacio-gab__eyebrow">En vivo</div>
-                <h3 class="espacio-gab__titulo">Estudio MIDI</h3>
-                <p class="espacio-gab__texto">Conectá tu teclado y jugá con identificación de acordes.</p>
-                <div class="espacio-gab__pie"><span>Ir al piano</span><span>Entrar →</span></div>
+                <div class="espacio-gab__eyebrow">{% trans "En vivo" %}</div>
+                <h3 class="espacio-gab__titulo">{% trans "Estudio MIDI" %}</h3>
+                <p class="espacio-gab__texto">{% trans "Conectá tu teclado y jugá con identificación de acordes." %}</p>
+                <div class="espacio-gab__pie"><span>{% trans "Ir al piano" %}</span><span>{% trans "Entrar →" %}</span></div>
             </a>
         </div>
         </div>
@@ -363,22 +369,22 @@
     <section style="padding-bottom: 3rem;">
         <div class="placas-gab__grid">
             <div class="placa-gab" style="--card-acento: var(--primary);">
-                <div class="placa-gab__eyebrow">Análisis con IA</div>
-                <h2 class="placa-gab__titulo">Director de Estudio</h2>
-                <p class="placa-gab__texto">Subí tu orquestación y recibí una crítica estructurada — dobles verificados, densidad por compás y sugerencias de registro — antes de mostrarla a tu profesor.</p>
+                <div class="placa-gab__eyebrow">{% trans "Análisis con IA" %}</div>
+                <h2 class="placa-gab__titulo">{% trans "Director de Estudio" %}</h2>
+                <p class="placa-gab__texto">{% trans "Subí tu orquestación y recibí una crítica estructurada — dobles verificados, densidad por compás y sugerencias de registro — antes de mostrarla a tu profesor." %}</p>
                 <div class="placa-gab__acciones">
-                    <a href="{% url 'orquestador_analizar' %}" class="btn-gab btn-gab--on-dark">Analizar una partitura</a>
-                    <span class="placa-gab__creditos">{{ profile.creditos_analisis|add:profile.creditos_bonus }} análisis disponibles</span>
+                    <a href="{% url 'orquestador_analizar' %}" class="btn-gab btn-gab--on-dark">{% trans "Analizar una partitura" %}</a>
+                    <span class="placa-gab__creditos">{% blocktrans count counter=profile.creditos_analisis|add:profile.creditos_bonus %}{{ counter }} análisis disponible{% plural %}{{ counter }} análisis disponibles{% endblocktrans %}</span>
                 </div>
             </div>
             <div class="placa-gab" style="--card-acento: var(--rose);">
-                <div class="placa-gab__eyebrow">Contenido educativo<span class="placa-gab__premium">Premium</span></div>
-                <h2 class="placa-gab__titulo">Cursos</h2>
-                <p class="placa-gab__texto">Teoría musical organizada en grados, con ejemplos de partitura interactivos y práctica guiada en cada tema.</p>
+                <div class="placa-gab__eyebrow">{% trans "Contenido educativo" %}<span class="placa-gab__premium">{% trans "Premium" %}</span></div>
+                <h2 class="placa-gab__titulo">{% trans "Cursos" %}</h2>
+                <p class="placa-gab__texto">{% trans "Teoría musical organizada en grados, con ejemplos de partitura interactivos y práctica guiada en cada tema." %}</p>
                 <div class="placa-gab__acciones">
-                    <a href="{% url 'cursos_list' %}" class="btn-gab btn-gab--on-dark">Ver cursos</a>
+                    <a href="{% url 'cursos_list' %}" class="btn-gab btn-gab--on-dark">{% trans "Ver cursos" %}</a>
                     {% if cursos_disponibles_count %}
-                    <span class="placa-gab__creditos">{{ cursos_disponibles_count }} curso{{ cursos_disponibles_count|pluralize }} disponible{{ cursos_disponibles_count|pluralize }}</span>
+                    <span class="placa-gab__creditos">{% blocktrans count counter=cursos_disponibles_count %}{{ counter }} curso disponible{% plural %}{{ counter }} cursos disponibles{% endblocktrans %}</span>
                     {% endif %}
                 </div>
             </div>

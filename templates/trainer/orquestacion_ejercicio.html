@@ -1,5 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load i18n %}
+{% block title %}{{ fragmento.nombre }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_orquestar %}is-active{% endblock %}
@@ -209,22 +211,32 @@
 {% endblock %}
 
 {% block content %}
-<div class="envoltorio-gab" style="max-width: 64rem; padding-top: 1.75rem; padding-bottom: 2.5rem;">
+<div id="ej-orq-root" class="envoltorio-gab" style="max-width: 64rem; padding-top: 1.75rem; padding-bottom: 2.5rem;"
+    data-txt-error-timbre="{% trans 'Error de configuración:' %}"
+    data-txt-error-timbre-fin="{% trans 'no resuelve a timbre de cuerda en AudioEngine.familiaInstrumento — revisar FAMILIAS_INSTRUMENTO en audio_engine.js. La página no puede continuar así.' %}"
+    data-txt-fuera-de-registro="{% trans 'fuera de registro' %}"
+    data-txt-notas-sin-asignar="{% trans 'nota(s) todavía sin asignar.' %}"
+    data-txt-todas-asignadas="{% trans 'Todas las notas están asignadas a un instrumento.' %}"
+    data-txt-cargando-sonido="{% trans '⏳ Cargando sonido…' %}"
+    data-txt-todo="{% trans '▶ Todo' %}"
+    data-txt-error-partitura-orquestal="{% trans 'Error mostrando la partitura orquestal:' %}"
+    data-txt-sin-notas-pintadas="{% trans 'Todavía no pintaste ninguna nota.' %}"
+    data-txt-generando="{% trans 'Generando...' %}"
+    data-txt-ver-orquestacion="{% trans 'Ver orquestación' %}"
+    data-txt-error-generar="{% trans 'No se pudo generar la partitura orquestal.' %}"
+    data-txt-error-red-generar="{% trans 'Error de red generando la partitura:' %}"
+    data-txt-error-cargar-fragmento="{% trans 'No se pudo cargar el fragmento.' %}"
+    data-txt-error-cargando-fragmento="{% trans 'Error cargando el fragmento:' %}">
     <a href="{% url 'orquestacion_ejercicio_lista' %}" class="volver-gab">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver
+        {% trans "Volver" %}
     </a>
-    <div class="eyebrow-gab" style="margin-bottom: 0.4rem;">Reducción de piano</div>
+    <div class="eyebrow-gab" style="margin-bottom: 0.4rem;">{% trans "Reducción de piano" %}</div>
     <h1 style="font-size: 1.75rem; margin-bottom: 0.6rem;">{{ fragmento.nombre }}</h1>
     <p style="color: var(--ink-soft); margin-bottom: 1.5rem; max-width: 68ch;">
-        Elegí un instrumento y una octava (el pincel activo) y hacé click sobre cada cabeza de nota de la
-        reducción de piano para asignarla — una misma nota puede ir a varios instrumentos a la vez (por
-        ejemplo, duplicar en octavas entre Violín I y II). Click de nuevo con el mismo pincel y la misma
-        octava para desasignar ese instrumento puntual, o con otra octava para actualizarla. La barra debajo
-        de cada instrumento marca su registro cómodo — se evalúa sobre la altura real resultante, ya con la
-        octava aplicada.
+        {% trans "Elegí un instrumento y una octava (el pincel activo) y hacé click sobre cada cabeza de nota de la reducción de piano para asignarla — una misma nota puede ir a varios instrumentos a la vez (por ejemplo, duplicar en octavas entre Violín I y II). Click de nuevo con el mismo pincel y la misma octava para desasignar ese instrumento puntual, o con otra octava para actualizarla. La barra debajo de cada instrumento marca su registro cómodo — se evalúa sobre la altura real resultante, ya con la octava aplicada." %}
     </p>
 
     <div id="ej-orq-error-timbre"></div>
@@ -232,7 +244,7 @@
     <div class="ej-orq-paleta" id="ej-orq-paleta"></div>
 
     <div class="ej-orq-octava-selector" id="ej-orq-octava-selector">
-        <span class="ej-orq-octava-label">Octava del pincel:</span>
+        <span class="ej-orq-octava-label">{% trans "Octava del pincel:" %}</span>
         <button type="button" class="ej-orq-octava-btn" data-octava="-1">8vb</button>
         <button type="button" class="ej-orq-octava-btn ej-orq-octava-activa" data-octava="0">—</button>
         <button type="button" class="ej-orq-octava-btn" data-octava="1">8va</button>
@@ -240,10 +252,10 @@
 
     <div class="flex items-center justify-between mb-3">
         <button type="button" id="ej-orq-original" class="ej-orq-boton-secundario">
-            ▶ Escuchar fragmento original (piano)
+            ▶ {% trans "Escuchar fragmento original (piano)" %}
         </button>
         <button type="button" id="ej-orq-reiniciar" class="ej-orq-boton-secundario">
-            ↺ Reiniciar
+            ↺ {% trans "Reiniciar" %}
         </button>
     </div>
 
@@ -254,13 +266,13 @@
     <p id="ej-orq-estado" style="font-size: 0.875rem; color: var(--ink-soft);"></p>
 
     <div class="ej-orq-separador">
-        <h2 style="font-family: var(--font-display); font-size: 1.375rem;">Partitura de orquesta</h2>
-        <button type="button" id="ej-orq-ver-orquesta" class="ej-orq-boton-primario">Ver orquestación</button>
+        <h2 style="font-family: var(--font-display); font-size: 1.375rem;">{% trans "Partitura de orquesta" %}</h2>
+        <button type="button" id="ej-orq-ver-orquesta" class="ej-orq-boton-primario">{% trans "Ver orquestación" %}</button>
     </div>
 
     <div id="ej-orq-error-orquesta"></div>
     <p id="ej-orq-panel-orquesta-vacio" style="color: var(--ink-soft);">
-        Todavía no generaste la orquestación — pintá algunas notas y apretá "Ver orquestación".
+        {% trans 'Todavía no generaste la orquestación — pintá algunas notas y apretá "Ver orquestación".' %}
     </p>
     <div id="ej-orq-panel-orquesta-contenido" style="display: none;">
         <div class="ej-orq-controles-orquesta" id="ej-orq-controles-orquesta"></div>
@@ -279,6 +291,7 @@
 <script src="{% static 'js/osmd_utils.js' %}"></script>
 <script>
 (function () {
+    const i18nEjOrq = document.getElementById('ej-orq-root').dataset;
     const RANGOS_COMODOS = JSON.parse(document.getElementById('rangos-comodos-data').textContent);
     const ZONAS = JSON.parse(document.getElementById('zonas-data').textContent); // [{nombre, color, rango_key}]
     const NOMBRE_ARCHIVO = "{{ fragmento.archivo.name|escapejs }}";
@@ -294,7 +307,7 @@
     const zonaSinCuerda = ZONAS.find(z => AudioEngine.familiaInstrumento(z.nombre) !== 'cuerda');
     if (zonaSinCuerda) {
         const errEl = document.getElementById('ej-orq-error-timbre');
-        errEl.textContent = `Error de configuración: "${zonaSinCuerda.nombre}" no resuelve a timbre de cuerda en AudioEngine.familiaInstrumento — revisar FAMILIAS_INSTRUMENTO en audio_engine.js. La página no puede continuar así.`;
+        errEl.textContent = `${i18nEjOrq.txtErrorTimbre} "${zonaSinCuerda.nombre}" ${i18nEjOrq.txtErrorTimbreFin}`;
         errEl.style.display = 'block';
         return;
     }
@@ -665,15 +678,15 @@
                 return psEfectivo < rango.min_ps || psEfectivo > rango.max_ps;
             }).length;
             const el = document.querySelector(`[data-zona-advertencia="${zona.nombre}"]`);
-            if (el) el.textContent = fueraDeRango > 0 ? `⚠ ${fueraDeRango} fuera de registro` : '';
+            if (el) el.textContent = fueraDeRango > 0 ? `⚠ ${fueraDeRango} ${i18nEjOrq.txtFueraDeRegistro}` : '';
         });
     }
 
     function actualizarEstado() {
         const sinAsignar = notasBackend.filter(nb => !asignaciones[nb.id]).length;
         estadoEl.textContent = sinAsignar > 0
-            ? `${sinAsignar} nota(s) todavía sin asignar.`
-            : 'Todas las notas están asignadas a un instrumento.';
+            ? `${sinAsignar} ${i18nEjOrq.txtNotasSinAsignar}`
+            : i18nEjOrq.txtTodasAsignadas;
     }
 
     // --- Panel 1: reproducir el fragmento original completo (piano, sin importar
@@ -741,14 +754,14 @@
     function reproducirParteOrquesta(nombre, boton) {
         const eventos = eventosDeParteOrquesta(nombre);
         if (!eventos.length) return;
-        const restaurar = ponerBotonEnCarga(boton, '⏳ Cargando sonido…');
+        const restaurar = ponerBotonEnCarga(boton, i18nEjOrq.txtCargandoSonido);
         AudioEngine.precargarMuestraInstrumento(nombre).finally(restaurar).then(() => {
             AudioEngine.playSequence(eventos, tempoBpm, nombre);
         });
     }
 
     function reproducirTodoOrquesta(boton) {
-        const restaurar = ponerBotonEnCarga(boton, '⏳ Cargando sonido…');
+        const restaurar = ponerBotonEnCarga(boton, i18nEjOrq.txtCargandoSonido);
         Promise.all(ZONAS.map(zona => AudioEngine.precargarMuestraInstrumento(zona.nombre)))
             .finally(restaurar)
             .then(() => {
@@ -763,7 +776,7 @@
         const btnTodo = document.createElement('button');
         btnTodo.type = 'button';
         btnTodo.className = 'ej-orq-boton-parte';
-        btnTodo.textContent = '▶ Todo';
+        btnTodo.textContent = i18nEjOrq.txtTodo;
         btnTodo.addEventListener('click', () => reproducirTodoOrquesta(btnTodo));
         contenedor.appendChild(btnTodo);
 
@@ -808,19 +821,19 @@
                 osmdOrquesta.render();
             });
         }).catch(err => {
-            mostrarErrorOrquesta('Error mostrando la partitura orquestal: ' + err.message);
+            mostrarErrorOrquesta(i18nEjOrq.txtErrorPartituraOrquestal + ' ' + err.message);
         });
     }
 
     function verOrquestacion() {
         if (Object.keys(asignaciones).length === 0) {
-            mostrarErrorOrquesta('Todavía no pintaste ninguna nota.');
+            mostrarErrorOrquesta(i18nEjOrq.txtSinNotasPintadas);
             return;
         }
 
         const btn = document.getElementById('ej-orq-ver-orquesta');
         btn.disabled = true;
-        btn.textContent = 'Generando...';
+        btn.textContent = i18nEjOrq.txtGenerando;
 
         fetch(URL_GENERAR, {
             method: 'POST',
@@ -830,9 +843,9 @@
             .then(res => res.json())
             .then(data => {
                 btn.disabled = false;
-                btn.textContent = 'Ver orquestación';
+                btn.textContent = i18nEjOrq.txtVerOrquestacion;
                 if (data.status !== 'success') {
-                    mostrarErrorOrquesta(data.message || 'No se pudo generar la partitura orquestal.');
+                    mostrarErrorOrquesta(data.message || i18nEjOrq.txtErrorGenerar);
                     return;
                 }
                 crearControlesOrquesta();
@@ -840,8 +853,8 @@
             })
             .catch(err => {
                 btn.disabled = false;
-                btn.textContent = 'Ver orquestación';
-                mostrarErrorOrquesta('Error de red generando la partitura: ' + err.message);
+                btn.textContent = i18nEjOrq.txtVerOrquestacion;
+                mostrarErrorOrquesta(i18nEjOrq.txtErrorRedGenerar + ' ' + err.message);
             });
     }
 
@@ -885,7 +898,7 @@
         .then(res => res.json())
         .then(data => {
             if (data.status !== 'success') {
-                mostrarError(data.message || 'No se pudo cargar el fragmento.');
+                mostrarError(data.message || i18nEjOrq.txtErrorCargarFragmento);
                 return;
             }
             notasBackend = data.notas;
@@ -896,7 +909,7 @@
             window.addEventListener('resize', onResize);
             actualizarEstado();
         })
-        .catch(err => mostrarError('Error cargando el fragmento: ' + err.message));
+        .catch(err => mostrarError(i18nEjOrq.txtErrorCargandoFragmento + ' ' + err.message));
 })();
 </script>
 {% endblock %}

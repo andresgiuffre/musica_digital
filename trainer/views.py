@@ -164,8 +164,11 @@ def dashboard(request):
     habilidades = [progreso_por_slug[slug] for slug in habilidades_slugs if slug in progreso_por_slug]
 
     # 6. Destacado de Cursos junto al de Director de Estudio en el panel.
+    # Mismo filtro de idioma que cursos_list -- si no, el contador queda
+    # inconsistente con lo que el usuario realmente ve al entrar a Cursos.
+    from django.utils.translation import get_language
     from .models import Curso
-    cursos_disponibles_count = Curso.objects.filter(activo=True).count()
+    cursos_disponibles_count = Curso.objects.filter(activo=True, idioma=get_language()).count()
 
     context = {
         'profile': profile,
@@ -529,7 +532,13 @@ ORQUESTACION_TOOL = {
 NOMBRES_SOLFEO = {'C': 'Do', 'D': 'Re', 'E': 'Mi', 'F': 'Fa', 'G': 'Sol', 'A': 'La', 'B': 'Si'}
 
 def _a_solfeo(nombre_pitch):
-    """Convierte un nombre de music21 (ej. 'C#4', 'B-3') a solfeo español ('Do#4', 'Si-3')."""
+    """Convierte un nombre de music21 (ej. 'C#4', 'B-3') a la notación de nota que
+    corresponde al idioma activo de la request: solfeo español ('Do#4', 'Si-3') o,
+    en inglés, el nombre de letra sin cambios (ya es lo que un usuario angloparlante
+    espera ver, mismo criterio que la notación C/D/E/F/G/A/B ya usada en los Trainings)."""
+    from django.utils.translation import get_language
+    if get_language() == 'en':
+        return nombre_pitch
     letra = nombre_pitch[0]
     resto = nombre_pitch[1:]
     return NOMBRES_SOLFEO.get(letra, letra) + resto
@@ -553,16 +562,18 @@ def calcular_estadisticas_parte(part):
     measures = part.getElementsByClass(music21.stream.Measure)
     compases_silencio = sum(1 for m in measures if len(m.recurse().notes) == 0)
 
+    from django.utils.translation import gettext as _
+
     if all_pitches:
         pitch_min = min(all_pitches, key=lambda p: p.ps)
         pitch_max = max(all_pitches, key=lambda p: p.ps)
-        ambito = f"{_a_solfeo(pitch_min.nameWithOctave)} a {_a_solfeo(pitch_max.nameWithOctave)}"
+        ambito = _("%(min)s a %(max)s") % {'min': _a_solfeo(pitch_min.nameWithOctave), 'max': _a_solfeo(pitch_max.nameWithOctave)}
         ambito_min_ps = pitch_min.ps
         ambito_max_ps = pitch_max.ps
         clase_mas_frecuente = Counter(p.name for p in all_pitches).most_common(1)[0][0]
         nota_mas_frecuente = _a_solfeo(clase_mas_frecuente)
     else:
-        ambito = "Sin notas"
+        ambito = _("Sin notas")
         ambito_min_ps = None
         ambito_max_ps = None
         nota_mas_frecuente = "N/A"
@@ -657,6 +668,8 @@ def evaluar_viabilidad_instrumental(part_name, part):
     conocida de RANGOS_COMODOS, no genera alertas — mejor ninguna alerta que una mal
     atribuida a un instrumento equivocado.
     """
+    from django.utils.translation import gettext as _
+
     rango = _buscar_rango_comodo(part_name)
     if rango is None:
         return []
@@ -682,22 +695,38 @@ def evaluar_viabilidad_instrumental(part_name, part):
     if candidatas_agudas:
         ps, compas, p = max(candidatas_agudas, key=lambda t: t[0])
         severidad = 'excede' if ps > comodo_max else 'roza'
+        nota = _a_solfeo(p.nameWithOctave)
+        if severidad == 'excede':
+            mensaje = _("Atención: %(instrumento)s excede el registro agudo cómodo (%(nombre_min)s a %(nombre_max)s) alcanzando %(nota)s en el compás %(compas)s.")
+        else:
+            mensaje = _("Atención: %(instrumento)s roza el registro agudo cómodo (%(nombre_min)s a %(nombre_max)s) alcanzando %(nota)s en el compás %(compas)s.")
         alertas.append({
             'instrumento': part_name,
             'compas': compas,
-            'nota': _a_solfeo(p.nameWithOctave),
+            'nota': nota,
             'severidad': severidad,
-            'mensaje': f"Atención: {part_name} {severidad} el registro agudo cómodo ({nombre_min} a {nombre_max}) alcanzando {_a_solfeo(p.nameWithOctave)} en el compás {compas}."
+            'mensaje': mensaje % {
+                'instrumento': part_name, 'nombre_min': nombre_min, 'nombre_max': nombre_max,
+                'nota': nota, 'compas': compas,
+            }
         })
     if candidatas_graves:
         ps, compas, p = min(candidatas_graves, key=lambda t: t[0])
         severidad = 'excede' if ps < comodo_min else 'roza'
+        nota = _a_solfeo(p.nameWithOctave)
+        if severidad == 'excede':
+            mensaje = _("Atención: %(instrumento)s excede el registro grave cómodo (%(nombre_min)s a %(nombre_max)s) descendiendo a %(nota)s en el compás %(compas)s.")
+        else:
+            mensaje = _("Atención: %(instrumento)s roza el registro grave cómodo (%(nombre_min)s a %(nombre_max)s) descendiendo a %(nota)s en el compás %(compas)s.")
         alertas.append({
             'instrumento': part_name,
             'compas': compas,
-            'nota': _a_solfeo(p.nameWithOctave),
+            'nota': nota,
             'severidad': severidad,
-            'mensaje': f"Atención: {part_name} {severidad} el registro grave cómodo ({nombre_min} a {nombre_max}) descendiendo a {_a_solfeo(p.nameWithOctave)} en el compás {compas}."
+            'mensaje': mensaje % {
+                'instrumento': part_name, 'nombre_min': nombre_min, 'nombre_max': nombre_max,
+                'nota': nota, 'compas': compas,
+            }
         })
     return alertas
 
@@ -1769,8 +1798,9 @@ def orquestacion_ejercicio_archivo(request, fragmento_id):
 
 @login_required
 def cursos_list(request):
+    from django.utils.translation import get_language
     from .models import Curso
-    cursos = Curso.objects.filter(activo=True)
+    cursos = Curso.objects.filter(activo=True, idioma=get_language())
     return render(request, 'trainer/cursos_list.html', {'cursos': cursos})
 
 

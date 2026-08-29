@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{{ game.display_name }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_entrenamiento %}is-active{% endblock %}
@@ -105,18 +107,18 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver al entrenador
+        {% trans "Volver al entrenador" %}
     </a>
 
     <div style="text-align: center; width: 100%;">
-        <h1 style="margin-bottom: 0.5rem;">🔗 {{ game.name }}</h1>
-        <p style="color: var(--ink-soft);">Selecciona el tipo de desplazamiento rítmico y marca las casillas de las notas que lo provocan.</p>
+        <h1 style="margin-bottom: 0.5rem;">🔗 {{ game.display_name }}</h1>
+        <p style="color: var(--ink-soft);">{% trans "Selecciona el tipo de desplazamiento rítmico y marca las casillas de las notas que lo provocan." %}</p>
     </div>
 
     <!-- Progress Bar -->
     <div class="progress-container">
         <div class="progress-labels">
-            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span>{% trans "Nivel" %} <span id="ui-level">{{ score.level_info.level }}</span></span>
             <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
         </div>
         <div class="progress-track">
@@ -125,17 +127,17 @@
     </div>
 
     <div class="status-bar">
-        <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+        <div>🔥 {% trans "Racha:" %} <span id="streak-counter">{{ score.current_streak }}</span></div>
     </div>
 
     <div class="mode-selector">
         <label>
             <input type="radio" name="rhythm_mode" value="contratiempo" checked style="accent-color: var(--primary); transform: scale(1.2);">
-            Contratiempo
+            {% trans "Contratiempo" %}
         </label>
         <label>
             <input type="radio" name="rhythm_mode" value="sincopa" style="accent-color: var(--primary); transform: scale(1.2);">
-            Síncopa
+            {% trans "Síncopa" %}
         </label>
     </div>
 
@@ -145,10 +147,51 @@
             <div id="checkbox-container"></div>
         </div>
         <div id="feedback-msg"></div>
-        <button id="btn-submit" class="btn-submit">Comprobar</button>
+        <button id="btn-submit" class="btn-submit">{% trans "Comprobar" %}</button>
     </div>
 
 </div>
+
+<script id="sincopas-i18n-data" type="application/json">
+{
+    "comprobar": "{% trans 'Comprobar' %}",
+    "reintentando": "{% trans 'Reintentando ejercicio...' %}",
+    "correcto": "{% trans '¡Correcto!' %}",
+    "incorrecto": "{% trans 'Incorrecto.' %}",
+    "avanzando": "{% trans 'Avanzando automáticamente...' %}",
+    "modoCorrecto": "{% trans 'Modo Correcto:' %}",
+    "modalCorrecto": "{% trans '✅ ¡Correcto!' %}",
+    "modalIncorrectoPrefijo": "{% trans '❌ Incorrecto:' %}",
+    "contratiempoRecuperacion": "{% trans 'Contratiempo de recuperación' %}",
+    "ejercicioRecuperacion": "{% trans 'Este es un ejercicio de recuperación.' %}",
+    "titles": {
+        "contra_24_a": "{% trans 'Contratiempo en 2/4' %}",
+        "contra_24_b": "{% trans 'Contratiempo en el 2do tiempo' %}",
+        "syncopa_simple_a": "{% trans 'Síncopa simple (Corchea-Negra-Corchea)' %}",
+        "syncopa_simple_b": "{% trans 'Síncopa en 4/4' %}",
+        "contra_34_a": "{% trans 'Contratiempo en 3/4' %}",
+        "contra_44_a": "{% trans 'Contratiempo de negra en 4/4' %}",
+        "contra_44_b": "{% trans 'Doble contratiempo en 4/4' %}",
+        "syncopa_extended_a": "{% trans 'Síncopa por Ligadura' %}",
+        "syncopa_extended_b": "{% trans 'Síncopa extensa' %}",
+        "syncopa_irregular_a": "{% trans 'Síncopa irregular mixta' %}",
+        "syncopa_irregular_b": "{% trans 'Síncopa irregular en 3/4' %}"
+    },
+    "rules": {
+        "contra_24_a": "{% trans 'El silencio de corchea ocupa la parte fuerte del primer tiempo, y la corchea suena en la parte débil. Esto es un contratiempo clásico.' %}",
+        "contra_24_b": "{% trans 'El contratiempo se produce en el segundo tiempo: silencio en la parte fuerte y corchea en la parte débil.' %}",
+        "syncopa_simple_a": "{% trans 'La negra central ataca en la parte débil del primer tiempo y se prolonga ocupando la parte fuerte del segundo tiempo. Esto desplaza el acento natural y forma una síncopa.' %}",
+        "syncopa_simple_b": "{% trans 'La síncopa se produce entre el segundo y tercer tiempo, desplazando el acento esperado del tercer tiempo.' %}",
+        "contra_34_a": "{% trans 'El segundo tiempo fuerte fue reemplazado por un silencio, desplazando el acento a la corchea siguiente (parte débil).' %}",
+        "contra_44_a": "{% trans 'El tercer tiempo (que es semifuerte) está en silencio. La nota ataca en el cuarto tiempo (débil), generando un contratiempo de mayor duración.' %}",
+        "contra_44_b": "{% trans 'Los tiempos fuertes 1 y 3 están en silencio, por lo que las notas atacan en los tiempos débiles 2 y 4.' %}",
+        "syncopa_extended_a": "{% trans 'La ligadura une una nota de un tiempo débil (2do tiempo) con un tiempo fuerte o semifuerte (3er tiempo). El acento recae en la primera nota de la ligadura, creando una síncopa que atraviesa el compás.' %}",
+        "syncopa_extended_b": "{% trans 'La síncopa se inicia en el segundo tiempo (débil) y se prolonga atravesando los tiempos 3 y 4 completos mediante una ligadura.' %}",
+        "syncopa_irregular_a": "{% trans 'Se produce un ataque en una corchea débil que se liga a una figura de mayor valor (negra) sobre el tiempo fuerte, alterando la métrica esperada.' %}",
+        "syncopa_irregular_b": "{% trans 'Una figura mayor (negra) comienza en parte débil y se liga a una menor (corchea) en tiempo fuerte.' %}"
+    }
+}
+</script>
 {% endblock %}
 
 {% block extra_js %}
@@ -161,7 +204,8 @@
         const btnSubmit = document.getElementById("btn-submit");
         const feedbackMsg = document.getElementById("feedback-msg");
         const playbackArea = document.getElementById("playback-area");
-        
+        const SINCOPAS_I18N = JSON.parse(document.getElementById("sincopas-i18n-data").textContent);
+
         let currentMeasureInfo = null;
         let renderer = null;
         let context = null;
@@ -321,6 +365,12 @@
                 explanationRule = "Una figura mayor (negra) comienza en parte débil y se liga a una menor (corchea) en tiempo fuerte.";
             }
 
+            // Localized title/rule override -- looked up by pattern type key instead of
+            // touching every branch above, which still sets the Spanish source strings
+            // (kept for readability of the pattern logic, but not what's actually shown).
+            if (SINCOPAS_I18N.titles[type]) explanationTitle = SINCOPAS_I18N.titles[type];
+            if (SINCOPAS_I18N.rules[type]) explanationRule = SINCOPAS_I18N.rules[type];
+
             // Assign random pitches to non-rest notes
             const pitches = ["c/4", "d/4", "e/4", "f/4", "g/4", "a/4", "b/4", "c/5"];
             notesData.forEach(nd => {
@@ -345,8 +395,8 @@
                 feedbackMsg.innerHTML = "";
                 playbackArea.style.borderColor = "var(--line)";
                 btnSubmit.disabled = false;
-                btnSubmit.innerText = "Comprobar";
-                
+                btnSubmit.innerText = SINCOPAS_I18N.comprobar;
+
                 // Reset radios
                 document.querySelectorAll('input[name="rhythm_mode"]').forEach(r => r.disabled = false);
                 
@@ -426,13 +476,13 @@
                 startTime = Date.now();
             } catch (err) {
                 console.error("Critical error in drawMeasure:", err);
-                feedbackMsg.innerText = "Reintentando ejercicio...";
+                feedbackMsg.innerText = SINCOPAS_I18N.reintentando;
                 setTimeout(() => {
-                    let fallback = { 
-                        timeSignature: '2/4', 
+                    let fallback = {
+                        timeSignature: '2/4',
                         correctMode: 'contratiempo',
-                        explanationTitle: 'Contratiempo de recuperación',
-                        explanationRule: 'Este es un ejercicio de recuperación.',
+                        explanationTitle: SINCOPAS_I18N.contratiempoRecuperacion,
+                        explanationRule: SINCOPAS_I18N.ejercicioRecuperacion,
                         notesData: [
                             { keys: ['b/4'], duration: '8r', isTarget: false },
                             { keys: ['b/4'], duration: '8', isTarget: true },
@@ -477,11 +527,11 @@
                 btnSubmit.disabled = true;
 
                 if (isAllCorrect) {
-                    feedbackMsg.innerText = "¡Correcto!";
+                    feedbackMsg.innerText = SINCOPAS_I18N.correcto;
                     feedbackMsg.style.color = "var(--green)";
                     playbackArea.style.borderColor = "var(--green)";
                 } else {
-                    feedbackMsg.innerText = "Incorrecto.";
+                    feedbackMsg.innerText = SINCOPAS_I18N.incorrecto;
                     feedbackMsg.style.color = "var(--danger)";
                     playbackArea.style.borderColor = "var(--danger)";
                 }
@@ -516,10 +566,10 @@
 
                 // Inline fallback explanation logic
                 let exp = `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; text-align: left;">`;
-                exp += `<li><strong>Modo Correcto:</strong> <span style="text-transform: capitalize;">${currentMeasureInfo.correctMode}</span></li>`;
+                exp += `<li><strong>${SINCOPAS_I18N.modoCorrecto}</strong> <span style="text-transform: capitalize;">${currentMeasureInfo.correctMode}</span></li>`;
                 exp += `</ul><p style="text-align: left;">${currentMeasureInfo.explanationRule}</p>`;
 
-                const title = isAllCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto: ' + currentMeasureInfo.explanationTitle;
+                const title = isAllCorrect ? SINCOPAS_I18N.modalCorrecto : SINCOPAS_I18N.modalIncorrectoPrefijo + ' ' + currentMeasureInfo.explanationTitle;
                 
                 if (window.showTheoryModal) {
                     setTimeout(() => {
@@ -532,7 +582,7 @@
                 }
             } catch (clickErr) {
                 console.error("Critical error in click handler:", clickErr);
-                feedbackMsg.innerText = "Avanzando automáticamente...";
+                feedbackMsg.innerText = SINCOPAS_I18N.avanzando;
                 setTimeout(drawMeasure, 1000);
             }
         });

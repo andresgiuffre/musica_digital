@@ -18,12 +18,47 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.conf.urls.i18n import i18n_patterns
 
+# Solo /admin/ queda AFUERA de i18n_patterns() -- tiene su propio manejo de
+# idioma interno (via Accept-Language/USE_I18N); meterlo bajo /es//en/ es la
+# fuente clásica de bugs de doble-idioma en el admin de Django.
 urlpatterns = [
     path('admin/', admin.site.urls),
+]
+
+# prefix_default_language=False: español (LANGUAGE_CODE, el default) sirve
+# SIN prefijo en la raíz (/biblioteca/) -- cero links/bookmarks rotos sobre
+# el sitio actual. Inglés lleva prefijo explícito (/en/biblioteca/).
+#
+# OJO -- comportamiento real de LocaleMiddleware con prefix_default_language
+# =False, no intuitivo y confirmado empíricamente (no asumido): CUALQUIER URL
+# sin prefijo se fuerza SIEMPRE al idioma default, ignorando sesión/cookie/
+# Accept-Language -- no es "se negocia", es "el path manda". Ver
+# django.middleware.locale.LocaleMiddleware.process_request: si
+# get_language_from_path() no encuentra prefijo Y prefixed_default_language
+# es False, pisa lo que haya detectado por cookie/header y usa
+# settings.LANGUAGE_CODE directo. Consecuencia real: /i18n/setlang/ (el
+# endpoint que procesa el cambio de idioma) TIENE que vivir él mismo bajo
+# i18n_patterns() -- si quedara afuera (sin prefijo), toda request a ese
+# endpoint se resolvería con idioma ambiente forzado a español sin importar
+# desde qué idioma se esté cambiando, y translate_url() (la función que
+# arma la URL de destino con el prefijo correcto) fallaría en silencio para
+# cualquier next= que ya tuviera el prefijo /en/ -- confirmado con un
+# repro directo antes de este comentario, no es una precaución especulativa.
+# Adentro de i18n_patterns(), la propia request a /en/i18n/setlang/ trae su
+# prefijo real, LocaleMiddleware detecta el idioma correcto sin pisarlo, y
+# translate_url() arma bien la URL en ambas direcciones.
+#
+# django.contrib.auth.urls va adentro a propósito: login/logout/password
+# tienen UI visible para el usuario final, deben respetar el idioma elegido
+# igual que el resto del sitio.
+urlpatterns += i18n_patterns(
+    path('i18n/', include('django.conf.urls.i18n')),
     path('', include('trainer.urls')),
     path('', include('django.contrib.auth.urls')),
-]
+    prefix_default_language=False,
+)
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

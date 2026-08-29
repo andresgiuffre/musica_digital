@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{{ game.display_name }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_entrenamiento %}is-active{% endblock %}
@@ -105,18 +107,18 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver al entrenador
+        {% trans "Volver al entrenador" %}
     </a>
 
     <div style="text-align: center; width: 100%;">
-        <h1 style="margin-bottom: 0.5rem;">🎹 {{ game.name }}</h1>
-        <p style="color: var(--ink-soft);">Identifica la nota fundamental, alteración y cualidad del acorde en el pentagrama.</p>
+        <h1 style="margin-bottom: 0.5rem;">🎹 {{ game.display_name }}</h1>
+        <p style="color: var(--ink-soft);">{% trans "Identifica la nota fundamental, alteración y cualidad del acorde en el pentagrama." %}</p>
     </div>
 
     <!-- Progress Bar -->
     <div class="progress-container">
         <div class="progress-labels">
-            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span>{% trans "Nivel" %} <span id="ui-level">{{ score.level_info.level }}</span></span>
             <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
         </div>
         <div class="progress-track">
@@ -125,42 +127,52 @@
     </div>
 
     <div class="status-bar">
-        <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+        <div>🔥 {% trans "Racha:" %} <span id="streak-counter">{{ score.current_streak }}</span></div>
     </div>
 
-    <div id="playback-area">
+    <div id="playback-area"
+        data-lang="{{ LANGUAGE_CODE }}"
+        data-txt-comprobar="{% trans 'Comprobar' %}"
+        data-txt-reintentando="{% trans 'Reintentando ejercicio...' %}"
+        data-txt-selecciona-fundamental="{% trans 'Selecciona la nota fundamental primero.' %}"
+        data-txt-correcto="{% trans '¡Correcto!' %}"
+        data-txt-incorrecto="{% trans 'Incorrecto.' %}"
+        data-txt-notas-label="{% trans 'Notas:' %}"
+        data-txt-formula-label="{% trans 'Fórmula:' %}"
+        data-txt-modal-correcto="{% trans '✅ ¡Correcto!' %}"
+        data-txt-modal-incorrecto="{% trans '❌ Incorrecto' %}">
         <div id="staff-container"></div>
-        
+
         <div class="controls-panel">
             <div>
-                <div class="button-group-title">Nota Fundamental</div>
+                <div class="button-group-title">{% trans "Nota Fundamental" %}</div>
                 <div class="button-row" id="root-buttons">
-                    <button class="chord-btn root-btn" data-val="C">Do</button>
-                    <button class="chord-btn root-btn" data-val="D">Re</button>
-                    <button class="chord-btn root-btn" data-val="E">Mi</button>
-                    <button class="chord-btn root-btn" data-val="F">Fa</button>
-                    <button class="chord-btn root-btn" data-val="G">Sol</button>
-                    <button class="chord-btn root-btn" data-val="A">La</button>
-                    <button class="chord-btn root-btn" data-val="B">Si</button>
+                    <button class="chord-btn root-btn" data-val="C">{% if LANGUAGE_CODE == 'en' %}C{% else %}Do{% endif %}</button>
+                    <button class="chord-btn root-btn" data-val="D">{% if LANGUAGE_CODE == 'en' %}D{% else %}Re{% endif %}</button>
+                    <button class="chord-btn root-btn" data-val="E">{% if LANGUAGE_CODE == 'en' %}E{% else %}Mi{% endif %}</button>
+                    <button class="chord-btn root-btn" data-val="F">{% if LANGUAGE_CODE == 'en' %}F{% else %}Fa{% endif %}</button>
+                    <button class="chord-btn root-btn" data-val="G">{% if LANGUAGE_CODE == 'en' %}G{% else %}Sol{% endif %}</button>
+                    <button class="chord-btn root-btn" data-val="A">{% if LANGUAGE_CODE == 'en' %}A{% else %}La{% endif %}</button>
+                    <button class="chord-btn root-btn" data-val="B">{% if LANGUAGE_CODE == 'en' %}B{% else %}Si{% endif %}</button>
                 </div>
             </div>
 
             <div>
-                <div class="button-group-title">Alteración</div>
+                <div class="button-group-title">{% trans "Alteración" %}</div>
                 <div class="button-row" id="accidental-buttons">
-                    <button class="chord-btn acc-btn active" data-val="natural">♮ Natural</button>
-                    <button class="chord-btn acc-btn" data-val="flat">♭ Bemol</button>
-                    <button class="chord-btn acc-btn" data-val="sharp">♯ Sostenido</button>
+                    <button class="chord-btn acc-btn active" data-val="natural">♮ {% trans "Natural" %}</button>
+                    <button class="chord-btn acc-btn" data-val="flat">♭ {% if LANGUAGE_CODE == 'en' %}Flat{% else %}Bemol{% endif %}</button>
+                    <button class="chord-btn acc-btn" data-val="sharp">♯ {% if LANGUAGE_CODE == 'en' %}Sharp{% else %}Sostenido{% endif %}</button>
                 </div>
             </div>
 
             <div>
-                <div class="button-group-title">Cualidad del Acorde</div>
+                <div class="button-group-title">{% trans "Cualidad del Acorde" %}</div>
                 <div class="button-row" id="quality-buttons">
-                    <button class="chord-btn qual-btn active" data-val="Mayor">Mayor</button>
-                    <button class="chord-btn qual-btn" data-val="Menor">Menor</button>
-                    <button class="chord-btn qual-btn" data-val="Disminuido">Disminuido</button>
-                    <button class="chord-btn qual-btn" data-val="Aumentado">Aumentado</button>
+                    <button class="chord-btn qual-btn active" data-val="Mayor">{% if LANGUAGE_CODE == 'en' %}Major{% else %}Mayor{% endif %}</button>
+                    <button class="chord-btn qual-btn" data-val="Menor">{% if LANGUAGE_CODE == 'en' %}Minor{% else %}Menor{% endif %}</button>
+                    <button class="chord-btn qual-btn" data-val="Disminuido">{% if LANGUAGE_CODE == 'en' %}Diminished{% else %}Disminuido{% endif %}</button>
+                    <button class="chord-btn qual-btn" data-val="Aumentado">{% if LANGUAGE_CODE == 'en' %}Augmented{% else %}Aumentado{% endif %}</button>
                     <button class="chord-btn qual-btn" data-val="Maj7">Maj7</button>
                     <button class="chord-btn qual-btn" data-val="7">7</button>
                     <button class="chord-btn qual-btn" data-val="m7">m7</button>
@@ -173,7 +185,7 @@
         </div>
 
         <div id="feedback-msg"></div>
-        <button id="btn-submit" class="btn-submit">Comprobar</button>
+        <button id="btn-submit" class="btn-submit">{% trans "Comprobar" %}</button>
     </div>
 
 </div>
@@ -188,7 +200,16 @@
         const btnSubmit = document.getElementById("btn-submit");
         const feedbackMsg = document.getElementById("feedback-msg");
         const playbackArea = document.getElementById("playback-area");
-        
+        const i18nAcordes = playbackArea.dataset;
+
+        // Los data-val de calidad (Mayor/Menor/...) siguen siendo las claves internas
+        // que usan generateChord()/formulas -- este mapa solo traduce lo que se MUESTRA
+        // en el texto explicativo, sin tocar la lógica de comparación del juego.
+        const qualNamesEn = { 'Mayor': 'Major', 'Menor': 'Minor', 'Disminuido': 'Diminished', 'Aumentado': 'Augmented' };
+        function traducirCualidad(qual) {
+            return i18nAcordes.lang === 'en' ? (qualNamesEn[qual] || qual) : qual;
+        }
+
         let currentChordInfo = null;
         let renderer = null;
         let context = null;
@@ -361,7 +382,7 @@
                 feedbackMsg.innerHTML = "";
                 playbackArea.style.borderColor = "var(--line-input)";
                 btnSubmit.disabled = false;
-                btnSubmit.innerText = "Comprobar";
+                btnSubmit.innerText = i18nAcordes.txtComprobar;
                 
                 // Clear UI selection except default accidentals and qualities if we want
                 document.querySelectorAll('.root-btn').forEach(b => b.classList.remove('active'));
@@ -411,14 +432,14 @@
                 startTime = Date.now();
             } catch (err) {
                 console.error("Critical error in drawChord:", err);
-                feedbackMsg.innerText = "Reintentando ejercicio...";
+                feedbackMsg.innerText = i18nAcordes.txtReintentando;
                 setTimeout(() => drawChord(), 1000);
             }
         }
 
         btnSubmit.addEventListener("click", () => {
             if (!selectedRoot) {
-                feedbackMsg.innerText = "Selecciona la nota fundamental primero.";
+                feedbackMsg.innerText = i18nAcordes.txtSeleccionaFundamental;
                 feedbackMsg.style.color = "var(--danger)";
                 return;
             }
@@ -436,11 +457,11 @@
                 btnSubmit.disabled = true;
 
                 if (isCorrect) {
-                    feedbackMsg.innerText = "¡Correcto!";
+                    feedbackMsg.innerText = i18nAcordes.txtCorrecto;
                     feedbackMsg.style.color = "var(--green)";
                     playbackArea.style.borderColor = "var(--green)";
                 } else {
-                    feedbackMsg.innerText = "Incorrecto.";
+                    feedbackMsg.innerText = i18nAcordes.txtIncorrecto;
                     feedbackMsg.style.color = "var(--danger)";
                     playbackArea.style.borderColor = "var(--danger)";
                 }
@@ -479,15 +500,15 @@
 
                 // Pedagogical Explanation
                 let accChar = currentChordInfo.acc === 'sharp' ? '#' : (currentChordInfo.acc === 'flat' ? 'b' : '');
-                let fullChordName = `${currentChordInfo.root}${accChar} ${currentChordInfo.qual}`;
+                let fullChordName = `${currentChordInfo.root}${accChar} ${traducirCualidad(currentChordInfo.qual)}`;
                 
                 let exp = `<div style="text-align: left; padding: 1rem; background: var(--bg); border-radius: 0.5rem; margin-top: 1rem;">`;
                 exp += `<h3 style="margin-top: 0; color: var(--primary);">${fullChordName}</h3>`;
-                exp += `<p><strong>Notas:</strong> ${currentChordInfo.notesStr}</p>`;
-                exp += `<p><strong>Fórmula:</strong> ${currentChordInfo.formula}</p>`;
+                exp += `<p><strong>${i18nAcordes.txtNotasLabel}</strong> ${currentChordInfo.notesStr}</p>`;
+                exp += `<p><strong>${i18nAcordes.txtFormulaLabel}</strong> ${currentChordInfo.formula}</p>`;
                 exp += `</div>`;
 
-                const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto';
+                const title = isCorrect ? i18nAcordes.txtModalCorrecto : i18nAcordes.txtModalIncorrecto;
                 
                 if (window.showTheoryModal) {
                     setTimeout(() => {

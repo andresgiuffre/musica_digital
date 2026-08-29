@@ -1,7 +1,12 @@
 {% extends 'base.html' %}
+{% load i18n %}
 {% block title %}{{ curso.nombre }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
+{# El idioma REAL del contenido mostrado, no el idioma de sesión activo --
+   curso_detail no filtra por idioma (decisión de i18n Fase 1), así que
+   ambos pueden diferir. #}
+{% block html_lang %}{{ curso.idioma }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -23,7 +28,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Cursos
+        {% trans "Cursos" %}
     </a>
 
     <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 0.5rem;">{{ curso.nombre }}</h1>
@@ -31,7 +36,7 @@
 
     {% for grado in grados %}
         <div class="grado-gab">
-            <h2 class="grado-gab__titulo">Grado {{ grado.numero }} — {{ grado.titulo }}</h2>
+            <h2 class="grado-gab__titulo">{% blocktrans with n=grado.numero titulo=grado.titulo %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</h2>
             <div class="grado-gab__lista">
                 {% for tema in grado.temas.all %}
                     {% if tema.activo %}
@@ -44,7 +49,7 @@
             </div>
         </div>
     {% empty %}
-        <p class="grado-gab__vacio">Este curso todavía no tiene grados.</p>
+        <p class="grado-gab__vacio">{% trans "Este curso todavía no tiene grados." %}</p>
     {% endfor %}
 </div>
 {% endblock %}

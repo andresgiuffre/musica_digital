@@ -1,5 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load i18n %}
+{% block title %}{% trans "Mis análisis anteriores" %}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_analizador %}is-active{% endblock %}
@@ -15,17 +17,17 @@
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
             </svg>
-            Volver
+            {% trans "Volver" %}
         </a>
     </div>
     <div style="text-align: center; width: 100%;">
-        <h1 style="margin-bottom: 0.5rem;">Mis análisis anteriores</h1>
-        <p style="color: var(--ink-soft);">Historial de partituras analizadas con el Analizador de Orquestación.</p>
+        <h1 style="margin-bottom: 0.5rem;">{% trans "Mis análisis anteriores" %}</h1>
+        <p style="color: var(--ink-soft);">{% trans "Historial de partituras analizadas con el Analizador de Orquestación." %}</p>
     </div>
 
     <div class="orquestador-tabs">
-        <a href="{% url 'orquestador_analizar' %}" class="orquestador-tab">Analizar</a>
-        <span class="orquestador-tab active">Mis análisis anteriores</span>
+        <a href="{% url 'orquestador_analizar' %}" class="orquestador-tab">{% trans "Analizar" %}</a>
+        <span class="orquestador-tab active">{% trans "Mis análisis anteriores" %}</span>
     </div>
 
     <div class="card">
@@ -35,21 +37,21 @@
                     <div class="historial-nombre">{{ analysis.name }}</div>
                     <div class="historial-fecha">{{ analysis.created_at|date:"d M Y, H:i" }}</div>
                 </div>
-                <a href="{% url 'orquestador_historial_detalle' analysis.id %}" class="historial-link">Ver detalle →</a>
+                <a href="{% url 'orquestador_historial_detalle' analysis.id %}" class="historial-link">{% trans "Ver detalle →" %}</a>
             </div>
         {% empty %}
-            <p style="color: var(--ink-soft); text-align: center;">Todavía no analizaste ninguna partitura.</p>
+            <p style="color: var(--ink-soft); text-align: center;">{% trans "Todavía no analizaste ninguna partitura." %}</p>
         {% endfor %}
     </div>
 
     {% if page_obj.has_other_pages %}
     <div class="historial-paginacion">
         {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}">← Anterior</a>
+            <a href="?page={{ page_obj.previous_page_number }}">{% trans "← Anterior" %}</a>
         {% endif %}
-        <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        <span>{% blocktrans with n=page_obj.number total=page_obj.paginator.num_pages %}Página {{ n }} de {{ total }}{% endblocktrans %}</span>
         {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}">Siguiente →</a>
+            <a href="?page={{ page_obj.next_page_number }}">{% trans "Siguiente →" %}</a>
         {% endif %}
     </div>
     {% endif %}

@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{{ game.display_name }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_entrenamiento %}is-active{% endblock %}
@@ -154,12 +156,15 @@
     <!-- Renderizado dinámicamente -->
 </div>
 
-<div id="debug-panel" style="display: none;">
-    <h3 style="margin-top:0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">🛠 Debug Sync</h3>
-    <div class="debug-row"><span>Compás:</span> <strong id="dbg-measure">0</strong></div>
-    <div class="debug-row"><span>Tiempo:</span> <strong id="dbg-beat">0</strong></div>
-    <div class="debug-row"><span>Nota(s):</span> <strong id="dbg-notes">-</strong></div>
-    <div class="debug-row"><span>Duración:</span> <strong id="dbg-duration">0</strong></div>
+<div id="debug-panel" style="display: none;"
+    data-txt-silencio="{% trans 'Silencio' %}"
+    data-txt-error-reproducir="{% trans 'Error al reproducir:' %}"
+    data-txt-lectura-completada="{% trans '✅ Lectura Completada' %}">
+    <h3 style="margin-top:0; color:#fff; border-bottom:1px solid #555; padding-bottom:5px;">🛠 {% trans "Debug Sync" %}</h3>
+    <div class="debug-row"><span>{% trans "Compás:" %}</span> <strong id="dbg-measure">0</strong></div>
+    <div class="debug-row"><span>{% trans "Tiempo:" %}</span> <strong id="dbg-beat">0</strong></div>
+    <div class="debug-row"><span>{% trans "Nota(s):" %}</span> <strong id="dbg-notes">-</strong></div>
+    <div class="debug-row"><span>{% trans "Duración:" %}</span> <strong id="dbg-duration">0</strong></div>
     <div class="debug-row"><span>Master TS:</span> <strong id="dbg-time">0.000</strong></div>
 </div>
 
@@ -168,13 +173,13 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver al entrenador
+        {% trans "Volver al entrenador" %}
     </a>
 
     <!-- Progress Bar -->
     <div class="progress-container" style="width: 100%; background: var(--surface); padding: 1rem; border-radius: 1rem; border: 1px solid var(--line-input); margin-bottom: 0;">
         <div class="progress-labels" style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 0.5rem; color: var(--ink); font-size: 0.9rem;">
-            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span>{% trans "Nivel" %} <span id="ui-level">{{ score.level_info.level }}</span></span>
             <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
         </div>
         <div class="progress-track" style="width: 100%; background: var(--bg); height: 8px; border-radius: 4px; overflow: hidden;">
@@ -184,35 +189,35 @@
 
     <div class="toolbar" style="margin-bottom: -1rem;">
         <div class="controls-group">
-            <h2 style="margin: 0; color: var(--primary);">Nivel:</h2>
+            <h2 style="margin: 0; color: var(--primary);">{% trans "Nivel:" %}</h2>
             <select id="level-selector" class="select-styled" onchange="window.location.href='?level=' + this.value">
                 {% for p in pieces %}
                     <option value="{{ p.difficulty }}" {% if p.difficulty == current_level %}selected{% endif %}>
-                        Nivel {{ p.difficulty }}: {{ p.title }}
+                        {% blocktrans with n=p.difficulty titulo=p.title %}Nivel {{ n }}: {{ titulo }}{% endblocktrans %}
                     </option>
                 {% endfor %}
             </select>
         </div>
         <div>
-            <p style="margin:0; font-weight:bold; color:var(--ink-soft);">Firma: {{ piece.time_signature }} | Tonalidad: {{ piece.key_signature }}</p>
+            <p style="margin:0; font-weight:bold; color:var(--ink-soft);">{% blocktrans with firma=piece.time_signature tonalidad=piece.key_signature %}Firma: {{ firma }} | Tonalidad: {{ tonalidad }}{% endblocktrans %}</p>
         </div>
     </div>
 
     <div class="toolbar">
         <div class="controls-group">
-            <button id="btn-play" class="btn-control">▶ Reproducir</button>
-            <button id="btn-pause" class="btn-control" disabled>⏸ Pausar</button>
-            <button id="btn-stop" class="btn-control" disabled>⏹ Detener</button>
+            <button id="btn-play" class="btn-control">▶ {% trans "Reproducir" %}</button>
+            <button id="btn-pause" class="btn-control" disabled>⏸ {% trans "Pausar" %}</button>
+            <button id="btn-stop" class="btn-control" disabled>⏹ {% trans "Detener" %}</button>
         </div>
-        
+
         <div class="controls-group">
-            <button id="btn-debug" class="btn-control" style="background: #555;">🐛 Debug</button>
-            <label style="font-weight: bold; color: var(--ink-soft);">Velocidad:</label>
+            <button id="btn-debug" class="btn-control" style="background: #555;">🐛 {% trans "Debug" %}</button>
+            <label style="font-weight: bold; color: var(--ink-soft);">{% trans "Velocidad:" %}</label>
             <select id="tempo-selector" class="select-styled">
-                <option value="0.5">50% Lento</option>
-                <option value="0.75">75% Práctica</option>
-                <option value="1.0" selected>100% Original</option>
-                <option value="1.25">125% Rápido</option>
+                <option value="0.5">50% {% trans "Lento" %}</option>
+                <option value="0.75">75% {% trans "Práctica" %}</option>
+                <option value="1.0" selected>100% {% trans "Original" %}</option>
+                <option value="1.25">125% {% trans "Rápido" %}</option>
             </select>
         </div>
     </div>
@@ -238,6 +243,7 @@
     const tempoSelector = document.getElementById('tempo-selector');
     const conductorWidget = document.getElementById('conductor-widget');
     const debugPanel = document.getElementById('debug-panel');
+    const i18nLectura = debugPanel.dataset;
 
     let osmd = null;
     let baseBpm = 100;
@@ -421,7 +427,7 @@
                             let durBeats = (evt.maxDuration * 4).toFixed(2);
                             document.getElementById('dbg-duration').innerText = `${durBeats} beats`;
                             let pitchStrs = evt.notes.map(n => n.pitch).join(', ');
-                            document.getElementById('dbg-notes').innerText = pitchStrs || 'Silencio';
+                            document.getElementById('dbg-notes').innerText = pitchStrs || i18nLectura.txtSilencio;
                             document.getElementById('dbg-time').innerText = time.toFixed(3);
                             
                         }, time);
@@ -507,7 +513,7 @@
                         
                         if (window.showTheoryModal) {
                             setTimeout(() => {
-                                window.showTheoryModal('✅ Lectura Completada', explanation, () => {});
+                                window.showTheoryModal(i18nLectura.txtLecturaCompletada, explanation, () => {});
                             }, 500);
                         }
                     }, time);
@@ -526,7 +532,7 @@
             }
         } catch (error) {
             console.error("Playback error:", error);
-            alert("Error al reproducir: " + error.message);
+            alert(i18nLectura.txtErrorReproducir + ' ' + error.message);
         }
     }
 

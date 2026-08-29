@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}MIDI Trainer Hub{% endblock %}
+{% load i18n %}
+{% block title %}{% trans "Estudio MIDI" %}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 
@@ -57,17 +58,26 @@
 {% endblock %}
 
 {% block content %}
-<div class="envoltorio-gab" style="padding-top: 1.75rem; padding-bottom: 2.5rem;">
+<div id="midi-page-root" class="envoltorio-gab" style="padding-top: 1.75rem; padding-bottom: 2.5rem;"
+    data-txt-ninguna="{% trans 'Ninguna' %}"
+    data-txt-intervalo="{% trans 'Intervalo' %}"
+    data-txt-nota-simple="{% trans 'Nota simple' %}"
+    data-txt-tambien="{% trans 'También:' %}"
+    data-txt-acorde-no-comun="{% trans 'Acorde no común' %}"
+    data-txt-tocar-tecla="{% trans 'Tocá una tecla en tu controlador' %}"
+    data-txt-sin-dispositivo="{% trans 'Ningún dispositivo conectado' %}"
+    data-txt-sin-webmidi="{% trans 'Tu navegador no soporta Web MIDI API' %}"
+    data-txt-permiso-denegado="{% trans 'Permiso MIDI denegado' %}">
     <a href="{% url 'dashboard' %}" class="volver-gab">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver
+        {% trans "Volver" %}
     </a>
 
-    <div class="eyebrow-gab" style="margin-bottom: 0.5rem;">Estudio MIDI</div>
-    <h1 style="font-size: clamp(2rem, 4vw, 2.75rem); margin-bottom: 0.5rem;">Tu teclado, <em>en vivo</em></h1>
-    <p style="color: var(--ink-soft); max-width: 46ch; margin-bottom: 1.75rem;">Conectá tu controlador y empezá a interactuar en tiempo real.</p>
+    <div class="eyebrow-gab" style="margin-bottom: 0.5rem;">{% trans "Estudio MIDI" %}</div>
+    <h1 style="font-size: clamp(2rem, 4vw, 2.75rem); margin-bottom: 0.5rem;">{% blocktrans %}Tu teclado, <em>en vivo</em>{% endblocktrans %}</h1>
+    <p style="color: var(--ink-soft); max-width: 46ch; margin-bottom: 1.75rem;">{% trans "Conectá tu controlador y empezá a interactuar en tiempo real." %}</p>
 
     <!-- Estado de Conexión MIDI -->
     <div class="midi-gab__panel midi-gab__estado">
@@ -76,15 +86,15 @@
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
             </div>
             <div>
-                <h3 style="font-size: 1.1875rem; margin: 0 0 0.4rem;">Controlador MIDI</h3>
+                <h3 style="font-size: 1.1875rem; margin: 0 0 0.4rem;">{% trans "Controlador MIDI" %}</h3>
                 <select id="midi-device-select" class="midi-gab__device">
-                    <option>Buscando dispositivos...</option>
+                    <option>{% trans "Buscando dispositivos..." %}</option>
                 </select>
             </div>
         </div>
         <div>
             <button id="btn-request-midi" class="btn-gab btn-gab--primary hidden">
-                Permitir Acceso MIDI
+                {% trans "Permitir Acceso MIDI" %}
             </button>
         </div>
     </div>
@@ -92,41 +102,41 @@
     <div class="midi-gab__paneles">
         <!-- Monitor de Notas -->
         <div class="midi-gab__panel">
-            <div class="eyebrow-gab" style="font-style: normal; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin-bottom: 0.9rem;">Monitor MIDI</div>
+            <div class="eyebrow-gab" style="font-style: normal; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin-bottom: 0.9rem;">{% trans "Monitor MIDI" %}</div>
             <div id="midi-monitor-display" class="midi-gab__monitor">
-                <p style="width: 100%; text-align: center; margin-top: 2rem; color: var(--ink-soft);">Tocá una tecla en tu controlador</p>
+                <p style="width: 100%; text-align: center; margin-top: 2rem; color: var(--ink-soft);">{% trans "Tocá una tecla en tu controlador" %}</p>
             </div>
         </div>
 
         <!-- Análisis Armónico -->
         <div class="midi-gab__panel midi-gab__armonia">
-            <div class="eyebrow-gab" style="font-style: normal; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--primary); width: 100%; text-align: left; margin-bottom: 0.4rem;">Análisis Armónico</div>
+            <div class="eyebrow-gab" style="font-style: normal; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--primary); width: 100%; text-align: left; margin-bottom: 0.4rem;">{% trans "Análisis Armónico" %}</div>
             <h2 id="detected-chord-name" class="midi-gab__acorde">-</h2>
-            <p style="color: var(--ink-soft); margin: 0;">Notas: <span id="detected-chord-notes" style="font-weight: 600; color: var(--ink); font-family: var(--font-body);">Ninguna</span></p>
+            <p style="color: var(--ink-soft); margin: 0;">{% trans "Notas:" %} <span id="detected-chord-notes" style="font-weight: 600; color: var(--ink); font-family: var(--font-body);">{% trans "Ninguna" %}</span></p>
             <p style="font-size: 0.8125rem; color: var(--ink-soft); margin: 0.3rem 0 0;" id="detected-chord-aliases"></p>
         </div>
     </div>
 
     <!-- Juegos -->
     <div>
-        <h2 style="font-size: 1.375rem; margin-bottom: 1.1rem; border-bottom: 1px solid var(--line); padding-bottom: 0.75rem;">Juegos y Ejercicios</h2>
+        <h2 style="font-size: 1.375rem; margin-bottom: 1.1rem; border-bottom: 1px solid var(--line); padding-bottom: 0.75rem;">{% trans "Juegos y Ejercicios" %}</h2>
         <div class="midi-gab__grid">
             <!-- Juego: Identificación de Acordes -->
             <a href="{% url 'midi_game_chords' %}" class="midi-gab__tile">
                 <div class="midi-gab__tile-icono">
                     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
                 </div>
-                <h3>Identificación de Acordes</h3>
-                <p>Practicá tocando los acordes que te pida la plataforma lo más rápido posible.</p>
-                <span class="midi-gab__tile-badge">Jugar</span>
+                <h3>{% trans "Identificación de Acordes" %}</h3>
+                <p>{% trans "Practicá tocando los acordes que te pida la plataforma lo más rápido posible." %}</p>
+                <span class="midi-gab__tile-badge">{% trans "Jugar" %}</span>
             </a>
 
             <div class="midi-gab__tile disabled">
                 <div class="midi-gab__tile-icono" style="background: var(--line-soft); color: var(--ink-soft);">
                     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 </div>
-                <h3>Progresiones (Próximamente)</h3>
-                <p>Entrená tocando progresiones armónicas populares en diferentes tonalidades.</p>
+                <h3>{% trans "Progresiones (Próximamente)" %}</h3>
+                <p>{% trans "Entrená tocando progresiones armónicas populares en diferentes tonalidades." %}</p>
             </div>
         </div>
     </div>
@@ -152,6 +162,9 @@
 
     let midiInputs = [];
     let selectedInputId = null;
+
+    const pageRoot = document.getElementById('midi-page-root');
+    const i18nMidi = pageRoot.dataset;
 
     const statusIcon = document.getElementById('midi-status-icon');
     const deviceSelect = document.getElementById('midi-device-select');
@@ -241,7 +254,7 @@
 
     function renderMonitor() {
         if(activeNotes.size === 0) {
-            monitorDisplay.innerHTML = `<p style="width: 100%; text-align: center; margin-top: 2rem; color: var(--ink-soft);">Tocá una tecla en tu controlador</p>`;
+            monitorDisplay.innerHTML = `<p style="width: 100%; text-align: center; margin-top: 2rem; color: var(--ink-soft);">${i18nMidi.txtTocarTecla}</p>`;
             return;
         }
 
@@ -265,7 +278,7 @@
         if(sortedPitches.length === 0) {
             chordNameEl.innerText = "-";
             chordNameEl.style.color = "var(--ink)";
-            chordNotesEl.innerText = "Ninguna";
+            chordNotesEl.innerText = i18nMidi.txtNinguna;
             chordAliasesEl.innerText = "";
             return;
         }
@@ -277,7 +290,7 @@
             chordNameEl.innerText = "?";
             chordNameEl.style.color = "var(--ink-soft)";
             chordNotesEl.innerText = noteNames.join(" - ");
-            chordAliasesEl.innerText = sortedPitches.length === 2 ? "Intervalo" : "Nota simple";
+            chordAliasesEl.innerText = sortedPitches.length === 2 ? i18nMidi.txtIntervalo : i18nMidi.txtNotaSimple;
             return;
         }
 
@@ -291,12 +304,12 @@
                 chordNameEl.style.color = "var(--green)";
                 chordNotesEl.innerText = noteNames.join(" - ");
                 if(detected.length > 1) {
-                    chordAliasesEl.innerText = "También: " + detected.slice(1).join(", ");
+                    chordAliasesEl.innerText = i18nMidi.txtTambien + " " + detected.slice(1).join(", ");
                 } else {
                     chordAliasesEl.innerText = "";
                 }
             } else {
-                chordNameEl.innerText = "Acorde no común";
+                chordNameEl.innerText = i18nMidi.txtAcordeNoComun;
                 chordNameEl.style.color = "var(--ochre)";
                 chordNotesEl.innerText = noteNames.join(" - ");
                 chordAliasesEl.innerText = "";
@@ -310,7 +323,7 @@
         if (navigator.requestMIDIAccess) {
             navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
         } else {
-            updateConnectionUI(false, "Tu navegador no soporta Web MIDI API");
+            updateConnectionUI(false, i18nMidi.txtSinWebmidi);
         }
     }
 
@@ -367,12 +380,12 @@
             };
         } else {
             updateConnectionUI(false);
-            deviceSelect.innerHTML = '<option>Ningún dispositivo conectado</option>';
+            deviceSelect.innerHTML = `<option>${i18nMidi.txtSinDispositivo}</option>`;
         }
     }
 
     function onMIDIFailure() {
-        updateConnectionUI(false, "Permiso MIDI denegado");
+        updateConnectionUI(false, i18nMidi.txtPermisoDenegado);
     }
 
     // Inicializar al cargar

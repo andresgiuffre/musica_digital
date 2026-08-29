@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{{ game.display_name }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_entrenamiento %}is-active{% endblock %}
@@ -46,18 +48,22 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver al entrenador
+        {% trans "Volver al entrenador" %}
     </a>
 
     <div style="text-align: center;">
-        <h2 style="margin-bottom: 0.5rem;">{{ game.name }}</h2>
-        <div id="feedback-msg"></div>
+        <h2 style="margin-bottom: 0.5rem;">{{ game.display_name }}</h2>
+        <div id="feedback-msg" data-lang="{{ LANGUAGE_CODE }}" data-txt-correcto="{% trans '¡Correcto!' %}"
+            data-txt-incorrecto="{% trans 'Incorrecto. Seleccionaste' %}"
+            data-txt-pero-era="{% trans 'pero era' %}"
+            data-txt-modal-correcto="{% trans '✅ ¡Correcto!' %}"
+            data-txt-modal-incorrecto="{% trans '❌ Incorrecto (Era' %}"></div>
     </div>
 
     <!-- Progress Bar -->
     <div class="progress-container">
         <div class="progress-labels">
-            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span>{% trans "Nivel" %} <span id="ui-level">{{ score.level_info.level }}</span></span>
             <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
         </div>
         <div class="progress-track">
@@ -66,36 +72,36 @@
     </div>
 
     <div class="status-bar" style="align-items: center;">
-        <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+        <div>🔥 {% trans "Racha:" %} <span id="streak-counter">{{ score.current_streak }}</span></div>
         <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem;">
             <input type="checkbox" id="autoplay-audio" style="cursor: pointer; width: 1.1rem; height: 1.1rem;">
-            <label for="autoplay-audio" style="cursor: pointer; font-weight: 600; user-select: none;">🔊 Auto-reproducir</label>
+            <label for="autoplay-audio" style="cursor: pointer; font-weight: 600; user-select: none;">🔊 {% trans "Auto-reproducir" %}</label>
         </div>
     </div>
 
     <div style="position: relative;">
         <div id="staff-container"></div>
-        <button id="btn-replay-note" class="btn" style="position: absolute; bottom: 12px; right: 12px; padding: 0; border-radius: 50%; background: var(--surface); border: 2px solid var(--line-input); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; z-index: 10; font-size: 1.25rem; transition: all 0.2s;" title="Escuchar nota" onmouseover="this.style.borderColor='var(--primary)'; this.style.transform='scale(1.05)';" onmouseout="this.style.borderColor='var(--line-input)'; this.style.transform='scale(1)';">
+        <button id="btn-replay-note" class="btn" style="position: absolute; bottom: 12px; right: 12px; padding: 0; border-radius: 50%; background: var(--surface); border: 2px solid var(--line-input); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; z-index: 10; font-size: 1.25rem; transition: all 0.2s;" title="{% trans 'Escuchar nota' %}" onmouseover="this.style.borderColor='var(--primary)'; this.style.transform='scale(1.05)';" onmouseout="this.style.borderColor='var(--line-input)'; this.style.transform='scale(1)';">
             🔊
         </button>
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%; max-width: 600px;">
         <div class="accidental-grid">
-            <button class="btn-input btn-acc" data-acc="n">Nat</button>
-            <button class="btn-input btn-acc" data-acc="#">♯ Sost</button>
-            <button class="btn-input btn-acc" data-acc="b">♭ Bemol</button>
-            <button class="btn-input btn-acc" data-acc="##">𝄪 Dob S</button>
-            <button class="btn-input btn-acc" data-acc="bb">𝄫 Dob B</button>
+            <button class="btn-input btn-acc" data-acc="n">{% trans "Nat" %}</button>
+            <button class="btn-input btn-acc" data-acc="#">♯ {% if LANGUAGE_CODE == 'en' %}Sharp{% else %}Sost{% endif %}</button>
+            <button class="btn-input btn-acc" data-acc="b">♭ {% if LANGUAGE_CODE == 'en' %}Flat{% else %}Bemol{% endif %}</button>
+            <button class="btn-input btn-acc" data-acc="##">𝄪 {% if LANGUAGE_CODE == 'en' %}Dbl Sharp{% else %}Dob S{% endif %}</button>
+            <button class="btn-input btn-acc" data-acc="bb">𝄫 {% if LANGUAGE_CODE == 'en' %}Dbl Flat{% else %}Dob B{% endif %}</button>
         </div>
         <div class="notes-grid">
-            <button class="btn-input btn-note" data-note="c">Do</button>
-            <button class="btn-input btn-note" data-note="d">Re</button>
-            <button class="btn-input btn-note" data-note="e">Mi</button>
-            <button class="btn-input btn-note" data-note="f">Fa</button>
-            <button class="btn-input btn-note" data-note="g">Sol</button>
-            <button class="btn-input btn-note" data-note="a">La</button>
-            <button class="btn-input btn-note" data-note="b">Si</button>
+            <button class="btn-input btn-note" data-note="c">{% if LANGUAGE_CODE == 'en' %}C{% else %}Do{% endif %}</button>
+            <button class="btn-input btn-note" data-note="d">{% if LANGUAGE_CODE == 'en' %}D{% else %}Re{% endif %}</button>
+            <button class="btn-input btn-note" data-note="e">{% if LANGUAGE_CODE == 'en' %}E{% else %}Mi{% endif %}</button>
+            <button class="btn-input btn-note" data-note="f">{% if LANGUAGE_CODE == 'en' %}F{% else %}Fa{% endif %}</button>
+            <button class="btn-input btn-note" data-note="g">{% if LANGUAGE_CODE == 'en' %}G{% else %}Sol{% endif %}</button>
+            <button class="btn-input btn-note" data-note="a">{% if LANGUAGE_CODE == 'en' %}A{% else %}La{% endif %}</button>
+            <button class="btn-input btn-note" data-note="b">{% if LANGUAGE_CODE == 'en' %}B{% else %}Si{% endif %}</button>
         </div>
     </div>
 </div>
@@ -108,6 +114,7 @@
         const VF = Vex.Flow;
         const div = document.getElementById("staff-container");
         const feedbackMsg = document.getElementById("feedback-msg");
+        const i18nNotas = feedbackMsg.dataset;
         const autoPlayCheck = document.getElementById("autoplay-audio");
         const btnReplay = document.getElementById("btn-replay-note");
         
@@ -138,7 +145,9 @@
             return { min: 3, max: 6 }; // C3 to B6
         };
 
-        const noteNames = { 'c': 'Do', 'd': 'Re', 'e': 'Mi', 'f': 'Fa', 'g': 'Sol', 'a': 'La', 'b': 'Si' };
+        const noteNames = i18nNotas.lang === 'en'
+            ? { 'c': 'C', 'd': 'D', 'e': 'E', 'f': 'F', 'g': 'G', 'a': 'A', 'b': 'B' }
+            : { 'c': 'Do', 'd': 'Re', 'e': 'Mi', 'f': 'Fa', 'g': 'Sol', 'a': 'La', 'b': 'Si' };
         const accNames = { 'n': '', '#': '♯', 'b': '♭', '##': '𝄪', 'bb': '𝄫' };
         
         let currentNoteStr = ""; 
@@ -251,11 +260,11 @@
 
             if (isCorrect) {
                 div.classList.add("flash-correct");
-                feedbackMsg.innerText = "¡Correcto!";
+                feedbackMsg.innerText = i18nNotas.txtCorrecto;
                 feedbackMsg.style.color = "var(--green)";
             } else {
                 div.classList.add("flash-incorrect");
-                feedbackMsg.innerText = "Incorrecto. Seleccionaste " + guessedFullName + " pero era " + expectedFullName + ".";
+                feedbackMsg.innerText = i18nNotas.txtIncorrecto + " " + guessedFullName + " " + i18nNotas.txtPeroEra + " " + expectedFullName + ".";
                 feedbackMsg.style.color = "var(--danger)";
             }
 
@@ -293,7 +302,7 @@
 
             const mode = window.getAppMode ? window.getAppMode() : 'eval';
             const explanation = TheoryKB.getNoteExplanation(currentNoteStr, currentAccidental, mode);
-            const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto (Era ' + expectedFullName + ')';
+            const title = isCorrect ? i18nNotas.txtModalCorrecto : i18nNotas.txtModalIncorrecto + ' ' + expectedFullName + ')';
             
             if (window.showTheoryModal) {
                 setTimeout(() => {

@@ -30,7 +30,7 @@ class GradoInline(admin.TabularInline):
 
 @admin.register(Curso)
 class CursoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'activo')
+    list_display = ('nombre', 'idioma', 'codigo', 'activo')
     list_editable = ('activo',)
     inlines = [GradoInline]
 

@@ -396,6 +396,62 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
 }
 .navbar-gab__right { display: flex; align-items: center; gap: 1rem; }
 
+/* Dropdown custom, no <select> nativo -- los emoji de bandera (pares de
+   "regional indicator") no renderizan como bandera en Windows sin fuente
+   color-emoji completa, se ven como texto "ES"/"GB" (confirmado con una
+   captura real antes de construir esto, no asumido). Mismo patrón de
+   trigger+lista que .navbar-gab__menu (usuario), banderas propias en SVG
+   inline -- render 100% controlado, no depende de la fuente del SO. */
+.navbar-gab__lang { position: relative; }
+.navbar-gab__lang-trigger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.3rem 0.4rem;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--ink-soft);
+}
+.navbar-gab__lang-trigger:hover { color: var(--ink); background: var(--primary-tint, transparent); }
+.navbar-gab__lang-trigger svg { flex-shrink: 0; border-radius: 2px; }
+.navbar-gab__lang-code { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em; }
+.navbar-gab__lang-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 0.6rem);
+    right: 0;
+    min-width: 150px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-window);
+    padding: 0.4rem;
+    flex-direction: column;
+    z-index: 150;
+}
+.navbar-gab__lang.is-open .navbar-gab__lang-list { display: flex; }
+.navbar-gab__lang-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    width: 100%;
+}
+.navbar-gab__lang-item svg { flex-shrink: 0; border-radius: 2px; }
+.navbar-gab__lang-item:hover { background: var(--primary-tint); color: var(--primary); }
+.navbar-gab__lang-item.is-active { color: var(--primary); font-weight: 600; }
+
 .navbar-gab__util {
     display: flex;
     align-items: center;

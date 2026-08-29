@@ -5,7 +5,15 @@ from .storage import EncryptedFileSystemStorage
 class Game(models.Model):
     slug = models.SlugField(unique=True, help_text="Tiene que coincidir con el slug ya cableado en las URLs del Entrenador -- crear un Game nuevo acá no crea una página nueva sola.")
     name = models.CharField(max_length=100)
+    # name_en, no una fila de Game separada por idioma (a diferencia de Curso):
+    # Score/Attempt tienen FK directa a este Game, y el progreso de un usuario
+    # tiene que seguir siendo EL MISMO juego sin importar qué idioma tenga
+    # activo -- duplicar filas por idioma (el patrón de Curso) rompería esa
+    # relación. Un campo de texto extra en la misma fila resuelve la
+    # traducción del nombre sin tocar ninguna FK existente.
+    name_en = models.CharField(max_length=100, blank=True, help_text="Nombre en inglés. Si queda vacío, se muestra el español (name) también con idioma inglés activo.")
     description = models.TextField()
+    description_en = models.TextField(blank=True, help_text="Descripción en inglés. Si queda vacío, se muestra el español (description) también con idioma inglés activo.")
     order = models.IntegerField(default=1)
     recommended_accuracy = models.IntegerField(default=0)
     recommended_attempts = models.IntegerField(default=0)
@@ -16,6 +24,20 @@ class Game(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def display_name(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.name_en:
+            return self.name_en
+        return self.name
+
+    @property
+    def display_description(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.description_en:
+            return self.description_en
+        return self.description
 
 class Score(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='scores')
@@ -485,16 +507,32 @@ class FragmentoOrquestacion(models.Model):
 
 
 class Curso(models.Model):
+    IDIOMA_CHOICES = [
+        ('es', 'Español'),
+        ('en', 'English'),
+    ]
+
     nombre = models.CharField(max_length=200)
     descripcion_corta = models.CharField(max_length=300, blank=True)
     activo = models.BooleanField(default=True, help_text="Solo los cursos activos aparecen listados para los usuarios.")
+    # Cursos NO se traduce con gettext -- es contenido curado a mano, cada
+    # idioma es un árbol completo separado (Grado/Tema/BloqueContenido
+    # cuelgan de este Curso y heredan su idioma transitivamente, sin campo
+    # propio en ninguno de esos tres modelos).
+    idioma = models.CharField(max_length=2, choices=IDIOMA_CHOICES, default='es')
+    codigo = models.SlugField(max_length=140, help_text=(
+        "Identificador estable compartido entre versiones de idioma del mismo curso "
+        "(ej. 'teoria-musical'). NO se traduce -- solo agrupa variantes de idioma "
+        "del mismo curso entre sí."
+    ))
 
     class Meta:
+        unique_together = ('codigo', 'idioma')
         verbose_name = "Curso"
         verbose_name_plural = "Cursos"
 
     def __str__(self):
-        return self.nombre
+        return f"{self.nombre} ({self.idioma})"
 
 
 class Grado(models.Model):

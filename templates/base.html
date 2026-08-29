@@ -1,7 +1,8 @@
 {% load static %}
+{% load i18n %}
 {% load gabinete_extras %}
 <!DOCTYPE html>
-<html lang="es" {% block html_attrs %}{% endblock %}>
+<html lang="{% block html_lang %}{{ LANGUAGE_CODE }}{% endblock %}" {% block html_attrs %}{% endblock %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -27,7 +28,7 @@
             } catch (e) {}
         })();
     </script>
-    <title>Música Digital</title>
+    <title>{% block title %}Música Digital{% endblock %}</title>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,500&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- Tipografía del rediseño "Gabinete de estudio" (navbar/footer globales +
          pantallas ya migradas) -- coexiste con Fraunces/Work Sans de arriba,
@@ -73,7 +74,113 @@
             },
         };
     </script>
-    <script src="{% static 'js/teoria.js' %}?v=2"></script>
+    <script type="application/json" id="teoria-i18n-data">
+    {
+        "notesMap": {% if LANGUAGE_CODE == 'en' %}{"c": "C", "d": "D", "e": "E", "f": "F", "g": "G", "a": "A", "b": "B"}{% else %}{"c": "Do", "d": "Re", "e": "Mi", "f": "Fa", "g": "Sol", "a": "La", "b": "Si"}{% endif %},
+        "accMap": {
+            "n": "{% trans 'natural' %}",
+            "#": "{% trans 'sostenido' %}",
+            "b": "{% trans 'bemol' %}",
+            "##": "{% trans 'doble sostenido' %}",
+            "bb": "{% trans 'doble bemol' %}"
+        },
+        "qualityMap": {
+            "M": "{% trans 'Mayor' %}",
+            "m": "{% trans 'Menor' %}",
+            "J": "{% trans 'Justa' %}",
+            "A": "{% trans 'Aumentada' %}",
+            "d": "{% trans 'Disminuida' %}",
+            "AA": "{% trans 'Doble Aumentada' %}",
+            "dd": "{% trans 'Doble Disminuida' %}"
+        },
+        "intervalMap": {
+            "2": "{% trans 'Segunda' %}",
+            "3": "{% trans 'Tercera' %}",
+            "4": "{% trans 'Cuarta' %}",
+            "5": "{% trans 'Quinta' %}",
+            "6": "{% trans 'Sexta' %}",
+            "7": "{% trans 'Séptima' %}",
+            "8": "{% trans 'Octava' %}"
+        },
+        "staffPositions": {
+            "c/3": "{% trans 'primera línea adicional inferior (octava 3)' %}",
+            "d/3": "{% trans 'espacio debajo de primera línea adicional inferior' %}",
+            "e/3": "{% trans 'tercera línea adicional inferior' %}",
+            "f/3": "{% trans 'espacio debajo de tercera línea adicional inferior' %}",
+            "g/3": "{% trans 'segunda línea adicional inferior' %}",
+            "a/3": "{% trans 'espacio debajo de segunda línea adicional inferior' %}",
+            "b/3": "{% trans 'espacio debajo de la primera línea adicional inferior' %}",
+            "c/4": "{% trans 'primera línea adicional inferior' %}",
+            "d/4": "{% trans 'espacio justo debajo del pentagrama' %}",
+            "e/4": "{% trans 'primera línea del pentagrama' %}",
+            "f/4": "{% trans 'primer espacio del pentagrama' %}",
+            "g/4": "{% trans 'segunda línea del pentagrama' %}",
+            "a/4": "{% trans 'segundo espacio del pentagrama' %}",
+            "b/4": "{% trans 'tercera línea del pentagrama' %}",
+            "c/5": "{% trans 'tercer espacio del pentagrama' %}",
+            "d/5": "{% trans 'cuarta línea del pentagrama' %}",
+            "e/5": "{% trans 'cuarto espacio del pentagrama' %}",
+            "f/5": "{% trans 'quinta línea del pentagrama' %}",
+            "g/5": "{% trans 'espacio justo sobre el pentagrama' %}",
+            "a/5": "{% trans 'primera línea adicional superior' %}",
+            "b/5": "{% trans 'espacio sobre primera línea adicional superior' %}",
+            "c/6": "{% trans 'segunda línea adicional superior' %}"
+        },
+        "fueraDeRangoCentral": "{% trans 'fuera del rango central' %}",
+        "note": {
+            "ubicacion": "{% blocktrans %}La nota {name} se encuentra en la <strong>{position}</strong> en clave de Sol. {% endblocktrans %}",
+            "sostenidoEleva": "{% blocktrans %}<br><br>El sostenido eleva la altura un semitono respecto de {name} natural.{% endblocktrans %}",
+            "bemolReduce": "{% blocktrans %}<br><br>El bemol reduce la altura un semitono respecto de {name} natural.{% endblocktrans %}",
+            "dobleSostenidoEleva": "{% blocktrans %}<br><br>El doble sostenido eleva la altura dos semitonos (un tono entero) respecto de {name} natural.{% endblocktrans %}",
+            "dobleBemolReduce": "{% blocktrans %}<br><br>El doble bemol reduce la altura dos semitonos (un tono entero) respecto de {name} natural.{% endblocktrans %}",
+            "sinAlteraciones": "{% trans '<br><br>Al ser una nota natural, no tiene alteraciones.' %}",
+            "observacion": "{% trans '💡 <strong>Observación Teórica:</strong> Cada línea y espacio del pentagrama representa una nota natural consecutiva. Las alteraciones (♯, ♭) se colocan a la izquierda de la nota para modificar su altura sin cambiar su posición gráfica en el pentagrama.' %}"
+        },
+        "interval": {
+            "distanciaDiatonica": "{% trans 'Distancia diatónica:' %}",
+            "semitonosExactos": "{% trans 'Semitonos exactos:' %}",
+            "reglaMayor": "{% trans 'Es un intervalo mayor estándar, originado de la escala mayor natural.' %}",
+            "reglaJusta": "{% trans 'Es un intervalo justo (perfecto), muy consonante y fundamental en la armonía.' %}",
+            "reglaMenor": "{% blocktrans %}Una {intervalo} Menor se obtiene reduciendo un semitono respecto de una Mayor.{% endblocktrans %}",
+            "reglaAumentada": "{% blocktrans %}Se obtiene elevando un semitono respecto de una {ref}.{% endblocktrans %}",
+            "reglaDisminuida": "{% blocktrans %}Se obtiene reduciendo un semitono respecto de una {ref}.{% endblocktrans %}",
+            "refJusta": "{% trans 'Justa' %}",
+            "refMayor": "{% trans 'Mayor' %}",
+            "refMenor": "{% trans 'Menor' %}",
+            "tritono": "{% trans 'También es conocida como <strong>Tritono</strong>, dividiendo la octava exactamente a la mitad.' %}",
+            "tip5J": "{% trans 'Suena muy estable y abierto, como el comienzo del tema de Star Wars o Twinkle Twinkle.' %}",
+            "tip4J": "{% trans 'Suena estable pero con una ligera tensión que pide resolver, típico del himno de bodas.' %}",
+            "tip3m": "{% trans 'Tiene un carácter triste o melancólico.' %}",
+            "tip3M": "{% trans 'Tiene un carácter brillante y alegre.' %}",
+            "tip2m": "{% trans 'Es sumamente tenso y disonante, como la melodía de Tiburón.' %}",
+            "tip6M": "{% trans 'Suena muy melódico y romántico (ej. My Bonnie Lies Over the Ocean).' %}",
+            "tipTritono": "{% trans 'Suena inestable, oscuro y disonante, propio del tritono (Los Simpson intro).' %}",
+            "tip8": "{% trans 'Ambas notas suenan como la misma pero a diferente altura (octava).' %}",
+            "consejoAuditivo": "{% trans '🎧 <em>Consejo Auditivo:</em>' %}",
+            "observacion": "{% trans '💡 <strong>Observación Teórica:</strong> Los intervalos se definen por dos componentes: su número (distancia diatónica contando el nombre de las notas) y su calidad (ajuste fino en semitonos alterando esas notas).' %}"
+        },
+        "melody": {
+            "intercambio23": "{% trans 'La segunda y tercera nota fueron intercambiadas.' %}",
+            "intercambio13": "{% trans 'La primera y tercera nota fueron intercambiadas.' %}",
+            "primerasDosOk": "{% trans 'Acertaste las dos primeras notas, pero fallaste en la última.' %}",
+            "primeraOk": "{% trans 'La primera nota fue correcta, pero la dirección o el salto de la melodía posterior fue diferente.' %}",
+            "formaDiferente": "{% trans 'La melodía completa tenía una forma o contorno diferente al que elegiste.' %}",
+            "analisisError": "{% trans 'Análisis del error:' %}",
+            "consejo": "{% trans '💡 <strong>Consejo:</strong> Presta atención a la forma de la melodía (si sube, si baja, o si repite la nota) antes de intentar identificar las notas exactas. Puedes guiarte dibujando la curva en el aire con tu mano mientras escuchas.' %}"
+        },
+        "reading": {
+            "negras": "{% trans 'negras' %}",
+            "corcheas": "{% trans 'corcheas' %}",
+            "blancas": "{% trans 'blancas' %}",
+            "compas": "{% trans 'Compás:' %}",
+            "duracionTotalLabel": "{% trans 'Duración Total Reproducida:' %}",
+            "duracionTotalValor": "{% blocktrans %}{totalBeats} tiempos{% endblocktrans %}",
+            "regla": "{% blocktrans %}El compás de {timeSignature} indica que hay {beatsPerMeasure} tiempos por compás, y la unidad de tiempo es equivalente a {beatUnit}.{% endblocktrans %}",
+            "observacion": "{% trans '💡 <strong>Observación Teórica:</strong> El número superior del compás (numerador) indica la cantidad de tiempos. El inferior (denominador) indica la figura que vale un tiempo (4 = negra, 8 = corchea, 2 = blanca).' %}"
+        }
+    }
+    </script>
+    <script src="{% static 'js/teoria.js' %}?v=3"></script>
     <script src="{% static 'js/audio_engine.js' %}?v=4"></script>
     <style>
         /* ============================================================
@@ -346,62 +453,106 @@
                 </a>
                 {% if user.is_authenticated %}
                 <div class="navbar-gab__links">
-                    <a href="{% url 'dashboard' %}" class="navbar-gab__link {% block nav_active_panel %}{% endblock %}">Panel</a>
-                    <a href="{% url 'biblioteca_list' %}" class="navbar-gab__link {% block nav_active_biblioteca %}{% endblock %}">Biblioteca</a>
-                    <a href="{% url 'entrenador_index' %}" class="navbar-gab__link {% block nav_active_entrenamiento %}{% endblock %}">Entrenamiento</a>
-                    <a href="{% url 'orquestador_analizar' %}" class="navbar-gab__link {% block nav_active_analizador %}{% endblock %}">Analizador</a>
-                    <a href="{% url 'orquestacion_ejercicio_lista' %}" class="navbar-gab__link {% block nav_active_orquestar %}{% endblock %}">Orquestar</a>
+                    <a href="{% url 'dashboard' %}" class="navbar-gab__link {% block nav_active_panel %}{% endblock %}">{% trans "Panel" %}</a>
+                    <a href="{% url 'biblioteca_list' %}" class="navbar-gab__link {% block nav_active_biblioteca %}{% endblock %}">{% trans "Biblioteca" %}</a>
+                    <a href="{% url 'entrenador_index' %}" class="navbar-gab__link {% block nav_active_entrenamiento %}{% endblock %}">{% trans "Entrenamiento" %}</a>
+                    <a href="{% url 'orquestador_analizar' %}" class="navbar-gab__link {% block nav_active_analizador %}{% endblock %}">{% trans "Analizador" %}</a>
+                    <a href="{% url 'orquestacion_ejercicio_lista' %}" class="navbar-gab__link {% block nav_active_orquestar %}{% endblock %}">{% trans "Orquestar" %}</a>
                 </div>
                 {% endif %}
             </div>
 
-            {% if user.is_authenticated %}
             <div class="navbar-gab__right">
+                <!-- Selector de idioma -- fuera del if user.is_authenticated a propósito:
+                     login/registro también necesitan poder cambiarlo. set_language (Django
+                     nativo) resuelve el redirect agregando/sacando el prefijo /en/ según
+                     corresponda -- no hay lógica propia acá, cada botón de la lista es un
+                     submit normal del form con name="language" value="<code>", mismo campo
+                     que usaría un <select> nativo.
+                     Nombres de idioma escritos a mano ("English"/"Español"), NO via el tag
+                     get-available-languages de i18n: ese tag pasa el nombre por gettext()
+                     del idioma ACTIVO -- con español activo devolvía "Inglés" en vez de
+                     "English" (confirmado sirviendo la página real, no asumido). Un
+                     selector de idioma muestra cada opción en su propio idioma (autonimia),
+                     no traducida al idioma actual -- por eso van fijos. -->
+                {% get_current_language as CURRENT_LANGUAGE %}
+                <div class="navbar-gab__lang" id="lang-menu">
+                    <button type="button" class="navbar-gab__lang-trigger" id="lang-menu-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="lang-menu-list" aria-label="{% trans 'Cambiar idioma' %}">
+                        {% if CURRENT_LANGUAGE == 'en' %}
+                        <svg width="18" height="9" viewBox="0 0 60 30" aria-hidden="true"><rect width="60" height="30" fill="#00247D"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#FFF" stroke-width="6"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#CF142B" stroke-width="2"/><path d="M30,0 V30 M0,15 H60" stroke="#FFF" stroke-width="10"/><path d="M30,0 V30 M0,15 H60" stroke="#CF142B" stroke-width="6"/></svg>
+                        {% else %}
+                        <svg width="18" height="12" viewBox="0 0 3 2" aria-hidden="true"><rect width="3" height="2" fill="#AA151B"/><rect y="0.5" width="3" height="1" fill="#F1BF00"/></svg>
+                        {% endif %}
+                        <span class="navbar-gab__lang-code">{{ CURRENT_LANGUAGE|upper }}</span>
+                    </button>
+                    <div class="navbar-gab__lang-list" id="lang-menu-list" role="menu" aria-labelledby="lang-menu-trigger">
+                        <form action="{% url 'set_language' %}" method="post" style="margin: 0; display: contents;">
+                            {% csrf_token %}
+                            <input name="next" type="hidden" value="{{ request.path }}">
+                            <button type="submit" name="language" value="es" class="navbar-gab__lang-item {% if CURRENT_LANGUAGE == 'es' %}is-active{% endif %}" role="menuitem">
+                                <svg width="18" height="12" viewBox="0 0 3 2" aria-hidden="true"><rect width="3" height="2" fill="#AA151B"/><rect y="0.5" width="3" height="1" fill="#F1BF00"/></svg>
+                                Español
+                            </button>
+                            <button type="submit" name="language" value="en" class="navbar-gab__lang-item {% if CURRENT_LANGUAGE == 'en' %}is-active{% endif %}" role="menuitem">
+                                <svg width="18" height="9" viewBox="0 0 60 30" aria-hidden="true"><rect width="60" height="30" fill="#00247D"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#FFF" stroke-width="6"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#CF142B" stroke-width="2"/><path d="M30,0 V30 M0,15 H60" stroke="#FFF" stroke-width="10"/><path d="M30,0 V30 M0,15 H60" stroke="#CF142B" stroke-width="6"/></svg>
+                                English
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% if user.is_authenticated %}
                 <div class="navbar-gab__util">
-                    <button type="button" id="audio-mute-toggle" class="navbar-gab__icon-btn" aria-label="Silenciar sonido" title="Volumen">🔊</button>
-                    <input type="range" id="audio-volume-slider" min="0" max="100" value="88" class="navbar-gab__volume" aria-label="Volumen">
-                    <div class="navbar-gab__mode">
-                        <span id="mode-label">Evaluación</span>
+                    <button type="button" id="audio-mute-toggle" class="navbar-gab__icon-btn" aria-label="{% trans 'Silenciar sonido' %}" title="{% trans 'Volumen' %}">🔊</button>
+                    <input type="range" id="audio-volume-slider" min="0" max="100" value="88" class="navbar-gab__volume" aria-label="{% trans 'Volumen' %}">
+                    <!-- data-label-* : el JS del toggle de modo (más abajo) lee estos textos
+                         traducidos del dataset en vez de tener "Aprendizaje"/"Evaluación"
+                         hardcodeados -- estrategia de i18n en JS acordada en la Fase 1
+                         (data-attributes, no JavaScriptCatalog). -->
+                    <div class="navbar-gab__mode" data-label-aprendizaje="{% trans 'Aprendizaje' %}" data-label-evaluacion="{% trans 'Evaluación' %}">
+                        <span id="mode-label">{% trans "Evaluación" %}</span>
                         <div class="navbar-gab__mode-switch" id="global-mode-toggle"></div>
                     </div>
                 </div>
                 <div class="navbar-gab__menu" id="user-menu">
-                    <button type="button" class="navbar-gab__menu-trigger" id="user-menu-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-list" aria-label="Menú de usuario">
+                    <button type="button" class="navbar-gab__menu-trigger" id="user-menu-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-list" aria-label="{% trans 'Menú de usuario' %}">
                         <span class="navbar-gab__avatar">{{ user|initials }}</span>
                     </button>
                     <div class="navbar-gab__menu-list" id="user-menu-list" role="menu" aria-labelledby="user-menu-trigger">
-                        <a href="{% url 'proyectos_list' %}" class="navbar-gab__menu-item" role="menuitem">Proyectos</a>
-                        <a href="{% url 'midi_trainer_hub' %}" class="navbar-gab__menu-item" role="menuitem">Estudio MIDI</a>
-                        <a href="{% url 'perfil' %}" class="navbar-gab__menu-item" role="menuitem">Mi perfil</a>
+                        <a href="{% url 'proyectos_list' %}" class="navbar-gab__menu-item" role="menuitem">{% trans "Proyectos" %}</a>
+                        <a href="{% url 'midi_trainer_hub' %}" class="navbar-gab__menu-item" role="menuitem">{% trans "Estudio MIDI" %}</a>
+                        <a href="{% url 'perfil' %}" class="navbar-gab__menu-item" role="menuitem">{% trans "Mi perfil" %}</a>
                         <form method="post" action="{% url 'logout' %}" style="margin: 0;">
                             {% csrf_token %}
-                            <button type="submit" class="navbar-gab__menu-item" style="width: 100%;">Salir</button>
+                            <button type="submit" class="navbar-gab__menu-item" style="width: 100%;">{% trans "Salir" %}</button>
                         </form>
                     </div>
                 </div>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
     </nav>
 
-    <button type="button" id="tema-toggle-btn" class="tema-toggle-btn tema-toggle-btn--gab" aria-label="Cambiar a tema claro" title="Cambiar tema">🌙</button>
+    <!-- data-aria-* : el JS del toggle de tema (más abajo) lee estos textos
+         traducidos del dataset en vez de tener "Cambiar a tema oscuro/claro"
+         hardcodeados -- mismo patrón data-attribute que el toggle de modo. -->
+    <button type="button" id="tema-toggle-btn" class="tema-toggle-btn tema-toggle-btn--gab" aria-label="{% trans 'Cambiar a tema claro' %}" title="{% trans 'Cambiar tema' %}" data-aria-oscuro="{% trans 'Cambiar a tema oscuro' %}" data-aria-claro="{% trans 'Cambiar a tema claro' %}">🌙</button>
 
     <main class="main-content">
         {% block content %}{% endblock %}
     </main>
 
     <footer class="footer-gab">
-        <span>Música Digital · herramienta de estudio para músicos</span>
-        <span>Ayuda · Atajos de teclado · Dispositivos MIDI</span>
+        <span>Música Digital · {% trans "herramienta de estudio para músicos" %}</span>
+        <span>{% trans "Ayuda" %} · {% trans "Atajos de teclado" %} · {% trans "Dispositivos MIDI" %}</span>
     </footer>
 
     <!-- Theory Modal -->
     <div id="theory-modal">
         <div class="theory-modal-content">
             <span class="theory-modal-close" id="theory-modal-close">&times;</span>
-            <h2 id="theory-modal-title" style="font-size: 1.5rem; font-weight: 800; margin-bottom: 1rem; color: var(--primary);">Explicación Teórica</h2>
+            <h2 id="theory-modal-title" style="font-size: 1.5rem; font-weight: 800; margin-bottom: 1rem; color: var(--primary);">{% trans "Explicación Teórica" %}</h2>
             <div id="theory-modal-body" style="color: var(--text); font-size: 1rem; line-height: 1.6;"></div>
-            <button id="theory-modal-btn" class="btn btn-primary" style="margin-top: 1.5rem; width: 100%;">Continuar</button>
+            <button id="theory-modal-btn" class="btn btn-primary" style="margin-top: 1.5rem; width: 100%;">{% trans "Continuar" %}</button>
         </div>
     </div>
 
@@ -410,21 +561,26 @@
             const toggle = document.getElementById("global-mode-toggle");
             const label = document.getElementById("mode-label");
             if(toggle) {
+                // Textos traducidos via data-attribute (ver .navbar-gab__mode en el
+                // HTML) -- nunca hardcodeados acá, sino el JS no sigue el idioma activo.
+                const modeContainer = document.querySelector(".navbar-gab__mode");
+                const labelAprendizaje = modeContainer.dataset.labelAprendizaje;
+                const labelEvaluacion = modeContainer.dataset.labelEvaluacion;
                 const currentMode = localStorage.getItem("app_mode") || "eval";
                 if(currentMode === "learning") {
                     toggle.classList.add("is-active");
-                    label.innerText = "Aprendizaje";
+                    label.innerText = labelAprendizaje;
                     label.style.color = "var(--primary)";
                 }
                 toggle.addEventListener("click", () => {
                     toggle.classList.toggle("is-active");
                     if(toggle.classList.contains("is-active")) {
                         localStorage.setItem("app_mode", "learning");
-                        label.innerText = "Aprendizaje";
+                        label.innerText = labelAprendizaje;
                         label.style.color = "var(--primary)";
                     } else {
                         localStorage.setItem("app_mode", "eval");
-                        label.innerText = "Evaluación";
+                        label.innerText = labelEvaluacion;
                         label.style.color = "var(--ink-soft)";
                     }
                 });
@@ -446,10 +602,12 @@
                     ? document.documentElement.getAttribute(atributoTema) !== "oscuro"
                     : document.documentElement.getAttribute(atributoTema) === "claro";
 
+                // Textos traducidos via data-attribute (data-aria-oscuro/data-aria-claro
+                // en el propio botón) -- mismo motivo que labelAprendizaje/labelEvaluacion.
                 const actualizarBotonTema = () => {
                     const claro = estaEnClaro();
                     temaBtn.textContent = claro ? "☀" : "🌙";
-                    temaBtn.setAttribute("aria-label", claro ? "Cambiar a tema oscuro" : "Cambiar a tema claro");
+                    temaBtn.setAttribute("aria-label", claro ? temaBtn.dataset.ariaOscuro : temaBtn.dataset.ariaClaro);
                 };
                 temaBtn.addEventListener("click", () => {
                     if (estaEnClaro()) {
@@ -476,29 +634,34 @@
                 actualizarBotonTema();
             }
 
-            const userMenu = document.getElementById("user-menu");
-            const userMenuTrigger = document.getElementById("user-menu-trigger");
-            if (userMenu && userMenuTrigger) {
-                const cerrarUserMenu = () => {
-                    userMenu.classList.remove("is-open");
-                    userMenuTrigger.setAttribute("aria-expanded", "false");
+            // Dropdown trigger+lista genérico (usuario, idioma) -- mismo patrón
+            // abrir/cerrar/click-afuera/Escape, sin duplicarlo por cada menú.
+            function initDropdown(menuId, triggerId) {
+                const menu = document.getElementById(menuId);
+                const trigger = document.getElementById(triggerId);
+                if (!menu || !trigger) return;
+                const cerrar = () => {
+                    menu.classList.remove("is-open");
+                    trigger.setAttribute("aria-expanded", "false");
                 };
-                const abrirUserMenu = () => {
-                    userMenu.classList.add("is-open");
-                    userMenuTrigger.setAttribute("aria-expanded", "true");
+                const abrir = () => {
+                    menu.classList.add("is-open");
+                    trigger.setAttribute("aria-expanded", "true");
                 };
-                userMenuTrigger.addEventListener("click", (e) => {
+                trigger.addEventListener("click", (e) => {
                     e.stopPropagation();
-                    if (userMenu.classList.contains("is-open")) cerrarUserMenu();
-                    else abrirUserMenu();
+                    if (menu.classList.contains("is-open")) cerrar();
+                    else abrir();
                 });
                 document.addEventListener("click", (e) => {
-                    if (!userMenu.contains(e.target)) cerrarUserMenu();
+                    if (!menu.contains(e.target)) cerrar();
                 });
                 document.addEventListener("keydown", (e) => {
-                    if (e.key === "Escape") cerrarUserMenu();
+                    if (e.key === "Escape") cerrar();
                 });
             }
+            initDropdown("user-menu", "user-menu-trigger");
+            initDropdown("lang-menu", "lang-menu-trigger");
 
             const modal = document.getElementById("theory-modal");
             const btnClose = document.getElementById("theory-modal-close");

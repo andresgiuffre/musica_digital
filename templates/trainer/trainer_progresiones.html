@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{{ game.display_name }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_entrenamiento %}is-active{% endblock %}
@@ -173,18 +175,18 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        Volver al entrenador
+        {% trans "Volver al entrenador" %}
     </a>
 
     <div style="text-align: center; width: 100%;">
-        <h1 style="margin-bottom: 0.5rem;">🧠 {{ game.name }}</h1>
-        <p style="color: var(--ink-soft);">Analiza la progresión armónica e identifica los grados romanos correspondientes.</p>
+        <h1 style="margin-bottom: 0.5rem;">🧠 {{ game.display_name }}</h1>
+        <p style="color: var(--ink-soft);">{% trans "Analiza la progresión armónica e identifica los grados romanos correspondientes." %}</p>
     </div>
 
     <!-- Progress Bar -->
     <div class="progress-container">
         <div class="progress-labels">
-            <span>Nivel <span id="ui-level">{{ score.level_info.level }}</span></span>
+            <span>{% trans "Nivel" %} <span id="ui-level">{{ score.level_info.level }}</span></span>
             <span><span id="ui-xp">{{ score.level_info.xp_in_level }}</span> / <span id="ui-xp-needed">{{ score.level_info.xp_needed }}</span> XP</span>
         </div>
         <div class="progress-track">
@@ -193,29 +195,29 @@
     </div>
 
     <div class="status-bar">
-        <div>🔥 Racha: <span id="streak-counter">{{ score.current_streak }}</span></div>
+        <div>🔥 {% trans "Racha:" %} <span id="streak-counter">{{ score.current_streak }}</span></div>
     </div>
 
     <div id="playback-area">
         <div class="top-info">
-            <div class="key-badge" id="ui-key">Tonalidad: C Mayor</div>
+            <div class="key-badge" id="ui-key">{% trans "Tonalidad:" %} {% if LANGUAGE_CODE == 'en' %}C Major{% else %}C Mayor{% endif %}</div>
             <button class="btn-play" id="btn-play">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                Escuchar Progresión
+                {% trans "Escuchar Progresión" %}
             </button>
         </div>
 
         <div class="progression-text" id="ui-progression-text">C | Am | F | G</div>
-        
+
         <div id="staff-container"></div>
-        
+
         <div class="slots-container" id="slots-container">
             <!-- Slots will be injected here -->
         </div>
 
         <div class="keyboard-container" id="keyboard-container">
             <div style="text-align: center; margin-bottom: 1rem; color: var(--ink-soft); font-size: 0.9rem;">
-                Selecciona una casilla arriba y elige el grado romano correcto:
+                {% trans "Selecciona una casilla arriba y elige el grado romano correcto:" %}
             </div>
             <div class="keyboard-row">
                 <button class="key-btn" data-val="I">I</button>
@@ -250,10 +252,41 @@
         </div>
 
         <div id="feedback-msg"></div>
-        <button id="btn-submit" class="btn-submit" disabled>Comprobar</button>
+        <button id="btn-submit" class="btn-submit" disabled>{% trans "Comprobar" %}</button>
     </div>
 
 </div>
+
+<script id="progresiones-i18n-data" type="application/json">
+{
+    "comprobar": "{% trans 'Comprobar' %}",
+    "reintentando": "{% trans 'Reintentando ejercicio...' %}",
+    "correcto": "{% trans '¡Correcto!' %}",
+    "revisaGrados": "{% trans 'Revisa los grados marcados en rojo.' %}",
+    "tonalidad": "{% trans 'Tonalidad:' %}",
+    "analisisPrefijo": "{% trans 'Análisis:' %}",
+    "modalCorrecto": "{% trans '✅ ¡Correcto!' %}",
+    "modalIncorrecto": "{% trans '❌ Incorrecto' %}",
+    "keyNames": {
+        "Do Mayor": "{% trans 'Do Mayor' %}",
+        "Sol Mayor": "{% trans 'Sol Mayor' %}",
+        "Fa Mayor": "{% trans 'Fa Mayor' %}",
+        "La menor (Natural / Armónica)": "{% trans 'La menor (Natural / Armónica)' %}"
+    },
+    "functions": {
+        "Tónica": "{% trans 'Tónica' %}",
+        "Subdominante": "{% trans 'Subdominante' %}",
+        "Tónica relativa": "{% trans 'Tónica relativa' %}",
+        "Dominante": "{% trans 'Dominante' %}",
+        "Dominante menor": "{% trans 'Dominante menor' %}",
+        "Dominante (Armónica)": "{% trans 'Dominante (Armónica)' %}",
+        "Dominante relativo": "{% trans 'Dominante relativo' %}",
+        "Dominante Secundario (hacia V)": "{% trans 'Dominante Secundario (hacia V)' %}",
+        "Dominante Secundario (hacia ii)": "{% trans 'Dominante Secundario (hacia ii)' %}",
+        "Dominante Secundario (hacia vi)": "{% trans 'Dominante Secundario (hacia vi)' %}"
+    }
+}
+</script>
 {% endblock %}
 
 {% block extra_js %}
@@ -268,7 +301,15 @@
         const btnPlay = document.getElementById("btn-play");
         const feedbackMsg = document.getElementById("feedback-msg");
         const playbackArea = document.getElementById("playback-area");
-        
+        const PROGRESIONES_I18N = JSON.parse(document.getElementById("progresiones-i18n-data").textContent);
+
+        function traducirTonalidad(nombre) {
+            return PROGRESIONES_I18N.keyNames[nombre] || nombre;
+        }
+        function traducirFuncion(fun) {
+            return PROGRESIONES_I18N.functions[fun] || fun;
+        }
+
         let currentProgressionInfo = null;
         let activeSlotIndex = 0;
         let userAnswers = [];
@@ -440,7 +481,7 @@
             
             return {
                 keyName: keyName,
-                keyDisplay: keyDict.name,
+                keyDisplay: traducirTonalidad(keyDict.name),
                 keySig: keyDict.sig,
                 chords: progChords,
                 degrees: template.degrees
@@ -454,12 +495,12 @@
                 feedbackMsg.innerHTML = "";
                 playbackArea.style.borderColor = "var(--line-input)";
                 btnSubmit.disabled = true;
-                btnSubmit.innerText = "Comprobar";
-                
+                btnSubmit.innerText = PROGRESIONES_I18N.comprobar;
+
                 currentProgressionInfo = progInfo || generateProgression();
                 userAnswers = new Array(currentProgressionInfo.chords.length).fill(null);
-                
-                document.getElementById('ui-key').innerText = `Tonalidad: ${currentProgressionInfo.keyDisplay}`;
+
+                document.getElementById('ui-key').innerText = `${PROGRESIONES_I18N.tonalidad} ${currentProgressionInfo.keyDisplay}`;
                 document.getElementById('ui-progression-text').innerText = currentProgressionInfo.chords.map(c => c.name).join(' | ');
 
                 // Build Slots
@@ -525,7 +566,7 @@
                 startTime = Date.now();
             } catch (err) {
                 console.error("Critical error in drawProgression:", err);
-                feedbackMsg.innerText = "Reintentando ejercicio...";
+                feedbackMsg.innerText = PROGRESIONES_I18N.reintentando;
                 setTimeout(() => drawProgression(), 1000);
             }
         }
@@ -575,11 +616,11 @@
                 btnSubmit.disabled = true;
 
                 if (isCorrect) {
-                    feedbackMsg.innerText = "¡Correcto!";
+                    feedbackMsg.innerText = PROGRESIONES_I18N.correcto;
                     feedbackMsg.style.color = "var(--green)";
                     playbackArea.style.borderColor = "var(--green)";
                 } else {
-                    feedbackMsg.innerText = "Revisa los grados marcados en rojo.";
+                    feedbackMsg.innerText = PROGRESIONES_I18N.revisaGrados;
                     feedbackMsg.style.color = "var(--danger)";
                     playbackArea.style.borderColor = "var(--danger)";
                 }
@@ -617,15 +658,15 @@
 
                 // Pedagogical Explanation
                 let exp = `<div style="text-align: left; padding: 1rem; background: var(--bg); border-radius: 0.5rem; margin-top: 1rem;">`;
-                exp += `<h3 style="margin-top: 0; color: var(--primary);">Análisis: ${currentProgressionInfo.keyDisplay}</h3>`;
-                
+                exp += `<h3 style="margin-top: 0; color: var(--primary);">${PROGRESIONES_I18N.analisisPrefijo} ${currentProgressionInfo.keyDisplay}</h3>`;
+
                 currentProgressionInfo.chords.forEach(c => {
-                    exp += `<p style="margin: 0.5rem 0;"><strong>${c.name} = ${c.degree}</strong> <span style="color: var(--ink-soft); margin-left: 1rem;">▶ ${c.fun}</span></p>`;
+                    exp += `<p style="margin: 0.5rem 0;"><strong>${c.name} = ${c.degree}</strong> <span style="color: var(--ink-soft); margin-left: 1rem;">▶ ${traducirFuncion(c.fun)}</span></p>`;
                 });
-                
+
                 exp += `</div>`;
 
-                const title = isCorrect ? '✅ ¡Correcto!' : '❌ Incorrecto';
+                const title = isCorrect ? PROGRESIONES_I18N.modalCorrecto : PROGRESIONES_I18N.modalIncorrecto;
                 
                 if (window.showTheoryModal) {
                     setTimeout(() => {
