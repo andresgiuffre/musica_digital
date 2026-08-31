@@ -164,11 +164,10 @@ def dashboard(request):
     habilidades = [progreso_por_slug[slug] for slug in habilidades_slugs if slug in progreso_por_slug]
 
     # 6. Destacado de Cursos junto al de Director de Estudio en el panel.
-    # Mismo filtro de idioma que cursos_list -- si no, el contador queda
-    # inconsistente con lo que el usuario realmente ve al entrar a Cursos.
-    from django.utils.translation import get_language
+    # Mismo filtro (ninguno por idioma) que cursos_list -- ver el comentario ahí:
+    # el contenido bilingüe vive dentro de cada bloque, no en Cursos separados.
     from .models import Curso
-    cursos_disponibles_count = Curso.objects.filter(activo=True, idioma=get_language()).count()
+    cursos_disponibles_count = Curso.objects.filter(activo=True).count()
 
     context = {
         'profile': profile,
@@ -1798,9 +1797,12 @@ def orquestacion_ejercicio_archivo(request, fragmento_id):
 
 @login_required
 def cursos_list(request):
-    from django.utils.translation import get_language
     from .models import Curso
-    cursos = Curso.objects.filter(activo=True, idioma=get_language())
+    # No filtra por idioma: el contenido bilingüe vive DENTRO de cada
+    # BloqueContenido (ver texto_markdown_en/etc. en models.py), no en filas de
+    # Curso separadas por idioma -- un curso activo se lista para cualquier
+    # idioma de sesión, cada bloque muestra su propio texto ES/EN al abrirlo.
+    cursos = Curso.objects.filter(activo=True)
     return render(request, 'trainer/cursos_list.html', {'cursos': cursos})
 
 
@@ -1824,7 +1826,7 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
     bloques = list(tema.bloques.all())  # ya vienen en orden por Meta.ordering
     for bloque in bloques:
         if bloque.tipo == bloque.TEXTO:
-            bloque.html_renderizado = render_markdown_seguro(bloque.texto_markdown)
+            bloque.html_renderizado = render_markdown_seguro(bloque.texto_markdown_mostrado)
         elif bloque.tipo == bloque.EJEMPLO_PARTITURA:
             # es_mxl calculado server-side (mismo patrón que biblioteca_archivo/
             # orquestacion_ejercicio_archivo) -- nada de adivinar la extensión en JS.

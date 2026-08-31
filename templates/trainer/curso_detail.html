@@ -3,10 +3,9 @@
 {% block title %}{{ curso.nombre }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
-{# El idioma REAL del contenido mostrado, no el idioma de sesión activo --
-   curso_detail no filtra por idioma (decisión de i18n Fase 1), así que
-   ambos pueden diferir. #}
-{% block html_lang %}{{ curso.idioma }}{% endblock %}
+{# Sin override de html_lang: el contenido de cada BloqueContenido ahora es
+   bilingüe en la misma fila (texto_markdown_en/etc.), así que un mismo Curso
+   se muestra en el idioma de sesión real -- base.html ya cae a LANGUAGE_CODE. #}
 
 {% block extra_css %}
 <style>

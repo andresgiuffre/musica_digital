@@ -4,9 +4,7 @@
 {% block title %}{{ tema.titulo }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
-{# El idioma REAL del contenido mostrado, no el idioma de sesión activo --
-   ver la misma nota en curso_detail.html. #}
-{% block html_lang %}{{ curso.idioma }}{% endblock %}
+{# Sin override de html_lang -- ver la misma nota en curso_detail.html. #}
 
 {% block extra_css %}
 <style>
@@ -63,15 +61,15 @@
             {% if bloque.tipo == 'TEXTO' %}
                 <div class="tema-contenido-markdown">{{ bloque.html_renderizado }}</div>
             {% elif bloque.tipo == 'EJEMPLO_PARTITURA' %}
-                {% if bloque.contexto_ejemplo %}<p class="bloque-gab__contexto">{{ bloque.contexto_ejemplo }}</p>{% endif %}
+                {% if bloque.contexto_ejemplo_mostrado %}<p class="bloque-gab__contexto">{{ bloque.contexto_ejemplo_mostrado }}</p>{% endif %}
                 <div class="bloque-gab__partitura">
                     <div id="osmd-bloque-{{ bloque.id }}"></div>
                 </div>
             {% elif bloque.tipo == 'PRACTICA' %}
-                {% if bloque.practica_url %}
-                    <a class="btn-gab btn-gab--primary" href="{{ bloque.practica_url }}">{{ bloque.practica_texto }}</a>
+                {% if bloque.practica_url_mostrado %}
+                    <a class="btn-gab btn-gab--primary" href="{{ bloque.practica_url_mostrado }}">{{ bloque.practica_texto_mostrado }}</a>
                 {% else %}
-                    <p style="margin: 0;">{{ bloque.practica_texto }}</p>
+                    <p style="margin: 0;">{{ bloque.practica_texto_mostrado }}</p>
                 {% endif %}
             {% endif %}
         </div>

@@ -59,15 +59,15 @@ class BloqueContenidoInline(admin.StackedInline):
     extra = 1
     fieldsets = (
         (None, {'fields': ('orden', 'tipo')}),
-        ('Texto', {'fields': ('texto_markdown',), 'classes': ('collapse',)}),
+        ('Texto', {'fields': ('texto_markdown', 'texto_markdown_en'), 'classes': ('collapse',)}),
         ('Ejemplo de partitura', {
             'fields': (
-                'sheet_music', 'fragmento_orquestacion', 'contexto_ejemplo',
+                'sheet_music', 'fragmento_orquestacion', 'contexto_ejemplo', 'contexto_ejemplo_en',
                 'mostrar_nombre_instrumento', 'mostrar_compositor', 'mostrar_letra',
             ),
             'classes': ('collapse',),
         }),
-        ('Práctica', {'fields': ('practica_texto', 'practica_url'), 'classes': ('collapse',)}),
+        ('Práctica', {'fields': ('practica_texto', 'practica_texto_en', 'practica_url', 'practica_url_en'), 'classes': ('collapse',)}),
     )
 
 
