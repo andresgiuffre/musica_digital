@@ -592,6 +592,12 @@ class BloqueContenido(models.Model):
 
     # --- TEXTO ---
     texto_markdown = models.TextField(blank=True, help_text="Fuente Markdown (nunca HTML crudo). Se sanitiza y renderiza en el detalle del tema.")
+    # _en en la MISMA fila, no un Curso separado por idioma -- mismo patrón que
+    # Game.name_en (ver ahí el porqué). Acá aplica más fuerte todavía: un Tema
+    # entero duplicado por idioma implicaría mantener dos árboles Grado/Tema/
+    # BloqueContenido en paralelo por cada curso bilingüe. Blank/nullable a
+    # propósito -- si queda vacío, texto_markdown_mostrado devuelve el español.
+    texto_markdown_en = models.TextField(blank=True, help_text="Fuente Markdown en inglés. Si queda vacío, se muestra el texto en español también con idioma inglés activo.")
 
     # --- EJEMPLO_PARTITURA (exactamente uno de los dos FK de abajo) ---
     sheet_music = models.ForeignKey(
@@ -603,6 +609,7 @@ class BloqueContenido(models.Model):
         help_text="Fragmento del Ejercicio de Orquestación a mostrar como ejemplo. Exactamente uno entre esto y 'sheet music' cuando el tipo es Ejemplo de partitura."
     )
     contexto_ejemplo = models.CharField(max_length=300, blank=True, help_text='Texto corto opcional arriba del ejemplo, ej: "En este ejemplo, fijate cómo...".')
+    contexto_ejemplo_en = models.CharField(max_length=300, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el texto en español también con idioma inglés activo.")
     # Controlan qué metadata embebida en el MusicXML renderiza OSMD además del
     # pentagrama -- independiente de qué haya elegido el usuario al exportar desde
     # MuseScore (ej. "sin encabezado" solo oculta el título/subtítulo visual del
@@ -617,9 +624,14 @@ class BloqueContenido(models.Model):
 
     # --- PRACTICA ---
     practica_texto = models.CharField(max_length=300, blank=True, help_text='Ej: "Practicá esto en Identificación de Notas". Requerido cuando el tipo es Práctica.')
+    practica_texto_en = models.CharField(max_length=300, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el texto en español también con idioma inglés activo.")
     practica_url = models.CharField(
         max_length=300, blank=True,
         help_text="URL/path opcional escrito a mano hacia una página existente (ej: /juego/notas/). Si queda vacío, se muestra como texto plano sin link. Deliberadamente NO es una FK a Game ni a nada más."
+    )
+    practica_url_en = models.CharField(
+        max_length=300, blank=True,
+        help_text="Versión en inglés del path, SOLO si difiere del de arriba -- casi siempre porque necesita el prefijo /en/ (ver i18n_patterns en config/urls.py: una URL sin prefijo fuerza español sin importar el idioma activo). Si queda vacío, se usa el mismo path de arriba tal cual."
     )
 
     class Meta:
@@ -629,6 +641,36 @@ class BloqueContenido(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} #{self.orden} - {self.tema}"
+
+    # Mismo patrón que Game.display_name: devuelve la versión _en solo si el
+    # idioma activo es inglés Y está cargada -- si no, cae al español siempre.
+    @property
+    def texto_markdown_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.texto_markdown_en:
+            return self.texto_markdown_en
+        return self.texto_markdown
+
+    @property
+    def contexto_ejemplo_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.contexto_ejemplo_en:
+            return self.contexto_ejemplo_en
+        return self.contexto_ejemplo
+
+    @property
+    def practica_texto_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.practica_texto_en:
+            return self.practica_texto_en
+        return self.practica_texto
+
+    @property
+    def practica_url_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.practica_url_en:
+            return self.practica_url_en
+        return self.practica_url
 
     def clean(self):
         from django.core.exceptions import ValidationError
