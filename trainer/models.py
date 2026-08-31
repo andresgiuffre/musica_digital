@@ -539,6 +539,9 @@ class Grado(models.Model):
     curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name='grados')
     numero = models.PositiveIntegerField(help_text='Orden dentro del curso Y etiqueta visible ("Grado 0", "Grado 1", ...).')
     titulo = models.CharField(max_length=200, help_text='Ej: "Fundamentos de lectura".')
+    # Mismo patrón que BloqueContenido.texto_markdown_en -- ver ahí el porqué
+    # (contenido bilingüe en la misma fila, no un Curso separado por idioma).
+    titulo_en = models.CharField(max_length=200, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el título en español también con idioma inglés activo.")
     activo = models.BooleanField(default=True, help_text="Solo los grados activos aparecen listados para los usuarios.")
 
     class Meta:
@@ -550,10 +553,18 @@ class Grado(models.Model):
     def __str__(self):
         return f"Grado {self.numero} - {self.titulo} ({self.curso.nombre})"
 
+    @property
+    def titulo_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.titulo_en:
+            return self.titulo_en
+        return self.titulo
+
 
 class Tema(models.Model):
     grado = models.ForeignKey(Grado, on_delete=models.CASCADE, related_name='temas')
     titulo = models.CharField(max_length=200)
+    titulo_en = models.CharField(max_length=200, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el título en español también con idioma inglés activo.")
     orden = models.PositiveIntegerField(default=0, help_text="Orden dentro del grado.")
     slug = models.SlugField(help_text="Se escribe a mano, no se autogenera (misma convención que Game.slug/Achievement.slug/Collection.slug). Único dentro del grado -- se usa en la URL del tema.")
     activo = models.BooleanField(default=True, help_text="Solo los temas activos son accesibles para los usuarios.")
@@ -566,6 +577,13 @@ class Tema(models.Model):
 
     def __str__(self):
         return f"{self.titulo} ({self.grado})"
+
+    @property
+    def titulo_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.titulo_en:
+            return self.titulo_en
+        return self.titulo
 
 
 class BloqueContenido(models.Model):

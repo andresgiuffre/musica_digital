@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load i18n %}
-{% block title %}{{ tema.titulo }}{% endblock %}
+{% block title %}{{ tema.titulo_mostrado }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {# Sin override de html_lang -- ver la misma nota en curso_detail.html. #}
@@ -53,8 +53,8 @@
         </svg>
         {{ curso.nombre }}
     </a>
-    <p class="tema-gab__migas">{% blocktrans with n=grado.numero titulo=grado.titulo %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</p>
-    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 1.75rem;">{{ tema.titulo }}</h1>
+    <p class="tema-gab__migas">{% blocktrans with n=grado.numero titulo=grado.titulo_mostrado %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</p>
+    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 1.75rem;">{{ tema.titulo_mostrado }}</h1>
 
     {% for bloque in bloques %}
         <div class="bloque-gab">
