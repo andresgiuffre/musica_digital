@@ -1823,6 +1823,20 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
     grado = get_object_or_404(Grado, curso=curso, numero=grado_numero, activo=True)
     tema = get_object_or_404(Tema, grado=grado, slug=tema_slug, activo=True)
 
+    # Navegación anterior/siguiente a través de TODO el curso (no solo dentro
+    # del grado actual) -- orden estable: grado.numero primero, orden dentro
+    # del grado después. select_related('grado') porque el link de cada uno
+    # necesita el numero del grado al que pertenece, no necesariamente el
+    # grado actual.
+    temas_curso = list(
+        Tema.objects.filter(grado__curso=curso, activo=True, grado__activo=True)
+        .select_related('grado')
+        .order_by('grado__numero', 'orden')
+    )
+    indice_actual = next(i for i, t in enumerate(temas_curso) if t.id == tema.id)
+    tema_anterior = temas_curso[indice_actual - 1] if indice_actual > 0 else None
+    tema_siguiente = temas_curso[indice_actual + 1] if indice_actual < len(temas_curso) - 1 else None
+
     bloques = list(tema.bloques.all())  # ya vienen en orden por Meta.ordering
     for bloque in bloques:
         if bloque.tipo == bloque.TEXTO:
@@ -1835,6 +1849,7 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
 
     return render(request, 'trainer/tema_detail.html', {
         'curso': curso, 'grado': grado, 'tema': tema, 'bloques': bloques,
+        'tema_anterior': tema_anterior, 'tema_siguiente': tema_siguiente,
     })
 
 
