@@ -52,6 +52,17 @@ class NotaDetectada:
     inicio_ql: float = 0.0
     duracion_ql: float = 0.0
     duracion_nombre: str = ""
+    # Índices de frame (no se usan en el reporte, solo para que fusionar_fragmentos
+    # pueda mirar si hay frames unvoiced reales en el hueco entre dos candidatas).
+    inicio_idx: int = 0
+    fin_idx: int = 0
+    # Se completa en fusionar_fragmentos(): True si esta nota es el resultado de
+    # unir 2+ candidatas fragmentadas -- útil para trazabilidad, no se imprime hoy.
+    fusionada: bool = False
+    # Se completa en generar_reporte(): distancia en Hz crudo contra la nota
+    # sobreviviente anterior de la MISMA altura redondeada, para el marcador de
+    # "posible fragmentación". None si no aplica (altura distinta o es la primera).
+    delta_hz_vs_anterior: float | None = None
 
     @property
     def duracion_s(self) -> float:
@@ -78,7 +89,7 @@ def detectar_pitch(y: np.ndarray, sr: int, fmin_hz: float, fmax_hz: float):
     return f0, voiced_flag, voiced_probs, tiempos
 
 
-def detectar_onsets(y: np.ndarray, sr: int) -> np.ndarray:
+def detectar_onsets(y: np.ndarray, sr: int, delta: float = 0.1) -> np.ndarray:
     """Onsets adicionales a los cambios de pitch -- sin esto, dos notas
     consecutivas a la MISMA altura se fusionarían en una nota larga, porque la
     segmentación por cambio de pitch no ve un límite ahí.
@@ -88,8 +99,22 @@ def detectar_onsets(y: np.ndarray, sr: int) -> np.ndarray:
     (no repetida) generaba picos de flujo espectral suficientes para disparar
     onsets falsos a mitad de nota (partía D5 y G5 en 2-3 pedazos sin motivo).
     delta=0.1 los elimina sin perder ningún onset real, incluido el que separa
-    el par de notas repetidas E5-E5."""
-    return librosa.onset.onset_detect(y=y, sr=sr, units="time", delta=0.1)
+    el par de notas repetidas E5-E5 -- en audio real (silbido humano) el vibrato
+    es más irregular que el sintético y este valor puede no alcanzar; ver
+    --onset-delta / --calibrar-delta."""
+    return librosa.onset.onset_detect(y=y, sr=sr, units="time", delta=delta)
+
+
+def calcular_midi_por_frame(f0: np.ndarray) -> np.ndarray:
+    """MIDI redondeado por frame (NaN donde no hay pitch/unvoiced). Extraído de
+    segmentar_notas() para que fusionar_fragmentos() pueda reusar el mismo array
+    y así detectar huecos unvoiced reales entre dos notas candidatas."""
+    n = len(f0)
+    midi_por_frame = np.full(n, np.nan)
+    for i in range(n):
+        if not np.isnan(f0[i]):
+            midi_por_frame[i] = round(librosa.hz_to_midi(f0[i]))
+    return midi_por_frame
 
 
 def segmentar_notas(
@@ -97,6 +122,7 @@ def segmentar_notas(
     voiced_probs: np.ndarray,
     tiempos: np.ndarray,
     onsets_s: np.ndarray,
+    midi_por_frame: np.ndarray,
     hop_frames_gap_tolerado: int = 2,
 ) -> list[NotaDetectada]:
     """Agrupa frames voiced consecutivos en notas discretas. Un grupo se corta
@@ -104,11 +130,6 @@ def segmentar_notas(
     del grupo, o (c) el gap de frames unvoiced supera la tolerancia (silbar
     tiene micro-interrupciones de envolvente que no son notas nuevas)."""
     n = len(f0)
-    midi_por_frame = np.full(n, np.nan)
-    for i in range(n):
-        if not np.isnan(f0[i]):
-            midi_por_frame[i] = round(librosa.hz_to_midi(f0[i]))
-
     onsets_restantes = sorted(onsets_s.tolist())
 
     def hay_onset_en_rango(t_ini: float, t_fin: float) -> bool:
@@ -169,11 +190,98 @@ def segmentar_notas(
                     midi_redondeado=int(midi_actual),
                     hz_crudo_medio=hz_crudo_medio,
                     confianza=confianza,
+                    inicio_idx=inicio_idx,
+                    fin_idx=fin_idx,
                 )
             )
         i = j
 
     return notas
+
+
+def fusionar_fragmentos(
+    notas: list[NotaDetectada],
+    midi_por_frame: np.ndarray,
+    voiced_probs: np.ndarray,
+    gap_maximo_ms: float = 70.0,
+    umbral_confianza_corte: float = 0.85,
+    ventana_confianza_frames: int = 6,
+) -> list[NotaDetectada]:
+    """Une candidatas consecutivas que son en realidad la MISMA nota partida
+    espuriamente por un onset falso (vibrato irregular en silbido real dispara
+    picos de flujo espectral a mitad de nota sostenida -- ver detectar_onsets()).
+
+    Se fusionan nota[i] y nota[i+1] si las tres condiciones se cumplen:
+    (a) mismo midi_redondeado
+    (b) gap entre fin_s de una e inicio_s de la otra < gap_maximo_ms
+    (c) SIN corte real en el medio, verificado de dos formas distintas porque un
+        corte por onset dentro de una nota sostenida deja fin_idx/inicio_idx
+        ADYACENTES (0 frames de por medio -- confirmado empíricamente: el hueco
+        `midi_por_frame[fin_idx+1:inicio_idx]` da vacío en ese caso, así que
+        revisarlo solo no alcanza):
+          (c1) si hay frames de por medio (corte por gap unvoiced real en
+               segmentar_notas), ninguno puede ser NaN.
+          (c2) en una ventana de `ventana_confianza_frames` frames a cada lado
+               del corte, la confianza (voiced_probs) no puede caer por debajo
+               de `umbral_confianza_corte`. Confirmado empíricamente contra el
+               .wav sintético: en el corte real E5-E5 la confianza cae de
+               ~0.98 a ~0.69 (el reataque simulado sí se nota), mientras que en
+               un corte espurio por vibrato (probado forzando delta=0.07) la
+               confianza se mantiene plana en ~0.98 -- el vibrato nunca hace
+               caer voiced_probs, solo dispara flujo espectral."""
+    if not notas:
+        return notas
+
+    fusionadas: list[NotaDetectada] = [notas[0]]
+    for actual in notas[1:]:
+        previa = fusionadas[-1]
+
+        mismo_pitch = actual.midi_redondeado == previa.midi_redondeado
+        gap_ms = (actual.inicio_s - previa.fin_s) * 1000
+        # Un corte por onset ADYACENTE (inicio_idx == fin_idx+1) da gap_ms ~0, pero
+        # el redondeo de floats a veces lo deja en -0.000...N -- tolerancia de 1ms
+        # para no rechazar ese caso por una comparación estricta contra 0.
+        gap_corto = -1.0 <= gap_ms < gap_maximo_ms
+
+        hueco_frames = midi_por_frame[previa.fin_idx + 1 : actual.inicio_idx]
+        sin_silencio_real = not np.any(np.isnan(hueco_frames))
+
+        inicio_ventana = max(previa.inicio_idx, previa.fin_idx - ventana_confianza_frames + 1)
+        fin_ventana = min(actual.fin_idx, actual.inicio_idx + ventana_confianza_frames - 1)
+        ventana_confianza = np.concatenate([
+            voiced_probs[inicio_ventana : previa.fin_idx + 1],
+            voiced_probs[actual.inicio_idx : fin_ventana + 1],
+        ])
+        sin_dip_de_reataque = (
+            bool(np.nanmin(ventana_confianza) >= umbral_confianza_corte)
+            if len(ventana_confianza)
+            else True
+        )
+
+        if mismo_pitch and gap_corto and sin_silencio_real and sin_dip_de_reataque:
+            peso_previa = previa.fin_idx - previa.inicio_idx + 1
+            peso_actual = actual.fin_idx - actual.inicio_idx + 1
+            hz_promedio = (
+                previa.hz_crudo_medio * peso_previa + actual.hz_crudo_medio * peso_actual
+            ) / (peso_previa + peso_actual)
+            confianza_promedio = (
+                previa.confianza * peso_previa + actual.confianza * peso_actual
+            ) / (peso_previa + peso_actual)
+
+            fusionadas[-1] = NotaDetectada(
+                inicio_s=previa.inicio_s,
+                fin_s=actual.fin_s,
+                midi_redondeado=previa.midi_redondeado,
+                hz_crudo_medio=hz_promedio,
+                confianza=confianza_promedio,
+                inicio_idx=previa.inicio_idx,
+                fin_idx=actual.fin_idx,
+                fusionada=True,
+            )
+        else:
+            fusionadas.append(actual)
+
+    return fusionadas
 
 
 def aplicar_filtros(
@@ -254,11 +362,33 @@ def construir_partitura(notas: list[NotaDetectada], bpm: float) -> music21.strea
     return stream
 
 
+def marcar_posibles_fragmentaciones(vivas: list[NotaDetectada], umbral_hz: float) -> None:
+    """Para cada par de notas CONSECUTIVAS en la lista de sobrevivientes (no
+    cualquier par con la misma altura en algún punto anterior -- una repetición
+    real con otra nota en el medio, ej. Sol-Sol-La-Sol, no debe marcarse), si
+    tienen la misma altura redondeada y su Hz crudo difiere menos que el umbral,
+    se marca la segunda como posible fragmentación de la primera. Solo
+    diagnóstico: no descarta ni fusiona nada, deja `delta_hz_vs_anterior` seteado
+    para que generar_reporte() lo muestre."""
+    for anterior, nota in zip(vivas, vivas[1:]):
+        if nota.midi_redondeado != anterior.midi_redondeado:
+            continue
+        diferencia_hz = abs(nota.hz_crudo_medio - anterior.hz_crudo_medio)
+        if diferencia_hz < umbral_hz:
+            nota.delta_hz_vs_anterior = diferencia_hz
+
+
 def generar_reporte(
-    notas: list[NotaDetectada], ruta_audio: str, bpm: float, out_path: Path
+    notas: list[NotaDetectada],
+    ruta_audio: str,
+    bpm: float,
+    out_path: Path,
+    umbral_fragmentacion_hz: float = 15.0,
 ) -> None:
     vivas = [n for n in notas if not n.descartada]
     descartadas = [n for n in notas if n.descartada]
+
+    marcar_posibles_fragmentaciones(vivas, umbral_fragmentacion_hz)
 
     lineas = []
     lineas.append(f"Reporte de transcripción -- {ruta_audio}")
@@ -272,9 +402,12 @@ def generar_reporte(
     lineas.append("-" * 70)
     for idx, nota in enumerate(vivas, start=1):
         p = music21.pitch.Pitch(midi=nota.midi_redondeado)
+        marcador = ""
+        if nota.delta_hz_vs_anterior is not None:
+            marcador = f"  <-- posible fragmentación (Δ{nota.delta_hz_vs_anterior:.1f}Hz vs. anterior misma altura)"
         lineas.append(
             f"{idx:>3}  {nota.inicio_s:>9.2f}  {p.nameWithOctave:>6}  {nota.hz_crudo_medio:>8.1f}Hz  "
-            f"{nota.duracion_nombre:>17} ({nota.duracion_ql:.2f}ql)  {nota.confianza:>9.2f}"
+            f"{nota.duracion_nombre:>17} ({nota.duracion_ql:.2f}ql)  {nota.confianza:>9.2f}{marcador}"
         )
 
     if descartadas:
@@ -303,6 +436,11 @@ def main() -> None:
     parser.add_argument("--fmax", default="C7", help="Frecuencia máxima esperada del silbido (nota o Hz). Default: C7.")
     parser.add_argument("--min-duration-ms", type=float, default=80.0, help="Duración mínima de nota para no descartarla como ruido. Default: 80ms.")
     parser.add_argument("--min-confidence", type=float, default=0.5, help="Confianza mínima (voiced_probs promedio) para no descartar la nota. Default: 0.5.")
+    parser.add_argument("--onset-delta", type=float, default=0.1, help="Sensibilidad del detector de onsets de librosa (default de librosa: 0.07). Más alto = menos onsets espurios por vibrato, pero riesgo de perder repeticiones reales muy pegadas. Default acá: 0.1.")
+    parser.add_argument("--umbral-fragmentacion-hz", type=float, default=15.0, help="Umbral (Hz crudo) para marcar en el reporte dos notas sobrevivientes consecutivas de igual altura como posible fragmentación de la misma nota. Solo diagnóstico, no cambia la segmentación. Default: 15.0.")
+    parser.add_argument("--fusion-gap-max-ms", type=float, default=70.0, help="Gap máximo (ms) entre dos notas candidatas de igual altura, sin frames unvoiced reales entre ellas, para fusionarlas en una sola nota. Default: 70.0.")
+    parser.add_argument("--umbral-confianza-corte", type=float, default=0.85, help="Confianza (voiced_probs) mínima en la ventana alrededor de un corte por onset para considerarlo vibrato espurio y fusionar. Si la confianza cae por debajo, se asume reataque real y NO se fusiona. Default: 0.85.")
+    parser.add_argument("--sin-fusion", action="store_true", help="Desactiva el paso de fusión post-onset (fusionar_fragmentos) -- para comparar antes/después.")
     args = parser.parse_args()
 
     def a_hz(valor: str) -> float:
@@ -324,13 +462,24 @@ def main() -> None:
     print(f"Detectando pitch con pYIN (rango {fmin_hz:.1f}Hz - {fmax_hz:.1f}Hz)...")
     f0, voiced_flag, voiced_probs, tiempos = detectar_pitch(y, sr, fmin_hz, fmax_hz)
 
-    print("Detectando onsets...")
-    onsets_s = detectar_onsets(y, sr)
+    print(f"Detectando onsets (delta={args.onset_delta})...")
+    onsets_s = detectar_onsets(y, sr, delta=args.onset_delta)
     print(f"  {len(onsets_s)} onsets detectados")
 
+    midi_por_frame = calcular_midi_por_frame(f0)
+
     print("Segmentando en notas discretas...")
-    notas = segmentar_notas(f0, voiced_probs, tiempos, onsets_s)
+    notas = segmentar_notas(f0, voiced_probs, tiempos, onsets_s, midi_por_frame)
     print(f"  {len(notas)} notas candidatas")
+
+    if not args.sin_fusion:
+        print(f"Fusionando fragmentos espurios (gap_max={args.fusion_gap_max_ms}ms, umbral_confianza={args.umbral_confianza_corte})...")
+        notas = fusionar_fragmentos(
+            notas, midi_por_frame, voiced_probs,
+            gap_maximo_ms=args.fusion_gap_max_ms,
+            umbral_confianza_corte=args.umbral_confianza_corte,
+        )
+        print(f"  {len(notas)} notas tras fusión")
 
     print(f"Aplicando filtros (min_duration={args.min_duration_ms}ms, min_confidence={args.min_confidence})...")
     aplicar_filtros(notas, args.min_duration_ms, args.min_confidence)
@@ -348,7 +497,10 @@ def main() -> None:
     print(f"  MusicXML escrito en: {musicxml_path}")
 
     reporte_path = out_dir / "reporte.txt"
-    generar_reporte(notas, args.audio, args.bpm, reporte_path)
+    generar_reporte(
+        notas, args.audio, args.bpm, reporte_path,
+        umbral_fragmentacion_hz=args.umbral_fragmentacion_hz,
+    )
     print(f"  Reporte escrito en: {reporte_path}")
 
     print("\nListo. Abrí el reporte.txt para comparar nota por nota contra lo que silbaste.")

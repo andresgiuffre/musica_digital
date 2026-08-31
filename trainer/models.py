@@ -603,6 +603,17 @@ class BloqueContenido(models.Model):
         help_text="Fragmento del Ejercicio de Orquestación a mostrar como ejemplo. Exactamente uno entre esto y 'sheet music' cuando el tipo es Ejemplo de partitura."
     )
     contexto_ejemplo = models.CharField(max_length=300, blank=True, help_text='Texto corto opcional arriba del ejemplo, ej: "En este ejemplo, fijate cómo...".')
+    # Controlan qué metadata embebida en el MusicXML renderiza OSMD además del
+    # pentagrama -- independiente de qué haya elegido el usuario al exportar desde
+    # MuseScore (ej. "sin encabezado" solo oculta el título/subtítulo visual del
+    # PDF, pero el nombre de instrumento (<part-name>) y el compositor/arreglador
+    # (<creator>) quedan igual embebidos en el XML y OSMD los dibuja salvo que se
+    # le indique explícitamente que no). True = mostrar (default, no cambia el
+    # renderizado de bloques ya creados). Ver tema_detail.html para el mapeo a
+    # las opciones IOSMDOptions correspondientes.
+    mostrar_nombre_instrumento = models.BooleanField(default=True, help_text="Si está destildado, oculta el nombre del instrumento junto al pentagrama.")
+    mostrar_compositor = models.BooleanField(default=True, help_text="Si está destildado, oculta el subtítulo/compositor/arreglador embebidos en el archivo.")
+    mostrar_letra = models.BooleanField(default=True, help_text="Si está destildado, oculta la letra (lyrics) que venga incluida en la partitura.")
 
     # --- PRACTICA ---
     practica_texto = models.CharField(max_length=300, blank=True, help_text='Ej: "Practicá esto en Identificación de Notas". Requerido cuando el tipo es Práctica.')

@@ -60,7 +60,13 @@ class BloqueContenidoInline(admin.StackedInline):
     fieldsets = (
         (None, {'fields': ('orden', 'tipo')}),
         ('Texto', {'fields': ('texto_markdown',), 'classes': ('collapse',)}),
-        ('Ejemplo de partitura', {'fields': ('sheet_music', 'fragmento_orquestacion', 'contexto_ejemplo'), 'classes': ('collapse',)}),
+        ('Ejemplo de partitura', {
+            'fields': (
+                'sheet_music', 'fragmento_orquestacion', 'contexto_ejemplo',
+                'mostrar_nombre_instrumento', 'mostrar_compositor', 'mostrar_letra',
+            ),
+            'classes': ('collapse',),
+        }),
         ('Práctica', {'fields': ('practica_texto', 'practica_url'), 'classes': ('collapse',)}),
     )
 
