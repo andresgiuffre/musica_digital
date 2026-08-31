@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
-{% block title %}{{ curso.nombre }}{% endblock %}
+{% block title %}{{ curso.nombre_mostrado }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {# Sin override de html_lang: el contenido de cada BloqueContenido ahora es
@@ -30,8 +30,8 @@
         {% trans "Cursos" %}
     </a>
 
-    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 0.5rem;">{{ curso.nombre }}</h1>
-    <p style="color: var(--ink-soft); max-width: 55ch; margin-bottom: 1.75rem;">{{ curso.descripcion_corta }}</p>
+    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 0.5rem;">{{ curso.nombre_mostrado }}</h1>
+    <p style="color: var(--ink-soft); max-width: 55ch; margin-bottom: 1.75rem;">{{ curso.descripcion_corta_mostrado }}</p>
 
     {% for grado in grados %}
         <div class="grado-gab">

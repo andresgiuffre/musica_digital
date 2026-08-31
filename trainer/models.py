@@ -513,12 +513,20 @@ class Curso(models.Model):
     ]
 
     nombre = models.CharField(max_length=200)
+    nombre_en = models.CharField(max_length=200, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el nombre en español también con idioma inglés activo.")
     descripcion_corta = models.CharField(max_length=300, blank=True)
+    descripcion_corta_en = models.CharField(max_length=300, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra la descripción en español también con idioma inglés activo.")
     activo = models.BooleanField(default=True, help_text="Solo los cursos activos aparecen listados para los usuarios.")
-    # Cursos NO se traduce con gettext -- es contenido curado a mano, cada
-    # idioma es un árbol completo separado (Grado/Tema/BloqueContenido
-    # cuelgan de este Curso y heredan su idioma transitivamente, sin campo
-    # propio en ninguno de esos tres modelos).
+    # Cursos NO se traduce con gettext -- es contenido curado a mano. El diseño
+    # original era un árbol completo separado por idioma (Grado/Tema/
+    # BloqueContenido colgando de un Curso con idioma='en' propio); se abandonó
+    # -- ver nombre_en arriba y titulo_en en Grado/Tema/BloqueContenido -- porque
+    # nunca llegó a usarse (nunca se cargó un segundo Curso en inglés) y duplicar
+    # árboles enteros por una traducción es más carga de mantenimiento que un
+    # campo _en por fila. `idioma`/`codigo` quedan en el modelo (agrupan
+    # variantes si algún día hace falta un Curso genuinamente distinto por
+    # idioma, no solo traducido) pero cursos_list/curso_detail ya NO filtran
+    # por idioma -- ver el comentario en views.py.
     idioma = models.CharField(max_length=2, choices=IDIOMA_CHOICES, default='es')
     codigo = models.SlugField(max_length=140, help_text=(
         "Identificador estable compartido entre versiones de idioma del mismo curso "
@@ -533,6 +541,20 @@ class Curso(models.Model):
 
     def __str__(self):
         return f"{self.nombre} ({self.idioma})"
+
+    @property
+    def nombre_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.nombre_en:
+            return self.nombre_en
+        return self.nombre
+
+    @property
+    def descripcion_corta_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.descripcion_corta_en:
+            return self.descripcion_corta_en
+        return self.descripcion_corta
 
 
 class Grado(models.Model):
