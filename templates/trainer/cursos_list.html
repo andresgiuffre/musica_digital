@@ -35,8 +35,8 @@
     <div class="cursos-gab__grid">
         {% for curso in cursos %}
         <a href="{% url 'curso_detail' curso.id %}" class="curso-gab">
-            <h2 class="curso-gab__titulo">{{ curso.nombre }}</h2>
-            <p class="curso-gab__texto">{{ curso.descripcion_corta }}</p>
+            <h2 class="curso-gab__titulo">{{ curso.nombre_mostrado }}</h2>
+            <p class="curso-gab__texto">{{ curso.descripcion_corta_mostrado }}</p>
         </a>
         {% endfor %}
     </div>
