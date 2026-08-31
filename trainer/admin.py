@@ -25,7 +25,7 @@ class PlaylistAdmin(admin.ModelAdmin):
 class GradoInline(admin.TabularInline):
     model = Grado
     extra = 1
-    fields = ('numero', 'titulo', 'activo')
+    fields = ('numero', 'titulo', 'titulo_en', 'activo')
 
 
 @admin.register(Curso)
@@ -38,7 +38,7 @@ class CursoAdmin(admin.ModelAdmin):
 class TemaInline(admin.TabularInline):
     model = Tema
     extra = 1
-    fields = ('orden', 'titulo', 'slug', 'activo')
+    fields = ('orden', 'titulo', 'titulo_en', 'slug', 'activo')
 
 
 @admin.register(Grado)

@@ -35,12 +35,12 @@
 
     {% for grado in grados %}
         <div class="grado-gab">
-            <h2 class="grado-gab__titulo">{% blocktrans with n=grado.numero titulo=grado.titulo %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</h2>
+            <h2 class="grado-gab__titulo">{% blocktrans with n=grado.numero titulo=grado.titulo_mostrado %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</h2>
             <div class="grado-gab__lista">
                 {% for tema in grado.temas.all %}
                     {% if tema.activo %}
                         <a href="{% url 'tema_detail' curso.id grado.numero tema.slug %}" class="grado-gab__item">
-                            <span>{{ tema.titulo }}</span>
+                            <span>{{ tema.titulo_mostrado }}</span>
                             <span>→</span>
                         </a>
                     {% endif %}
