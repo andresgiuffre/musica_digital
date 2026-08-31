@@ -99,6 +99,9 @@
             archivoUrl: '{% url "orquestacion_ejercicio_archivo" bloque.fragmento_orquestacion.id %}',
             {% endif %}
             esMxl: {{ bloque.es_mxl|yesno:"true,false" }},
+            mostrarNombreInstrumento: {{ bloque.mostrar_nombre_instrumento|yesno:"true,false" }},
+            mostrarCompositor: {{ bloque.mostrar_compositor|yesno:"true,false" }},
+            mostrarLetra: {{ bloque.mostrar_letra|yesno:"true,false" }},
         },
         {% endif %}
         {% endfor %}
@@ -109,6 +112,16 @@
         const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(contenedor, {
             drawTitle: false,
             autoResize: false,
+            // El nombre de instrumento y el compositor/arreglador vienen del
+            // MusicXML (<part-name>, <creator>) independientemente de qué haya
+            // elegido el usuario al exportar desde MuseScore -- drawTitle:false
+            // arriba no los toca. Controlado por bloque desde el admin.
+            drawPartNames: info.mostrarNombreInstrumento,
+            drawPartAbbreviations: info.mostrarNombreInstrumento,
+            drawComposer: info.mostrarCompositor,
+            drawSubtitle: info.mostrarCompositor,
+            drawLyricist: info.mostrarCompositor,
+            drawLyrics: info.mostrarLetra,
         });
         fetch(info.archivoUrl)
             .then(res => {
