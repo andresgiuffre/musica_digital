@@ -602,20 +602,29 @@ body.gabinete .pdir-gab__partitura {
 }
 /* El destello de acierto/error de este componente se aplica con JS directo a
    .style (mismo mecanismo ya probado para el glow de la nota, ver pintarNota
-   en tema_detail.html), no con estas clases -- confirmado en la práctica que
-   la versión por clases (con !important) no se notaba, sin encontrar la causa
-   exacta sin poder inspeccionar un navegador real; la manipulación directa de
-   estilo no depende de ninguna cascada CSS, es la vía más confiable. */
+   en tema_detail.html), no con clases -- confirmado en la práctica que la
+   versión por clases (con !important, fondo pintado + borde grueso) no se
+   notaba bien y además no era lo pedido: un iluminado SUTIL en el borde,
+   como el glow de las notas, no un relleno de color. Acá solo vive la
+   animación de shake del error (necesita @keyframes, no se puede inlinear en
+   .style -- se activa seteando element.style.animation desde JS).*/
+@keyframes pdir-gab-shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+}
 
 /* El div pasado a `new OpenSheetMusicDisplay(...)` necesita position:relative --
    sin esto el cursor de OSMD se posiciona contra el ancestro posicionado más
    cercano de TODA la página en vez de contra la partitura (mismo requisito ya
    confirmado en biblioteca_play.html leyendo el código fuente de OSMD 1.8.8).
-   width:100% + min-width explícitos -- no depender solo del ancho por default
-   de un div de bloque: mismo tipo de problema (OSMD renderizando contra un
-   ancho angosto/equivocado) que motivó el ancho mínimo ya fijado en
-   biblioteca_play.html (#osmdCanvas). */
-body.gabinete .pdir-gab__osmd { position: relative; min-height: 120px; width: 100%; min-width: 480px; }
+   Sin ancho forzado -- con renderSingleHorizontalStaffline (ver tema_detail.html)
+   el SVG resultante mide lo que tenga que medir en una sola línea, y el
+   overflow-x:auto de .pdir-gab__partitura banca el scroll horizontal si es más
+   ancho que el contenedor. Forzar un ancho acá ya no tiene sentido -- el
+   intento anterior (width:100%/min-width) no solucionaba el problema real. */
+body.gabinete .pdir-gab__osmd { position: relative; min-height: 120px; }
 
 /* Flecha propia que apunta la nota esperada (OSMD no tiene un "tipo" de cursor
    con forma de flecha -- ver el comentario en el template). Reposicionada en
