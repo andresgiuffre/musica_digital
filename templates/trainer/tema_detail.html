@@ -135,6 +135,8 @@
                         <iframe src="{{ bloque.video_embed_info.embed_src }}" title="{{ bloque.contexto_video_mostrado }}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe>
                     </div>
                 {% endif %}
+            {% elif bloque.tipo == 'PRACTICA_DIRIGIDA' %}
+                {% include 'trainer/_bloque_practica_dirigida.html' %}
             {% endif %}
         </div>
     {% empty %}
@@ -168,6 +170,7 @@
 
 {% block extra_js %}
 <script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
+<script src="{% static 'js/osmd_utils.js' %}"></script>
 <script>
 (function () {
     // Mismo patrón fetch -> load -> render ya probado en orquestacion_ejercicio.html,
@@ -408,6 +411,174 @@
         actualizarBoton();
         hablarSiguiente();
     });
+})();
+
+(function () {
+    const bloquesPractica = [
+        {% for bloque in bloques %}
+        {% if bloque.tipo == 'PRACTICA_DIRIGIDA' %}
+        { bloqueId: {{ bloque.id }} },
+        {% endif %}
+        {% endfor %}
+    ];
+    if (bloquesPractica.length === 0) return;
+
+    // {placeholder} de una sola llave a propósito -- el tag trans de Django sin
+    // "with" los deja pasar tal cual (no son variables de template), mismo
+    // patrón fmt() ya usado en teoria.js/orquestador_render.js.
+    function fmt(str, vars) {
+        return str.replace(/\{(\w+)\}/g, function (_, k) {
+            return vars[k] !== undefined ? vars[k] : '';
+        });
+    }
+
+    const LETRA_POR_INICIAL = { C: 'c', D: 'd', E: 'e', F: 'f', G: 'g', A: 'a', B: 'b' };
+
+    function initPracticaDirigida(bloqueId) {
+        const contenedor = document.getElementById('pdir-bloque-' + bloqueId);
+        if (!contenedor) return;
+        const data = contenedor.dataset;
+
+        const divOsmd = document.getElementById('pdir-osmd-' + bloqueId);
+        const divEstado = document.getElementById('pdir-estado-' + bloqueId);
+        const divNotas = document.getElementById('pdir-notas-' + bloqueId);
+        const botonesNota = divNotas.querySelectorAll('.pdir-gab__nota-btn');
+        const divResumen = document.getElementById('pdir-resumen-' + bloqueId);
+        const textoResumen = document.getElementById('pdir-resumen-texto-' + bloqueId);
+        const btnReintentar = document.getElementById('pdir-reintentar-' + bloqueId);
+        const divBadge = document.getElementById('pdir-badge-' + bloqueId);
+        const divPartitura = divOsmd.closest('.pdir-gab__partitura');
+
+        let osmd = null;
+        let notas = [];          // solo las que tienen pitch real (recorrerCursorOsmd, filtradas)
+        let idx = 0;
+        let currentCursorIdx = 0;
+        let correctas = 0;
+        let total = 0;
+        let esperandoRespuesta = false;
+
+        function letraDePitchName(pitchName) {
+            // "C4"/"C#4" -> letra natural (el ejercicio de Grado 0 pide identificar
+            // la nota natural, no el alterado -- mismo alcance que modo_practica
+            // 'identificar_notas' según la spec, sin evaluar sostenidos/bemoles).
+            return LETRA_POR_INICIAL[pitchName[0]];
+        }
+
+        function habilitarBotones(habilitado) {
+            botonesNota.forEach(function (btn) { btn.disabled = !habilitado; });
+        }
+
+        function siguienteNota() {
+            if (idx >= notas.length) {
+                terminar();
+                return;
+            }
+            const nota = notas[idx];
+            currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, nota.groupIndex);
+            habilitarBotones(true);
+            esperandoRespuesta = true;
+            AudioEngine.playNote(nota.pitchName);
+        }
+
+        function responder(letraElegida) {
+            if (!esperandoRespuesta) return;
+            esperandoRespuesta = false;
+            habilitarBotones(false);
+
+            const nota = notas[idx];
+            const esCorrecta = letraElegida === letraDePitchName(nota.pitchName);
+            total++;
+            if (esCorrecta) correctas++;
+
+            const clase = esCorrecta ? 'flash-correct' : 'flash-incorrect';
+            if (divPartitura) divPartitura.classList.add(clase);
+            if (nota.svgEl) nota.svgEl.classList.add(clase);
+            setTimeout(function () {
+                if (divPartitura) divPartitura.classList.remove(clase);
+                if (nota.svgEl) nota.svgEl.classList.remove(clase);
+            }, 500);
+
+            idx++;
+            setTimeout(siguienteNota, 700);
+        }
+
+        function terminar() {
+            divNotas.style.display = 'none';
+            divResumen.style.display = '';
+            textoResumen.textContent = fmt(data.txtResultado, { correctas: correctas, total: total });
+
+            fetch(data.registrarUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': data.csrf },
+                body: JSON.stringify({ correctas: correctas, total: total }),
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (resultado) {
+                    if (resultado.status !== 'success') return;
+                    divBadge.classList.remove('pdir-gab__badge--progreso', 'pdir-gab__badge--completado');
+                    if (resultado.completado) {
+                        divBadge.classList.add('pdir-gab__badge--completado');
+                        divBadge.textContent = fmt(data.txtCompletado, { precision: Math.round(resultado.mejor_precision) });
+                    } else {
+                        divBadge.classList.add('pdir-gab__badge--progreso');
+                        divBadge.textContent = fmt(data.txtNoCompletado, { veces: resultado.veces_practicado });
+                    }
+                    divBadge.style.display = '';
+                })
+                .catch(function (err) { console.error('[practica-dirigida] Error registrando resultado:', err); });
+        }
+
+        function empezar() {
+            idx = 0;
+            correctas = 0;
+            total = 0;
+            currentCursorIdx = 0;
+            osmd.cursor.reset();
+            divResumen.style.display = 'none';
+            divNotas.style.display = '';
+            siguienteNota();
+        }
+
+        async function cargar() {
+            osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divOsmd, {
+                autoResize: false,
+                drawTitle: false,
+            });
+            try {
+                const res = await fetch(data.archivoUrl);
+                if (!res.ok) throw new Error('No se pudo descargar el archivo (' + res.status + ')');
+                const buffer = await res.arrayBuffer();
+                if (data.esMxl === 'true') {
+                    await osmd.load(buffer);
+                } else {
+                    await osmd.load(new TextDecoder('utf-8').decode(buffer));
+                }
+                osmd.render();
+                osmd.cursor.show();
+
+                const recorrido = OsmdUtils.recorrerCursorOsmd(osmd);
+                OsmdUtils.etiquetarNotasConSvg(osmd, recorrido.notas);
+                notas = recorrido.notas.filter(function (n) { return n.ps !== null; });
+
+                if (notas.length === 0) throw new Error('El archivo no tiene notas con altura reconocible.');
+
+                divEstado.style.display = 'none';
+                empezar();
+            } catch (err) {
+                console.error('[practica-dirigida] Error cargando ejercicio:', err);
+                divEstado.textContent = data.txtError;
+            }
+        }
+
+        botonesNota.forEach(function (btn) {
+            btn.addEventListener('click', function () { responder(btn.dataset.note); });
+        });
+        btnReintentar.addEventListener('click', empezar);
+
+        cargar();
+    }
+
+    bloquesPractica.forEach(function (info) { initPracticaDirigida(info.bloqueId); });
 })();
 </script>
 {% endblock %}

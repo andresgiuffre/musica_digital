@@ -1869,7 +1869,7 @@ def curso_exportar_pdf(request, curso_id):
 
 @login_required
 def tema_detail(request, curso_id, grado_numero, tema_slug):
-    from .models import Curso, Grado, Tema
+    from .models import Curso, Grado, Tema, PracticaDirigidaProgreso
     from .services import render_markdown_seguro
 
     curso = get_object_or_404(Curso, id=curso_id, activo=True)
@@ -1899,6 +1899,9 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
             # orquestacion_ejercicio_archivo) -- nada de adivinar la extensión en JS.
             archivo_name = bloque.sheet_music.xml_file.name if bloque.sheet_music else bloque.fragmento_orquestacion.archivo.name
             bloque.es_mxl = pathlib.Path(archivo_name).suffix.lower() == '.mxl'
+        elif bloque.tipo == bloque.PRACTICA_DIRIGIDA:
+            bloque.es_mxl_practica = pathlib.Path(bloque.musicxml_practica.name).suffix.lower() == '.mxl'
+            bloque.progreso_usuario = PracticaDirigidaProgreso.objects.filter(user=request.user, bloque=bloque).first()
 
     response = render(request, 'trainer/tema_detail.html', {
         'curso': curso, 'grado': grado, 'tema': tema, 'bloques': bloques,
@@ -1979,6 +1982,68 @@ def bloque_video_archivo(request, bloque_id):
         content_type=content_type,
         filename=archivo.name,
     )
+
+
+@login_required
+def bloque_practica_dirigida_archivo(request, bloque_id):
+    """
+    Sirve el musicxml_practica de un bloque PRACTICA_DIRIGIDA -- mismo motivo
+    que bloque_imagen_archivo/bloque_video_archivo (no exponer vía MEDIA_URL
+    directo). Sin distinción de idioma (a diferencia de imagen/video): el
+    MusicXML del ejercicio es el mismo para cualquier idioma, ver el
+    comentario en el modelo.
+    """
+    from .models import BloqueContenido
+    bloque = get_object_or_404(BloqueContenido, id=bloque_id, tipo=BloqueContenido.PRACTICA_DIRIGIDA)
+
+    extension = pathlib.Path(bloque.musicxml_practica.name).suffix.lower()
+    content_type = 'application/vnd.recordare.musicxml' if extension == '.mxl' else 'application/vnd.recordare.musicxml+xml'
+
+    return FileResponse(
+        bloque.musicxml_practica.open('rb'),
+        content_type=content_type,
+        filename=bloque.musicxml_practica.name,
+    )
+
+
+@login_required
+def practica_dirigida_registrar(request, bloque_id):
+    """
+    Registra el resultado AGREGADO de un intento completo de un ejercicio de
+    Práctica dirigida -- no hay tabla de intentos individuales por nota (ver
+    PracticaDirigidaProgreso), solo el mejor resultado y un contador. POST-only,
+    @login_required + CSRF normal (no @csrf_exempt -- a diferencia de
+    log_study_session/api_update_project_state, esto no se dispara desde
+    sendBeacon en un unload, es un fetch normal desde la propia página).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    from .models import BloqueContenido, PracticaDirigidaProgreso
+
+    bloque = get_object_or_404(BloqueContenido, id=bloque_id, tipo=BloqueContenido.PRACTICA_DIRIGIDA)
+
+    try:
+        data = json.loads(request.body)
+        correctas = int(data.get('correctas', 0))
+        total = int(data.get('total', 0))
+        precision = round(100 * correctas / total) if total > 0 else 0
+
+        progreso, _ = PracticaDirigidaProgreso.objects.get_or_create(user=request.user, bloque=bloque)
+        progreso.notas_totales = total
+        progreso.mejor_precision = max(progreso.mejor_precision, precision)
+        progreso.veces_practicado += 1
+        progreso.completado = progreso.mejor_precision >= bloque.precision_minima
+        progreso.save()
+
+        return JsonResponse({
+            'status': 'success',
+            'mejor_precision': progreso.mejor_precision,
+            'completado': progreso.completado,
+            'veces_practicado': progreso.veces_practicado,
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 
 @login_required

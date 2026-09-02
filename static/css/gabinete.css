@@ -583,3 +583,34 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
 @media (max-width: 860px) {
     .navbar-gab__links { display: none; }
 }
+
+/* ---------- Práctica dirigida (bloque de Cursos, tema_detail) ---------- */
+body.gabinete .pdir-gab__badge {
+    display: inline-block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    margin-bottom: 1rem;
+}
+body.gabinete .pdir-gab__badge--completado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+body.gabinete .pdir-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
+
+body.gabinete .pdir-gab__partitura { background: var(--score-paper); color: var(--score-ink); padding: 1.25rem; border-radius: var(--radius-data); overflow-x: auto; margin-bottom: 1rem; }
+/* El div pasado a `new OpenSheetMusicDisplay(...)` necesita position:relative --
+   sin esto el cursor de OSMD se posiciona contra el ancestro posicionado más
+   cercano de TODA la página en vez de contra la partitura (mismo requisito ya
+   confirmado en biblioteca_play.html leyendo el código fuente de OSMD 1.8.8). */
+body.gabinete .pdir-gab__osmd { position: relative; min-height: 120px; }
+
+body.gabinete .pdir-gab__estado { color: var(--ink-soft); text-align: center; padding: 1rem 0; }
+
+body.gabinete .pdir-gab__notas-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; }
+body.gabinete .pdir-gab__nota-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+body.gabinete .pdir-gab__resumen { text-align: center; }
+body.gabinete .pdir-gab__resumen-texto { font-weight: 600; margin-bottom: 0.75rem; }
+
+@media (max-width: 560px) {
+    body.gabinete .pdir-gab__notas-grid { grid-template-columns: repeat(4, 1fr); }
+}
