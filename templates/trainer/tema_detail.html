@@ -446,7 +446,6 @@
 
         const divOsmd = document.getElementById('pdir-osmd-' + bloqueId);
         const divPartitura = document.getElementById('pdir-partitura-' + bloqueId);
-        const flechaCursor = document.getElementById('pdir-flecha-' + bloqueId);
         const divContador = document.getElementById('pdir-contador-' + bloqueId);
         const divEstado = document.getElementById('pdir-estado-' + bloqueId);
         const divNotas = document.getElementById('pdir-notas-' + bloqueId);
@@ -463,6 +462,14 @@
         const colorAcierto = estilosBody.getPropertyValue('--green').trim() || '#2e7d32';
         const colorError = estilosBody.getPropertyValue('--danger').trim() || '#c0392b';
         const colorCursor = estilosBody.getPropertyValue('--primary').trim() || '#6b3550';
+        // Sin flecha propia -- se abandonó (no había forma confiable de ubicarla
+        // sobre la nota exacta sin poder ver el resultado en un navegador real,
+        // confirmado con varios intentos fallidos). En su lugar, la nota que hay
+        // que adivinar se ilumina de este color (mismo mecanismo ya probado que
+        // el glow de acierto/error, ver pintarNota) hasta que se responde, momento
+        // en el que se repinta verde/rojo -- reusa código que ya funciona en vez
+        // de perseguir coordenadas de pixel.
+        const colorPregunta = estilosBody.getPropertyValue('--ochre').trim() || '#b5822e';
 
         let osmd = null;
         let notas = [];          // solo las que tienen pitch real (recorrerCursorOsmd, filtradas)
@@ -528,32 +535,6 @@
             }, 500);
         }
 
-        // Tamaño fijo, igual al del SVG en el template (width/height="24") --
-        // NO se lee flechaCursor.offsetWidth/offsetHeight: mientras la flecha
-        // sigue display:none (primera nota del intento), esas dos valen 0, y
-        // usarlas para centrar daba una posición desplazada -- bug real, no
-        // solo una hipótesis, ya corregido acá.
-        const TAMANO_FLECHA = 24;
-
-        // La flecha se reposiciona contra el bounding box del CURSOR nativo de
-        // OSMD (no de la nota) -- con renderSingleHorizontalStaffline (ver
-        // cargar() más abajo) todo el ejercicio queda en una sola línea, así que
-        // "arriba del cursor" es siempre "arriba del pentagrama", consistente
-        // nota a nota. La posición horizontal del cursor es exactamente lo que
-        // OSMD calcula al mover el cursor con avanzarCursorOsmdHasta -- no hay
-        // que recalcular nada por nuestra cuenta, solo leerla.
-        function moverFlechaCursor() {
-            if (!divPartitura || !osmd.cursor.cursorElement) return;
-            const rectContenedor = divPartitura.getBoundingClientRect();
-            const rectCursor = osmd.cursor.cursorElement.getBoundingClientRect();
-            if (rectCursor.width === 0 && rectCursor.height === 0) return; // aún no posicionado
-            const x = rectCursor.left - rectContenedor.left + rectCursor.width / 2 - TAMANO_FLECHA / 2;
-            const y = rectCursor.top - rectContenedor.top - TAMANO_FLECHA - 4;
-            flechaCursor.style.left = x + 'px';
-            flechaCursor.style.top = y + 'px';
-            flechaCursor.style.display = '';
-        }
-
         function actualizarContador() {
             const porcentaje = total > 0 ? Math.round(100 * correctas / total) : 0;
             divContador.textContent = fmt(data.txtContador, { correctas: correctas, total: total, porcentaje: porcentaje });
@@ -567,7 +548,7 @@
             }
             const nota = notas[idx];
             currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, nota.groupIndex);
-            moverFlechaCursor();
+            pintarNota(nota.svgEl, colorPregunta); // "esta es la nota a adivinar" -- responder() la repinta verde/rojo
             habilitarBotones(true);
             esperandoRespuesta = true;
             AudioEngine.playNote(nota.pitchName);
@@ -597,7 +578,6 @@
         }
 
         function terminar() {
-            flechaCursor.style.display = 'none';
             divNotas.style.display = 'none';
             divResumen.style.display = '';
             textoResumen.textContent = fmt(data.txtResultado, { correctas: correctas, total: total });
@@ -667,12 +647,13 @@
                 // Si el resultado es más ancho que el contenedor, el overflow-x:auto
                 // de .pdir-gab__partitura deja hacer scroll horizontal.
                 renderSingleHorizontalStaffline: true,
-                // Ninguno de los "tipos" de cursor de OSMD es una flecha (confirmado
-                // leyendo Cursor.ts de la versión pineada) -- se deja el cursor nativo
-                // como una línea vertical fina y sutil, y la flecha propia (arriba)
-                // hace el trabajo de señalar la nota. alpha bajo a propósito: sigue
-                // sirviendo como referencia de posición, sin competir visualmente.
-                cursorsOptions: [{ type: 1, color: colorCursor, alpha: 0.5, follow: true }],
+                // Línea vertical fina (no hay "tipo" de cursor con forma de flecha
+                // en OSMD, confirmado leyendo Cursor.ts de la versión pineada -- se
+                // abandonó una flecha propia superpuesta, ver pintarNota más abajo
+                // para cómo se señala la nota a adivinar). Alpha más alto que antes:
+                // ahora es la única referencia visual de posición además del
+                // resaltado de la nota, no compite con ninguna flecha.
+                cursorsOptions: [{ type: 1, color: colorCursor, alpha: 0.7, follow: true }],
             });
             try {
                 const res = await fetch(data.archivoUrl);

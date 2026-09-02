@@ -626,11 +626,6 @@ body.gabinete .pdir-gab__partitura {
    intento anterior (width:100%/min-width) no solucionaba el problema real. */
 body.gabinete .pdir-gab__osmd { position: relative; min-height: 120px; }
 
-/* Flecha propia que apunta la nota esperada (OSMD no tiene un "tipo" de cursor
-   con forma de flecha -- ver el comentario en el template). Reposicionada en
-   JS contra el bounding box real del cursor nativo de OSMD en cada avance. */
-body.gabinete .pdir-gab__flecha-cursor { position: absolute; color: var(--primary); pointer-events: none; z-index: 6; transition: left 0.25s ease, top 0.25s ease; }
-
 body.gabinete .pdir-gab__contador { text-align: center; font-weight: 600; color: var(--ink); margin-bottom: 0.75rem; }
 
 body.gabinete .pdir-gab__estado { color: var(--ink-soft); text-align: center; padding: 1rem 0; }
