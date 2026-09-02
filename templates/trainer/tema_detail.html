@@ -625,7 +625,23 @@
 
         async function cargar() {
             osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divOsmd, {
-                autoResize: false,
+                // true (el default de OSMD) a propósito -- ES lo que hace que OSMD mida
+                // el ancho real del contenedor y corte de línea ahí, como cualquier
+                // partitura impresa (varios sistemas, cada uno ocupando el ancho
+                // disponible). Los otros bloques de este archivo (EJEMPLO_PARTITURA)
+                // usan autoResize:false porque son estáticos y no hay nada que se
+                // invalide con un re-render; acá se probó primero autoResize:false +
+                // renderSingleHorizontalStaffline:true (forzar todo a una sola línea)
+                // pensando que era "una sola línea o nada", y resultó ser la solución
+                // equivocada -- una pieza larga simplemente seguía de largo sin límite
+                // en vez de cortar de línea, saliéndose del contenedor. Riesgo conocido
+                // y aceptado de autoResize:true: si el usuario redimensiona la ventana
+                // A MITAD del ejercicio, OSMD puede re-renderizar internamente e
+                // invalidar las referencias de svgEl ya etiquetadas (mismo motivo por
+                // el que orquestacion_ejercicio.html lo desactiva) -- en el peor caso
+                // se pierde el coloreado de notas ya respondidas hasta la próxima
+                // respuesta, no rompe la lógica del ejercicio en sí.
+                autoResize: true,
                 drawTitle: false,
                 // Título/subtítulo/compositor/letrista/nombre de instrumento: nada de
                 // esto tiene sentido en la superficie de un ejercicio de práctica (a
@@ -638,15 +654,6 @@
                 drawLyricist: false,
                 drawPartNames: false,
                 drawPartAbbreviations: false,
-                // Fuerza TODO el ejercicio a una sola línea horizontal continua, sin
-                // wrapping en varios sistemas -- confirmado en la doc de OSMD 1.8.8
-                // (hay que fijarlo ANTES de load(), no sirve seteado después). Esto es
-                // lo que realmente soluciona el canvas angosto/partido: no depende de
-                // que OSMD mida bien el ancho del contenedor (con autoResize:false no
-                // lo hacía de forma confiable), directamente no hay wrapping que hacer.
-                // Si el resultado es más ancho que el contenedor, el overflow-x:auto
-                // de .pdir-gab__partitura deja hacer scroll horizontal.
-                renderSingleHorizontalStaffline: true,
                 // Línea vertical fina (no hay "tipo" de cursor con forma de flecha
                 // en OSMD, confirmado leyendo Cursor.ts de la versión pineada -- se
                 // abandonó una flecha propia superpuesta, ver pintarNota más abajo

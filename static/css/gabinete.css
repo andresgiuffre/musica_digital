@@ -619,11 +619,11 @@ body.gabinete .pdir-gab__partitura {
    sin esto el cursor de OSMD se posiciona contra el ancestro posicionado más
    cercano de TODA la página en vez de contra la partitura (mismo requisito ya
    confirmado en biblioteca_play.html leyendo el código fuente de OSMD 1.8.8).
-   Sin ancho forzado -- con renderSingleHorizontalStaffline (ver tema_detail.html)
-   el SVG resultante mide lo que tenga que medir en una sola línea, y el
-   overflow-x:auto de .pdir-gab__partitura banca el scroll horizontal si es más
-   ancho que el contenedor. Forzar un ancho acá ya no tiene sentido -- el
-   intento anterior (width:100%/min-width) no solucionaba el problema real. */
+   Sin ancho forzado: con autoResize:true (ver tema_detail.html) OSMD mide el
+   ancho real de este contenedor y corta de línea/sistema solo, como cualquier
+   partitura impresa -- forzar un ancho acá iría en contra de esa medición. El
+   overflow-x:auto de .pdir-gab__partitura queda como red de seguridad para el
+   caso borde de un compás individual más ancho que el contenedor. */
 body.gabinete .pdir-gab__osmd { position: relative; min-height: 120px; }
 
 body.gabinete .pdir-gab__contador { text-align: center; font-weight: 600; color: var(--ink); margin-bottom: 0.75rem; }
