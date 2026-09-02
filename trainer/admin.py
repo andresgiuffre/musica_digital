@@ -63,7 +63,7 @@ class BloqueContenidoInline(admin.StackedInline):
         ('Ejemplo de partitura', {
             'fields': (
                 'sheet_music', 'fragmento_orquestacion', 'contexto_ejemplo', 'contexto_ejemplo_en',
-                'mostrar_nombre_instrumento', 'mostrar_compositor', 'mostrar_letra',
+                'mostrar_nombre_instrumento', 'mostrar_compositor', 'mostrar_letra', 'mostrar_compases_vacios_literal',
             ),
             'classes': ('collapse',),
         }),

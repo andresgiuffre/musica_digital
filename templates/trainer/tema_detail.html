@@ -149,6 +149,7 @@
             mostrarNombreInstrumento: {{ bloque.mostrar_nombre_instrumento|yesno:"true,false" }},
             mostrarCompositor: {{ bloque.mostrar_compositor|yesno:"true,false" }},
             mostrarLetra: {{ bloque.mostrar_letra|yesno:"true,false" }},
+            mostrarCompasesVaciosLiteral: {{ bloque.mostrar_compases_vacios_literal|yesno:"true,false" }},
         },
         {% endif %}
         {% endfor %}
@@ -169,6 +170,13 @@
             drawSubtitle: info.mostrarCompositor,
             drawLyricist: info.mostrarCompositor,
             drawLyrics: info.mostrarLetra,
+            // Default true en OSMD: junta compases vacíos consecutivos en un solo
+            // silencio con un número arriba (ej. "6" en vez de 6 compases en blanco).
+            // Confirmado en el código fuente de OSMD 1.8.8 (la versión pineada acá),
+            // no asumido. Controlado por bloque desde el admin -- útil cuando el
+            // curso necesita mostrar compases vacíos literales (ej. para completar
+            // un ejercicio entre ellos) en vez de la notación compactada.
+            autoGenerateMultipleRestMeasuresFromRestMeasures: !info.mostrarCompasesVaciosLiteral,
         });
         fetch(info.archivoUrl)
             .then(res => {

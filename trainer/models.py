@@ -672,6 +672,14 @@ class BloqueContenido(models.Model):
     mostrar_nombre_instrumento = models.BooleanField(default=True, help_text="Si está destildado, oculta el nombre del instrumento junto al pentagrama.")
     mostrar_compositor = models.BooleanField(default=True, help_text="Si está destildado, oculta el subtítulo/compositor/arreglador embebidos en el archivo.")
     mostrar_letra = models.BooleanField(default=True, help_text="Si está destildado, oculta la letra (lyrics) que venga incluida en la partitura.")
+    # Default False (compactar, el comportamiento de siempre de OSMD) para no
+    # cambiar el renderizado de bloques ya creados -- mismo criterio que los
+    # tres de arriba. Confirmado leyendo el código fuente de OSMD 1.8.8 (la
+    # versión pineada en el sitio): autoGenerateMultipleRestMeasuresFromRestMeasures
+    # (default true en OSMD) es lo que junta compases vacíos consecutivos en un
+    # solo silencio con un número arriba -- tildar esto lo desactiva para ESTE
+    # bloque puntual, sin tocar el resto del sitio.
+    mostrar_compases_vacios_literal = models.BooleanField(default=False, help_text="Si está tildado, NO compacta compases vacíos consecutivos en un silencio grande -- los renderiza uno por uno, literal.")
 
     # --- PRACTICA ---
     practica_texto = models.CharField(max_length=300, blank=True, help_text='Ej: "Practicá esto en Identificación de Notas". Requerido cuando el tipo es Práctica.')
