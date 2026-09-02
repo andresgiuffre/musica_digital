@@ -1854,6 +1854,31 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
 
 
 @login_required
+def bloque_imagen_archivo(request, bloque_id):
+    """
+    Sirve el archivo de un bloque IMAGEN -- mismo motivo que biblioteca_archivo/
+    orquestacion_ejercicio_archivo: no resolver vía MEDIA_URL directo, que en
+    PythonAnywhere se sirve por fuera de Django sin pasar por @login_required.
+    """
+    from .models import BloqueContenido
+    bloque = get_object_or_404(BloqueContenido, id=bloque_id, tipo=BloqueContenido.IMAGEN)
+
+    extension = pathlib.Path(bloque.imagen.name).suffix.lower()
+    content_type = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.svg': 'image/svg+xml',
+    }.get(extension, 'application/octet-stream')
+
+    return FileResponse(
+        bloque.imagen.open('rb'),
+        content_type=content_type,
+        filename=bloque.imagen.name,
+    )
+
+
+@login_required
 def orquestacion_ejercicio_datos(request, fragmento_id):
     from .models import FragmentoOrquestacion
     fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
