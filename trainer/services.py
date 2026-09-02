@@ -60,13 +60,18 @@ def extraer_video_embed(url):
     admin) como en BloqueContenido.video_embed_info (para armar el <iframe> en
     el template).
 
-    youtube-nocookie.com (no youtube.com) + rel=0 + modestbranding=1: reduce la
-    superficie de fuga (sin videos relacionados de otros canales, sin marca de
-    canal, sin cookie de tracking hasta que se le da play) -- pero NO es una
-    garantía de que sea imposible llegar a youtube.com desde ahí (el logo de
-    YouTube en el reproductor es parte de sus términos de embeb, no se puede
-    sacar por completo). Mismo criterio con Vimeo: title=0/byline=0/portrait=0
-    saca la metadata visible, dnt=1 pide no trackear.
+    youtube.com/embed (NO youtube-nocookie.com -- confirmado en la práctica, no
+    solo en teoría: el dominio nocookie ("privacy-enhanced mode") tira error 153
+    "Error de configuración del reproductor de video" en videos cuyo canal no es
+    compatible con ese modo, aunque el embed normal ande perfecto. Es la opción
+    MENOS probada de las dos -- el botón "Compartir → Insertar" de YouTube usa
+    youtube.com por default, nocookie es opt-in). rel=0 + modestbranding=1:
+    reduce la superficie de fuga (sin videos relacionados de otros canales, sin
+    marca de canal) -- pero NO es una garantía de que sea imposible llegar a
+    youtube.com desde ahí (el logo de YouTube en el reproductor es parte de sus
+    términos de embeb, no se puede sacar por completo). Mismo criterio con
+    Vimeo: title=0/byline=0/portrait=0 saca la metadata visible, dnt=1 pide no
+    trackear.
     """
     m = _PATRON_YOUTUBE.search(url)
     if m:
@@ -74,7 +79,7 @@ def extraer_video_embed(url):
         return {
             'proveedor': 'youtube',
             'id': video_id,
-            'embed_src': f'https://www.youtube-nocookie.com/embed/{video_id}?rel=0&modestbranding=1',
+            'embed_src': f'https://www.youtube.com/embed/{video_id}?rel=0&modestbranding=1',
         }
 
     m = _PATRON_VIMEO.search(url)
