@@ -71,8 +71,13 @@
     <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 1.25rem;">{{ tema.titulo_mostrado }}</h1>
 
     {% get_current_language as idioma_actual %}
-    {# display:none por default -- solo se muestra si el navegador soporta speechSynthesis
-       (feature detection en JS). Así nadie ve un botón que no va a funcionar. #}
+    {% comment %}
+    display:none por default -- solo se muestra si el navegador soporta speechSynthesis
+    (feature detection en JS). Así nadie ve un botón que no va a funcionar.
+    Comentario de bloque a propósito, no el de una sola marca -- ese otro no
+    soporta varias líneas en Django y el texto se cuela como contenido visible
+    (ya pasó antes, con este mismo bloque y también en curso_pdf.html).
+    {% endcomment %}
     <button type="button" id="tts-boton" class="btn-gab btn-gab--secondary tts-boton" style="display:none; margin-bottom: 1.5rem;"
         data-lang="{{ idioma_actual }}"
         data-txt-escuchar="{% trans 'Escuchar página' %}"
@@ -237,11 +242,21 @@
         const voces = window.speechSynthesis.getVoices();
         const prefijo = lang.split('-')[0];
         const candidatas = voces.filter(v => v.lang.toLowerCase().startsWith(prefijo));
-        // Heurística, no hay estándar de nombres entre navegadores/SO: prioriza
-        // voces cuyo nombre sugiere mejor calidad (neuronales/online) sobre las
-        // genéricas del sistema, cuando el navegador ofrece más de una opción.
-        const buena = candidatas.find(v => /natural|neural|online|google|microsoft/i.test(v.name));
-        return buena || candidatas[0] || null;
+        if (candidatas.length === 0) return null;
+        // La Web Speech API no expone género ni una señal real de calidad --
+        // esto es una heurística sobre el NOMBRE de la voz, que varía por
+        // navegador/SO y no está estandarizado. Prioriza (en ese orden):
+        // 1) nombre de mujer conocido + indicio de calidad (neuronal/online),
+        // 2) solo indicio de calidad, 3) solo nombre de mujer conocido,
+        // 4) lo que haya. No hay forma de escuchar el resultado desde acá --
+        // hay que probarlo en el navegador real.
+        const reCalidad = /natural|neural|online|google|microsoft/i;
+        const reFemenina = /female|zira|aria|jenny|susan|victoria|karen|moira|tessa|fiona|kate|salli|joanna|ivy|emma|samantha|elena|sabina|helena|elvira|laura|monica|paulina|lucia|conchita|mia|zoe|mujer/i;
+        function puntaje(v) {
+            return (reCalidad.test(v.name) ? 2 : 0) + (reFemenina.test(v.name) ? 1 : 0);
+        }
+        const ordenadas = candidatas.slice().sort((a, b) => puntaje(b) - puntaje(a));
+        return ordenadas[0];
     }
 
     function textosDeLaPagina() {
@@ -252,17 +267,29 @@
 
     let cola = [];
     let indiceActual = 0;
-    let reproduciendo = false;
+    // 'detenido' | 'reproduciendo' | 'pausado'. Deliberadamente NO se usa
+    // speechSynthesis.pause()/.resume() -- probado en la práctica que su
+    // comportamiento no es confiable entre voces/navegadores (con algunas
+    // voces retoma donde quedó, con otras arranca todo de nuevo desde cero).
+    // En vez de eso, "pausar" cancela la locución en curso y recuerda en qué
+    // bloque de texto (indiceActual) se quedó; "reanudar" vuelve a arrancar
+    // ESE bloque con speak() -- puede repetir la frase que estaba a mitad,
+    // pero nunca reinicia toda la página, que era el problema real.
+    let estado = 'detenido';
 
     function actualizarBoton() {
+        const reproduciendo = estado === 'reproduciendo';
         iconoPlay.style.display = reproduciendo ? 'none' : '';
         iconoPausa.style.display = reproduciendo ? '' : 'none';
-        etiqueta.textContent = reproduciendo ? boton.dataset.txtPausar : boton.dataset.txtEscuchar;
+        etiqueta.textContent = reproduciendo
+            ? boton.dataset.txtPausar
+            : (estado === 'pausado' ? boton.dataset.txtReanudar : boton.dataset.txtEscuchar);
     }
 
     function hablarSiguiente() {
         if (indiceActual >= cola.length) {
-            reproduciendo = false;
+            estado = 'detenido';
+            indiceActual = 0;
             actualizarBoton();
             return;
         }
@@ -271,10 +298,12 @@
         const voz = elegirVoz(idiomaSpeech);
         if (voz) utterance.voice = voz;
         utterance.onend = function () {
+            if (estado !== 'reproduciendo') return; // se pausó mientras hablaba -- no avanzar
             indiceActual++;
             hablarSiguiente();
         };
         utterance.onerror = function () {
+            if (estado !== 'reproduciendo') return; // cancelada a propósito (pausa), no es un error real
             // No corta toda la lectura por un solo bloque que falle -- sigue
             // con el siguiente en vez de dejar al usuario colgado en silencio.
             indiceActual++;
@@ -284,23 +313,29 @@
     }
 
     boton.addEventListener('click', function () {
-        if (window.speechSynthesis.paused) {
-            window.speechSynthesis.resume();
-            reproduciendo = true;
+        if (estado === 'reproduciendo') {
+            // Orden importa: "estado" se cambia ANTES de cancel() -- cancel()
+            // dispara onend/onerror de la utterance en curso, y no hay garantía
+            // entre navegadores de si ese callback corre sync o async. Si
+            // corriera sync y "estado" siguiera en 'reproduciendo' en ese
+            // instante, el callback avanzaría indiceActual/llamaría a
+            // hablarSiguiente() por su cuenta, arruinando la pausa.
+            estado = 'pausado';
             actualizarBoton();
+            window.speechSynthesis.cancel();
             return;
         }
-        if (reproduciendo) {
-            window.speechSynthesis.pause();
-            reproduciendo = false;
+        if (estado === 'pausado') {
+            estado = 'reproduciendo';
             actualizarBoton();
+            hablarSiguiente(); // repite desde el bloque donde se quedó, no desde el principio
             return;
         }
-        window.speechSynthesis.cancel();
+        // 'detenido' -- arranque nuevo, relee la página por si el contenido cambió
         cola = textosDeLaPagina();
         indiceActual = 0;
         if (cola.length === 0) return;
-        reproduciendo = true;
+        estado = 'reproduciendo';
         actualizarBoton();
         hablarSiguiente();
     });
