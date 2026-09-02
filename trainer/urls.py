@@ -32,6 +32,7 @@ urlpatterns = [
     path('cursos/<int:curso_id>/', views.curso_detail, name='curso_detail'),
     path('cursos/<int:curso_id>/grado/<int:grado_numero>/<slug:tema_slug>/', views.tema_detail, name='tema_detail'),
     path('api/cursos/bloque/<int:bloque_id>/imagen/', views.bloque_imagen_archivo, name='bloque_imagen_archivo'),
+    path('api/cursos/bloque/<int:bloque_id>/video/', views.bloque_video_archivo, name='bloque_video_archivo'),
     path('biblioteca/', views.biblioteca_list, name='biblioteca_list'),
     path('biblioteca/<int:score_id>/', views.biblioteca_play, name='biblioteca_play'),
     path('api/biblioteca/<int:score_id>/archivo/', views.biblioteca_archivo, name='biblioteca_archivo'),

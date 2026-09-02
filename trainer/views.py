@@ -1879,6 +1879,35 @@ def bloque_imagen_archivo(request, bloque_id):
 
 
 @login_required
+def bloque_video_archivo(request, bloque_id):
+    """
+    Sirve el archivo de un bloque VIDEO con fuente Archivo subido -- mismo
+    motivo que bloque_imagen_archivo (no exponer vía MEDIA_URL directo).
+    FileResponse soporta el header Range de forma nativa (Django >= 3.0), así
+    que arrastrar la barra de progreso del video no requiere nada especial acá.
+    """
+    from .models import BloqueContenido
+    bloque = get_object_or_404(
+        BloqueContenido, id=bloque_id, tipo=BloqueContenido.VIDEO, video_fuente=BloqueContenido.FUENTE_VIDEO_ARCHIVO,
+    )
+
+    extension = pathlib.Path(bloque.video_archivo.name).suffix.lower()
+    content_type = {
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.ogv': 'video/ogg',
+        '.ogg': 'video/ogg',
+        '.mov': 'video/quicktime',
+    }.get(extension, 'application/octet-stream')
+
+    return FileResponse(
+        bloque.video_archivo.open('rb'),
+        content_type=content_type,
+        filename=bloque.video_archivo.name,
+    )
+
+
+@login_required
 def orquestacion_ejercicio_datos(request, fragmento_id):
     from .models import FragmentoOrquestacion
     fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
