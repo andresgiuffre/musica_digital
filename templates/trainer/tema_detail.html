@@ -30,6 +30,8 @@
     .bloque-gab__video-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
     .tema-gab__vacio { color: var(--ink-soft); }
 
+    .tts-boton { display: inline-flex; align-items: center; gap: 0.5rem; }
+
     .tema-gab__paginacion { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; }
     .tema-gab__paginacion-link { display: inline-flex; align-items: center; gap: 0.4rem; }
     .tema-gab__paginacion-link--siguiente { margin-left: auto; }
@@ -66,28 +68,45 @@
         {{ curso.nombre_mostrado }}
     </a>
     <p class="tema-gab__migas">{% blocktrans with n=grado.numero titulo=grado.titulo_mostrado %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</p>
-    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 1.75rem;">{{ tema.titulo_mostrado }}</h1>
+    <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 1.25rem;">{{ tema.titulo_mostrado }}</h1>
+
+    {% get_current_language as idioma_actual %}
+    {# display:none por default -- solo se muestra si el navegador soporta speechSynthesis
+       (feature detection en JS). Así nadie ve un botón que no va a funcionar. #}
+    <button type="button" id="tts-boton" class="btn-gab btn-gab--secondary tts-boton" style="display:none; margin-bottom: 1.5rem;"
+        data-lang="{{ idioma_actual }}"
+        data-txt-escuchar="{% trans 'Escuchar página' %}"
+        data-txt-pausar="{% trans 'Pausar' %}"
+        data-txt-reanudar="{% trans 'Reanudar' %}">
+        <svg class="tts-boton__icono-play" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+            <path d="M6.3 3.34a1 1 0 00-1.5.86v11.6a1 1 0 001.5.86l10-5.8a1 1 0 000-1.72l-10-5.8z" />
+        </svg>
+        <svg class="tts-boton__icono-pausa" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18" style="display:none;">
+            <path d="M6 4a1 1 0 00-1 1v10a1 1 0 001 1h1a1 1 0 001-1V5a1 1 0 00-1-1H6zm7 0a1 1 0 00-1 1v10a1 1 0 001 1h1a1 1 0 001-1V5a1 1 0 00-1-1h-1z" />
+        </svg>
+        <span class="tts-boton__texto">{% trans "Escuchar página" %}</span>
+    </button>
 
     {% for bloque in bloques %}
         <div class="bloque-gab">
             {% if bloque.tipo == 'TEXTO' %}
-                <div class="tema-contenido-markdown">{{ bloque.html_renderizado }}</div>
+                <div class="tema-contenido-markdown tts-texto">{{ bloque.html_renderizado }}</div>
             {% elif bloque.tipo == 'EJEMPLO_PARTITURA' %}
-                {% if bloque.contexto_ejemplo_mostrado %}<p class="bloque-gab__contexto">{{ bloque.contexto_ejemplo_mostrado }}</p>{% endif %}
+                {% if bloque.contexto_ejemplo_mostrado %}<p class="bloque-gab__contexto tts-texto">{{ bloque.contexto_ejemplo_mostrado }}</p>{% endif %}
                 <div class="bloque-gab__partitura">
                     <div id="osmd-bloque-{{ bloque.id }}"></div>
                 </div>
             {% elif bloque.tipo == 'PRACTICA' %}
                 {% if bloque.practica_url_mostrado %}
-                    <a class="btn-gab btn-gab--primary" href="{{ bloque.practica_url_mostrado }}">{{ bloque.practica_texto_mostrado }}</a>
+                    <a class="btn-gab btn-gab--primary tts-texto" href="{{ bloque.practica_url_mostrado }}">{{ bloque.practica_texto_mostrado }}</a>
                 {% else %}
-                    <p style="margin: 0;">{{ bloque.practica_texto_mostrado }}</p>
+                    <p class="tts-texto" style="margin: 0;">{{ bloque.practica_texto_mostrado }}</p>
                 {% endif %}
             {% elif bloque.tipo == 'IMAGEN' %}
-                {% if bloque.contexto_imagen_mostrado %}<p class="bloque-gab__contexto">{{ bloque.contexto_imagen_mostrado }}</p>{% endif %}
+                {% if bloque.contexto_imagen_mostrado %}<p class="bloque-gab__contexto tts-texto">{{ bloque.contexto_imagen_mostrado }}</p>{% endif %}
                 <img class="bloque-gab__imagen" src="{% url 'bloque_imagen_archivo' bloque.id %}" alt="{{ bloque.contexto_imagen_mostrado }}">
             {% elif bloque.tipo == 'VIDEO' %}
-                {% if bloque.contexto_video_mostrado %}<p class="bloque-gab__contexto">{{ bloque.contexto_video_mostrado }}</p>{% endif %}
+                {% if bloque.contexto_video_mostrado %}<p class="bloque-gab__contexto tts-texto">{{ bloque.contexto_video_mostrado }}</p>{% endif %}
                 {% if bloque.video_fuente == 'ARCHIVO' %}
                     <video class="bloque-gab__video" controls controlsList="nodownload noremoteplayback" disablepictureinpicture preload="metadata">
                         <source src="{% url 'bloque_video_archivo' bloque.id %}">
@@ -189,6 +208,101 @@
                 contenedor.textContent = document.querySelector('.envoltorio-gab').dataset.txtErrorPartitura;
                 console.error('[cursos] Error cargando ejemplo de partitura:', err);
             });
+    });
+})();
+
+(function () {
+    // Voz nativa del navegador (Web Speech API) -- sin costo, sin cuenta, sin
+    // backend. Calidad variable según navegador/SO del visitante (en Edge/
+    // Safari suele ser bastante natural, en Chrome/Firefox más robótica) --
+    // decisión consciente del usuario, no una limitación que se nos escapó.
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+        return; // navegador sin soporte -- el botón queda oculto (display:none del HTML)
+    }
+
+    const boton = document.getElementById('tts-boton');
+    if (!boton) return;
+
+    const idiomaSpeech = boton.dataset.lang === 'en' ? 'en-US' : 'es-AR';
+    const iconoPlay = boton.querySelector('.tts-boton__icono-play');
+    const iconoPausa = boton.querySelector('.tts-boton__icono-pausa');
+    const etiqueta = boton.querySelector('.tts-boton__texto');
+
+    boton.style.display = ''; // el navegador soporta TTS -- ahora sí lo mostramos
+
+    // getVoices() puede devolver [] en la primera llamada y cargar async un
+    // instante después -- se resuelve solo cuando hace falta elegir voz
+    // (dentro de hablarSiguiente), no hay que esperar nada acá arriba.
+    function elegirVoz(lang) {
+        const voces = window.speechSynthesis.getVoices();
+        const prefijo = lang.split('-')[0];
+        const candidatas = voces.filter(v => v.lang.toLowerCase().startsWith(prefijo));
+        // Heurística, no hay estándar de nombres entre navegadores/SO: prioriza
+        // voces cuyo nombre sugiere mejor calidad (neuronales/online) sobre las
+        // genéricas del sistema, cuando el navegador ofrece más de una opción.
+        const buena = candidatas.find(v => /natural|neural|online|google|microsoft/i.test(v.name));
+        return buena || candidatas[0] || null;
+    }
+
+    function textosDeLaPagina() {
+        return Array.from(document.querySelectorAll('.tts-texto'))
+            .map(el => el.innerText.trim())
+            .filter(Boolean);
+    }
+
+    let cola = [];
+    let indiceActual = 0;
+    let reproduciendo = false;
+
+    function actualizarBoton() {
+        iconoPlay.style.display = reproduciendo ? 'none' : '';
+        iconoPausa.style.display = reproduciendo ? '' : 'none';
+        etiqueta.textContent = reproduciendo ? boton.dataset.txtPausar : boton.dataset.txtEscuchar;
+    }
+
+    function hablarSiguiente() {
+        if (indiceActual >= cola.length) {
+            reproduciendo = false;
+            actualizarBoton();
+            return;
+        }
+        const utterance = new SpeechSynthesisUtterance(cola[indiceActual]);
+        utterance.lang = idiomaSpeech;
+        const voz = elegirVoz(idiomaSpeech);
+        if (voz) utterance.voice = voz;
+        utterance.onend = function () {
+            indiceActual++;
+            hablarSiguiente();
+        };
+        utterance.onerror = function () {
+            // No corta toda la lectura por un solo bloque que falle -- sigue
+            // con el siguiente en vez de dejar al usuario colgado en silencio.
+            indiceActual++;
+            hablarSiguiente();
+        };
+        window.speechSynthesis.speak(utterance);
+    }
+
+    boton.addEventListener('click', function () {
+        if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+            reproduciendo = true;
+            actualizarBoton();
+            return;
+        }
+        if (reproduciendo) {
+            window.speechSynthesis.pause();
+            reproduciendo = false;
+            actualizarBoton();
+            return;
+        }
+        window.speechSynthesis.cancel();
+        cola = textosDeLaPagina();
+        indiceActual = 0;
+        if (cola.length === 0) return;
+        reproduciendo = true;
+        actualizarBoton();
+        hablarSiguiente();
     });
 })();
 </script>
