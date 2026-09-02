@@ -1847,10 +1847,21 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
             archivo_name = bloque.sheet_music.xml_file.name if bloque.sheet_music else bloque.fragmento_orquestacion.archivo.name
             bloque.es_mxl = pathlib.Path(archivo_name).suffix.lower() == '.mxl'
 
-    return render(request, 'trainer/tema_detail.html', {
+    response = render(request, 'trainer/tema_detail.html', {
         'curso': curso, 'grado': grado, 'tema': tema, 'bloques': bloques,
         'tema_anterior': tema_anterior, 'tema_siguiente': tema_siguiente,
     })
+    # Django manda Referrer-Policy: same-origin por default (SecurityMiddleware,
+    # ver SECURE_REFERRER_POLICY) -- eso hace que el navegador NO envíe referer
+    # al cargar el iframe de YouTube/Vimeo de un bloque VIDEO, y YouTube devuelve
+    # error 153 ("Error de configuración del reproductor") en videos con
+    # reproducción restringida por dominio, que necesitan ver ese header para
+    # verificar el origen. Confirmado en la práctica (no solo en la doc de
+    # Google) con un video real. Scopeado a esta vista únicamente -- el resto
+    # del sitio mantiene el default más estricto de Django; setdefault() en
+    # SecurityMiddleware respeta un header ya seteado en la response.
+    response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
 
 
 @login_required
