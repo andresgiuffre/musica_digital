@@ -10,7 +10,7 @@ from .models import (
     SheetMarker, SheetNote, SessionAudio, RehearsalConfig, RehearsalLog,
     MusicalProject, ProjectGoal, ProjectSection,
     MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis,
-    Curso, Grado, Tema, BloqueContenido,
+    Curso, Grado, Tema, BloqueContenido, PracticaDirigidaProgreso,
 )
 
 class PlaylistSheetInline(admin.TabularInline):
@@ -76,6 +76,10 @@ class BloqueContenidoInline(admin.StackedInline):
             ),
             'classes': ('collapse',),
         }),
+        ('Práctica dirigida', {
+            'fields': ('musicxml_practica', 'modo_practica', 'precision_minima'),
+            'classes': ('collapse',),
+        }),
     )
 
 
@@ -89,6 +93,14 @@ class TemaAdmin(admin.ModelAdmin):
         url = reverse('tema_detail', args=[obj.grado.curso_id, obj.grado.numero, obj.slug])
         return format_html('<a href="{}" target="_blank">Ver cómo se renderiza ↗</a>', url)
     ver_renderizado.short_description = "Vista previa"
+
+
+@admin.register(PracticaDirigidaProgreso)
+class PracticaDirigidaProgresoAdmin(admin.ModelAdmin):
+    """Dato operacional, no contenido a curar -- solo para inspeccionar rápido
+    desde el admin, no se edita a mano."""
+    list_display = ('user', 'bloque', 'mejor_precision', 'veces_practicado', 'completado', 'ultima_vez')
+    list_filter = ('completado',)
 
 
 class AgregarCreditosBonusForm(forms.Form):

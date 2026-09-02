@@ -622,12 +622,19 @@ class BloqueContenido(models.Model):
     PRACTICA = 'PRACTICA'
     IMAGEN = 'IMAGEN'
     VIDEO = 'VIDEO'
+    PRACTICA_DIRIGIDA = 'PRACTICA_DIRIGIDA'
     TIPO_CHOICES = (
         (TEXTO, 'Texto'),
         (EJEMPLO_PARTITURA, 'Ejemplo de partitura'),
         (PRACTICA, 'Práctica'),
         (IMAGEN, 'Imagen'),
         (VIDEO, 'Video'),
+        (PRACTICA_DIRIGIDA, 'Práctica dirigida'),
+    )
+
+    MODO_IDENTIFICAR_NOTAS = 'identificar_notas'
+    MODO_PRACTICA_CHOICES = (
+        (MODO_IDENTIFICAR_NOTAS, 'Identificar notas'),
     )
 
     FUENTE_VIDEO_ARCHIVO = 'ARCHIVO'
@@ -737,6 +744,27 @@ class BloqueContenido(models.Model):
     contexto_video = models.CharField(max_length=300, blank=True, help_text="Texto corto opcional arriba del video.")
     contexto_video_en = models.CharField(max_length=300, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el texto en español también con idioma inglés activo.")
 
+    # --- PRACTICA_DIRIGIDA ---
+    # Sin _en: a diferencia de imagen/video, un ejercicio de identificar notas no
+    # tiene texto ni audio que traducir -- las mismas notas sirven para cualquier
+    # idioma (los NOMBRES de nota ya se traducen aparte, ver la regla ya
+    # establecida de LANGUAGE_CODE == 'en' en trainer_notas.html/gabinete.css).
+    # Sin cifrado (a diferencia de ScoreAnalysis.score_file) -- es contenido
+    # público del curso, subido solo por el admin, mismo criterio que imagen/
+    # video_archivo de este mismo modelo.
+    musicxml_practica = models.FileField(
+        upload_to='cursos_practica_dirigida/', null=True, blank=True,
+        help_text="MusicXML acotado (2-8 compases) para el ejercicio de práctica dirigida. Requerido cuando el tipo es Práctica dirigida."
+    )
+    modo_practica = models.CharField(
+        max_length=30, choices=MODO_PRACTICA_CHOICES, blank=True, default=MODO_IDENTIFICAR_NOTAS,
+        help_text="Qué le pide el ejercicio al alumno. Por ahora solo 'Identificar notas' -- el campo queda abierto a sumar otros modos más adelante sin migrar de nuevo."
+    )
+    precision_minima = models.PositiveSmallIntegerField(
+        default=80,
+        help_text="Porcentaje de aciertos (0-100) para marcar el intento como completado. Editable por bloque por si algún tema necesita ser más permisivo."
+    )
+
     class Meta:
         ordering = ['orden']
         verbose_name = "Bloque de Contenido"
@@ -840,6 +868,8 @@ class BloqueContenido(models.Model):
                 errores['imagen'] = "No debería llenarse en un bloque de Texto."
             if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
                 errores['video_fuente'] = "No debería llenarse en un bloque de Texto."
+            if self.musicxml_practica:
+                errores['musicxml_practica'] = "No debería llenarse en un bloque de Texto."
 
         elif self.tipo == self.EJEMPLO_PARTITURA:
             if bool(self.sheet_music_id) == bool(self.fragmento_orquestacion_id):
@@ -853,6 +883,8 @@ class BloqueContenido(models.Model):
                 errores['imagen'] = "No debería llenarse en un bloque de Ejemplo de partitura."
             if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
                 errores['video_fuente'] = "No debería llenarse en un bloque de Ejemplo de partitura."
+            if self.musicxml_practica:
+                errores['musicxml_practica'] = "No debería llenarse en un bloque de Ejemplo de partitura."
 
         elif self.tipo == self.PRACTICA:
             if not self.practica_texto:
@@ -865,6 +897,8 @@ class BloqueContenido(models.Model):
                 errores['imagen'] = "No debería llenarse en un bloque de Práctica."
             if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
                 errores['video_fuente'] = "No debería llenarse en un bloque de Práctica."
+            if self.musicxml_practica:
+                errores['musicxml_practica'] = "No debería llenarse en un bloque de Práctica."
 
         elif self.tipo == self.IMAGEN:
             if not self.imagen:
@@ -877,6 +911,8 @@ class BloqueContenido(models.Model):
                 errores['practica_texto'] = "No debería llenarse en un bloque de Imagen."
             if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
                 errores['video_fuente'] = "No debería llenarse en un bloque de Imagen."
+            if self.musicxml_practica:
+                errores['musicxml_practica'] = "No debería llenarse en un bloque de Imagen."
 
         elif self.tipo == self.VIDEO:
             if not self.video_fuente:
@@ -907,6 +943,44 @@ class BloqueContenido(models.Model):
                 errores['practica_texto'] = "No debería llenarse en un bloque de Video."
             if self.imagen or self.imagen_en:
                 errores['imagen'] = "No debería llenarse en un bloque de Video."
+            if self.musicxml_practica:
+                errores['musicxml_practica'] = "No debería llenarse en un bloque de Video."
+
+        elif self.tipo == self.PRACTICA_DIRIGIDA:
+            if not self.musicxml_practica:
+                errores['musicxml_practica'] = "Requerido cuando el tipo es Práctica dirigida."
+            if self.texto_markdown:
+                errores['texto_markdown'] = "No debería llenarse en un bloque de Práctica dirigida."
+            if self.sheet_music_id or self.fragmento_orquestacion_id:
+                errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Práctica dirigida."
+            if self.practica_texto:
+                errores['practica_texto'] = "No debería llenarse en un bloque de Práctica dirigida."
+            if self.imagen or self.imagen_en:
+                errores['imagen'] = "No debería llenarse en un bloque de Práctica dirigida."
+            if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
+                errores['video_fuente'] = "No debería llenarse en un bloque de Práctica dirigida."
 
         if errores:
             raise ValidationError(errores)
+
+
+class PracticaDirigidaProgreso(models.Model):
+    """
+    Progreso AGREGADO por usuario y por bloque de Práctica dirigida -- mismo
+    espíritu que SheetMusicProgress (mejor resultado + contador de veces), no el
+    de Attempt/Score (log de cada respuesta individual): este piloto no necesita
+    saber qué nota puntual falló cada vez, alcanza con el resultado final de
+    cada intento completo de la pieza.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    bloque = models.ForeignKey(BloqueContenido, on_delete=models.CASCADE)
+    mejor_precision = models.FloatField(default=0)  # 0-100
+    notas_totales = models.PositiveIntegerField(default=0, help_text="Cantidad de notas del último intento.")
+    veces_practicado = models.PositiveIntegerField(default=0)
+    completado = models.BooleanField(default=False)
+    ultima_vez = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'bloque')
+        verbose_name = "Progreso de Práctica Dirigida"
+        verbose_name_plural = "Progresos de Práctica Dirigida"
