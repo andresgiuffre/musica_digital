@@ -596,12 +596,29 @@ body.gabinete .pdir-gab__badge {
 body.gabinete .pdir-gab__badge--completado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
 body.gabinete .pdir-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
 
-body.gabinete .pdir-gab__partitura { background: var(--score-paper); color: var(--score-ink); padding: 1.25rem; border-radius: var(--radius-data); overflow-x: auto; margin-bottom: 1rem; }
+body.gabinete .pdir-gab__partitura {
+    background: var(--score-paper); color: var(--score-ink); padding: 1.25rem 1.25rem 2.25rem;
+    border-radius: var(--radius-data); overflow-x: auto; margin-bottom: 1rem; position: relative;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+/* Flash de acierto/error MÁS intenso que .flash-correct/.flash-incorrect
+   compartidos (esos son a propósito sutiles -- los usan ~10 pantallas de
+   juego más, no se tocan) -- clases propias, no una reescritura global. */
+body.gabinete .pdir-gab__partitura--correcto { background-color: color-mix(in srgb, var(--green) 30%, var(--score-paper)) !important; box-shadow: inset 0 0 0 3px var(--green); }
+body.gabinete .pdir-gab__partitura--incorrecto { background-color: color-mix(in srgb, var(--danger) 30%, var(--score-paper)) !important; box-shadow: inset 0 0 0 3px var(--danger); }
+
 /* El div pasado a `new OpenSheetMusicDisplay(...)` necesita position:relative --
    sin esto el cursor de OSMD se posiciona contra el ancestro posicionado más
    cercano de TODA la página en vez de contra la partitura (mismo requisito ya
    confirmado en biblioteca_play.html leyendo el código fuente de OSMD 1.8.8). */
 body.gabinete .pdir-gab__osmd { position: relative; min-height: 120px; }
+
+/* Flecha propia que apunta la nota esperada (OSMD no tiene un "tipo" de cursor
+   con forma de flecha -- ver el comentario en el template). Reposicionada en
+   JS contra el bounding box real del cursor nativo de OSMD en cada avance. */
+body.gabinete .pdir-gab__flecha-cursor { position: absolute; color: var(--primary); pointer-events: none; z-index: 6; transition: left 0.25s ease, top 0.25s ease; }
+
+body.gabinete .pdir-gab__contador { text-align: center; font-weight: 600; color: var(--ink); margin-bottom: 0.75rem; }
 
 body.gabinete .pdir-gab__estado { color: var(--ink-soft); text-align: center; padding: 1rem 0; }
 

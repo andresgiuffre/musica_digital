@@ -440,6 +440,9 @@
         const data = contenedor.dataset;
 
         const divOsmd = document.getElementById('pdir-osmd-' + bloqueId);
+        const divPartitura = document.getElementById('pdir-partitura-' + bloqueId);
+        const flechaCursor = document.getElementById('pdir-flecha-' + bloqueId);
+        const divContador = document.getElementById('pdir-contador-' + bloqueId);
         const divEstado = document.getElementById('pdir-estado-' + bloqueId);
         const divNotas = document.getElementById('pdir-notas-' + bloqueId);
         const botonesNota = divNotas.querySelectorAll('.pdir-gab__nota-btn');
@@ -447,7 +450,15 @@
         const textoResumen = document.getElementById('pdir-resumen-texto-' + bloqueId);
         const btnReintentar = document.getElementById('pdir-reintentar-' + bloqueId);
         const divBadge = document.getElementById('pdir-badge-' + bloqueId);
-        const divPartitura = divOsmd.closest('.pdir-gab__partitura');
+
+        // --score-ink/--green/--danger viven en body.gabinete, no en :root -- no se
+        // heredan "hacia arriba" hasta <html>, hay que leerlas de document.body
+        // (mismo motivo ya documentado en trainer_notas.html para --score-paper).
+        const estilosBody = getComputedStyle(document.body);
+        const colorTintaOriginal = estilosBody.getPropertyValue('--score-ink').trim() || '#1a1a1a';
+        const colorAcierto = estilosBody.getPropertyValue('--green').trim() || '#2e7d32';
+        const colorError = estilosBody.getPropertyValue('--danger').trim() || '#c0392b';
+        const colorCursor = estilosBody.getPropertyValue('--primary').trim() || '#6b3550';
 
         let osmd = null;
         let notas = [];          // solo las que tienen pitch real (recorrerCursorOsmd, filtradas)
@@ -468,6 +479,44 @@
             botonesNota.forEach(function (btn) { btn.disabled = !habilitado; });
         }
 
+        // Pinta TODOS los sub-elementos visuales del grupo SVG de la nota (path/
+        // ellipse/polygon/rect según cómo OSMD arme cabeza+plica+corchetes) en vez
+        // de confiar en que una clase CSS le gane a un fill/stroke puesto inline
+        // por el motor de render -- más bruto, pero no depende de adivinar la
+        // estructura interna exacta del SVG de esta versión de OSMD.
+        function pintarNota(svgEl, color) {
+            if (!svgEl) return;
+            svgEl.querySelectorAll('path, ellipse, polygon, rect, line').forEach(function (el) {
+                el.style.fill = color;
+                el.style.stroke = color;
+            });
+        }
+
+        function resetearColoresNotas() {
+            notas.forEach(function (n) { pintarNota(n.svgEl, colorTintaOriginal); });
+        }
+
+        // La flecha propia se reposiciona contra el bounding box REAL del cursor
+        // nativo de OSMD (que sigue existiendo, con opacidad baja) -- así no hay
+        // que recalcular a mano coordenadas de compás/pentagrama.
+        function moverFlechaCursor() {
+            if (!osmd.cursor.cursorElement || !divPartitura) return;
+            const rectCursor = osmd.cursor.cursorElement.getBoundingClientRect();
+            const rectContenedor = divPartitura.getBoundingClientRect();
+            if (rectCursor.width === 0 && rectCursor.height === 0) return; // aún no posicionado
+            const x = rectCursor.left - rectContenedor.left + rectCursor.width / 2 - flechaCursor.offsetWidth / 2;
+            const y = rectCursor.top - rectContenedor.top - flechaCursor.offsetHeight - 2;
+            flechaCursor.style.left = x + 'px';
+            flechaCursor.style.top = y + 'px';
+            flechaCursor.style.display = '';
+        }
+
+        function actualizarContador() {
+            const porcentaje = total > 0 ? Math.round(100 * correctas / total) : 0;
+            divContador.textContent = fmt(data.txtContador, { correctas: correctas, total: total, porcentaje: porcentaje });
+            divContador.style.display = '';
+        }
+
         function siguienteNota() {
             if (idx >= notas.length) {
                 terminar();
@@ -475,6 +524,7 @@
             }
             const nota = notas[idx];
             currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, nota.groupIndex);
+            moverFlechaCursor();
             habilitarBotones(true);
             esperandoRespuesta = true;
             AudioEngine.playNote(nota.pitchName);
@@ -489,20 +539,27 @@
             const esCorrecta = letraElegida === letraDePitchName(nota.pitchName);
             total++;
             if (esCorrecta) correctas++;
+            actualizarContador();
 
-            const clase = esCorrecta ? 'flash-correct' : 'flash-incorrect';
-            if (divPartitura) divPartitura.classList.add(clase);
-            if (nota.svgEl) nota.svgEl.classList.add(clase);
+            // Flash transitorio (más intenso que .flash-correct/.flash-incorrect
+            // compartidos, ver gabinete.css) sobre toda la partitura...
+            const claseFlash = esCorrecta ? 'pdir-gab__partitura--correcto' : 'pdir-gab__partitura--incorrecto';
+            if (divPartitura) divPartitura.classList.add(claseFlash);
             setTimeout(function () {
-                if (divPartitura) divPartitura.classList.remove(clase);
-                if (nota.svgEl) nota.svgEl.classList.remove(clase);
-            }, 500);
+                if (divPartitura) divPartitura.classList.remove(claseFlash);
+            }, 600);
+
+            // ...y color PERMANENTE sobre la nota puntual, que se queda (no se
+            // saca con setTimeout) -- así se van acumulando las notas ya
+            // respondidas coloreadas verde/rojo a medida que avanza la pieza.
+            pintarNota(nota.svgEl, esCorrecta ? colorAcierto : colorError);
 
             idx++;
             setTimeout(siguienteNota, 700);
         }
 
         function terminar() {
+            flechaCursor.style.display = 'none';
             divNotas.style.display = 'none';
             divResumen.style.display = '';
             textoResumen.textContent = fmt(data.txtResultado, { correctas: correctas, total: total });
@@ -534,6 +591,8 @@
             total = 0;
             currentCursorIdx = 0;
             osmd.cursor.reset();
+            resetearColoresNotas();
+            actualizarContador();
             divResumen.style.display = 'none';
             divNotas.style.display = '';
             siguienteNota();
@@ -543,6 +602,12 @@
             osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divOsmd, {
                 autoResize: false,
                 drawTitle: false,
+                // Ninguno de los "tipos" de cursor de OSMD es una flecha (confirmado
+                // leyendo Cursor.ts de la versión pineada) -- se deja el cursor nativo
+                // como una línea vertical fina y sutil, y la flecha propia (arriba)
+                // hace el trabajo de señalar la nota. alpha bajo a propósito: sigue
+                // sirviendo como referencia de posición, sin competir visualmente.
+                cursorsOptions: [{ type: 1, color: colorCursor, alpha: 0.5, follow: true }],
             });
             try {
                 const res = await fetch(data.archivoUrl);
@@ -555,6 +620,12 @@
                 }
                 osmd.render();
                 osmd.cursor.show();
+                // OSMD deja el cursor en z-index negativo salvo que se le pase un
+                // color de fondo -- sin esto queda dibujado DETRÁS de la partitura,
+                // invisible (mismo ajuste ya confirmado en biblioteca_play.html).
+                if (osmd.cursor.cursorElement) {
+                    osmd.cursor.cursorElement.style.zIndex = '5';
+                }
 
                 const recorrido = OsmdUtils.recorrerCursorOsmd(osmd);
                 OsmdUtils.etiquetarNotasConSvg(osmd, recorrido.notas);
