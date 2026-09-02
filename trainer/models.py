@@ -690,6 +690,14 @@ class BloqueContenido(models.Model):
         upload_to='cursos_imagenes/', null=True, blank=True,
         help_text="PNG, JPG o SVG -- para diagramas/fotos que no se pueden representar como MusicXML. Requerido cuando el tipo es Imagen."
     )
+    # A diferencia de los demás campos _en (que traducen texto), acá el ARCHIVO
+    # entero puede cambiar por idioma -- ej. un diagrama con rótulos en español
+    # vs. el mismo diagrama con rótulos en inglés. Opcional: si queda vacío,
+    # imagen_mostrada() cae a la imagen en español igual que el resto del patrón.
+    imagen_en = models.FileField(
+        upload_to='cursos_imagenes/', null=True, blank=True,
+        help_text="Versión en inglés (mismo diagrama con texto embebido en inglés, si aplica). Si queda vacío, se muestra la imagen en español también con idioma inglés activo."
+    )
     # Un solo campo hace doble función -- pie de imagen visible Y atributo alt
     # del <img> (accesibilidad) -- en vez de dos campos separados, para no
     # duplicar lo que en la práctica casi siempre es el mismo texto ("Círculo
@@ -704,9 +712,19 @@ class BloqueContenido(models.Model):
         upload_to='cursos_videos/', null=True, blank=True,
         help_text="MP4 (recomendado) o WebM -- son los únicos formatos que reproducen todos los navegadores sin conversión. AVI/MOV/MKV no van a andar aunque los subas. Requerido cuando la fuente es Archivo subido."
     )
+    # Mismo criterio que imagen_en: archivo completo distinto por idioma (ej.
+    # video grabado o subtitulado en inglés), no solo texto. Opcional.
+    video_archivo_en = models.FileField(
+        upload_to='cursos_videos/', null=True, blank=True,
+        help_text="Versión en inglés (archivo distinto, ej. grabado o subtitulado en inglés). Si queda vacío, se muestra el video en español también con idioma inglés activo."
+    )
     video_embed_url = models.CharField(
         max_length=500, blank=True,
         help_text="Pegá el link tal cual lo copiaste del navegador (youtube.com/watch?v=..., youtu.be/..., vimeo.com/...). Se convierte solo al formato de embed restringido. Requerido cuando la fuente es YouTube/Vimeo."
+    )
+    video_embed_url_en = models.CharField(
+        max_length=500, blank=True,
+        help_text="Versión en inglés (link a un video de YouTube/Vimeo distinto). Si queda vacío, se muestra el video en español también con idioma inglés activo."
     )
     contexto_video = models.CharField(max_length=300, blank=True, help_text="Texto corto opcional arriba del video.")
     contexto_video_en = models.CharField(max_length=300, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el texto en español también con idioma inglés activo.")
@@ -757,11 +775,34 @@ class BloqueContenido(models.Model):
         return self.contexto_imagen
 
     @property
+    def imagen_mostrada(self):
+        """Devuelve el FieldFile a servir -- imagen_en si el idioma activo es
+        inglés Y está cargada, si no la imagen en español siempre."""
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.imagen_en:
+            return self.imagen_en
+        return self.imagen
+
+    @property
     def contexto_video_mostrado(self):
         from django.utils.translation import get_language
         if get_language() == 'en' and self.contexto_video_en:
             return self.contexto_video_en
         return self.contexto_video
+
+    @property
+    def video_archivo_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.video_archivo_en:
+            return self.video_archivo_en
+        return self.video_archivo
+
+    @property
+    def video_embed_url_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.video_embed_url_en:
+            return self.video_embed_url_en
+        return self.video_embed_url
 
     @property
     def video_embed_info(self):
@@ -771,10 +812,10 @@ class BloqueContenido(models.Model):
         esto último al guardar, pero el template no debería asumirlo y romper
         si de todos modos llega una fila inválida (ej. carga por fixture/shell
         sin pasar por full_clean())."""
-        if self.tipo != self.VIDEO or self.video_fuente != self.FUENTE_VIDEO_EMBED or not self.video_embed_url:
+        if self.tipo != self.VIDEO or self.video_fuente != self.FUENTE_VIDEO_EMBED or not self.video_embed_url_mostrado:
             return None
         from .services import extraer_video_embed
-        return extraer_video_embed(self.video_embed_url)
+        return extraer_video_embed(self.video_embed_url_mostrado)
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -787,9 +828,9 @@ class BloqueContenido(models.Model):
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Texto."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Texto."
-            if self.imagen:
+            if self.imagen or self.imagen_en:
                 errores['imagen'] = "No debería llenarse en un bloque de Texto."
-            if self.video_archivo or self.video_embed_url:
+            if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
                 errores['video_fuente'] = "No debería llenarse en un bloque de Texto."
 
         elif self.tipo == self.EJEMPLO_PARTITURA:
@@ -800,9 +841,9 @@ class BloqueContenido(models.Model):
                 errores['texto_markdown'] = "No debería llenarse acá (usá 'contexto_ejemplo' para texto corto)."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Ejemplo de partitura."
-            if self.imagen:
+            if self.imagen or self.imagen_en:
                 errores['imagen'] = "No debería llenarse en un bloque de Ejemplo de partitura."
-            if self.video_archivo or self.video_embed_url:
+            if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
                 errores['video_fuente'] = "No debería llenarse en un bloque de Ejemplo de partitura."
 
         elif self.tipo == self.PRACTICA:
@@ -812,21 +853,21 @@ class BloqueContenido(models.Model):
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Práctica."
             if self.sheet_music_id or self.fragmento_orquestacion_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Práctica."
-            if self.imagen:
+            if self.imagen or self.imagen_en:
                 errores['imagen'] = "No debería llenarse en un bloque de Práctica."
-            if self.video_archivo or self.video_embed_url:
+            if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
                 errores['video_fuente'] = "No debería llenarse en un bloque de Práctica."
 
         elif self.tipo == self.IMAGEN:
             if not self.imagen:
-                errores['imagen'] = "Requerido cuando el tipo es Imagen."
+                errores['imagen'] = "Requerido cuando el tipo es Imagen (la versión en inglés es opcional)."
             if self.texto_markdown:
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Imagen."
             if self.sheet_music_id or self.fragmento_orquestacion_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Imagen."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Imagen."
-            if self.video_archivo or self.video_embed_url:
+            if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
                 errores['video_fuente'] = "No debería llenarse en un bloque de Imagen."
 
         elif self.tipo == self.VIDEO:
@@ -834,25 +875,29 @@ class BloqueContenido(models.Model):
                 errores['video_fuente'] = "Requerido cuando el tipo es Video."
             elif self.video_fuente == self.FUENTE_VIDEO_ARCHIVO:
                 if not self.video_archivo:
-                    errores['video_archivo'] = "Requerido cuando la fuente es Archivo subido."
-                if self.video_embed_url:
+                    errores['video_archivo'] = "Requerido cuando la fuente es Archivo subido (la versión en inglés es opcional)."
+                if self.video_embed_url or self.video_embed_url_en:
                     errores['video_embed_url'] = "No debería llenarse si la fuente es Archivo subido."
             elif self.video_fuente == self.FUENTE_VIDEO_EMBED:
-                if self.video_archivo:
+                if self.video_archivo or self.video_archivo_en:
                     errores['video_archivo'] = "No debería llenarse si la fuente es YouTube/Vimeo."
                 if not self.video_embed_url:
-                    errores['video_embed_url'] = "Requerido cuando la fuente es YouTube/Vimeo."
+                    errores['video_embed_url'] = "Requerido cuando la fuente es YouTube/Vimeo (la versión en inglés es opcional)."
                 else:
                     from .services import extraer_video_embed
                     if not extraer_video_embed(self.video_embed_url):
                         errores['video_embed_url'] = "No reconozco un link de YouTube o Vimeo válido en esta URL."
+                if self.video_embed_url_en:
+                    from .services import extraer_video_embed
+                    if not extraer_video_embed(self.video_embed_url_en):
+                        errores['video_embed_url_en'] = "No reconozco un link de YouTube o Vimeo válido en esta URL."
             if self.texto_markdown:
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Video."
             if self.sheet_music_id or self.fragmento_orquestacion_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Video."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Video."
-            if self.imagen:
+            if self.imagen or self.imagen_en:
                 errores['imagen'] = "No debería llenarse en un bloque de Video."
 
         if errores:
