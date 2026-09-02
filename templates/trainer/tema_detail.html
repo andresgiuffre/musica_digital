@@ -451,11 +451,10 @@
         const btnReintentar = document.getElementById('pdir-reintentar-' + bloqueId);
         const divBadge = document.getElementById('pdir-badge-' + bloqueId);
 
-        // --score-ink/--green/--danger viven en body.gabinete, no en :root -- no se
-        // heredan "hacia arriba" hasta <html>, hay que leerlas de document.body
-        // (mismo motivo ya documentado en trainer_notas.html para --score-paper).
+        // --green/--danger viven en body.gabinete, no en :root -- no se heredan
+        // "hacia arriba" hasta <html>, hay que leerlas de document.body (mismo
+        // motivo ya documentado en trainer_notas.html para --score-paper).
         const estilosBody = getComputedStyle(document.body);
-        const colorTintaOriginal = estilosBody.getPropertyValue('--score-ink').trim() || '#1a1a1a';
         const colorAcierto = estilosBody.getPropertyValue('--green').trim() || '#2e7d32';
         const colorError = estilosBody.getPropertyValue('--danger').trim() || '#c0392b';
         const colorCursor = estilosBody.getPropertyValue('--primary').trim() || '#6b3550';
@@ -479,33 +478,43 @@
             botonesNota.forEach(function (btn) { btn.disabled = !habilitado; });
         }
 
-        // Pinta TODOS los sub-elementos visuales del grupo SVG de la nota (path/
-        // ellipse/polygon/rect según cómo OSMD arme cabeza+plica+corchetes) en vez
-        // de confiar en que una clase CSS le gane a un fill/stroke puesto inline
-        // por el motor de render -- más bruto, pero no depende de adivinar la
-        // estructura interna exacta del SVG de esta versión de OSMD.
+        // Mismo mecanismo ya probado en biblioteca_play.html (pintarNotaAcierto/
+        // flashNotasError) -- doble drop-shadow como "halo" alrededor de la nota,
+        // no solo un cambio de fill/stroke (que ahí mismo está documentado como
+        // "bonus sin garantía": VexFlow puede fijar el fill con más especificidad
+        // en un hijo y taparlo). El glow SÍ es el mecanismo confirmado.
         function pintarNota(svgEl, color) {
             if (!svgEl) return;
-            svgEl.querySelectorAll('path, ellipse, polygon, rect, line').forEach(function (el) {
-                el.style.fill = color;
-                el.style.stroke = color;
-            });
+            svgEl.style.filter = 'drop-shadow(0 0 3px ' + color + ') drop-shadow(0 0 7px ' + color + ')';
+            svgEl.style.fill = color;
+        }
+
+        function limpiarNota(svgEl) {
+            if (!svgEl) return;
+            svgEl.style.filter = '';
+            svgEl.style.fill = '';
         }
 
         function resetearColoresNotas() {
-            notas.forEach(function (n) { pintarNota(n.svgEl, colorTintaOriginal); });
+            notas.forEach(function (n) { limpiarNota(n.svgEl); });
         }
 
-        // La flecha propia se reposiciona contra el bounding box REAL del cursor
-        // nativo de OSMD (que sigue existiendo, con opacidad baja) -- así no hay
-        // que recalcular a mano coordenadas de compás/pentagrama.
-        function moverFlechaCursor() {
-            if (!osmd.cursor.cursorElement || !divPartitura) return;
-            const rectCursor = osmd.cursor.cursorElement.getBoundingClientRect();
+        // La flecha propia se reposiciona contra el bounding box de la NOTA (no
+        // del cursor nativo de OSMD -- ese abarca toda la altura del pentagrama
+        // como marcador de posición horizontal, no sirve para ubicar la altura
+        // vertical exacta de una nota puntual). Fallback al cursor solo si por
+        // algún motivo la nota no tiene su svgEl etiquetado.
+        function moverFlechaCursor(nota) {
+            if (!divPartitura) return;
             const rectContenedor = divPartitura.getBoundingClientRect();
-            if (rectCursor.width === 0 && rectCursor.height === 0) return; // aún no posicionado
-            const x = rectCursor.left - rectContenedor.left + rectCursor.width / 2 - flechaCursor.offsetWidth / 2;
-            const y = rectCursor.top - rectContenedor.top - flechaCursor.offsetHeight - 2;
+            let rectObjetivo = nota && nota.svgEl ? nota.svgEl.getBoundingClientRect() : null;
+            if (!rectObjetivo || (rectObjetivo.width === 0 && rectObjetivo.height === 0)) {
+                if (!osmd.cursor.cursorElement) return;
+                rectObjetivo = osmd.cursor.cursorElement.getBoundingClientRect();
+            }
+            if (rectObjetivo.width === 0 && rectObjetivo.height === 0) return; // aún no posicionado
+            const x = rectObjetivo.left - rectContenedor.left + rectObjetivo.width / 2 - flechaCursor.offsetWidth / 2;
+            const y = rectObjetivo.top - rectContenedor.top - flechaCursor.offsetHeight - 4;
             flechaCursor.style.left = x + 'px';
             flechaCursor.style.top = y + 'px';
             flechaCursor.style.display = '';
@@ -524,7 +533,7 @@
             }
             const nota = notas[idx];
             currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, nota.groupIndex);
-            moverFlechaCursor();
+            moverFlechaCursor(nota);
             habilitarBotones(true);
             esperandoRespuesta = true;
             AudioEngine.playNote(nota.pitchName);
@@ -541,17 +550,20 @@
             if (esCorrecta) correctas++;
             actualizarContador();
 
-            // Flash transitorio (más intenso que .flash-correct/.flash-incorrect
-            // compartidos, ver gabinete.css) sobre toda la partitura...
+            // Flash transitorio sobre toda la partitura -- más intenso que
+            // .flash-correct/.flash-incorrect compartidos a propósito (esos son
+            // sutiles porque los usan ~10 pantallas de juego más; estas son
+            // clases propias, no una reescritura global -- ver gabinete.css).
             const claseFlash = esCorrecta ? 'pdir-gab__partitura--correcto' : 'pdir-gab__partitura--incorrecto';
             if (divPartitura) divPartitura.classList.add(claseFlash);
             setTimeout(function () {
                 if (divPartitura) divPartitura.classList.remove(claseFlash);
-            }, 600);
+            }, 700);
 
-            // ...y color PERMANENTE sobre la nota puntual, que se queda (no se
-            // saca con setTimeout) -- así se van acumulando las notas ya
-            // respondidas coloreadas verde/rojo a medida que avanza la pieza.
+            // ...y glow PERMANENTE sobre la nota puntual (mismo mecanismo ya
+            // probado en biblioteca_play.html, ver pintarNota más arriba), que se
+            // queda -- así se van acumulando las notas ya respondidas coloreadas
+            // verde/rojo a medida que avanza la pieza, no solo el flash breve.
             pintarNota(nota.svgEl, esCorrecta ? colorAcierto : colorError);
 
             idx++;

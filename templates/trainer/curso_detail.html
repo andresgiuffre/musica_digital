@@ -3,9 +3,11 @@
 {% block title %}{{ curso.nombre_mostrado }}{% endblock %}
 {% block html_attrs %}data-gabinete-page{% endblock %}
 {% block body_class %}gabinete{% endblock %}
-{# Sin override de html_lang: el contenido de cada BloqueContenido ahora es
-   bilingüe en la misma fila (texto_markdown_en/etc.), así que un mismo Curso
-   se muestra en el idioma de sesión real -- base.html ya cae a LANGUAGE_CODE. #}
+{% comment %}
+Sin override de html_lang: el contenido de cada BloqueContenido ahora es
+bilingüe en la misma fila (texto_markdown_en/etc.), así que un mismo Curso
+se muestra en el idioma de sesión real -- base.html ya cae a LANGUAGE_CODE.
+{% endcomment %}
 
 {% block extra_css %}
 <style>
