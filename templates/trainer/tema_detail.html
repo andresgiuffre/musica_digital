@@ -30,7 +30,9 @@
     .bloque-gab__video-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
     .tema-gab__vacio { color: var(--ink-soft); }
 
+    .tts-controles { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
     .tts-boton { display: inline-flex; align-items: center; gap: 0.5rem; }
+    .tts-voz-select { font-size: 0.8125rem; padding: 0.3rem 0.5rem; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink); max-width: 220px; }
 
     .tema-gab__paginacion { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; }
     .tema-gab__paginacion-link { display: inline-flex; align-items: center; gap: 0.4rem; }
@@ -78,19 +80,31 @@
     soporta varias líneas en Django y el texto se cuela como contenido visible
     (ya pasó antes, con este mismo bloque y también en curso_pdf.html).
     {% endcomment %}
-    <button type="button" id="tts-boton" class="btn-gab btn-gab--secondary tts-boton" style="display:none; margin-bottom: 1.5rem;"
-        data-lang="{{ idioma_actual }}"
-        data-txt-escuchar="{% trans 'Escuchar página' %}"
-        data-txt-pausar="{% trans 'Pausar' %}"
-        data-txt-reanudar="{% trans 'Reanudar' %}">
-        <svg class="tts-boton__icono-play" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
-            <path d="M6.3 3.34a1 1 0 00-1.5.86v11.6a1 1 0 001.5.86l10-5.8a1 1 0 000-1.72l-10-5.8z" />
-        </svg>
-        <svg class="tts-boton__icono-pausa" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18" style="display:none;">
-            <path d="M6 4a1 1 0 00-1 1v10a1 1 0 001 1h1a1 1 0 001-1V5a1 1 0 00-1-1H6zm7 0a1 1 0 00-1 1v10a1 1 0 001 1h1a1 1 0 001-1V5a1 1 0 00-1-1h-1z" />
-        </svg>
-        <span class="tts-boton__texto">{% trans "Escuchar página" %}</span>
-    </button>
+    <div class="tts-controles" style="margin-bottom: 1.5rem;">
+        <button type="button" id="tts-boton" class="btn-gab btn-gab--secondary tts-boton" style="display:none;"
+            data-lang="{{ idioma_actual }}"
+            data-txt-escuchar="{% trans 'Escuchar página' %}"
+            data-txt-pausar="{% trans 'Pausar' %}"
+            data-txt-reanudar="{% trans 'Reanudar' %}">
+            <svg class="tts-boton__icono-play" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+                <path d="M6.3 3.34a1 1 0 00-1.5.86v11.6a1 1 0 001.5.86l10-5.8a1 1 0 000-1.72l-10-5.8z" />
+            </svg>
+            <svg class="tts-boton__icono-pausa" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18" style="display:none;">
+                <path d="M6 4a1 1 0 00-1 1v10a1 1 0 001 1h1a1 1 0 001-1V5a1 1 0 00-1-1H6zm7 0a1 1 0 00-1 1v10a1 1 0 001 1h1a1 1 0 001-1V5a1 1 0 00-1-1h-1z" />
+            </svg>
+            <span class="tts-boton__texto">{% trans "Escuchar página" %}</span>
+        </button>
+        {% comment %}
+        Se llena por JS con las voces reales que el navegador tenga para este
+        idioma -- ninguna heurística de nombre es confiable entre navegadores/SO
+        (confirmado en la práctica: un filtro por "microsoft"/"google" en el
+        nombre le daba puntaje alto a las voces viejas y robóticas de Windows,
+        que también se llaman así). Arranca oculto, se muestra solo si hay más
+        de una voz disponible para elegir -- si solo hay una, no tiene sentido
+        mostrar un selector con una sola opción.
+        {% endcomment %}
+        <select id="tts-voz" class="tts-voz-select" style="display:none;" aria-label="{% trans 'Elegir voz' %}"></select>
+    </div>
 
     {% for bloque in bloques %}
         <div class="bloque-gab">
@@ -227,42 +241,97 @@
 
     const boton = document.getElementById('tts-boton');
     if (!boton) return;
+    const selectorVoz = document.getElementById('tts-voz');
 
-    const idiomaSpeech = boton.dataset.lang === 'en' ? 'en-US' : 'es-AR';
+    const idiomaPagina = boton.dataset.lang === 'en' ? 'en' : 'es';
+    const idiomaSpeech = idiomaPagina === 'en' ? 'en-US' : 'es-AR';
+    const claveVozGuardada = 'tts_voz_' + idiomaPagina; // localStorage, una preferencia por idioma
     const iconoPlay = boton.querySelector('.tts-boton__icono-play');
     const iconoPausa = boton.querySelector('.tts-boton__icono-pausa');
     const etiqueta = boton.querySelector('.tts-boton__texto');
 
     boton.style.display = ''; // el navegador soporta TTS -- ahora sí lo mostramos
 
-    // getVoices() puede devolver [] en la primera llamada y cargar async un
-    // instante después -- se resuelve solo cuando hace falta elegir voz
-    // (dentro de hablarSiguiente), no hay que esperar nada acá arriba.
-    function elegirVoz(lang) {
-        const voces = window.speechSynthesis.getVoices();
-        const prefijo = lang.split('-')[0];
-        const candidatas = voces.filter(v => v.lang.toLowerCase().startsWith(prefijo));
-        if (candidatas.length === 0) return null;
-        // La Web Speech API no expone género ni una señal real de calidad --
-        // esto es una heurística sobre el NOMBRE de la voz, que varía por
-        // navegador/SO y no está estandarizado. Prioriza (en ese orden):
-        // 1) nombre de mujer conocido + indicio de calidad (neuronal/online),
-        // 2) solo indicio de calidad, 3) solo nombre de mujer conocido,
-        // 4) lo que haya. No hay forma de escuchar el resultado desde acá --
-        // hay que probarlo en el navegador real.
-        const reCalidad = /natural|neural|online|google|microsoft/i;
-        const reFemenina = /female|zira|aria|jenny|susan|victoria|karen|moira|tessa|fiona|kate|salli|joanna|ivy|emma|samantha|elena|sabina|helena|elvira|laura|monica|paulina|lucia|conchita|mia|zoe|mujer/i;
-        function puntaje(v) {
-            return (reCalidad.test(v.name) ? 2 : 0) + (reFemenina.test(v.name) ? 1 : 0);
+    let vocesDisponibles = []; // filtradas al idioma de esta página
+
+    // getVoices() suele devolver [] en la primera llamada y disparar
+    // onvoiceschanged un instante después, cuando termina de cargarlas --
+    // hay que escuchar ese evento, no alcanza con llamarlo una sola vez al
+    // cargar la página.
+    function cargarVoces() {
+        const todas = window.speechSynthesis.getVoices();
+        const prefijo = idiomaSpeech.split('-')[0];
+        vocesDisponibles = todas.filter(v => v.lang.toLowerCase().startsWith(prefijo));
+        poblarSelectorVoz();
+    }
+
+    function poblarSelectorVoz() {
+        if (!selectorVoz || vocesDisponibles.length <= 1) return; // nada que elegir
+        if (selectorVoz.options.length === vocesDisponibles.length) return; // ya poblado
+        const guardada = localStorage.getItem(claveVozGuardada);
+        selectorVoz.innerHTML = '';
+        vocesDisponibles.forEach(function (v) {
+            const opt = document.createElement('option');
+            opt.value = v.name;
+            opt.textContent = v.name;
+            if (v.name === guardada) opt.selected = true;
+            selectorVoz.appendChild(opt);
+        });
+        selectorVoz.style.display = '';
+    }
+
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = cargarVoces;
+    }
+    cargarVoces();
+
+    if (selectorVoz) {
+        selectorVoz.addEventListener('change', function () {
+            localStorage.setItem(claveVozGuardada, selectorVoz.value);
+        });
+    }
+
+    // Preferencia manual del usuario (selector) primero; si todavía no eligió
+    // nada, cae a una heurística sobre el NOMBRE de la voz -- la Web Speech
+    // API no expone género ni una señal real de calidad, así que esto es un
+    // approximate best-effort, no una certeza (probado en la práctica: un
+    // primer intento que buscaba "microsoft"/"google" en el nombre le daba
+    // puntaje alto a las voces viejas y robóticas de Windows -- "Microsoft
+    // David Desktop", "Microsoft Zira Desktop" -- que también se llaman así;
+    // esta versión exige específicamente "online"/"neural"/"natural", las
+    // voces nuevas basadas en la nube, no cualquier cosa de marca Microsoft).
+    function elegirVoz() {
+        if (vocesDisponibles.length === 0) return null;
+        const guardada = localStorage.getItem(claveVozGuardada);
+        if (guardada) {
+            const elegida = vocesDisponibles.find(v => v.name === guardada);
+            if (elegida) return elegida;
         }
-        const ordenadas = candidatas.slice().sort((a, b) => puntaje(b) - puntaje(a));
-        return ordenadas[0];
+        const reCalidad = /natural|neural|online/i;
+        const buena = vocesDisponibles.find(v => reCalidad.test(v.name));
+        return buena || vocesDisponibles[0];
     }
 
     function textosDeLaPagina() {
-        return Array.from(document.querySelectorAll('.tts-texto'))
+        const bloques = Array.from(document.querySelectorAll('.tts-texto'))
             .map(el => el.innerText.trim())
             .filter(Boolean);
+        // Se parte cada bloque en oraciones -- si no, pausar a mitad de un
+        // párrafo largo y reanudar repetía el párrafo ENTERO desde su propio
+        // principio, que en una página de pocos bloques se sentía como si
+        // hubiera arrancado todo de nuevo (confirmado, no es solo teoría).
+        // Regla simple por puntuación (. ! ?), no un tokenizador de oraciones
+        // real -- puede cortar mal en abreviaturas o números decimales, pero
+        // no rompe la reproducción, como mucho corta una oración de más.
+        const fragmentos = [];
+        bloques.forEach(function (texto) {
+            const oraciones = texto.match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g) || [texto];
+            oraciones.forEach(function (o) {
+                const limpio = o.trim();
+                if (limpio) fragmentos.push(limpio);
+            });
+        });
+        return fragmentos;
     }
 
     let cola = [];
@@ -295,7 +364,7 @@
         }
         const utterance = new SpeechSynthesisUtterance(cola[indiceActual]);
         utterance.lang = idiomaSpeech;
-        const voz = elegirVoz(idiomaSpeech);
+        const voz = elegirVoz();
         if (voz) utterance.voice = voz;
         utterance.onend = function () {
             if (estado !== 'reproduciendo') return; // se pausó mientras hablaba -- no avanzar
