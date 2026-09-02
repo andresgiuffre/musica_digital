@@ -434,9 +434,14 @@
 
     const LETRA_POR_INICIAL = { C: 'c', D: 'd', E: 'e', F: 'f', G: 'g', A: 'a', B: 'b' };
 
-    function initPracticaDirigida(bloqueId) {
+    // alCompletar: callback sin argumentos, invocado cuando ESTE bloque termina
+    // su intento (se registró el resultado, con éxito o no) -- lo usa la
+    // orquestación de abajo para recién ahí destrabar el siguiente bloque de la
+    // página. Devuelve un controlador { cargar, mostrarBloqueado } en vez de
+    // arrancar solo -- quien orquesta decide CUÁNDO llamar a cargar().
+    function initPracticaDirigida(bloqueId, alCompletar) {
         const contenedor = document.getElementById('pdir-bloque-' + bloqueId);
-        if (!contenedor) return;
+        if (!contenedor) return null;
         const data = contenedor.dataset;
 
         const divOsmd = document.getElementById('pdir-osmd-' + bloqueId);
@@ -458,7 +463,6 @@
         const colorAcierto = estilosBody.getPropertyValue('--green').trim() || '#2e7d32';
         const colorError = estilosBody.getPropertyValue('--danger').trim() || '#c0392b';
         const colorCursor = estilosBody.getPropertyValue('--primary').trim() || '#6b3550';
-        const colorPapel = estilosBody.getPropertyValue('--score-paper').trim() || '#ffffff';
 
         let osmd = null;
         let notas = [];          // solo las que tienen pitch real (recorrerCursorOsmd, filtradas)
@@ -506,18 +510,22 @@
         // verlo en un navegador real, no encontré por qué no se notaba -- esta
         // vía no depende de ninguna cascada/especificidad, así que la duda
         // desaparece de raíz.
+        // Iluminado SUTIL en el borde (glow hacia afuera, sin relleno de color en
+        // el medio -- mismo espíritu que pintarNota, no un cuadro pintado). En
+        // error, además, un shake horizontal breve -- @keyframes definido en
+        // gabinete.css, activado seteando .style.animation desde acá.
         function destellarPartitura(esCorrecta) {
             if (!divPartitura) return;
             const color = esCorrecta ? colorAcierto : colorError;
-            divPartitura.style.transition = 'background-color 0.1s ease, box-shadow 0.1s ease, transform 0.1s ease';
-            divPartitura.style.backgroundColor = 'color-mix(in srgb, ' + color + ' 55%, ' + colorPapel + ')';
-            divPartitura.style.boxShadow = 'inset 0 0 0 6px ' + color;
-            divPartitura.style.transform = 'scale(1.01)';
+            divPartitura.style.transition = 'box-shadow 0.15s ease';
+            divPartitura.style.boxShadow = '0 0 0 2px ' + color + ', 0 0 14px 2px ' + color;
+            if (!esCorrecta) {
+                divPartitura.style.animation = 'pdir-gab-shake 0.4s ease';
+            }
             setTimeout(function () {
-                divPartitura.style.backgroundColor = '';
                 divPartitura.style.boxShadow = '';
-                divPartitura.style.transform = '';
-            }, 700);
+                divPartitura.style.animation = '';
+            }, 500);
         }
 
         // Tamaño fijo, igual al del SVG en el template (width/height="24") --
@@ -527,22 +535,20 @@
         // solo una hipótesis, ya corregido acá.
         const TAMANO_FLECHA = 24;
 
-        // La flecha propia se reposiciona contra el bounding box de la NOTA (no
-        // del cursor nativo de OSMD -- ese abarca toda la altura del pentagrama
-        // como marcador de posición horizontal, no sirve para ubicar la altura
-        // vertical exacta de una nota puntual). Fallback al cursor solo si por
-        // algún motivo la nota no tiene su svgEl etiquetado.
-        function moverFlechaCursor(nota) {
-            if (!divPartitura) return;
+        // La flecha se reposiciona contra el bounding box del CURSOR nativo de
+        // OSMD (no de la nota) -- con renderSingleHorizontalStaffline (ver
+        // cargar() más abajo) todo el ejercicio queda en una sola línea, así que
+        // "arriba del cursor" es siempre "arriba del pentagrama", consistente
+        // nota a nota. La posición horizontal del cursor es exactamente lo que
+        // OSMD calcula al mover el cursor con avanzarCursorOsmdHasta -- no hay
+        // que recalcular nada por nuestra cuenta, solo leerla.
+        function moverFlechaCursor() {
+            if (!divPartitura || !osmd.cursor.cursorElement) return;
             const rectContenedor = divPartitura.getBoundingClientRect();
-            let rectObjetivo = nota && nota.svgEl ? nota.svgEl.getBoundingClientRect() : null;
-            if (!rectObjetivo || (rectObjetivo.width === 0 && rectObjetivo.height === 0)) {
-                if (!osmd.cursor.cursorElement) return;
-                rectObjetivo = osmd.cursor.cursorElement.getBoundingClientRect();
-            }
-            if (rectObjetivo.width === 0 && rectObjetivo.height === 0) return; // aún no posicionado
-            const x = rectObjetivo.left - rectContenedor.left + rectObjetivo.width / 2 - TAMANO_FLECHA / 2;
-            const y = rectObjetivo.top - rectContenedor.top - TAMANO_FLECHA - 4;
+            const rectCursor = osmd.cursor.cursorElement.getBoundingClientRect();
+            if (rectCursor.width === 0 && rectCursor.height === 0) return; // aún no posicionado
+            const x = rectCursor.left - rectContenedor.left + rectCursor.width / 2 - TAMANO_FLECHA / 2;
+            const y = rectCursor.top - rectContenedor.top - TAMANO_FLECHA - 4;
             flechaCursor.style.left = x + 'px';
             flechaCursor.style.top = y + 'px';
             flechaCursor.style.display = '';
@@ -561,7 +567,7 @@
             }
             const nota = notas[idx];
             currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, nota.groupIndex);
-            moverFlechaCursor(nota);
+            moverFlechaCursor();
             habilitarBotones(true);
             esperandoRespuesta = true;
             AudioEngine.playNote(nota.pitchName);
@@ -614,7 +620,14 @@
                     }
                     divBadge.style.display = '';
                 })
-                .catch(function (err) { console.error('[practica-dirigida] Error registrando resultado:', err); });
+                .catch(function (err) { console.error('[practica-dirigida] Error registrando resultado:', err); })
+                .finally(function () {
+                    // Se avisa que este bloque terminó su intento SIEMPRE, incluso si
+                    // el POST de registro falló (error de red) -- el usuario ya
+                    // respondió todas las notas, no tiene sentido dejarlo trabado acá
+                    // por un problema ajeno a lo que hizo.
+                    if (alCompletar) alCompletar();
+                });
         }
 
         function empezar() {
@@ -634,6 +647,26 @@
             osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divOsmd, {
                 autoResize: false,
                 drawTitle: false,
+                // Título/subtítulo/compositor/letrista/nombre de instrumento: nada de
+                // esto tiene sentido en la superficie de un ejercicio de práctica (a
+                // diferencia del bloque Ejemplo de partitura, que sí tiene checkboxes
+                // para esto) -- confirmado en la práctica que sin drawSubtitle:false
+                // se colaba el título embebido del MusicXML como texto suelto arriba
+                // del pentagrama.
+                drawSubtitle: false,
+                drawComposer: false,
+                drawLyricist: false,
+                drawPartNames: false,
+                drawPartAbbreviations: false,
+                // Fuerza TODO el ejercicio a una sola línea horizontal continua, sin
+                // wrapping en varios sistemas -- confirmado en la doc de OSMD 1.8.8
+                // (hay que fijarlo ANTES de load(), no sirve seteado después). Esto es
+                // lo que realmente soluciona el canvas angosto/partido: no depende de
+                // que OSMD mida bien el ancho del contenedor (con autoResize:false no
+                // lo hacía de forma confiable), directamente no hay wrapping que hacer.
+                // Si el resultado es más ancho que el contenedor, el overflow-x:auto
+                // de .pdir-gab__partitura deja hacer scroll horizontal.
+                renderSingleHorizontalStaffline: true,
                 // Ninguno de los "tipos" de cursor de OSMD es una flecha (confirmado
                 // leyendo Cursor.ts de la versión pineada) -- se deja el cursor nativo
                 // como una línea vertical fina y sutil, y la flecha propia (arriba)
@@ -685,10 +718,44 @@
         });
         btnReintentar.addEventListener('click', empezar);
 
-        cargar();
+        return {
+            cargar: cargar,
+            mostrarBloqueado: function () {
+                divEstado.textContent = data.txtBloqueado;
+                divEstado.style.display = '';
+            },
+        };
     }
 
-    bloquesPractica.forEach(function (info) { initPracticaDirigida(info.bloqueId); });
+    // Orquestación secuencial entre bloques PRACTICA_DIRIGIDA de la misma
+    // página: cargar todos a la vez rompía la carga (varias instancias de OSMD
+    // pidiendo/renderizando en paralelo) -- ahora solo el bloque activo carga
+    // su MusicXML; los siguientes muestran un mensaje de bloqueado y recién
+    // arrancan cuando el anterior termina su intento (registrado con éxito o
+    // no -- ver el comentario en terminar()/finally más arriba).
+    let indiceActivo = 0;
+    // Cada bloque avisa CON SU PROPIO índice (capturado por clausura, no un
+    // callback compartido) -- si no, "Practicar de nuevo" en un bloque ya
+    // pasado (ej. el #0 después de que ya avanzamos al #2) volvía a disparar
+    // el avance igual, aunque no fuera el bloque activo el que terminó.
+    const controladores = bloquesPractica.map(function (info, i) {
+        return initPracticaDirigida(info.bloqueId, function () { avanzarDesde(i); });
+    });
+
+    function avanzarDesde(indiceQueTermino) {
+        if (indiceQueTermino !== indiceActivo) return; // no es el bloque activo -- ignorar
+        indiceActivo++;
+        if (indiceActivo < controladores.length) {
+            controladores[indiceActivo].cargar();
+        }
+    }
+
+    if (controladores.length > 0) {
+        controladores.forEach(function (c, i) {
+            if (i > 0) c.mostrarBloqueado();
+        });
+        controladores[0].cargar();
+    }
 })();
 </script>
 {% endblock %}
