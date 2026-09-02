@@ -1,0 +1,85 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    @page { size: A4; margin: 2.2cm 1.8cm; }
+    body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; color: #1a1a1a; }
+
+    h1 { font-size: 22pt; margin-bottom: 0.2cm; }
+    .subtitulo { color: #666; font-size: 10pt; margin-bottom: 0.4cm; }
+    .nota-navegacion { color: #888; font-size: 8.5pt; font-style: italic; margin-bottom: 1cm; }
+
+    /* Grado/Tema son los niveles del índice -- ver el porqué de -pdf-outline en
+       el bloque .contenido-md más abajo. */
+    h2.grado-titulo { font-size: 15pt; margin-top: 1.2cm; margin-bottom: 0.3cm; padding-bottom: 0.15cm; border-bottom: 1pt solid #999; }
+    h3.tema-titulo { font-size: 12.5pt; margin-top: 0.7cm; margin-bottom: 0.35cm; color: #333; }
+
+    .bloque-imagen { margin: 0.3cm 0 0.5cm; text-align: center; }
+    .bloque-imagen img { max-width: 100%; }
+    .bloque-imagen .pie { font-size: 8.5pt; color: #666; margin-top: 0.15cm; }
+
+    /* El HTML de texto_markdown_mostrado ya viene sanitizado (render_markdown_seguro,
+       ver services.py) pero SU allow-list permite h1-h4 -- si no se los desactiva acá,
+       cualquier encabezado que un admin escriba DENTRO de un bloque de texto se
+       registraría como entrada del índice (xhtml2pdf marca TODO h1-h6 como
+       -pdf-outline:true por default), mezclado con las entradas reales de Grado/Tema
+       y al mismo nivel que el título del curso. Los reduce de tamaño y les saca el
+       outline -- siguen siendo encabezados visuales dentro del texto, solo que no
+       aparecen en el índice ni en los marcadores del lector de PDF. */
+    .contenido-md { line-height: 1.5; margin-bottom: 0.4cm; }
+    .contenido-md h1, .contenido-md h2, .contenido-md h3, .contenido-md h4 { -pdf-outline: false; font-size: 11pt; margin: 0.4cm 0 0.2cm; }
+    .contenido-md p { margin: 0 0 0.3cm; }
+    .contenido-md ul, .contenido-md ol { margin: 0 0 0.3cm; padding-left: 0.6cm; }
+    .contenido-md blockquote { margin: 0 0 0.3cm; padding: 0.1cm 0.4cm; border-left: 2pt solid #ccc; color: #555; }
+    .contenido-md pre { background-color: #f4f4f4; padding: 0.25cm; font-size: 8.5pt; }
+    .contenido-md code { font-family: Courier, monospace; background-color: #f4f4f4; }
+</style>
+</head>
+<body>
+    <h1>{{ curso.nombre_mostrado }}</h1>
+    {% if curso.descripcion_corta_mostrado %}<p class="subtitulo">{{ curso.descripcion_corta_mostrado }}</p>{% endif %}
+    <p class="nota-navegacion">{% trans "Usá el panel de marcadores/índice de tu lector de PDF para saltar directo a un Grado o Tema." %}</p>
+
+    {% comment %}
+    Deliberadamente SIN el tag de tabla de contenidos de xhtml2pdf: fuerza a
+    usar doc.multiBuild() (varias pasadas para resolver números de página) en
+    vez del build simple de una sola pasada -- confirmado en
+    xhtml2pdf/document.py, no es una elección estética. Ese mecanismo resultó
+    frágil en la práctica: con el mismo template y contenido similar, a veces
+    terminaba en IndexError("Index entries not resolved after 10 passes") y a
+    veces no -- no determinístico, así que un curso real podría tirar 500 al
+    azar según el largo exacto del contenido. La navegación real (panel de
+    marcadores/outline del lector, con jerarquía y número de página correctos)
+    NO depende de multiBuild -- se arma en la misma pasada simple mientras se
+    van dibujando los h1-h3 -- así que sigue funcionando perfecto sin el
+    índice impreso. Verificado leyendo el outline del PDF generado, no
+    asumido.
+    IMPORTANTE: {# #} de una sola línea NO alcanza acá -- Django trunca los
+    comentarios {# #} multilínea de forma silenciosa (ver la nota ya
+    documentada sobre esto en CLAUDE.md) y el texto se cuela como contenido
+    visible del HTML final -- confirmado en la práctica: la primera versión de
+    esta nota, escrita con {# #}, no solo apareció como texto en el PDF sino
+    que la mención literal del tag de TOC dentro del texto se re-interpretó
+    como un tag real al llegar a xhtml2pdf, resucitando el mismo bug que esta
+    nota explica haber evitado. {% endcomment %}
+
+    {% for grado in grados %}
+        <h2 class="grado-titulo">{% blocktrans with n=grado.numero titulo=grado.titulo_mostrado %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</h2>
+        {% for tema in grado.temas_activos %}
+            <h3 class="tema-titulo">{{ tema.titulo_mostrado }}</h3>
+            {% for bloque in tema.bloques_pdf %}
+                {% if bloque.tipo == 'TEXTO' %}
+                    <div class="contenido-md">{{ bloque.html_renderizado }}</div>
+                {% elif bloque.tipo == 'IMAGEN' %}
+                    <div class="bloque-imagen">
+                        <img src="{{ bloque.imagen_pdf_path }}">
+                        {% if bloque.contexto_imagen_mostrado %}<div class="pie">{{ bloque.contexto_imagen_mostrado }}</div>{% endif %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+    {% endfor %}
+</body>
+</html>

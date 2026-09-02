@@ -1815,6 +1815,59 @@ def curso_detail(request, curso_id):
 
 
 @login_required
+def curso_exportar_pdf(request, curso_id):
+    """
+    PDF con el contenido de Texto e Imagen de todo el curso, en el idioma
+    activo (mismas properties _mostrado/_mostrada que tema_detail -- cero
+    lógica de idioma nueva). Generado en el momento en cada pedido, mismo
+    patrón que orquestador_exportar_pdf -- sin cachear nada, así que siempre
+    refleja el contenido actual (decisión explícita: no hay hoy sistema de
+    compra/versionado en el sitio que justifique guardar una versión fija).
+
+    Ejemplo de partitura, Práctica y Video quedan afuera a propósito (v1):
+    Ejemplo de partitura necesitaría renderizar MusicXML a imagen estática del
+    lado del servidor (no hay motor de notación instalado hoy -- planeado para
+    una v2); Práctica es un link a un ejercicio interactivo, no tiene sentido
+    en un PDF; Video tampoco se puede incrustar reproducible en un PDF.
+    """
+    from .models import Curso, BloqueContenido
+    from .services import render_markdown_seguro
+
+    curso = get_object_or_404(Curso, id=curso_id, activo=True)
+    grados = list(curso.grados.filter(activo=True))
+    for grado in grados:
+        temas_activos = list(grado.temas.filter(activo=True))
+        for tema in temas_activos:
+            bloques_pdf = []
+            for bloque in tema.bloques.all():
+                if bloque.tipo == BloqueContenido.TEXTO:
+                    bloque.html_renderizado = render_markdown_seguro(bloque.texto_markdown_mostrado)
+                    bloques_pdf.append(bloque)
+                elif bloque.tipo == BloqueContenido.IMAGEN:
+                    archivo = bloque.imagen_mostrada
+                    if archivo:
+                        # Ruta real en disco, no una URL -- el render corre en el
+                        # mismo proceso con acceso directo al filesystem, no hace
+                        # falta pasar por HTTP ni por bloque_imagen_archivo acá.
+                        bloque.imagen_pdf_path = archivo.path
+                        bloques_pdf.append(bloque)
+            tema.bloques_pdf = bloques_pdf
+        grado.temas_activos = temas_activos
+
+    html_string = render_to_string('trainer/curso_pdf.html', {'curso': curso, 'grados': grados})
+
+    buffer = io.BytesIO()
+    pisa_status = pisa.CreatePDF(html_string, dest=buffer)
+    if pisa_status.err:
+        return JsonResponse({'status': 'error', 'message': 'No se pudo generar el PDF.'}, status=500)
+
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    nombre_archivo = "".join(c for c in curso.nombre_mostrado if c.isalnum() or c in " ._-").strip() or "curso"
+    response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}.pdf"'
+    return response
+
+
+@login_required
 def tema_detail(request, curso_id, grado_numero, tema_slug):
     from .models import Curso, Grado, Tema
     from .services import render_markdown_seguro
