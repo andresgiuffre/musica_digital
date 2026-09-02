@@ -20,6 +20,7 @@
        (biblioteca_play, orquestacion_ejercicio). */
     .bloque-gab__partitura { background: var(--score-paper); color: var(--score-ink); padding: 1.25rem; border-radius: var(--radius-data); overflow-x: auto; }
     .bloque-gab__contexto { color: var(--ink-soft); font-size: 0.9375rem; margin: 0 0 1rem; }
+    .bloque-gab__imagen { max-width: 100%; height: auto; display: block; border-radius: var(--radius-data); }
     .tema-gab__vacio { color: var(--ink-soft); }
 
     .tema-gab__paginacion { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; }
@@ -75,6 +76,9 @@
                 {% else %}
                     <p style="margin: 0;">{{ bloque.practica_texto_mostrado }}</p>
                 {% endif %}
+            {% elif bloque.tipo == 'IMAGEN' %}
+                {% if bloque.contexto_imagen_mostrado %}<p class="bloque-gab__contexto">{{ bloque.contexto_imagen_mostrado }}</p>{% endif %}
+                <img class="bloque-gab__imagen" src="{% url 'bloque_imagen_archivo' bloque.id %}" alt="{{ bloque.contexto_imagen_mostrado }}">
             {% endif %}
         </div>
     {% empty %}

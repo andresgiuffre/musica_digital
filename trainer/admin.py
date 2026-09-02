@@ -68,6 +68,7 @@ class BloqueContenidoInline(admin.StackedInline):
             'classes': ('collapse',),
         }),
         ('Práctica', {'fields': ('practica_texto', 'practica_texto_en', 'practica_url', 'practica_url_en'), 'classes': ('collapse',)}),
+        ('Imagen', {'fields': ('imagen', 'contexto_imagen', 'contexto_imagen_en'), 'classes': ('collapse',)}),
     )
 
 

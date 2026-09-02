@@ -620,10 +620,12 @@ class BloqueContenido(models.Model):
     TEXTO = 'TEXTO'
     EJEMPLO_PARTITURA = 'EJEMPLO_PARTITURA'
     PRACTICA = 'PRACTICA'
+    IMAGEN = 'IMAGEN'
     TIPO_CHOICES = (
         (TEXTO, 'Texto'),
         (EJEMPLO_PARTITURA, 'Ejemplo de partitura'),
         (PRACTICA, 'Práctica'),
+        (IMAGEN, 'Imagen'),
     )
 
     tema = models.ForeignKey(Tema, on_delete=models.CASCADE, related_name='bloques')
@@ -674,6 +676,19 @@ class BloqueContenido(models.Model):
         help_text="Versión en inglés del path, SOLO si difiere del de arriba -- casi siempre porque necesita el prefijo /en/ (ver i18n_patterns en config/urls.py: una URL sin prefijo fuerza español sin importar el idioma activo). Si queda vacío, se usa el mismo path de arriba tal cual."
     )
 
+    # --- IMAGEN ---
+    imagen = models.FileField(
+        upload_to='cursos_imagenes/', null=True, blank=True,
+        help_text="PNG, JPG o SVG -- para diagramas/fotos que no se pueden representar como MusicXML. Requerido cuando el tipo es Imagen."
+    )
+    # Un solo campo hace doble función -- pie de imagen visible Y atributo alt
+    # del <img> (accesibilidad) -- en vez de dos campos separados, para no
+    # duplicar lo que en la práctica casi siempre es el mismo texto ("Círculo
+    # de quintas", "Posición de la mano en Do mayor", etc.). Mismo patrón _en
+    # que el resto de los campos de texto del bloque.
+    contexto_imagen = models.CharField(max_length=300, blank=True, help_text="Pie de imagen (también se usa como texto alternativo/accesibilidad).")
+    contexto_imagen_en = models.CharField(max_length=300, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el texto en español también con idioma inglés activo.")
+
     class Meta:
         ordering = ['orden']
         verbose_name = "Bloque de Contenido"
@@ -712,6 +727,13 @@ class BloqueContenido(models.Model):
             return self.practica_url_en
         return self.practica_url
 
+    @property
+    def contexto_imagen_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.contexto_imagen_en:
+            return self.contexto_imagen_en
+        return self.contexto_imagen
+
     def clean(self):
         from django.core.exceptions import ValidationError
         errores = {}
@@ -723,6 +745,8 @@ class BloqueContenido(models.Model):
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Texto."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Texto."
+            if self.imagen:
+                errores['imagen'] = "No debería llenarse en un bloque de Texto."
 
         elif self.tipo == self.EJEMPLO_PARTITURA:
             if bool(self.sheet_music_id) == bool(self.fragmento_orquestacion_id):
@@ -732,6 +756,8 @@ class BloqueContenido(models.Model):
                 errores['texto_markdown'] = "No debería llenarse acá (usá 'contexto_ejemplo' para texto corto)."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Ejemplo de partitura."
+            if self.imagen:
+                errores['imagen'] = "No debería llenarse en un bloque de Ejemplo de partitura."
 
         elif self.tipo == self.PRACTICA:
             if not self.practica_texto:
@@ -740,6 +766,18 @@ class BloqueContenido(models.Model):
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Práctica."
             if self.sheet_music_id or self.fragmento_orquestacion_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Práctica."
+            if self.imagen:
+                errores['imagen'] = "No debería llenarse en un bloque de Práctica."
+
+        elif self.tipo == self.IMAGEN:
+            if not self.imagen:
+                errores['imagen'] = "Requerido cuando el tipo es Imagen."
+            if self.texto_markdown:
+                errores['texto_markdown'] = "No debería llenarse en un bloque de Imagen."
+            if self.sheet_music_id or self.fragmento_orquestacion_id:
+                errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Imagen."
+            if self.practica_texto:
+                errores['practica_texto'] = "No debería llenarse en un bloque de Imagen."
 
         if errores:
             raise ValidationError(errores)
