@@ -1,7 +1,9 @@
 {% load i18n %}
-{# Parcial incluido desde tema_detail.html donde ya despacha por bloque.tipo --
-   no es una página con URL propia. `bloque` y `csrf_token` llegan del contexto
-   del include (sin `only`), no se re-pasan a mano. #}
+{% comment %}
+Parcial incluido desde tema_detail.html donde ya despacha por bloque.tipo --
+no es una página con URL propia. `bloque` y `csrf_token` llegan del contexto
+del include (sin `only`), no se re-pasan a mano.
+{% endcomment %}
 <div class="pdir-gab" id="pdir-bloque-{{ bloque.id }}"
     data-bloque-id="{{ bloque.id }}"
     data-archivo-url="{% url 'bloque_practica_dirigida_archivo' bloque.id %}"
@@ -13,7 +15,8 @@
     data-txt-error="{% trans 'No se pudo cargar el ejercicio.' %}"
     data-txt-resultado="{% trans 'Acertaste {correctas} de {total}.' %}"
     data-txt-completado="{% trans 'Completado — mejor puntaje: {precision}%' %}"
-    data-txt-no-completado="{% trans 'Practicado {veces} veces — todavía no completado' %}">
+    data-txt-no-completado="{% trans 'Practicado {veces} veces — todavía no completado' %}"
+    data-txt-contador="{% trans '{correctas} / {total} aciertos ({porcentaje}%)' %}">
 
     <div class="pdir-gab__badge {% if bloque.progreso_usuario.completado %}pdir-gab__badge--completado{% elif bloque.progreso_usuario %}pdir-gab__badge--progreso{% endif %}"
         id="pdir-badge-{{ bloque.id }}" {% if not bloque.progreso_usuario %}style="display:none;"{% endif %}>
@@ -24,9 +27,22 @@
         {% endif %}
     </div>
 
-    <div class="pdir-gab__partitura">
+    <div class="pdir-gab__partitura" id="pdir-partitura-{{ bloque.id }}">
         <div id="pdir-osmd-{{ bloque.id }}" class="pdir-gab__osmd"></div>
+        {# Flecha propia, no el cursor nativo de OSMD -- ninguno de los "tipos" de
+           cursor que OSMD ofrece (barra vertical/horizontal/resaltado de compás)
+           es una flecha, confirmado leyendo el código fuente de Cursor.ts de la
+           versión pineada. Se reposiciona en JS contra el bounding box real del
+           cursor de OSMD (que sigue existiendo, solo que casi invisible -- se
+           necesita igual para saber a qué nota apunta). #}
+        <div class="pdir-gab__flecha-cursor" id="pdir-flecha-{{ bloque.id }}" style="display:none;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="24" height="24">
+                <path d="M10 15.5l-7-8h14l-7 8z" />
+            </svg>
+        </div>
     </div>
+
+    <div class="pdir-gab__contador" id="pdir-contador-{{ bloque.id }}" style="display:none;"></div>
 
     <div class="pdir-gab__estado" id="pdir-estado-{{ bloque.id }}">{% trans "Cargando ejercicio…" %}</div>
 
