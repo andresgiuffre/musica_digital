@@ -21,6 +21,13 @@
     .bloque-gab__partitura { background: var(--score-paper); color: var(--score-ink); padding: 1.25rem; border-radius: var(--radius-data); overflow-x: auto; }
     .bloque-gab__contexto { color: var(--ink-soft); font-size: 0.9375rem; margin: 0 0 1rem; }
     .bloque-gab__imagen { max-width: 100%; height: auto; display: block; border-radius: var(--radius-data); }
+    .bloque-gab__video { width: 100%; display: block; border-radius: var(--radius-data); background: #000; }
+    /* Caja 16:9 responsive para el iframe de YouTube/Vimeo -- el iframe no tiene
+       tamaño intrínseco propio, así que se posiciona absoluto dentro de esta caja
+       cuya altura se fuerza vía padding-top (truco clásico, sin aspect-ratio CSS
+       porque también hay que soportar navegadores viejos en este sitio). */
+    .bloque-gab__video-embed { position: relative; width: 100%; padding-top: 56.25%; border-radius: var(--radius-data); overflow: hidden; }
+    .bloque-gab__video-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
     .tema-gab__vacio { color: var(--ink-soft); }
 
     .tema-gab__paginacion { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; }
@@ -79,6 +86,17 @@
             {% elif bloque.tipo == 'IMAGEN' %}
                 {% if bloque.contexto_imagen_mostrado %}<p class="bloque-gab__contexto">{{ bloque.contexto_imagen_mostrado }}</p>{% endif %}
                 <img class="bloque-gab__imagen" src="{% url 'bloque_imagen_archivo' bloque.id %}" alt="{{ bloque.contexto_imagen_mostrado }}">
+            {% elif bloque.tipo == 'VIDEO' %}
+                {% if bloque.contexto_video_mostrado %}<p class="bloque-gab__contexto">{{ bloque.contexto_video_mostrado }}</p>{% endif %}
+                {% if bloque.video_fuente == 'ARCHIVO' %}
+                    <video class="bloque-gab__video" controls controlsList="nodownload noremoteplayback" disablepictureinpicture preload="metadata">
+                        <source src="{% url 'bloque_video_archivo' bloque.id %}">
+                    </video>
+                {% elif bloque.video_embed_info %}
+                    <div class="bloque-gab__video-embed">
+                        <iframe src="{{ bloque.video_embed_info.embed_src }}" title="{{ bloque.contexto_video_mostrado }}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe>
+                    </div>
+                {% endif %}
             {% endif %}
         </div>
     {% empty %}

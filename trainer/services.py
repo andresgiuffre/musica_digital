@@ -1,4 +1,5 @@
 import logging
+import re
 import markdown
 import nh3
 from django.db import transaction
@@ -38,6 +39,54 @@ def render_markdown_seguro(texto_markdown):
     html_crudo = markdown.markdown(texto_markdown)
     html_limpio = nh3.clean(html_crudo, tags=MARKDOWN_TAGS_PERMITIDOS, attributes=MARKDOWN_ATTRS_PERMITIDOS)
     return mark_safe(html_limpio)
+
+
+# Cubren las formas de URL que la gente realmente copia y pega del navegador --
+# no exhaustivo (no cubre ej. vimeo.com/channels/xxx/123 con nombre de canal
+# variable), pero sí watch/youtu.be/shorts/embed para YouTube y video normal
+# para Vimeo, que son el 99% de los casos reales.
+_PATRON_YOUTUBE = re.compile(
+    r'(?:youtube\.com/(?:watch\?v=|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{11})'
+)
+_PATRON_VIMEO = re.compile(r'vimeo\.com/(?:video/)?(\d+)')
+
+
+def extraer_video_embed(url):
+    """
+    Reconoce un link de YouTube o Vimeo pegado tal cual desde el navegador (en
+    cualquiera de sus formatos habituales) y arma la URL de embed restringida
+    correspondiente. Devuelve None si no matchea ninguno de los dos -- usado
+    tanto en BloqueContenido.clean() (para rechazar links no reconocidos en el
+    admin) como en BloqueContenido.video_embed_info (para armar el <iframe> en
+    el template).
+
+    youtube-nocookie.com (no youtube.com) + rel=0 + modestbranding=1: reduce la
+    superficie de fuga (sin videos relacionados de otros canales, sin marca de
+    canal, sin cookie de tracking hasta que se le da play) -- pero NO es una
+    garantía de que sea imposible llegar a youtube.com desde ahí (el logo de
+    YouTube en el reproductor es parte de sus términos de embeb, no se puede
+    sacar por completo). Mismo criterio con Vimeo: title=0/byline=0/portrait=0
+    saca la metadata visible, dnt=1 pide no trackear.
+    """
+    m = _PATRON_YOUTUBE.search(url)
+    if m:
+        video_id = m.group(1)
+        return {
+            'proveedor': 'youtube',
+            'id': video_id,
+            'embed_src': f'https://www.youtube-nocookie.com/embed/{video_id}?rel=0&modestbranding=1',
+        }
+
+    m = _PATRON_VIMEO.search(url)
+    if m:
+        video_id = m.group(1)
+        return {
+            'proveedor': 'vimeo',
+            'id': video_id,
+            'embed_src': f'https://player.vimeo.com/video/{video_id}?title=0&byline=0&portrait=0&dnt=1',
+        }
+
+    return None
 
 
 def get_weekly_summary(user):
