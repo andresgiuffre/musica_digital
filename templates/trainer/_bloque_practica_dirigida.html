@@ -29,12 +29,14 @@ del include (sin `only`), no se re-pasan a mano.
 
     <div class="pdir-gab__partitura" id="pdir-partitura-{{ bloque.id }}">
         <div id="pdir-osmd-{{ bloque.id }}" class="pdir-gab__osmd"></div>
-        {# Flecha propia, no el cursor nativo de OSMD -- ninguno de los "tipos" de
-           cursor que OSMD ofrece (barra vertical/horizontal/resaltado de compás)
-           es una flecha, confirmado leyendo el código fuente de Cursor.ts de la
-           versión pineada. Se reposiciona en JS contra el bounding box real del
-           cursor de OSMD (que sigue existiendo, solo que casi invisible -- se
-           necesita igual para saber a qué nota apunta). #}
+        {% comment %}
+        Flecha propia, no el cursor nativo de OSMD -- ninguno de los "tipos" de
+        cursor que OSMD ofrece (barra vertical/horizontal/resaltado de compás) es
+        una flecha, confirmado leyendo el código fuente de Cursor.ts de la versión
+        pineada. Se reposiciona en JS contra el bounding box real de la NOTA
+        (no del cursor -- el cursor abarca toda la altura del pentagrama, no
+        sirve para apuntar la altura vertical exacta de una nota puntual).
+        {% endcomment %}
         <div class="pdir-gab__flecha-cursor" id="pdir-flecha-{{ bloque.id }}" style="display:none;">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="24" height="24">
                 <path d="M10 15.5l-7-8h14l-7 8z" />

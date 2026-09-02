@@ -597,15 +597,21 @@ body.gabinete .pdir-gab__badge--completado { background: color-mix(in srgb, var(
 body.gabinete .pdir-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
 
 body.gabinete .pdir-gab__partitura {
-    background: var(--score-paper); color: var(--score-ink); padding: 1.25rem 1.25rem 2.25rem;
+    background-color: var(--score-paper); color: var(--score-ink); padding: 1.25rem 1.25rem 2.25rem;
     border-radius: var(--radius-data); overflow-x: auto; margin-bottom: 1rem; position: relative;
-    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    /* background-color en vez del shorthand `background` a propósito: así compite
+       con las clases de flash de abajo por la MISMA longhand, sin que un shorthand
+       de base y un longhand modificador puedan generar ninguna ambigüedad de
+       cascada -- el !important ya alcanzaba en teoría, pero esto la elimina del todo. */
+    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 /* Flash de acierto/error MÁS intenso que .flash-correct/.flash-incorrect
    compartidos (esos son a propósito sutiles -- los usan ~10 pantallas de
-   juego más, no se tocan) -- clases propias, no una reescritura global. */
-body.gabinete .pdir-gab__partitura--correcto { background-color: color-mix(in srgb, var(--green) 30%, var(--score-paper)) !important; box-shadow: inset 0 0 0 3px var(--green); }
-body.gabinete .pdir-gab__partitura--incorrecto { background-color: color-mix(in srgb, var(--danger) 30%, var(--score-paper)) !important; box-shadow: inset 0 0 0 3px var(--danger); }
+   juego más, no se tocan) -- clases propias, no una reescritura global. Color
+   de fondo bien saturado + borde grueso + un leve "pulso" de escala, para que
+   se note sin ninguna duda incluso en un vistazo rápido. */
+body.gabinete .pdir-gab__partitura--correcto { background-color: color-mix(in srgb, var(--green) 50%, var(--score-paper)) !important; box-shadow: inset 0 0 0 5px var(--green); transform: scale(1.008); }
+body.gabinete .pdir-gab__partitura--incorrecto { background-color: color-mix(in srgb, var(--danger) 50%, var(--score-paper)) !important; box-shadow: inset 0 0 0 5px var(--danger); transform: scale(1.008); }
 
 /* El div pasado a `new OpenSheetMusicDisplay(...)` necesita position:relative --
    sin esto el cursor de OSMD se posiciona contra el ancestro posicionado más
