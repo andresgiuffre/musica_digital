@@ -458,6 +458,7 @@
         const colorAcierto = estilosBody.getPropertyValue('--green').trim() || '#2e7d32';
         const colorError = estilosBody.getPropertyValue('--danger').trim() || '#c0392b';
         const colorCursor = estilosBody.getPropertyValue('--primary').trim() || '#6b3550';
+        const colorPapel = estilosBody.getPropertyValue('--score-paper').trim() || '#ffffff';
 
         let osmd = null;
         let notas = [];          // solo las que tienen pitch real (recorrerCursorOsmd, filtradas)
@@ -499,6 +500,33 @@
             notas.forEach(function (n) { limpiarNota(n.svgEl); });
         }
 
+        // Manipulación DIRECTA de .style, no clases CSS -- mismo mecanismo que
+        // pintarNota (arriba), que sí está confirmado que funciona. La primera
+        // versión de este destello usaba clases con !important y, sin poder
+        // verlo en un navegador real, no encontré por qué no se notaba -- esta
+        // vía no depende de ninguna cascada/especificidad, así que la duda
+        // desaparece de raíz.
+        function destellarPartitura(esCorrecta) {
+            if (!divPartitura) return;
+            const color = esCorrecta ? colorAcierto : colorError;
+            divPartitura.style.transition = 'background-color 0.1s ease, box-shadow 0.1s ease, transform 0.1s ease';
+            divPartitura.style.backgroundColor = 'color-mix(in srgb, ' + color + ' 55%, ' + colorPapel + ')';
+            divPartitura.style.boxShadow = 'inset 0 0 0 6px ' + color;
+            divPartitura.style.transform = 'scale(1.01)';
+            setTimeout(function () {
+                divPartitura.style.backgroundColor = '';
+                divPartitura.style.boxShadow = '';
+                divPartitura.style.transform = '';
+            }, 700);
+        }
+
+        // Tamaño fijo, igual al del SVG en el template (width/height="24") --
+        // NO se lee flechaCursor.offsetWidth/offsetHeight: mientras la flecha
+        // sigue display:none (primera nota del intento), esas dos valen 0, y
+        // usarlas para centrar daba una posición desplazada -- bug real, no
+        // solo una hipótesis, ya corregido acá.
+        const TAMANO_FLECHA = 24;
+
         // La flecha propia se reposiciona contra el bounding box de la NOTA (no
         // del cursor nativo de OSMD -- ese abarca toda la altura del pentagrama
         // como marcador de posición horizontal, no sirve para ubicar la altura
@@ -513,8 +541,8 @@
                 rectObjetivo = osmd.cursor.cursorElement.getBoundingClientRect();
             }
             if (rectObjetivo.width === 0 && rectObjetivo.height === 0) return; // aún no posicionado
-            const x = rectObjetivo.left - rectContenedor.left + rectObjetivo.width / 2 - flechaCursor.offsetWidth / 2;
-            const y = rectObjetivo.top - rectContenedor.top - flechaCursor.offsetHeight - 4;
+            const x = rectObjetivo.left - rectContenedor.left + rectObjetivo.width / 2 - TAMANO_FLECHA / 2;
+            const y = rectObjetivo.top - rectContenedor.top - TAMANO_FLECHA - 4;
             flechaCursor.style.left = x + 'px';
             flechaCursor.style.top = y + 'px';
             flechaCursor.style.display = '';
@@ -550,15 +578,7 @@
             if (esCorrecta) correctas++;
             actualizarContador();
 
-            // Flash transitorio sobre toda la partitura -- más intenso que
-            // .flash-correct/.flash-incorrect compartidos a propósito (esos son
-            // sutiles porque los usan ~10 pantallas de juego más; estas son
-            // clases propias, no una reescritura global -- ver gabinete.css).
-            const claseFlash = esCorrecta ? 'pdir-gab__partitura--correcto' : 'pdir-gab__partitura--incorrecto';
-            if (divPartitura) divPartitura.classList.add(claseFlash);
-            setTimeout(function () {
-                if (divPartitura) divPartitura.classList.remove(claseFlash);
-            }, 700);
+            destellarPartitura(esCorrecta);
 
             // ...y glow PERMANENTE sobre la nota puntual (mismo mecanismo ya
             // probado en biblioteca_play.html, ver pintarNota más arriba), que se
@@ -630,6 +650,13 @@
                 } else {
                     await osmd.load(new TextDecoder('utf-8').decode(buffer));
                 }
+                // Esperar al próximo frame antes de render() -- mismo bug ya
+                // documentado y resuelto en orquestacion_ejercicio.html: si se
+                // renderiza antes de que el navegador termine de asentar el layout
+                // del contenedor, OSMD dibuja contra un ancho equivocado (bien
+                // angosto) sin tirar ningún error, y el resultado queda partido en
+                // varios sistemas en vez de en uno solo corrido.
+                await new Promise(function (resolve) { requestAnimationFrame(resolve); });
                 osmd.render();
                 osmd.cursor.show();
                 // OSMD deja el cursor en z-index negativo salvo que se le pase un
