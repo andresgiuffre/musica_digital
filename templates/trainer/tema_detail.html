@@ -473,6 +473,7 @@
 
         let osmd = null;
         let notas = [];          // solo las que tienen pitch real (recorrerCursorOsmd, filtradas)
+        let estados = [];        // paralelo a notas: null (todavía no respondida) / 'correcta' / 'incorrecta' -- para repintar tras un resize
         let idx = 0;
         let currentCursorIdx = 0;
         let correctas = 0;
@@ -561,6 +562,7 @@
 
             const nota = notas[idx];
             const esCorrecta = letraElegida === letraDePitchName(nota.pitchName);
+            estados[idx] = esCorrecta ? 'correcta' : 'incorrecta';
             total++;
             if (esCorrecta) correctas++;
             actualizarContador();
@@ -615,6 +617,7 @@
             correctas = 0;
             total = 0;
             currentCursorIdx = 0;
+            estados = notas.map(function () { return null; });
             osmd.cursor.reset();
             resetearColoresNotas();
             actualizarContador();
@@ -623,25 +626,62 @@
             siguienteNota();
         }
 
+        // Resize manual, mismo patrón (y mismo motivo) que orquestacion_ejercicio.html:
+        // con autoResize:false el ancho del contenedor se mide una sola vez al cargar,
+        // así que si el usuario redimensiona la ventana a mitad del ejercicio hay que
+        // volver a renderizar a mano. osmd.render() reemplaza el <svg> entero, así que
+        // las referencias .svgEl que ya tenían las notas quedan colgando -- se vuelven a
+        // etiquetar y se repinta el estado (respondidas verde/rojo, la actual en
+        // amarillo) para no perder lo ya hecho.
+        let resizeTimeout = null;
+        function onResize() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(function () {
+                if (!osmd || notas.length === 0) return;
+                osmd.render();
+                osmd.cursor.show();
+                if (osmd.cursor.cursorElement) {
+                    osmd.cursor.cursorElement.style.zIndex = '5';
+                }
+                const recorrido = OsmdUtils.recorrerCursorOsmd(osmd);
+                OsmdUtils.etiquetarNotasConSvg(osmd, recorrido.notas);
+                const notasConPitch = recorrido.notas.filter(function (n) { return n.ps !== null; });
+                notas.forEach(function (n, i) {
+                    if (notasConPitch[i]) n.svgEl = notasConPitch[i].svgEl;
+                });
+
+                currentCursorIdx = 0;
+                for (let i = 0; i < notas.length; i++) {
+                    if (estados[i] === 'correcta') pintarNota(notas[i].svgEl, colorAcierto);
+                    else if (estados[i] === 'incorrecta') pintarNota(notas[i].svgEl, colorError);
+                    else limpiarNota(notas[i].svgEl);
+                }
+                if (idx < notas.length) {
+                    currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, 0, notas[idx].groupIndex);
+                    if (esperandoRespuesta) pintarNota(notas[idx].svgEl, colorPregunta);
+                }
+            }, 250);
+        }
+        window.addEventListener('resize', onResize);
+
         async function cargar() {
             osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divOsmd, {
-                // true (el default de OSMD) a propósito -- ES lo que hace que OSMD mida
-                // el ancho real del contenedor y corte de línea ahí, como cualquier
-                // partitura impresa (varios sistemas, cada uno ocupando el ancho
-                // disponible). Los otros bloques de este archivo (EJEMPLO_PARTITURA)
-                // usan autoResize:false porque son estáticos y no hay nada que se
-                // invalide con un re-render; acá se probó primero autoResize:false +
-                // renderSingleHorizontalStaffline:true (forzar todo a una sola línea)
-                // pensando que era "una sola línea o nada", y resultó ser la solución
-                // equivocada -- una pieza larga simplemente seguía de largo sin límite
-                // en vez de cortar de línea, saliéndose del contenedor. Riesgo conocido
-                // y aceptado de autoResize:true: si el usuario redimensiona la ventana
-                // A MITAD del ejercicio, OSMD puede re-renderizar internamente e
-                // invalidar las referencias de svgEl ya etiquetadas (mismo motivo por
-                // el que orquestacion_ejercicio.html lo desactiva) -- en el peor caso
-                // se pierde el coloreado de notas ya respondidas hasta la próxima
-                // respuesta, no rompe la lógica del ejercicio en sí.
-                autoResize: true,
+                // false, igual que orquestacion_ejercicio.html (mismo motivo, verificado
+                // en un navegador real con Playwright antes de este cambio): el corte de
+                // línea por ancho de contenedor lo hace OSMD en CUALQUIER render inicial,
+                // esté o no autoResize activo -- autoResize solo decide si sigue
+                // escuchando resizes de window DESPUÉS. El bug de canvas angosto/partido
+                // en 1 compás por renglón no venía de esta opción en sí: con
+                // autoResize:true, si algo dispara el re-render interno de OSMD antes de
+                // que el layout final del contenedor esté asentado (ej. carga de fuentes,
+                // otro bloque de la página cambiando de alto), OSMD mide un ancho
+                // transitorio y se queda así hasta el próximo resize real de window, que
+                // en la práctica puede no llegar nunca. Confirmado con mediciones reales
+                // (getBoundingClientRect) en Chromium: con autoResize:false el contenedor
+                // se mide UNA vez, ya asentado, y listo. El resize manual de más abajo
+                // (mismo patrón que orquestacion_ejercicio.html) cubre el caso de que el
+                // usuario sí redimensione la ventana a mitad del ejercicio.
+                autoResize: false,
                 drawTitle: false,
                 // Título/subtítulo/compositor/letrista/nombre de instrumento: nada de
                 // esto tiene sentido en la superficie de un ejercicio de práctica (a
