@@ -259,7 +259,16 @@ body.gabinete .volver-gab svg { width: 1rem; height: 1rem; flex-shrink: 0; }
    duplicada solo en dashboard.html; cualquier otra página que la usara sin
    su propia copia quedaba con el max-width puesto pero SIN centrar (pegada
    a la izquierda) -- el bug real reportado en "Orquestar". ---------- */
-body.gabinete .envoltorio-gab { max-width: 1180px; margin: 0 auto; padding: 0 2rem; }
+/* width:100% explícito además de max-width -- .envoltorio-gab es hijo directo de
+   .main-content (flex, flex-direction:column). En teoría align-items:normal se
+   resuelve como stretch acá y el ancho debería llegar solo a max-width, pero ya
+   hubo un bug real de este mismo selector quedando sin estirar (ver comentario
+   arriba, "Orquestar" pegado a la izquierda) y un caso confirmado por un usuario
+   real donde el navegador lo achicó muy por debajo de max-width sin ninguna regla
+   CSS compitiendo (reproducido con DevTools, no explicado por ninguna extensión
+   ni configuración de zoom). width:100% saca esa resolución de la ambigüedad del
+   motor de flexbox -- inofensivo en los navegadores donde ya andaba bien. */
+body.gabinete .envoltorio-gab { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 2rem; }
 
 /* ---------- Cards genéricas ---------- */
 body.gabinete .card-gab {
