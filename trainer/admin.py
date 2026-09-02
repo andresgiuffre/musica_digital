@@ -68,9 +68,12 @@ class BloqueContenidoInline(admin.StackedInline):
             'classes': ('collapse',),
         }),
         ('Práctica', {'fields': ('practica_texto', 'practica_texto_en', 'practica_url', 'practica_url_en'), 'classes': ('collapse',)}),
-        ('Imagen', {'fields': ('imagen', 'contexto_imagen', 'contexto_imagen_en'), 'classes': ('collapse',)}),
+        ('Imagen', {'fields': ('imagen', 'imagen_en', 'contexto_imagen', 'contexto_imagen_en'), 'classes': ('collapse',)}),
         ('Video', {
-            'fields': ('video_fuente', 'video_archivo', 'video_embed_url', 'contexto_video', 'contexto_video_en'),
+            'fields': (
+                'video_fuente', 'video_archivo', 'video_archivo_en', 'video_embed_url', 'video_embed_url_en',
+                'contexto_video', 'contexto_video_en',
+            ),
             'classes': ('collapse',),
         }),
     )
