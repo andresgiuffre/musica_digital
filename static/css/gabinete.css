@@ -56,9 +56,16 @@
     --ink-soft: #55605e;
     --line: #d3d8cf;
     --line-input: #cbd2c8;
-    --primary: #6b3550;
-    --primary-dark: #56283f;
-    --primary-tint: #f6eff2;
+    /* Acento azul (antes ciruela #6b3550) -- pedido explícito de modernizar
+       el chrome global, coherente con el degradé negro/azul marino nuevo
+       del panel. Cambiado acá en la Capa 1 = se ve en TODO el sitio (navbar
+       es chrome global, no depende de qué página esté migrada), a
+       diferencia de la Capa 2 (tokens de --primary por página) que se dejó
+       intacta para no correr el acento ciruela de las pantallas que
+       todavía lo usan como único color de acción. */
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --primary-tint: #eaf1ff;
     --radius: 3px;
     --shadow-hover: 0 3px 10px rgba(45, 43, 43, 0.10);
     --shadow-window: 0 12px 32px rgba(45, 43, 43, 0.20);
@@ -74,9 +81,9 @@ html[data-tema-gabinete="oscuro"] .tema-toggle-btn.tema-toggle-btn--gab {
     --ink-soft: rgba(238, 240, 234, 0.66);
     --line: rgba(238, 240, 234, 0.16);
     --line-input: rgba(238, 240, 234, 0.28);
-    --primary: #c9a5b6;
-    --primary-dark: #b98298;
-    --primary-tint: rgba(201, 165, 182, 0.14);
+    --primary: #3b82f6;
+    --primary-dark: #60a5fa;
+    --primary-tint: rgba(59, 130, 246, 0.16);
     --shadow-hover: 0 3px 10px rgba(0, 0, 0, 0.35);
     --shadow-window: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
