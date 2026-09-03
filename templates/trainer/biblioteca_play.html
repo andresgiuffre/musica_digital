@@ -437,10 +437,17 @@
     let eventosEjecucionCrudos = null;
     let secuenciaEjecucionResuelta = null;
     // Marcas de tempo en texto (allargando/rit./accel./a tempo) detectadas por el backend --
-    // ver _contexto_expresivo_parte() en views.py. Solo disponible junto con
+    // ver _contexto_expresivo_familia() en views.py. Solo disponible junto con
     // eventosEjecucionCrudos (mismo fetch); si ese fetch falla, queda [] y startPlayback()
     // simplemente no agenda ninguna rampa de tempo, degradando sin romper nada.
     let cambiosTempoEjecucion = [];
+    // offset_global (en negras, timeline de EJECUCIÓN ya expandido) de cada punto donde la
+    // repetición vuelve hacia atrás -- ver saltos_repeticion en _eventos_ejecucion()
+    // (views.py). Usado para que una rampa de tempo en curso (ritardando/accelerando/
+    // allargando) no se filtre hacia la repetición: caso real reportado, un "allarg." cerca
+    // del final de una sección repetida quedaba ralentizando durante TODA la vuelta de la
+    // repetición porque no había ninguna otra marca de tempo más adelante que lo acotara.
+    let saltosRepeticionEjecucion = [];
 
     // Notas que se encienden al sonar durante la reproducción pasiva (--primary, transitorio)
     // -- ver encenderNota/apagarNota más abajo.
@@ -702,6 +709,7 @@
             if (data.status === 'success' && data.eventos && data.eventos.length > 0) {
                 eventosEjecucionCrudos = data.eventos;
                 cambiosTempoEjecucion = data.cambios_tempo || [];
+                saltosRepeticionEjecucion = data.saltos_repeticion || [];
             } else {
                 console.warn(`[secuencia-ejecucion] No disponible (${data.motivo || data.status}) -- se usa el orden impreso.`);
             }
@@ -2139,10 +2147,31 @@
                 // de la partitura. Encadenadas en orden: cada rampa parte del BPM que dejó la
                 // anterior (o baseBpm si es la primera), para que una serie tipo "rit. ... a
                 // tempo" vuelva al tempo real que tenía antes, no a baseBpm de nuevo si hubiera
-                // otro cambio en el medio.
+                // otro cambio en el medio -- EXCEPTO si de por medio hay un salto de
+                // repetición (ver más abajo), que siempre reinicia a baseBpm.
+                //
+                // Cada rampa se acota también por el próximo salto de repetición (no solo por
+                // el próximo cambio de tempo): caso real reportado, un "allarg." cerca del
+                // final de una sección repetida -- sin ningún otro cambio de tempo más
+                // adelante que lo acotara -- quedaba con su rampa de bpm extendiéndose sin
+                // límite hasta el final de la pieza, incluyendo toda la vuelta de la
+                // repetición (sonaba cada vez más lento durante TODA la repetición en vez de
+                // volver al tempo normal). Además, en cada salto se agenda un reset explícito
+                // a baseBpm -- así una rampa que llega al salto sin haber terminado (el caso
+                // real: el allargando recién empezando a ralentizar cuando se corta) también
+                // vuelve limpio al tempo normal, no solo las que sí llegan a completarse.
                 if (cambiosTempoEjecucion && cambiosTempoEjecucion.length > 0) {
                     let bpmVigente = baseBpm;
+                    let idxSalto = 0;
                     cambiosTempoEjecucion.forEach((cambio, idx) => {
+                        // Si hubo un salto de repetición ANTES de este cambio (y después del
+                        // anterior), el tempo ya se reinició a baseBpm ahí -- no se encadena
+                        // el bpmVigente que dejó el cambio previo.
+                        while (idxSalto < saltosRepeticionEjecucion.length && saltosRepeticionEjecucion[idxSalto] <= cambio.offset_global) {
+                            bpmVigente = baseBpm;
+                            idxSalto++;
+                        }
+
                         const bpmOrigen = bpmVigente;
                         let bpmDestino;
                         if (cambio.tipo === 'ralentar') bpmDestino = Math.round(bpmOrigen * 0.7);
@@ -2151,7 +2180,9 @@
                         bpmDestino = Math.max(20, Math.min(300, bpmDestino));
 
                         const siguiente = cambiosTempoEjecucion[idx + 1];
-                        const beatFin = siguiente ? siguiente.offset_global : totalBeats;
+                        let beatFin = siguiente ? siguiente.offset_global : totalBeats;
+                        const proximoSalto = saltosRepeticionEjecucion.find(s => s > cambio.offset_global);
+                        if (proximoSalto !== undefined) beatFin = Math.min(beatFin, proximoSalto);
                         const beatsSpan = Math.max(0.5, beatFin - cambio.offset_global);
                         const rampSeconds = beatsSpan * (60 / bpmOrigen);
 
@@ -2162,6 +2193,20 @@
                         }, startTicks + "i");
 
                         bpmVigente = bpmDestino;
+                    });
+                }
+
+                // Reset explícito a baseBpm en cada salto de repetición -- independiente de lo
+                // de arriba, para cubrir también el caso de que NINGÚN cambio de tempo haya
+                // sido acotado a tiempo (ej. redondeos) o que la rampa en curso todavía no
+                // haya llegado a su destino cuando se corta.
+                if (saltosRepeticionEjecucion && saltosRepeticionEjecucion.length > 0) {
+                    saltosRepeticionEjecucion.forEach(offsetSalto => {
+                        const startTicks = Math.round(offsetSalto * Tone.Transport.PPQ);
+                        Tone.Transport.schedule((time) => {
+                            if (miSesion !== sesionReproduccion) return;
+                            Tone.Transport.bpm.rampTo(baseBpm, 0.3, time);
+                        }, startTicks + "i");
                     });
                 }
 
