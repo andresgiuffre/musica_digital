@@ -186,6 +186,12 @@ class SheetMusic(models.Model):
     xml_file = models.FileField(upload_to='partituras/', help_text="Subí acá el archivo (MusicXML o .mxl comprimido) -- va a aparecer en la Biblioteca de Partituras del sitio.")
     collections = models.ManyToManyField(Collection, blank=True, related_name='sheet_musics')
     created_at = models.DateTimeField(auto_now_add=True)
+    oculto_en_biblioteca = models.BooleanField(
+        default=False,
+        help_text="Para partituras subidas solo como ejemplo dentro de un curso (Ejemplo de partitura) -- "
+                   "no aparecen en el listado público de la Biblioteca, pero siguen funcionando normalmente "
+                   "donde ya estén referenciadas (el curso, favoritos, progreso)."
+    )
 
     class Meta:
         verbose_name = "Partitura (Biblioteca)"

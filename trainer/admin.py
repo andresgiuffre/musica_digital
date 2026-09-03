@@ -153,10 +153,16 @@ class ScoreAnalysisAdmin(admin.ModelAdmin):
     )
     search_fields = ('name', 'user__username')
 
+@admin.register(SheetMusic)
+class SheetMusicAdmin(admin.ModelAdmin):
+    list_display = ('__str__', 'composer', 'difficulty', 'oculto_en_biblioteca', 'created_at')
+    list_editable = ('oculto_en_biblioteca',)
+    list_filter = ('oculto_en_biblioteca',)
+    search_fields = ('title', 'composer')
+
 admin.site.register(Game)
 admin.site.register(Score)
 admin.site.register(Attempt)
-admin.site.register(SheetMusic)
 admin.site.register(Collection)
 admin.site.register(Favorite)
 admin.site.register(StudySession)
