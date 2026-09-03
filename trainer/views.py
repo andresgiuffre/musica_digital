@@ -2901,7 +2901,7 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
     """
     secuencia_canonica = _secuencia_compases_canonica(score)
     if not secuencia_canonica:
-        return [], []
+        return [], [], []
 
     partes = list(score.parts)
     medidas_por_parte = []
@@ -2963,12 +2963,26 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
     # IMPRESO (ts.RealValue de OSMD, un timestamp absoluto real).
     offset_global = 0.0
 
+    # Offsets donde la secuencia de EJECUCIÓN salta hacia atrás (vuelve a repetir una
+    # sección ya tocada) -- se detecta simplemente porque el número de compás siguiente es
+    # MENOR que el anterior en secuencia_canonica (ya expandida). El frontend usa esto para
+    # no dejar que una rampa de tempo en curso (ritardando/accelerando/allargando, ver
+    # cambios_tempo) se filtre hacia la repetición: sin esto, una marca así cerca del final
+    # de una sección repetida -- caso real reportado: "allarg." justo antes de la barra de
+    # repetición -- queda con su rampa de bpm sin ningún límite después (no hay otra marca
+    # de tempo más adelante que la acote), así que sigue ralentizando durante TODA la vuelta
+    # de la repetición en vez de sonar de nuevo al tempo normal.
+    saltos_repeticion = []
+
     for indice_compas, compas_num in enumerate(secuencia_canonica):
         # + retraso_extra: si un calderón en un compás ANTERIOR ya corrió el timeline, una
         # marca de tempo que arranca acá tiene que anclarse a la posición YA corrida, no a
         # la posición nominal sin calderón (si no, quedaría antes de donde en realidad
         # empieza a sonar este compás).
-        offset_global_por_compas.setdefault(compas_num, offset_global + retraso_extra)
+        offset_inicio_compas_actual = round(offset_global + retraso_extra, 6)
+        if indice_compas > 0 and compas_num < secuencia_canonica[indice_compas - 1]:
+            saltos_repeticion.append(offset_inicio_compas_actual)
+        offset_global_por_compas.setdefault(compas_num, offset_inicio_compas_actual)
         entradas = []
         duracion_compas = None
         for idx_parte, mapa in enumerate(medidas_por_parte):
@@ -3172,7 +3186,7 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
         })
     cambios_tempo_resueltos.sort(key=lambda c: c['offset_global'])
 
-    return eventos, cambios_tempo_resueltos
+    return eventos, cambios_tempo_resueltos, saltos_repeticion
 
 
 @login_required
@@ -3196,12 +3210,15 @@ def biblioteca_secuencia_ejecucion(request, score_id):
         return JsonResponse({'status': 'sin_soporte', 'motivo': 'repeticion_compleja'})
 
     try:
-        eventos, cambios_tempo = _eventos_ejecucion(score, sheet.xml_file)
+        eventos, cambios_tempo, saltos_repeticion = _eventos_ejecucion(score, sheet.xml_file)
     except Exception as e:
         return JsonResponse({'status': 'sin_soporte', 'motivo': f'expansion_fallo: {e}'})
 
     try:
-        return JsonResponse({'status': 'success', 'eventos': eventos, 'cambios_tempo': cambios_tempo})
+        return JsonResponse({
+            'status': 'success', 'eventos': eventos, 'cambios_tempo': cambios_tempo,
+            'saltos_repeticion': saltos_repeticion,
+        })
     except TypeError as e:
         # Red de seguridad: json.dumps corre DENTRO del constructor de JsonResponse, fuera
         # del try/except de arriba -- un campo no serializable (el caso real ya visto:
