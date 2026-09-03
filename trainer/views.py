@@ -411,6 +411,7 @@ def trainer_analisis_progresiones(request):
     return render(request, 'trainer/trainer_progresiones.html', context)
 
 import music21
+import bisect
 
 ORQUESTACION_TOOL = {
     "name": "reportar_analisis_orquestal",
@@ -2571,6 +2572,117 @@ def _secuencia_compases_canonica(score):
     return max(secuencias, key=len)
 
 
+# Palabras/abreviaturas de cambio de tempo reconocidas -- music21 NO reconstruye un
+# TempoText real al reimportar un MusicXML exportado con solo texto libre (confirmado
+# con una prueba real: "allargando" insertado como TempoText sale como <direction><words>
+# al exportar, pero vuelve a entrar como music21.expressions.TextExpression genérico, no
+# como TempoIndication). Por eso se clasifica el TEXTO de cualquier TextExpression contra
+# esta lista en vez de buscar TempoIndication -- es la forma real en que estas marcas
+# sobreviven un roundtrip de MusicXML (y como las exportan MuseScore/Finale/Sibelius en la
+# práctica, que es lo que sube el usuario). Sin objetivo numérico de BPM en ninguna de
+# estas palabras -- son indicaciones interpretativas, no un tempo exacto -- así que el
+# efecto en la reproducción es una rampa aproximada (ver TEMPO_RALENTAR_FACTOR/ACELERAR_FACTOR
+# donde se aplica), no un valor calculado del MusicXML.
+TEXTOS_TEMPO_RALENTAR = ('ritardando', 'rit.', 'rit', 'rallentando', 'rall.', 'rall', 'allargando',
+                          'ritenuto', 'riten.', 'meno mosso', 'calando', 'smorzando')
+TEXTOS_TEMPO_ACELERAR = ('accelerando', 'accel.', 'accel', 'stringendo', 'string.', 'più mosso', 'piu mosso')
+TEXTOS_TEMPO_A_TEMPO = ('a tempo', 'tempo primo', 'tempo i', 'in tempo')
+
+
+def _clasificar_texto_tempo(texto):
+    """'allargando' -> 'ralentar', 'accel.' -> 'acelerar', 'a tempo' -> 'a_tempo', cualquier
+    otro texto -> None (no es una marca de tempo, es una indicación de otro tipo -- dedo,
+    articulación en palabras, etc., y no debe tocar el tempo de reproducción)."""
+    t = texto.strip().lower().rstrip('.')
+    for candidatos, tipo in ((TEXTOS_TEMPO_A_TEMPO, 'a_tempo'), (TEXTOS_TEMPO_RALENTAR, 'ralentar'), (TEXTOS_TEMPO_ACELERAR, 'acelerar')):
+        for c in candidatos:
+            c_sin_punto = c.rstrip('.')
+            if t == c_sin_punto or t.startswith(c_sin_punto + ' '):
+                return tipo
+    return None
+
+
+def _contexto_expresivo_parte(part):
+    """
+    Recorre UNA parte del score original (sin expandir repeticiones -- una dinámica escrita
+    en un compás que se repite aplica igual las dos veces que suena, no hay necesidad ni
+    forma limpia de calcularla por separado por ocurrencia) y devuelve:
+      - velocity_en(offset_en_parte): función que da la velocity (0.0-1.0) resuelta en
+        cualquier punto -- dinámicas instantáneas (p/mf/f, escalón) + reguladores
+        (crescendo/diminuendo, interpolados linealmente dentro de su rango).
+      - cambios_tempo: lista de {offset, compas, tipo, texto} para las marcas de tempo
+        reconocidas (ver _clasificar_texto_tempo).
+    offset_en_parte = el.getOffsetInHierarchy(part) -- un solo número creciente a lo largo
+    de TODA la parte (no por compás), necesario para poder ordenar/interpolar sin manejar
+    aparte el número de compás.
+    """
+    pasos = []  # (offset, velocity) -- dinámicas instantáneas, comportamiento tipo "escalón"
+    for d in part.recurse().getElementsByClass(music21.dynamics.Dynamic):
+        if d.getContextByClass(music21.stream.Measure) is None:
+            continue
+        pasos.append((float(d.getOffsetInHierarchy(part)), d.volumeScalar))
+    pasos.sort(key=lambda x: x[0])
+    offsets_paso = [p[0] for p in pasos]
+
+    def velocity_escalon_en(offset):
+        idx = bisect.bisect_right(offsets_paso, offset) - 1
+        if idx < 0:
+            return 0.55  # mf por defecto -- sin ninguna dinámica escrita antes de este punto
+        return pasos[idx][1]
+
+    reguladores = []  # crescendo/diminuendo, resueltos a (offset_ini, offset_fin, vel_ini, vel_fin)
+    for span in part.recurse().getElementsByClass(music21.spanner.Spanner):
+        if not isinstance(span, (music21.dynamics.Crescendo, music21.dynamics.Diminuendo)):
+            continue
+        elementos = span.getSpannedElements()
+        if len(elementos) < 2:
+            continue
+        primero, ultimo = elementos[0], elementos[-1]
+        if primero.getContextByClass(music21.stream.Measure) is None or ultimo.getContextByClass(music21.stream.Measure) is None:
+            continue
+        offset_ini = float(primero.getOffsetInHierarchy(part))
+        offset_fin = float(ultimo.getOffsetInHierarchy(part))
+        vel_ini = velocity_escalon_en(offset_ini)
+        # Si justo después del regulador hay una marca explícita distinta de la que regía
+        # al empezar (un f/p nuevo escrito ahí), se interpola HACIA esa -- lo más fiel a lo
+        # que el compositor quiso. Si no hay ninguna marca nueva ahí (el caso común: un
+        # crescendo sin dinámica de destino escrita), se aproxima con un empujón fijo en la
+        # dirección del regulador.
+        vel_fin_si_hay_marca = velocity_escalon_en(offset_fin + 0.001)
+        if abs(vel_fin_si_hay_marca - vel_ini) > 0.001:
+            vel_fin = vel_fin_si_hay_marca
+        else:
+            delta = 0.2 if isinstance(span, music21.dynamics.Crescendo) else -0.2
+            vel_fin = max(0.05, min(1.0, vel_ini + delta))
+        reguladores.append((offset_ini, offset_fin, vel_ini, vel_fin))
+
+    def velocity_en(offset):
+        for offset_ini, offset_fin, vel_ini, vel_fin in reguladores:
+            if offset_ini <= offset <= offset_fin:
+                span_total = offset_fin - offset_ini
+                ratio = (offset - offset_ini) / span_total if span_total > 0 else 1.0
+                return vel_ini + (vel_fin - vel_ini) * ratio
+        return velocity_escalon_en(offset)
+
+    cambios_tempo = []
+    for te in part.recurse().getElementsByClass(music21.expressions.TextExpression):
+        m = te.getContextByClass(music21.stream.Measure)
+        if m is None:
+            continue
+        tipo = _clasificar_texto_tempo(te.content)
+        if tipo:
+            # offset_en_compas (relativo a SU propio compás), no offset_en_parte -- se
+            # ancla después contra offset_global_por_compas (ver _eventos_ejecucion), el
+            # mismo mecanismo que usan las notas para ubicarse en el timeline real de
+            # ejecución.
+            cambios_tempo.append({
+                'compas': m.number, 'offset_en_compas': float(te.getOffsetInHierarchy(m)),
+                'tipo': tipo, 'texto': te.content,
+            })
+
+    return velocity_en, cambios_tempo
+
+
 def _eventos_ejecucion(score):
     """
     Arma la secuencia de EJECUCIÓN (orden real en que suena la pieza, con
@@ -2610,7 +2722,7 @@ def _eventos_ejecucion(score):
     """
     secuencia_canonica = _secuencia_compases_canonica(score)
     if not secuencia_canonica:
-        return []
+        return [], []
 
     partes = list(score.parts)
     medidas_por_parte = []
@@ -2620,10 +2732,31 @@ def _eventos_ejecucion(score):
             mapa.setdefault(m.number, []).append(m)
         medidas_por_parte.append(mapa)
 
+    # Contexto expresivo (dinámicas/reguladores -> velocity resuelta, y marcas de tempo en
+    # texto) calculado UNA vez por parte, sobre el score sin expandir -- ver
+    # _contexto_expresivo_parte(). velocity_funcs[idx_parte] es la función de consulta;
+    # cambios_tempo se junta de TODAS las partes (una marca de tempo suele estar en una
+    # sola, pero no hay garantía de cuál).
+    velocity_funcs = []
+    cambios_tempo = []
+    for part in partes:
+        velocity_en, cambios_tempo_parte = _contexto_expresivo_parte(part)
+        velocity_funcs.append(velocity_en)
+        cambios_tempo.extend(cambios_tempo_parte)
+
     eventos = []
     paso_ejecucion = -1
     ocurrencias_usadas = [dict() for _ in partes]  # por parte: {numero_compas: cuántas veces ya se usó}
     ligadura_abierta = {}  # (idx_parte, ps) -> evento (dict, ya en `eventos`) que se sigue extendiendo
+    # offset_global al INICIO de cada compás, en su primera ocurrencia -- para anclar
+    # cambios_tempo (que solo conoce compás+offset impreso) al timeline real de ejecución.
+    # setdefault a propósito: si el compás se repite, la marca de tempo (casi siempre al
+    # final de la pieza, fuera de cualquier repetición) se ancla a su primera aparición.
+    offset_global_por_compas = {}
+    # Calderón: cada nota marcada como fermata empuja este acumulador (ver más abajo, donde
+    # se suma a la duración real de esa nota) -- todo lo que suena DESPUÉS arranca más
+    # tarde en la misma proporción, sin tener que recalcular el resto del timeline.
+    retraso_extra = 0.0
 
     # offset_global: posición absoluta en negras desde el INICIO de la ejecución (repeticiones
     # ya contadas como tiempo real transcurrido). Es el reemplazo del truco anterior del
@@ -2639,6 +2772,11 @@ def _eventos_ejecucion(score):
     offset_global = 0.0
 
     for compas_num in secuencia_canonica:
+        # + retraso_extra: si un calderón en un compás ANTERIOR ya corrió el timeline, una
+        # marca de tempo que arranca acá tiene que anclarse a la posición YA corrida, no a
+        # la posición nominal sin calderón (si no, quedaría antes de donde en realidad
+        # empieza a sonar este compás).
+        offset_global_por_compas.setdefault(compas_num, offset_global + retraso_extra)
         entradas = []
         duracion_compas = None
         for idx_parte, mapa in enumerate(medidas_por_parte):
@@ -2674,7 +2812,7 @@ def _eventos_ejecucion(score):
                     continue
                 offset_en_compas = el.getOffsetInHierarchy(m)
                 tie_tipo = el.tie.type if el.tie is not None else None
-                entradas.append((offset_en_compas, el.duration.isGrace, pitches, el.duration.quarterLength, idx_parte, tie_tipo))
+                entradas.append((offset_en_compas, el.duration.isGrace, pitches, el.duration.quarterLength, idx_parte, tie_tipo, el))
 
         # Ordenado por offset -- se combinan elementos de partes DISTINTAS (measure
         # objects distintos), así que no hay garantía de orden entre ellas sin ordenar a mano.
@@ -2683,10 +2821,12 @@ def _eventos_ejecucion(score):
         paso_en_compas = -1
         offset_actual = None
         graces_pendientes = []
-        for offset_en_compas, es_grace, pitches, duracion, idx_parte, tie_tipo in entradas:
+        for offset_en_compas, es_grace, pitches, duracion, idx_parte, tie_tipo, el in entradas:
             # float() acá también -- offset_en_compas puede ser Fraction por el mismo motivo
-            # que duracion (tresillos), y offset_global_evento viaja en el JSON.
-            offset_global_evento = round(offset_global + float(offset_en_compas), 6)
+            # que duracion (tresillos), y offset_global_evento viaja en el JSON. retraso_extra
+            # (ver calderón más abajo) se suma acá -- todo lo que suena después de un calderón
+            # arranca corrido esa misma cantidad, sin recalcular nada retroactivo.
+            offset_global_evento = round(offset_global + float(offset_en_compas) + retraso_extra, 6)
 
             if es_grace:
                 for p in pitches:
@@ -2697,6 +2837,19 @@ def _eventos_ejecucion(score):
                 offset_actual = offset_en_compas
                 paso_en_compas += 1
                 paso_ejecucion += 1
+
+            # Contexto expresivo de ESTE elemento (chord/note completo -- articulaciones y
+            # calderón aplican al elemento entero, no a una altura suelta dentro de un
+            # acorde). offset_en_parte usa el objeto `part` (no `m`, que puede ser una
+            # ocurrencia física repetida) porque _contexto_expresivo_parte() resolvió sus
+            # rangos contra ESE mismo objeto part.
+            offset_en_parte = float(el.getOffsetInHierarchy(partes[idx_parte]))
+            velocity_nota = velocity_funcs[idx_parte](offset_en_parte)
+            es_staccato = any(isinstance(a, music21.articulations.Staccato) for a in el.articulations)
+            es_accent = any(isinstance(a, (music21.articulations.Accent, music21.articulations.StrongAccent)) for a in el.articulations)
+            if es_accent:
+                velocity_nota = min(1.0, velocity_nota + 0.25)
+            es_fermata = any(isinstance(e, music21.expressions.Fermata) for e in el.expressions)
 
             for g in graces_pendientes:
                 eventos.append({
@@ -2741,6 +2894,15 @@ def _eventos_ejecucion(score):
                 # Fraction(1,3) viaje estable como 0.333333 sin ruido de punto flotante en
                 # la comparación de tolerancia (<0.01) que ya usa el frontend.
                 duracion_json = round(float(duracion), 6)
+                # Calderón: se estira la duración REAL sonada de esta nota (no solo el
+                # timeline de lo que viene después, ver retraso_extra más abajo) -- sin esto
+                # la nota sonaba a su duración escrita normal y quedaba un silencio antes de
+                # que arrancara lo siguiente, en vez de la nota sosteniéndose. Mismo factor
+                # fijo (+100%, "el doble") que retraso_extra, deliberadamente idéntico para
+                # que el corrimiento de lo que sigue coincida exactamente con cuánto se
+                # extendió el sonido de esta.
+                if es_fermata:
+                    duracion_json = round(duracion_json * 2, 6)
                 if tie_tipo in ('stop', 'continue') and clave in ligadura_abierta:
                     ligadura_abierta[clave]['duracion_ql'] = round(ligadura_abierta[clave]['duracion_ql'] + duracion_json, 6)
                     eventos.append({
@@ -2748,6 +2910,7 @@ def _eventos_ejecucion(score):
                         'offset_global': offset_global_evento,
                         'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion_json, 'es_grace': False,
                         'es_ligadura_continuacion': True,
+                        'velocity': round(velocity_nota, 3), 'staccato': es_staccato, 'accent': es_accent, 'fermata': es_fermata,
                     })
                     if tie_tipo == 'stop':
                         del ligadura_abierta[clave]
@@ -2757,14 +2920,40 @@ def _eventos_ejecucion(score):
                         'offset_global': offset_global_evento,
                         'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion_json, 'es_grace': False,
                         'es_ligadura_continuacion': False,
+                        'velocity': round(velocity_nota, 3), 'staccato': es_staccato, 'accent': es_accent, 'fermata': es_fermata,
                     }
                     eventos.append(nuevo_evento)
                     if tie_tipo == 'start':
                         ligadura_abierta[clave] = nuevo_evento
 
+            # Calderón: se estira la duración REAL de este elemento (no la escrita) y todo
+            # lo que suena después queda corrido esa misma cantidad -- una sola vez por
+            # elemento (chord/note), acá afuera del for de alturas, no una vez por cada
+            # pitch del acorde. Factor fijo (+100% de su propia duración escrita, "el
+            # doble"): un calderón no tiene una duración exacta definida en la partitura,
+            # es una decisión interpretativa -- este es un valor razonable, no calculado.
+            if es_fermata:
+                retraso_extra = round(retraso_extra + float(duracion), 6)
+
         if duracion_compas is not None:
             offset_global += duracion_compas
-    return eventos
+
+    # Ancla cada cambio de tempo a un offset_global real (ver offset_global_por_compas más
+    # arriba) -- si el compás donde vive la marca no llegó a sonar (raro: pasaría solo si
+    # la marca está en una parte cuyo compás nunca aparece en la secuencia canónica de
+    # ninguna parte), se descarta en vez de mandar un offset inventado.
+    cambios_tempo_resueltos = []
+    for c in cambios_tempo:
+        base = offset_global_por_compas.get(c['compas'])
+        if base is None:
+            continue
+        cambios_tempo_resueltos.append({
+            'offset_global': round(base + c['offset_en_compas'], 6),
+            'tipo': c['tipo'], 'texto': c['texto'],
+        })
+    cambios_tempo_resueltos.sort(key=lambda c: c['offset_global'])
+
+    return eventos, cambios_tempo_resueltos
 
 
 @login_required
@@ -2788,12 +2977,12 @@ def biblioteca_secuencia_ejecucion(request, score_id):
         return JsonResponse({'status': 'sin_soporte', 'motivo': 'repeticion_compleja'})
 
     try:
-        eventos = _eventos_ejecucion(score)
+        eventos, cambios_tempo = _eventos_ejecucion(score)
     except Exception as e:
         return JsonResponse({'status': 'sin_soporte', 'motivo': f'expansion_fallo: {e}'})
 
     try:
-        return JsonResponse({'status': 'success', 'eventos': eventos})
+        return JsonResponse({'status': 'success', 'eventos': eventos, 'cambios_tempo': cambios_tempo})
     except TypeError as e:
         # Red de seguridad: json.dumps corre DENTRO del constructor de JsonResponse, fuera
         # del try/except de arriba -- un campo no serializable (el caso real ya visto:
