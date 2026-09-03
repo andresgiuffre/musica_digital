@@ -264,8 +264,14 @@
                     <button id="btn-play" class="btn-control" disabled>▶ {% trans "Reproducir" %}</button>
                     <button id="btn-pause" class="btn-control btn-control--ochre" disabled>⏸ {% trans "Pausar" %}</button>
                     <button id="btn-stop" class="btn-control btn-control--danger" disabled>⏹ {% trans "Detener" %}</button>
+                    <p class="hint-gab" style="text-align: center; margin-top: -0.3rem;">{% trans "Presioná ESC para detener." %}</p>
 
-                    <div class="fila-switch-gab panel-box__separador">
+                    <div class="panel-box__separador" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+                        <label class="campo-label-gab">⚡ {% trans "BPM:" %}</label>
+                        <input type="number" id="reproduccion-bpm" min="20" max="300" class="campo-gab campo-gab--centrado" style="width: 4.5rem;">
+                    </div>
+
+                    <div class="fila-switch-gab">
                         <label class="campo-label-gab">🎹 {% trans "Piano" %}</label>
                         <input type="checkbox" id="piano-toggle" checked>
                     </div>
@@ -340,6 +346,7 @@
                         <span id="practica-vueltas-fila" class="hidden">{% trans "Vueltas:" %} <span id="practica-vueltas" style="color: var(--ink); font-weight: 600;">0</span></span>
                     </div>
                     <button id="btn-terminar-practica" class="btn-control btn-control--danger" style="width: 100%;">🛑 {% trans "Detener práctica" %}</button>
+                    <p class="hint-gab" style="text-align: center; margin-top: 0.4rem;">{% trans "Presioná ESC para detener." %}</p>
                 </div>
                 <div id="practica-resumen" class="hidden" style="font-size: 0.8125rem; color: var(--ink-body);"></div>
             </div>
@@ -369,6 +376,7 @@
     // campos loop-start/loop-end de siempre; loopToggle ya no existe como checkbox
     // propio, se deriva del switch invertido en el único lugar que lo lee, dentro de
     // startPlayback()).
+    const reproduccionBpm = document.getElementById('reproduccion-bpm');
     const reproduccionCompletoToggle = document.getElementById('reproduccion-completo-toggle');
     const reproduccionCompases = document.getElementById('reproduccion-compases');
     const loopStart = document.getElementById('loop-start');
@@ -624,14 +632,30 @@
             }
             btnPlay.disabled = false;
 
+            // Tempo real de la partitura -- osmd.sheet.getExpressionsStartTempoInBPM() lee
+            // la marca de tempo del MusicXML (<sound tempo="...">/<metronome>) si existe, y
+            // cae en 100 si no hay ninguna (comportamiento propio de OSMD, confirmado en su
+            // código fuente -- nunca undefined/excepción). Antes esto nunca se leía: baseBpm
+            // se quedaba en su default de 100 fijo sin importar la partitura, el bug real
+            // reportado ("puse una a 44 bpm y la reprodujo a 120"). Se pisa más abajo si hay
+            // un proyecto activo con un tempo guardado -- esa preferencia explícita del
+            // usuario para ESTA obra gana por sobre lo detectado en el archivo.
+            if (osmd.sheet && typeof osmd.sheet.getExpressionsStartTempoInBPM === 'function') {
+                baseBpm = Math.round(osmd.sheet.getExpressionsStartTempoInBPM());
+            }
+            reproduccionBpm.value = baseBpm;
+
             // En segundo plano -- no bloquea que el usuario ya pueda tocar Play. Si todavía
             // no llegó cuando se aprieta Play, esa pasada usa el orden impreso; queda
             // disponible para la siguiente.
             cargarSecuenciaEjecucion();
 
             {% if active_project %}
-            // Restore last measure and tempo
+            // Restore last measure and tempo -- pisa el tempo detectado del archivo arriba:
+            // esto es una preferencia explícita que el propio usuario dejó guardada la
+            // última vez que trabajó ESTA obra.
             baseBpm = {{ active_project.last_tempo|default:60 }};
+            reproduccionBpm.value = baseBpm;
             Tone.Transport.bpm.value = baseBpm;
             
             let lastMeasure = {{ active_project.last_measure|default:1 }};
@@ -2135,12 +2159,35 @@
         reproduccionCompases.classList.toggle('oculto-gab', reproduccionCompletoToggle.checked);
     });
 
+    // BPM editable de Reproducción -- arranca con el tempo detectado del archivo (ver
+    // initOSMD), el usuario lo puede acelerar/desacelerar. baseBpm es la misma variable
+    // que ya usan startPlayback() y beforeunload (bpm_used/last_tempo), así que un cambio
+    // acá queda reflejado en todo lo demás sin tocar esos otros lugares.
+    reproduccionBpm.addEventListener('change', () => {
+        const valor = parseInt(reproduccionBpm.value);
+        if (!valor || valor < 20) { reproduccionBpm.value = baseBpm; return; }
+        baseBpm = valor;
+        if (isPlaying || Tone.Transport.state === 'paused') {
+            Tone.Transport.bpm.value = baseBpm;
+        }
+    });
+
     btnPlay.addEventListener('click', startPlayback);
     btnPause.addEventListener('click', pausePlayback);
     btnStop.addEventListener('click', stopPlayback);
 
     document.addEventListener("DOMContentLoaded", () => {
         initOSMD();
+    });
+
+    // ESC detiene Reproducción y/o Modo Ensayo -- pedido explícito: sin esto, con el
+    // cursor avanzando y la página haciendo autoscroll, encontrar y clickear el botón de
+    // Detener a mano se vuelve difícil. Global (no atado a ningún elemento con foco) a
+    // propósito, mismo criterio que cualquier reproductor de medios real.
+    document.addEventListener('keydown', (evento) => {
+        if (evento.key !== 'Escape') return;
+        if (isPlaying || Tone.Transport.state === 'paused') stopPlayback();
+        if (practicaActiva) terminarPractica();
     });
 
 </script>

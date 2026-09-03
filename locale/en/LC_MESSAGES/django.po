@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-28 22:51-0300\n"
+"POT-Creation-Date: 2026-09-03 09:53-0300\n"
 "PO-Revision-Date: 2026-08-27 00:00-0300\n"
 "Last-Translator: Claude\n"
 "Language-Team: English\n"
@@ -393,7 +393,7 @@ msgstr "eighth notes"
 msgid "blancas"
 msgstr "half notes"
 
-#: .\templates\base.html:175 .\templates\trainer\biblioteca_play.html:227
+#: .\templates\base.html:175
 #: .\templates\trainer\trainer_lectura_musical.html:164
 msgid "Compás:"
 msgstr "Measure:"
@@ -431,20 +431,20 @@ msgstr ""
 msgid "Panel"
 msgstr "Dashboard"
 
-#: .\templates\base.html:457 .\templates\trainer\dashboard.html:332
+#: .\templates\base.html:457 .\templates\trainer\dashboard.html:450
 msgid "Biblioteca"
 msgstr "Library"
 
-#: .\templates\base.html:458 .\templates\trainer\dashboard.html:338
+#: .\templates\base.html:458 .\templates\trainer\dashboard.html:456
 msgid "Entrenamiento"
 msgstr "Training"
 
-#: .\templates\base.html:459 .\templates\trainer\dashboard.html:344
+#: .\templates\base.html:459 .\templates\trainer\dashboard.html:462
 #: .\templates\trainer\perfil.html:66
 msgid "Analizador"
 msgstr "Analyzer"
 
-#: .\templates\base.html:460 .\templates\trainer\dashboard.html:350
+#: .\templates\base.html:460 .\templates\trainer\dashboard.html:468
 msgid "Orquestar"
 msgstr "Orchestrate"
 
@@ -472,11 +472,11 @@ msgstr "Evaluation"
 msgid "Menú de usuario"
 msgstr "User menu"
 
-#: .\templates\base.html:521 .\templates\trainer\dashboard.html:356
+#: .\templates\base.html:521 .\templates\trainer\dashboard.html:474
 msgid "Proyectos"
 msgstr "Projects"
 
-#: .\templates\base.html:522 .\templates\trainer\dashboard.html:362
+#: .\templates\base.html:522 .\templates\trainer\dashboard.html:480
 #: .\templates\trainer\midi_hub.html:4 .\templates\trainer\midi_hub.html:78
 msgid "Estudio MIDI"
 msgstr "MIDI Studio"
@@ -563,6 +563,61 @@ msgstr "Already have an account?"
 msgid "Iniciá sesión acá"
 msgstr "Log in here"
 
+#: .\templates\trainer\_bloque_practica_dirigida.html:14
+#: .\templates\trainer\_bloque_practica_dirigida.html:37
+#, fuzzy
+#| msgid "⏳ Cargando sonido…"
+msgid "Cargando ejercicio…"
+msgstr "⏳ Loading sound…"
+
+#: .\templates\trainer\_bloque_practica_dirigida.html:15
+#, fuzzy
+#| msgid "No se pudo cargar el fragmento."
+msgid "No se pudo cargar el ejercicio."
+msgstr "The fragment could not be loaded."
+
+#: .\templates\trainer\_bloque_practica_dirigida.html:16
+msgid "Completá el ejercicio anterior para desbloquear este."
+msgstr ""
+
+#: .\templates\trainer\_bloque_practica_dirigida.html:17
+#, python-brace-format
+msgid "Acertaste {correctas} de {total}."
+msgstr ""
+
+#: .\templates\trainer\_bloque_practica_dirigida.html:18
+#, python-format, python-brace-format
+msgid "Completado — mejor puntaje: {precision}%%"
+msgstr ""
+
+#: .\templates\trainer\_bloque_practica_dirigida.html:19
+#, python-brace-format
+msgid "Practicado {veces} veces — todavía no completado"
+msgstr ""
+
+#: .\templates\trainer\_bloque_practica_dirigida.html:20
+#, python-format, python-brace-format
+msgid "{correctas} / {total} aciertos ({porcentaje}%%)"
+msgstr ""
+
+#: .\templates\trainer\_bloque_practica_dirigida.html:25
+#, python-format
+msgid "Completado — mejor puntaje: %(precision)s%%"
+msgstr ""
+
+#: .\templates\trainer\_bloque_practica_dirigida.html:27
+#, python-format
+msgid "Practicado %(veces)s vez — todavía no completado"
+msgid_plural "Practicado %(veces)s veces — todavía no completado"
+msgstr[0] ""
+msgstr[1] ""
+
+#: .\templates\trainer\_bloque_practica_dirigida.html:51
+#, fuzzy
+#| msgid "Escuchar de nuevo"
+msgid "Practicar de nuevo"
+msgstr "Listen again"
+
 #: .\templates\trainer\_orquestador_render_i18n.html:4
 #: .\templates\trainer\orquestador_pdf.html:57
 msgid "Mapa de Registros"
@@ -596,7 +651,6 @@ msgid "Ver pentagramas comparados"
 msgstr "View compared scores"
 
 #: .\templates\trainer\_orquestador_render_i18n.html:11
-#: .\templates\trainer\biblioteca_play.html:297
 #: .\templates\trainer\trainer_lectura_musical.html:219
 msgid "Original"
 msgstr "Original"
@@ -610,7 +664,6 @@ msgid "Ediciones sugeridas"
 msgstr "Suggested edits"
 
 #: .\templates\trainer\_orquestador_render_i18n.html:14
-#: .\templates\trainer\biblioteca_play.html:328
 #: .\templates\trainer\orquestador_pdf.html:116
 msgid "Compás"
 msgstr "Measure"
@@ -635,7 +688,6 @@ msgid "Cargando..."
 msgstr "Loading..."
 
 #: .\templates\trainer\_orquestador_render_i18n.html:19
-#: .\templates\trainer\biblioteca_play.html:187
 msgid "Error:"
 msgstr "Error:"
 
@@ -778,8 +830,8 @@ msgid "Marcar como favorito"
 msgstr "Mark as favorite"
 
 #: .\templates\trainer\biblioteca_list.html:137
-#: .\templates\trainer\biblioteca_play.html:203
-#: .\templates\trainer\dashboard.html:266
+#: .\templates\trainer\biblioteca_play.html:226
+#: .\templates\trainer\dashboard.html:384
 #: .\templates\trainer\proyecto_detail.html:91
 msgid "Compositor desconocido"
 msgstr "Unknown composer"
@@ -794,8 +846,8 @@ msgid "Progreso de estudio"
 msgstr "Study progress"
 
 #: .\templates\trainer\biblioteca_list.html:157
-#: .\templates\trainer\dashboard.html:340
-#: .\templates\trainer\dashboard.html:352
+#: .\templates\trainer\dashboard.html:458
+#: .\templates\trainer\dashboard.html:470
 msgid "Practicar"
 msgstr "Practice"
 
@@ -812,145 +864,122 @@ msgstr "Try changing the filters or your search."
 msgid "%(titulo)s - Modo Estudio"
 msgstr "%(titulo)s - Study Mode"
 
-#: .\templates\trainer\biblioteca_play.html:176
+#: .\templates\trainer\biblioteca_play.html:209
 msgid "Esperando:"
 msgstr "Waiting for:"
 
-#: .\templates\trainer\biblioteca_play.html:177
+#: .\templates\trainer\biblioteca_play.html:210
 msgid "Esta partitura no tiene notas para practicar."
 msgstr "This score doesn't have any notes to practice."
 
-#: .\templates\trainer\biblioteca_play.html:178
+#: .\templates\trainer\biblioteca_play.html:211
 msgid "Tu navegador no soporta Web MIDI. Probá con Chrome o Edge."
 msgstr "Your browser doesn't support Web MIDI. Try Chrome or Edge."
 
-#: .\templates\trainer\biblioteca_play.html:179
+#: .\templates\trainer\biblioteca_play.html:212
 msgid "Se denegó el permiso de acceso MIDI."
 msgstr "MIDI access permission was denied."
 
-#: .\templates\trainer\biblioteca_play.html:180
+#: .\templates\trainer\biblioteca_play.html:213
 msgid "Se desconectó el teclado MIDI — reconectalo para seguir."
 msgstr "The MIDI keyboard disconnected — reconnect it to continue."
 
-#: .\templates\trainer\biblioteca_play.html:181
+#: .\templates\trainer\biblioteca_play.html:214
 msgid ""
 "No se encontró ningún teclado MIDI conectado. Conectalo y volvé a intentar."
 msgstr "No MIDI keyboard was found connected. Connect it and try again."
 
-#: .\templates\trainer\biblioteca_play.html:182
+#: .\templates\trainer\biblioteca_play.html:215
 #: .\templates\trainer\trainer_lectura_musical.html:161
 msgid "Error al reproducir:"
 msgstr "Playback error:"
 
-#: .\templates\trainer\biblioteca_play.html:183
-msgid "Completa compás y texto"
-msgstr "Fill in the measure and text"
+#: .\templates\trainer\biblioteca_play.html:216
+msgid "Ese rango de compases no tiene notas para practicar."
+msgstr "That measure range doesn't have any notes to practice."
 
-#: .\templates\trainer\biblioteca_play.html:184
-msgid "Escribe una nota"
-msgstr "Write a note"
-
-#: .\templates\trainer\biblioteca_play.html:185
-msgid "Selecciona una playlist"
-msgstr "Select a playlist"
-
-#: .\templates\trainer\biblioteca_play.html:186
-msgid "¡Añadido exitosamente!"
-msgstr "Added successfully!"
-
-#: .\templates\trainer\biblioteca_play.html:188
-msgid "¡Configuración guardada!"
-msgstr "Configuration saved!"
-
-#: .\templates\trainer\biblioteca_play.html:189
-msgid "Error al guardar."
-msgstr "Error saving."
-
-#: .\templates\trainer\biblioteca_play.html:190
-msgid "ACTIVO"
-msgstr "ACTIVE"
-
-#: .\templates\trainer\biblioteca_play.html:191
-msgid ""
-"¡Ensayo Completado! Has alcanzado el BPM objetivo con éxito. ¡Gran trabajo!"
-msgstr ""
-"Rehearsal Complete! You've successfully reached the target BPM. Great job!"
-
-#: .\templates\trainer\biblioteca_play.html:192
+#: .\templates\trainer\biblioteca_play.html:217
 msgid "Práctica terminada"
 msgstr "Practice finished"
 
-#: .\templates\trainer\biblioteca_play.html:193
+#: .\templates\trainer\biblioteca_play.html:218
 msgid "Eventos completados:"
 msgstr "Events completed:"
 
-#: .\templates\trainer\biblioteca_play.html:194
-#: .\templates\trainer\biblioteca_play.html:278
+#: .\templates\trainer\biblioteca_play.html:219
+#: .\templates\trainer\biblioteca_play.html:345
 msgid "Errores:"
 msgstr "Errors:"
 
-#: .\templates\trainer\biblioteca_play.html:195
-#: .\templates\trainer\biblioteca_play.html:228
+#: .\templates\trainer\biblioteca_play.html:220
 #: .\templates\trainer\trainer_lectura_musical.html:165
 msgid "Tiempo:"
 msgstr "Time:"
 
-#: .\templates\trainer\biblioteca_play.html:196
+#: .\templates\trainer\biblioteca_play.html:221
 msgid "Volver a empezar"
 msgstr "Start over"
 
-#: .\templates\trainer\biblioteca_play.html:197
-msgid "Nombre para este ensayo:"
-msgstr "Name for this rehearsal:"
-
-#: .\templates\trainer\biblioteca_play.html:198
-msgid "Mi Ensayo"
-msgstr "My Rehearsal"
-
-#: .\templates\trainer\biblioteca_play.html:208
+#: .\templates\trainer\biblioteca_play.html:231
 msgid "Ver proyecto"
 msgstr "View project"
 
-#: .\templates\trainer\biblioteca_play.html:210
+#: .\templates\trainer\biblioteca_play.html:233
 msgid "Convertir a proyecto"
 msgstr "Convert to project"
 
-#: .\templates\trainer\biblioteca_play.html:212
+#: .\templates\trainer\biblioteca_play.html:235
 msgid "Volver a biblioteca"
 msgstr "Back to library"
 
-#: .\templates\trainer\biblioteca_play.html:239
+#: .\templates\trainer\biblioteca_play.html:255
 msgid "Tiempo de sesión"
 msgstr "Session time"
 
-#: .\templates\trainer\biblioteca_play.html:241
+#: .\templates\trainer\biblioteca_play.html:257
 msgid "Repeticiones:"
 msgstr "Repetitions:"
 
-#: .\templates\trainer\biblioteca_play.html:246
+#: .\templates\trainer\biblioteca_play.html:262
+msgid "Reproducción"
+msgstr "Playback"
+
+#: .\templates\trainer\biblioteca_play.html:264
 #: .\templates\trainer\trainer_lectura_musical.html:208
 msgid "Reproducir"
 msgstr "Play"
 
-#: .\templates\trainer\biblioteca_play.html:247
+#: .\templates\trainer\biblioteca_play.html:265
+#: .\templates\trainer\tema_detail.html:88
 #: .\templates\trainer\trainer_lectura_musical.html:209
 msgid "Pausar"
 msgstr "Pause"
 
-#: .\templates\trainer\biblioteca_play.html:248
+#: .\templates\trainer\biblioteca_play.html:266
 #: .\templates\trainer\trainer_lectura_musical.html:210
 msgid "Detener"
 msgstr "Stop"
 
-#: .\templates\trainer\biblioteca_play.html:251
+#: .\templates\trainer\biblioteca_play.html:267
+#: .\templates\trainer\biblioteca_play.html:349
+msgid "Presioná ESC para detener."
+msgstr "Press ESC to stop."
+
+#: .\templates\trainer\biblioteca_play.html:270
+#: .\templates\trainer\biblioteca_play.html:327
+msgid "BPM:"
+msgstr "BPM:"
+
+#: .\templates\trainer\biblioteca_play.html:275
 msgid "Piano"
 msgstr "Piano"
 
-#: .\templates\trainer\biblioteca_play.html:255
+#: .\templates\trainer\biblioteca_play.html:279
+#: .\templates\trainer\biblioteca_play.html:323
 msgid "Metrónomo"
 msgstr "Metronome"
 
-#: .\templates\trainer\biblioteca_play.html:259
+#: .\templates\trainer\biblioteca_play.html:283
 msgid ""
 "Con repeticiones y voltas expandidas; apagalo para tocar la partitura "
 "impresa una sola vez"
@@ -958,15 +987,44 @@ msgstr ""
 "With repeats and voltas expanded; turn it off to play the printed score just "
 "once"
 
-#: .\templates\trainer\biblioteca_play.html:259
+#: .\templates\trainer\biblioteca_play.html:283
 msgid "Repeticiones"
 msgstr "Repeats"
 
-#: .\templates\trainer\biblioteca_play.html:267
+#: .\templates\trainer\biblioteca_play.html:288
+#: .\templates\trainer\biblioteca_play.html:313
+msgid "Tema completo"
+msgstr "Full piece"
+
+#: .\templates\trainer\biblioteca_play.html:293
+msgid "Del Compás:"
+msgstr "From Measure:"
+
+#: .\templates\trainer\biblioteca_play.html:297
+msgid "Al Compás:"
+msgstr "To Measure:"
+
+#: .\templates\trainer\biblioteca_play.html:308
+msgid "Modo Ensayo"
+msgstr "Rehearsal Mode"
+
+#: .\templates\trainer\biblioteca_play.html:317
+msgid "Compases:"
+msgstr "Measures:"
+
+#: .\templates\trainer\biblioteca_play.html:319
+msgid "a"
+msgstr "to"
+
+#: .\templates\trainer\biblioteca_play.html:332
+msgid "Sonido del teclado"
+msgstr "Keyboard sound"
+
+#: .\templates\trainer\biblioteca_play.html:334
 msgid "Iniciar práctica"
 msgstr "Start practice"
 
-#: .\templates\trainer\biblioteca_play.html:268
+#: .\templates\trainer\biblioteca_play.html:335
 msgid ""
 "Tocá tu teclado MIDI sobre la partitura — el cursor avanza cuando tocás la "
 "nota correcta. El piano de la app no suena en este modo."
@@ -974,185 +1032,54 @@ msgstr ""
 "Play your MIDI keyboard along with the score — the cursor advances when you "
 "play the correct note. The app's piano doesn't sound in this mode."
 
-#: .\templates\trainer\biblioteca_play.html:272
-msgid "Modo Práctica"
-msgstr "Practice Mode"
+#: .\templates\trainer\biblioteca_play.html:340
+msgid "Practicando"
+msgstr "Practicing"
 
-#: .\templates\trainer\biblioteca_play.html:273
-msgid "Terminar práctica"
-msgstr "End practice"
-
-#: .\templates\trainer\biblioteca_play.html:276
+#: .\templates\trainer\biblioteca_play.html:343
 msgid "Esperando..."
 msgstr "Waiting..."
 
-#: .\templates\trainer\biblioteca_play.html:281
-msgid "Sonido del teclado"
-msgstr "Keyboard sound"
-
-#: .\templates\trainer\biblioteca_play.html:290
-msgid "Velocidad (BPM)"
-msgstr "Speed (BPM)"
-
-#: .\templates\trainer\biblioteca_play.html:292
-msgid "Muy Lento"
-msgstr "Very Slow"
-
-#: .\templates\trainer\biblioteca_play.html:299
-#: .\templates\trainer\trainer_lectura_musical.html:220
-msgid "Rápido"
-msgstr "Fast"
-
-#: .\templates\trainer\biblioteca_play.html:306
-msgid "Repetir Sección"
-msgstr "Repeat Section"
-
-#: .\templates\trainer\biblioteca_play.html:312
-msgid "Del Compás:"
-msgstr "From Measure:"
-
-#: .\templates\trainer\biblioteca_play.html:316
-msgid "Al Compás:"
-msgstr "To Measure:"
-
-#: .\templates\trainer\biblioteca_play.html:322
-msgid "Modo Debug"
-msgstr "Debug Mode"
-
-#: .\templates\trainer\biblioteca_play.html:326
-msgid "Marcadores (Compás)"
-msgstr "Markers (Measure)"
-
-#: .\templates\trainer\biblioteca_play.html:329
-msgid "Ej: Difícil"
-msgstr "E.g.: Difficult"
-
-#: .\templates\trainer\biblioteca_play.html:331
-msgid "Agregar marcador"
-msgstr "Add marker"
-
-#: .\templates\trainer\biblioteca_play.html:335
-#, python-format
-msgid "C.%(c)s"
-msgstr "M.%(c)s"
-
-#: .\templates\trainer\biblioteca_play.html:339
-msgid "No hay marcadores."
-msgstr "No markers."
-
 #: .\templates\trainer\biblioteca_play.html:346
-msgid "Añadir a Playlist"
-msgstr "Add to Playlist"
+msgid "Vueltas:"
+msgstr "Laps:"
 
-#: .\templates\trainer\biblioteca_play.html:349
-#: .\templates\trainer\biblioteca_play.html:399
-msgid "Selecciona..."
-msgstr "Select..."
+#: .\templates\trainer\biblioteca_play.html:348
+msgid "Detener práctica"
+msgstr "Stop practice"
 
-#: .\templates\trainer\biblioteca_play.html:354
-msgid "Añadir"
-msgstr "Add"
-
-#: .\templates\trainer\biblioteca_play.html:361
-msgid "Modo Ensayo"
-msgstr "Rehearsal Mode"
-
-#: .\templates\trainer\biblioteca_play.html:362
-msgid "Inactivo"
-msgstr "Inactive"
-
-#: .\templates\trainer\biblioteca_play.html:367
-msgid "Compases:"
-msgstr "Measures:"
-
-#: .\templates\trainer\biblioteca_play.html:368
-msgctxt "rango de compases"
-msgid "Inicio"
-msgstr "Start"
-
-#: .\templates\trainer\biblioteca_play.html:369
-msgid "a"
-msgstr "to"
-
-#: .\templates\trainer\biblioteca_play.html:370
-msgid "Fin"
-msgstr "End"
-
-#: .\templates\trainer\biblioteca_play.html:373
-msgid "BPM Inicial:"
-msgstr "Starting BPM:"
-
-#: .\templates\trainer\biblioteca_play.html:377
-msgid "BPM Final:"
-msgstr "Ending BPM:"
-
-#: .\templates\trainer\biblioteca_play.html:381
-msgid "Incremento (+BPM):"
-msgstr "Increment (+BPM):"
-
-#: .\templates\trainer\biblioteca_play.html:384
-msgid "Iniciar Ensayo"
-msgstr "Start Rehearsal"
-
-#: .\templates\trainer\biblioteca_play.html:385
-msgid "Guardar Configuración"
-msgstr "Save Configuration"
-
-#: .\templates\trainer\biblioteca_play.html:389
-msgid "BPM Actual:"
-msgstr "Current BPM:"
-
-#: .\templates\trainer\biblioteca_play.html:390
-msgid "Meta:"
-msgstr "Target:"
-
-#: .\templates\trainer\biblioteca_play.html:391
-msgid "Vuelta:"
-msgstr "Lap:"
-
-#: .\templates\trainer\biblioteca_play.html:392
-msgid "Detener Ensayo"
-msgstr "Stop Rehearsal"
-
-#: .\templates\trainer\biblioteca_play.html:397
-msgid "Cargar Guardado:"
-msgstr "Load Saved:"
-
-#: .\templates\trainer\biblioteca_play.html:409
-msgid "Anotaciones"
-msgstr "Notes"
-
-#: .\templates\trainer\biblioteca_play.html:410
-msgid "Anota algo sobre esta obra..."
-msgstr "Write something about this piece..."
-
-#: .\templates\trainer\biblioteca_play.html:411
-msgid "Guardar nota"
-msgstr "Save note"
-
-#: .\templates\trainer\biblioteca_play.html:418
-msgid "No hay notas."
-msgstr "No notes."
-
-#: .\templates\trainer\curso_detail.html:31
+#: .\templates\trainer\curso_detail.html:32
 #: .\templates\trainer\cursos_list.html:3
 #: .\templates\trainer\cursos_list.html:32
-#: .\templates\trainer\dashboard.html:383
+#: .\templates\trainer\dashboard.html:501
 msgid "Cursos"
 msgstr "Courses"
 
-#: .\templates\trainer\curso_detail.html:39
-#: .\templates\trainer\tema_detail.html:58
+#: .\templates\trainer\curso_detail.html:42
+#, fuzzy
+#| msgid "⬇ Descargar PDF"
+msgid "Descargar PDF del curso"
+msgstr "⬇ Download PDF"
+
+#: .\templates\trainer\curso_detail.html:47
+#: .\templates\trainer\curso_pdf.html:70
+#: .\templates\trainer\tema_detail.html:72
 #, python-format
 msgid "Grado %(n)s — %(titulo)s"
 msgstr "Grade %(n)s — %(titulo)s"
 
-#: .\templates\trainer\curso_detail.html:52
+#: .\templates\trainer\curso_detail.html:60
 msgid "Este curso todavía no tiene grados."
 msgstr "This course doesn't have any grades yet."
 
+#: .\templates\trainer\curso_pdf.html:43
+msgid ""
+"Usá el panel de marcadores/índice de tu lector de PDF para saltar directo a "
+"un Grado o Tema."
+msgstr ""
+
 #: .\templates\trainer\cursos_list.html:31
-#: .\templates\trainer\dashboard.html:382
+#: .\templates\trainer\dashboard.html:500
 msgid "Contenido educativo"
 msgstr "Educational content"
 
@@ -1164,16 +1091,16 @@ msgstr "No courses available yet."
 msgid "Inicio"
 msgstr "Home"
 
-#: .\templates\trainer\dashboard.html:218
+#: .\templates\trainer\dashboard.html:336
 msgid "Sesión de estudio"
 msgstr "Study session"
 
-#: .\templates\trainer\dashboard.html:219
+#: .\templates\trainer\dashboard.html:337
 #, python-format
 msgid "Hola, <em>%(username)s</em>."
 msgstr "Hello, <em>%(username)s</em>."
 
-#: .\templates\trainer\dashboard.html:231
+#: .\templates\trainer\dashboard.html:349
 #, python-format
 msgid "Llevás %(counter)s día seguido practicando. No cortes la racha hoy."
 msgid_plural ""
@@ -1183,54 +1110,54 @@ msgstr[0] ""
 msgstr[1] ""
 "You've practiced %(counter)s days in a row. Don't break the streak today."
 
-#: .\templates\trainer\dashboard.html:233
+#: .\templates\trainer\dashboard.html:351
 msgid ""
 "Empezá hoy una racha nueva — ninguna sesión es demasiado corta para contar."
 msgstr "Start a new streak today — no session is too short to count."
 
-#: .\templates\trainer\dashboard.html:238
+#: .\templates\trainer\dashboard.html:356
 msgid "Continuar practicando"
 msgstr "Continue practicing"
 
-#: .\templates\trainer\dashboard.html:239
+#: .\templates\trainer\dashboard.html:357
 msgid "Ver mi progreso"
 msgstr "View my progress"
 
-#: .\templates\trainer\dashboard.html:245
+#: .\templates\trainer\dashboard.html:363
 msgid "Esta semana"
 msgstr "This week"
 
-#: .\templates\trainer\dashboard.html:246
+#: .\templates\trainer\dashboard.html:364
 #, python-format
 msgid "%(minutos)s min de estudio"
 msgstr "%(minutos)s min of study"
 
-#: .\templates\trainer\dashboard.html:255
+#: .\templates\trainer\dashboard.html:373
 msgid "Racha de estudio"
 msgstr "Study streak"
 
-#: .\templates\trainer\dashboard.html:256
+#: .\templates\trainer\dashboard.html:374
 #, python-format
 msgid "%(counter)s día"
 msgid_plural "%(counter)s días"
 msgstr[0] "%(counter)s day"
 msgstr[1] "%(counter)s days"
 
-#: .\templates\trainer\dashboard.html:264
+#: .\templates\trainer\dashboard.html:382
 msgid "En el atril"
 msgstr "On your stand"
 
-#: .\templates\trainer\dashboard.html:269
+#: .\templates\trainer\dashboard.html:387
 #, python-format
 msgid "Compás <b>%(compas)s</b> · <b>%(bpm)s</b> BPM"
 msgstr "Measure <b>%(compas)s</b> · <b>%(bpm)s</b> BPM"
 
-#: .\templates\trainer\dashboard.html:270
+#: .\templates\trainer\dashboard.html:388
 #: .\templates\trainer\proyecto_detail.html:95
 msgid "Continuar donde lo dejé"
 msgstr "Continue where I left off"
 
-#: .\templates\trainer\dashboard.html:273
+#: .\templates\trainer\dashboard.html:391
 msgid ""
 "Todavía no tenés ninguna obra en estudio — convertí una partitura de la "
 "biblioteca en un proyecto para verla acá."
@@ -1238,104 +1165,104 @@ msgstr ""
 "You don't have any pieces in progress yet — turn a score from the library "
 "into a project to see it here."
 
-#: .\templates\trainer\dashboard.html:274
+#: .\templates\trainer\dashboard.html:392
 msgid "Ir a la biblioteca"
 msgstr "Go to the library"
 
-#: .\templates\trainer\dashboard.html:326
+#: .\templates\trainer\dashboard.html:444
 msgid "Espacios de trabajo"
 msgstr "Workspaces"
 
-#: .\templates\trainer\dashboard.html:327
+#: .\templates\trainer\dashboard.html:445
 msgid "Todo el material queda sincronizado"
 msgstr "All your material stays in sync"
 
-#: .\templates\trainer\dashboard.html:331
+#: .\templates\trainer\dashboard.html:449
 msgid "Repertorio"
 msgstr "Repertoire"
 
-#: .\templates\trainer\dashboard.html:333
+#: .\templates\trainer\dashboard.html:451
 msgid "Partituras con reproductor y cursor que avanza sobre el pentagrama."
 msgstr "Scores with a player and a cursor that moves across the staff."
 
-#: .\templates\trainer\dashboard.html:334
+#: .\templates\trainer\dashboard.html:452
 msgid "Explorar"
 msgstr "Explore"
 
-#: .\templates\trainer\dashboard.html:334
-#: .\templates\trainer\dashboard.html:340
-#: .\templates\trainer\dashboard.html:346
-#: .\templates\trainer\dashboard.html:352
-#: .\templates\trainer\dashboard.html:358
-#: .\templates\trainer\dashboard.html:364
+#: .\templates\trainer\dashboard.html:452
+#: .\templates\trainer\dashboard.html:458
+#: .\templates\trainer\dashboard.html:464
+#: .\templates\trainer\dashboard.html:470
+#: .\templates\trainer\dashboard.html:476
+#: .\templates\trainer\dashboard.html:482
 msgid "Entrar →"
 msgstr "Enter →"
 
-#: .\templates\trainer\dashboard.html:337
+#: .\templates\trainer\dashboard.html:455
 msgid "Ejercicio diario"
 msgstr "Daily exercise"
 
-#: .\templates\trainer\dashboard.html:339
+#: .\templates\trainer\dashboard.html:457
 msgid "Oído, solfeo y lectura para afilar reflejos."
 msgstr "Ear training, sight-singing, and reading to sharpen your reflexes."
 
-#: .\templates\trainer\dashboard.html:343
+#: .\templates\trainer\dashboard.html:461
 msgid "Escritura"
 msgstr "Writing"
 
-#: .\templates\trainer\dashboard.html:345
+#: .\templates\trainer\dashboard.html:463
 msgid "Feedback de orquestación con IA, citado al compás."
 msgstr "AI orchestration feedback, cited by measure."
 
-#: .\templates\trainer\dashboard.html:346
+#: .\templates\trainer\dashboard.html:464
 #: .\templates\trainer\orquestador_analizar.html:231
 #: .\templates\trainer\orquestador_historial.html:29
 msgid "Analizar"
 msgstr "Analyze"
 
-#: .\templates\trainer\dashboard.html:349
+#: .\templates\trainer\dashboard.html:467
 #: .\templates\trainer\orquestacion_ejercicio_lista.html:33
 msgid "Taller"
 msgstr "Workshop"
 
-#: .\templates\trainer\dashboard.html:351
+#: .\templates\trainer\dashboard.html:469
 msgid "Asigná instrumentos por color sobre una reducción de piano."
 msgstr "Assign instruments by color over a piano reduction."
 
-#: .\templates\trainer\dashboard.html:355
+#: .\templates\trainer\dashboard.html:473
 msgid "Largo plazo"
 msgstr "Long term"
 
-#: .\templates\trainer\dashboard.html:357
+#: .\templates\trainer\dashboard.html:475
 msgid "Tus obras en estudio, con metas y avance propio."
 msgstr "Your pieces in progress, with their own goals and progress."
 
-#: .\templates\trainer\dashboard.html:358
+#: .\templates\trainer\dashboard.html:476
 msgid "Mis obras"
 msgstr "My pieces"
 
-#: .\templates\trainer\dashboard.html:361
+#: .\templates\trainer\dashboard.html:479
 msgid "En vivo"
 msgstr "Live"
 
-#: .\templates\trainer\dashboard.html:363
+#: .\templates\trainer\dashboard.html:481
 msgid "Conectá tu teclado y jugá con identificación de acordes."
 msgstr "Connect your keyboard and play chord-identification games."
 
-#: .\templates\trainer\dashboard.html:364
+#: .\templates\trainer\dashboard.html:482
 msgid "Ir al piano"
 msgstr "Go to the piano"
 
-#: .\templates\trainer\dashboard.html:373
+#: .\templates\trainer\dashboard.html:491
 #: .\templates\trainer\orquestador_analizar.html:225
 msgid "Análisis con IA"
 msgstr "AI Analysis"
 
-#: .\templates\trainer\dashboard.html:374
+#: .\templates\trainer\dashboard.html:492
 msgid "Director de Estudio"
 msgstr "Study Director"
 
-#: .\templates\trainer\dashboard.html:375
+#: .\templates\trainer\dashboard.html:493
 msgid ""
 "Subí tu orquestación y recibí una crítica estructurada — dobles verificados, "
 "densidad por compás y sugerencias de registro — antes de mostrarla a tu "
@@ -1345,11 +1272,11 @@ msgstr ""
 "doublings, density per measure, and register suggestions — before showing it "
 "to your teacher."
 
-#: .\templates\trainer\dashboard.html:377
+#: .\templates\trainer\dashboard.html:495
 msgid "Analizar una partitura"
 msgstr "Analyze a score"
 
-#: .\templates\trainer\dashboard.html:378
+#: .\templates\trainer\dashboard.html:496
 #: .\templates\trainer\orquestador_analizar.html:237
 #: .\templates\trainer\perfil.html:69
 #, python-format
@@ -1358,11 +1285,11 @@ msgid_plural "%(counter)s análisis disponibles"
 msgstr[0] "%(counter)s analysis available"
 msgstr[1] "%(counter)s analyses available"
 
-#: .\templates\trainer\dashboard.html:382
+#: .\templates\trainer\dashboard.html:500
 msgid "Premium"
 msgstr "Premium"
 
-#: .\templates\trainer\dashboard.html:384
+#: .\templates\trainer\dashboard.html:502
 msgid ""
 "Teoría musical organizada en grados, con ejemplos de partitura interactivos "
 "y práctica guiada en cada tema."
@@ -1370,11 +1297,11 @@ msgstr ""
 "Music theory organized by grade, with interactive score examples and guided "
 "practice in every topic."
 
-#: .\templates\trainer\dashboard.html:386
+#: .\templates\trainer\dashboard.html:504
 msgid "Ver cursos"
 msgstr "View courses"
 
-#: .\templates\trainer\dashboard.html:388
+#: .\templates\trainer\dashboard.html:506
 #, python-format
 msgid "%(counter)s curso disponible"
 msgid_plural "%(counter)s cursos disponibles"
@@ -2173,11 +2100,26 @@ msgstr ""
 "Go to the library and turn a score into a project to start practicing "
 "seriously."
 
-#: .\templates\trainer\tema_detail.html:51
+#: .\templates\trainer\tema_detail.html:65
 msgid "No se pudo cargar la partitura."
 msgstr "The score could not be loaded."
 
-#: .\templates\trainer\tema_detail.html:79
+#: .\templates\trainer\tema_detail.html:87
+#: .\templates\trainer\tema_detail.html:96
+#, fuzzy
+#| msgid "Escuchar nota"
+msgid "Escuchar página"
+msgstr "Listen to note"
+
+#: .\templates\trainer\tema_detail.html:89
+msgid "Reanudar"
+msgstr ""
+
+#: .\templates\trainer\tema_detail.html:108
+msgid "Elegir voz"
+msgstr ""
+
+#: .\templates\trainer\tema_detail.html:145
 msgid "Este tema todavía no tiene contenido cargado."
 msgstr "This topic doesn't have any content loaded yet."
 
@@ -2438,6 +2380,10 @@ msgstr "Slow"
 #: .\templates\trainer\trainer_lectura_musical.html:218
 msgid "Práctica"
 msgstr "Practice"
+
+#: .\templates\trainer\trainer_lectura_musical.html:220
+msgid "Rápido"
+msgstr "Fast"
 
 #: .\templates\trainer\trainer_notas.html:57
 msgid "Incorrecto. Seleccionaste"
@@ -2752,52 +2698,50 @@ msgstr "That's why the notes on beats 1 and 3 are accented."
 msgid "Por eso las notas ubicadas en el tiempo 1 son acentuadas."
 msgstr "That's why the notes on beat 1 are accented."
 
-#: .\trainer\services.py:91
+#: .\trainer\services.py:145
 #, python-format
 msgid "Hace más de 7 días que no practicas '%(title)s'."
 msgstr "It's been more than 7 days since you last practiced '%(title)s'."
 
-#: .\trainer\services.py:103
+#: .\trainer\services.py:157
 #, python-format
 msgid ""
 "Has repetido '%(title)s' muchas veces. ¡Intenta subirle el tempo (BPM) hoy!"
 msgstr ""
 "You've repeated '%(title)s' many times. Try raising the tempo (BPM) today!"
 
-#: .\trainer\services.py:109
+#: .\trainer\services.py:163
 msgid "Continúa así. Intenta enfocarte en pasajes lentos hoy."
 msgstr "Keep it up. Try focusing on slow passages today."
 
-#: .\trainer\views.py:570
+#: .\trainer\views.py:569
 #, python-format
 msgid "%(min)s a %(max)s"
 msgstr "%(min)s to %(max)s"
 
-#: .\trainer\views.py:576
+#: .\trainer\views.py:575
 msgid "Sin notas"
 msgstr "No notes"
 
-#: .\trainer\views.py:700
+#: .\trainer\views.py:699
 #, python-format
 msgid ""
 "Atención: %(instrumento)s excede el registro agudo cómodo (%(nombre_min)s a "
 "%(nombre_max)s) alcanzando %(nota)s en el compás %(compas)s."
 msgstr ""
 "Attention: %(instrumento)s exceeds the comfortable high register "
-"(%(nombre_min)s to %(nombre_max)s), reaching %(nota)s in measure "
-"%(compas)s."
+"(%(nombre_min)s to %(nombre_max)s), reaching %(nota)s in measure %(compas)s."
 
-#: .\trainer\views.py:702
+#: .\trainer\views.py:701
 #, python-format
 msgid ""
 "Atención: %(instrumento)s roza el registro agudo cómodo (%(nombre_min)s a "
 "%(nombre_max)s) alcanzando %(nota)s en el compás %(compas)s."
 msgstr ""
 "Attention: %(instrumento)s comes close to the comfortable high register "
-"(%(nombre_min)s to %(nombre_max)s), reaching %(nota)s in measure "
-"%(compas)s."
+"(%(nombre_min)s to %(nombre_max)s), reaching %(nota)s in measure %(compas)s."
 
-#: .\trainer\views.py:718
+#: .\trainer\views.py:717
 #, python-format
 msgid ""
 "Atención: %(instrumento)s excede el registro grave cómodo (%(nombre_min)s a "
@@ -2807,7 +2751,7 @@ msgstr ""
 "(%(nombre_min)s to %(nombre_max)s), dropping to %(nota)s in measure "
 "%(compas)s."
 
-#: .\trainer\views.py:720
+#: .\trainer\views.py:719
 #, python-format
 msgid ""
 "Atención: %(instrumento)s roza el registro grave cómodo (%(nombre_min)s a "
