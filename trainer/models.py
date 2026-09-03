@@ -224,7 +224,7 @@ class StudySession(models.Model):
         verbose_name_plural = "Sesiones de Estudio"
 
     def __str__(self):
-        return f"{self.user.username} - {self.sheet_music} - {self.start_time}"
+        return f"{self.user.username} - {self.sheet_music} - {self.date}"
 
 class RehearsalConfig(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='rehearsal_configs')

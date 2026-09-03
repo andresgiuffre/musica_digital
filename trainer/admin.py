@@ -7,7 +7,7 @@ from django.utils.html import format_html
 from .models import (
     Game, Score, Attempt, SheetMusic, Collection, Favorite, StudySession,
     SheetMusicProgress, DailyGoal, UserDailyGoal, Playlist, PlaylistSheet,
-    SheetMarker, SheetNote, SessionAudio, RehearsalConfig, RehearsalLog,
+    SheetMarker, SessionAudio, RehearsalConfig, RehearsalLog,
     MusicalProject, ProjectGoal, ProjectSection,
     MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis,
     Curso, Grado, Tema, BloqueContenido, PracticaDirigidaProgreso,
@@ -170,7 +170,6 @@ admin.site.register(SheetMusicProgress)
 admin.site.register(DailyGoal)
 admin.site.register(UserDailyGoal)
 admin.site.register(SheetMarker)
-admin.site.register(SheetNote)
 admin.site.register(SessionAudio)
 admin.site.register(RehearsalConfig)
 admin.site.register(RehearsalLog)
