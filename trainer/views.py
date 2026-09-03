@@ -8,6 +8,7 @@ import copy
 import pathlib
 import zipfile
 import secrets
+import xml.etree.ElementTree as ET
 from collections import Counter
 from django.utils import timezone
 import anthropic
@@ -2583,10 +2584,31 @@ def _secuencia_compases_canonica(score):
 # estas palabras -- son indicaciones interpretativas, no un tempo exacto -- así que el
 # efecto en la reproducción es una rampa aproximada (ver TEMPO_RALENTAR_FACTOR/ACELERAR_FACTOR
 # donde se aplica), no un valor calculado del MusicXML.
-TEXTOS_TEMPO_RALENTAR = ('ritardando', 'rit.', 'rit', 'rallentando', 'rall.', 'rall', 'allargando',
+TEXTOS_TEMPO_RALENTAR = ('ritardando', 'rit.', 'rit', 'rallentando', 'rall.', 'rall', 'allargando', 'allarg.', 'allarg',
                           'ritenuto', 'riten.', 'meno mosso', 'calando', 'smorzando')
 TEXTOS_TEMPO_ACELERAR = ('accelerando', 'accel.', 'accel', 'stringendo', 'string.', 'più mosso', 'piu mosso')
 TEXTOS_TEMPO_A_TEMPO = ('a tempo', 'tempo primo', 'tempo i', 'in tempo')
+
+# "cresc."/"dim." escritos como TEXTO + línea punteada (<words>+<dashes>) en vez de un
+# hairpin <wedge> -- una forma de notación real y distinta (confirmada con un archivo de
+# MuseScore) que music21 importa como un music21.expressions.TextExpression SUELTO más un
+# music21.spanner.Line (lineType='dashed'), NO como music21.dynamics.Crescendo/Diminuendo
+# -- así que sin este reconocimiento aparte, la sección _contexto_expresivo_familia() que
+# solo busca Crescendo/Diminuendo los pasaba por alto por completo (a diferencia de un
+# <wedge>, que sí produce esa clase).
+TEXTOS_DINAMICA_CRESCENDO = ('crescendo', 'cresc.', 'cresc')
+TEXTOS_DINAMICA_DIMINUENDO = ('diminuendo', 'dim.', 'dim', 'decrescendo', 'decresc.', 'decresc')
+
+
+def _clasificar_texto_dinamica(texto):
+    """'cresc.' -> 'crescendo', 'dim.' -> 'diminuendo', cualquier otro texto -> None."""
+    t = texto.strip().lower().rstrip('.')
+    for candidatos, tipo in ((TEXTOS_DINAMICA_CRESCENDO, 'crescendo'), (TEXTOS_DINAMICA_DIMINUENDO, 'diminuendo')):
+        for c in candidatos:
+            c_sin_punto = c.rstrip('.')
+            if t == c_sin_punto or t.startswith(c_sin_punto + ' '):
+                return tipo
+    return None
 
 
 def _clasificar_texto_tempo(texto):
@@ -2602,25 +2624,64 @@ def _clasificar_texto_tempo(texto):
     return None
 
 
-def _contexto_expresivo_parte(part):
+def _familias_de_partes(score):
     """
-    Recorre UNA parte del score original (sin expandir repeticiones -- una dinámica escrita
-    en un compás que se repite aplica igual las dos veces que suena, no hay necesidad ni
-    forma limpia de calcularla por separado por ocurrencia) y devuelve:
-      - velocity_en(offset_en_parte): función que da la velocity (0.0-1.0) resuelta en
+    Agrupa las partes del score en "familias": partes que en realidad son distintos
+    pentagramas de UN MISMO instrumento (típicamente piano a dos manos, exportado como
+    <staves>2</staves> dentro de un solo <part> de MusicXML -- music21 las separa en dos
+    Part/PartStaff independientes al parsear, agrupadas bajo un music21.layout.StaffGroup).
+
+    Necesario porque, confirmado con un archivo real de MuseScore, los spanners derivados
+    de <direction> (crescendo/diminuendo, <wedge>) NO quedan anclados de forma confiable
+    al PartStaff que indica su propio <staff> -- terminan colgando del PRIMER PartStaff
+    del grupo sin importar a cuál pentagrama pertenecen en realidad las notas que
+    encierran, y esas notas sí viven en el OTRO PartStaff. Antes de esta función,
+    _contexto_expresivo_parte() calculaba getOffsetInHierarchy(part) contra la parte
+    donde se ENCONTRÓ el spanner (no contra la que realmente contiene sus notas
+    encerradas) -- para este archivo real eso tiraba
+    `music21.sites.SitesException: ... is not in hierarchy of ...`, capturada en
+    biblioteca_secuencia_ejecucion() como 'sin_soporte' y descartando TODA la
+    reproducción expresiva (no solo crescendo/diminuendo) para la pieza entera.
+
+    Devuelve {id(part): id(parte_lider_de_su_familia)}. Compartir un único contexto
+    expresivo por familia es también más correcto musicalmente, no solo un parche
+    técnico: una dinámica escrita una vez arriba del pentagrama de piano aplica a las
+    DOS manos, no solo a la mano donde está impresa.
+    """
+    partes = list(score.parts)
+    familia_de = {}
+    for sg in score.recurse().getElementsByClass(music21.layout.StaffGroup):
+        miembros = [el for el in sg.getSpannedElements() if el in partes]
+        if len(miembros) < 2:
+            continue
+        lider = id(miembros[0])
+        for m in miembros:
+            familia_de[id(m)] = lider
+    for part in partes:
+        familia_de.setdefault(id(part), id(part))
+    return familia_de
+
+
+def _contexto_expresivo_familia(partes_familia, score):
+    """
+    Igual que antes, pero recibe la LISTA de pentagramas de una misma familia/instrumento
+    (ver _familias_de_partes) en vez de una sola parte, y resuelve TODOS los offsets
+    contra `score` (nunca contra una `part` puntual) -- score es el ancestro común de
+    cualquier PartStaff de la familia, así que getOffsetInHierarchy(score) nunca falla
+    aunque un spanner haya quedado anclado al PartStaff "equivocado" (ver
+    _familias_de_partes). Devuelve:
+      - velocity_en(offset_en_score): función que da la velocity (0.0-1.0) resuelta en
         cualquier punto -- dinámicas instantáneas (p/mf/f, escalón) + reguladores
         (crescendo/diminuendo, interpolados linealmente dentro de su rango).
       - cambios_tempo: lista de {offset, compas, tipo, texto} para las marcas de tempo
         reconocidas (ver _clasificar_texto_tempo).
-    offset_en_parte = el.getOffsetInHierarchy(part) -- un solo número creciente a lo largo
-    de TODA la parte (no por compás), necesario para poder ordenar/interpolar sin manejar
-    aparte el número de compás.
     """
     pasos = []  # (offset, velocity) -- dinámicas instantáneas, comportamiento tipo "escalón"
-    for d in part.recurse().getElementsByClass(music21.dynamics.Dynamic):
-        if d.getContextByClass(music21.stream.Measure) is None:
-            continue
-        pasos.append((float(d.getOffsetInHierarchy(part)), d.volumeScalar))
+    for part in partes_familia:
+        for d in part.recurse().getElementsByClass(music21.dynamics.Dynamic):
+            if d.getContextByClass(music21.stream.Measure) is None:
+                continue
+            pasos.append((float(d.getOffsetInHierarchy(score)), d.volumeScalar))
     pasos.sort(key=lambda x: x[0])
     offsets_paso = [p[0] for p in pasos]
 
@@ -2631,30 +2692,86 @@ def _contexto_expresivo_parte(part):
         return pasos[idx][1]
 
     reguladores = []  # crescendo/diminuendo, resueltos a (offset_ini, offset_fin, vel_ini, vel_fin)
-    for span in part.recurse().getElementsByClass(music21.spanner.Spanner):
-        if not isinstance(span, (music21.dynamics.Crescendo, music21.dynamics.Diminuendo)):
-            continue
-        elementos = span.getSpannedElements()
-        if len(elementos) < 2:
-            continue
-        primero, ultimo = elementos[0], elementos[-1]
-        if primero.getContextByClass(music21.stream.Measure) is None or ultimo.getContextByClass(music21.stream.Measure) is None:
-            continue
-        offset_ini = float(primero.getOffsetInHierarchy(part))
-        offset_fin = float(ultimo.getOffsetInHierarchy(part))
-        vel_ini = velocity_escalon_en(offset_ini)
-        # Si justo después del regulador hay una marca explícita distinta de la que regía
-        # al empezar (un f/p nuevo escrito ahí), se interpola HACIA esa -- lo más fiel a lo
-        # que el compositor quiso. Si no hay ninguna marca nueva ahí (el caso común: un
-        # crescendo sin dinámica de destino escrita), se aproxima con un empujón fijo en la
-        # dirección del regulador.
-        vel_fin_si_hay_marca = velocity_escalon_en(offset_fin + 0.001)
-        if abs(vel_fin_si_hay_marca - vel_ini) > 0.001:
-            vel_fin = vel_fin_si_hay_marca
-        else:
-            delta = 0.2 if isinstance(span, music21.dynamics.Crescendo) else -0.2
-            vel_fin = max(0.05, min(1.0, vel_ini + delta))
-        reguladores.append((offset_ini, offset_fin, vel_ini, vel_fin))
+    spanners_vistos = set()  # id() de spanners ya procesados -- un mismo spanner puede
+    # aparecer en el recurse() de más de un pentagrama de la familia (ver _familias_de_partes).
+    for part in partes_familia:
+        for span in part.recurse().getElementsByClass(music21.spanner.Spanner):
+            if not isinstance(span, (music21.dynamics.Crescendo, music21.dynamics.Diminuendo)):
+                continue
+            if id(span) in spanners_vistos:
+                continue
+            spanners_vistos.add(id(span))
+            elementos = span.getSpannedElements()
+            if len(elementos) < 2:
+                continue
+            primero, ultimo = elementos[0], elementos[-1]
+            if primero.getContextByClass(music21.stream.Measure) is None or ultimo.getContextByClass(music21.stream.Measure) is None:
+                continue
+            offset_ini = float(primero.getOffsetInHierarchy(score))
+            offset_fin = float(ultimo.getOffsetInHierarchy(score))
+            vel_ini = velocity_escalon_en(offset_ini)
+            # Si justo después del regulador hay una marca explícita distinta de la que regía
+            # al empezar (un f/p nuevo escrito ahí), se interpola HACIA esa -- lo más fiel a lo
+            # que el compositor quiso. Si no hay ninguna marca nueva ahí (el caso común: un
+            # crescendo sin dinámica de destino escrita), se aproxima con un empujón fijo en la
+            # dirección del regulador.
+            vel_fin_si_hay_marca = velocity_escalon_en(offset_fin + 0.001)
+            if abs(vel_fin_si_hay_marca - vel_ini) > 0.001:
+                vel_fin = vel_fin_si_hay_marca
+            else:
+                delta = 0.2 if isinstance(span, music21.dynamics.Crescendo) else -0.2
+                vel_fin = max(0.05, min(1.0, vel_ini + delta))
+            reguladores.append((offset_ini, offset_fin, vel_ini, vel_fin))
+
+    # "cresc."/"dim." como TEXTO + línea punteada en vez de <wedge> (ver
+    # _clasificar_texto_dinamica): music21 los importa como un TextExpression suelto más
+    # un spanner.Line con lineType='dashed' -- dos objetos SIN vínculo directo entre sí
+    # (vienen del mismo <direction> en el XML, pero no queda registrado). Se emparejan acá
+    # por heurística: el primer spanner.Line punteado, todavía no usado, que arranca en el
+    # MISMO compás que el texto -- suficiente para el caso real (una marca de este tipo
+    # por compás) sin necesidad de que music21 exponga ese vínculo.
+    lineas_dashed_disponibles = []
+    for part in partes_familia:
+        for span in part.recurse().getElementsByClass(music21.spanner.Line):
+            if getattr(span, 'lineType', None) != 'dashed' or id(span) in spanners_vistos:
+                continue
+            elementos = span.getSpannedElements()
+            if len(elementos) < 2:
+                continue
+            primero, ultimo = elementos[0], elementos[-1]
+            if primero.getContextByClass(music21.stream.Measure) is None or ultimo.getContextByClass(music21.stream.Measure) is None:
+                continue
+            lineas_dashed_disponibles.append((span, primero, ultimo))
+
+    for part in partes_familia:
+        for te in part.recurse().getElementsByClass(music21.expressions.TextExpression):
+            tipo_dinamica = _clasificar_texto_dinamica(te.content)
+            if not tipo_dinamica:
+                continue
+            m_texto = te.getContextByClass(music21.stream.Measure)
+            if m_texto is None:
+                continue
+            candidata = None
+            for span, primero, ultimo in lineas_dashed_disponibles:
+                if id(span) in spanners_vistos:
+                    continue
+                if primero.getContextByClass(music21.stream.Measure) is m_texto:
+                    candidata = (span, primero, ultimo)
+                    break
+            if candidata is None:
+                continue
+            span, primero, ultimo = candidata
+            spanners_vistos.add(id(span))
+            offset_ini = float(primero.getOffsetInHierarchy(score))
+            offset_fin = float(ultimo.getOffsetInHierarchy(score))
+            vel_ini = velocity_escalon_en(offset_ini)
+            vel_fin_si_hay_marca = velocity_escalon_en(offset_fin + 0.001)
+            if abs(vel_fin_si_hay_marca - vel_ini) > 0.001:
+                vel_fin = vel_fin_si_hay_marca
+            else:
+                delta = 0.2 if tipo_dinamica == 'crescendo' else -0.2
+                vel_fin = max(0.05, min(1.0, vel_ini + delta))
+            reguladores.append((offset_ini, offset_fin, vel_ini, vel_fin))
 
     def velocity_en(offset):
         for offset_ini, offset_fin, vel_ini, vel_fin in reguladores:
@@ -2665,25 +2782,87 @@ def _contexto_expresivo_parte(part):
         return velocity_escalon_en(offset)
 
     cambios_tempo = []
-    for te in part.recurse().getElementsByClass(music21.expressions.TextExpression):
-        m = te.getContextByClass(music21.stream.Measure)
-        if m is None:
-            continue
-        tipo = _clasificar_texto_tempo(te.content)
-        if tipo:
-            # offset_en_compas (relativo a SU propio compás), no offset_en_parte -- se
-            # ancla después contra offset_global_por_compas (ver _eventos_ejecucion), el
-            # mismo mecanismo que usan las notas para ubicarse en el timeline real de
-            # ejecución.
-            cambios_tempo.append({
-                'compas': m.number, 'offset_en_compas': float(te.getOffsetInHierarchy(m)),
-                'tipo': tipo, 'texto': te.content,
-            })
+    textos_vistos = set()
+    for part in partes_familia:
+        for te in part.recurse().getElementsByClass(music21.expressions.TextExpression):
+            if id(te) in textos_vistos:
+                continue
+            textos_vistos.add(id(te))
+            m = te.getContextByClass(music21.stream.Measure)
+            if m is None:
+                continue
+            tipo = _clasificar_texto_tempo(te.content)
+            if tipo:
+                # offset_en_compas (relativo a SU propio compás), no offset_en_score -- se
+                # ancla después contra offset_global_por_compas (ver _eventos_ejecucion), el
+                # mismo mecanismo que usan las notas para ubicarse en el timeline real de
+                # ejecución.
+                cambios_tempo.append({
+                    'compas': m.number, 'offset_en_compas': float(te.getOffsetInHierarchy(m)),
+                    'tipo': tipo, 'texto': te.content,
+                })
 
     return velocity_en, cambios_tempo
 
 
-def _eventos_ejecucion(score):
+def _compases_con_fermata_de_barra(xml_file_field):
+    """
+    Escanea el MusicXML crudo (sin pasar por music21) buscando <barline><fermata>, y
+    devuelve el conjunto de números de compás que terminan con esa marca.
+
+    Necesario porque music21 directamente NO importa un calderón adjunto a una barra de
+    compás -- confirmado leyendo su propio código fuente (musicxml/xmlToM21.py,
+    xmlToBarline(): nunca procesa <fermata>, hay un comentario "TODO: segno, coda,
+    fermata" en esa misma función). Solo importa <note><notations><fermata> (sobre una
+    nota), vía una ruta de parseo totalmente distinta. Un calderón de "sostener el
+    acorde/nota final" se escribe muy comúnmente así -- sobre la barra final, a veces
+    junto con un signo de repetición, como en un archivo real de MuseScore usado para
+    probar esto -- y quedaba completamente ignorado sin este escaneo aparte.
+
+    Soporta .mxl (zip) igual que el resto de este archivo -- SheetMusic.xml_file no está
+    cifrado en disco (a diferencia de ScoreAnalysis.score_file), así que .open('rb') lee
+    el contenido real directo.
+    """
+    with xml_file_field.open('rb') as f:
+        contenido = f.read()
+    extension = pathlib.Path(xml_file_field.name).suffix.lower()
+
+    if extension == '.mxl':
+        xml_bytes = None
+        with zipfile.ZipFile(io.BytesIO(contenido)) as zf:
+            for nombre_interno in zf.namelist():
+                if 'META-INF' in nombre_interno:
+                    continue
+                if pathlib.Path(nombre_interno).suffix.lower() not in ('.musicxml', '.xml'):
+                    continue
+                xml_bytes = zf.read(nombre_interno)
+                break
+        if xml_bytes is None:
+            return set()
+    else:
+        xml_bytes = contenido
+
+    try:
+        root = ET.fromstring(xml_bytes)
+    except ET.ParseError:
+        return set()
+
+    compases = set()
+    for measure in root.iter('measure'):
+        numero = measure.get('number')
+        if numero is None:
+            continue
+        for barline in measure.findall('barline'):
+            if barline.find('fermata') is not None:
+                try:
+                    compases.add(int(numero))
+                except ValueError:
+                    pass
+                break
+    return compases
+
+
+def _eventos_ejecucion(score, sheet_xml_file=None):
     """
     Arma la secuencia de EJECUCIÓN (orden real en que suena la pieza, con
     repeticiones/voltas expandidas) a partir del score ORIGINAL sin expandir, guiándose
@@ -2733,16 +2912,29 @@ def _eventos_ejecucion(score):
         medidas_por_parte.append(mapa)
 
     # Contexto expresivo (dinámicas/reguladores -> velocity resuelta, y marcas de tempo en
-    # texto) calculado UNA vez por parte, sobre el score sin expandir -- ver
-    # _contexto_expresivo_parte(). velocity_funcs[idx_parte] es la función de consulta;
-    # cambios_tempo se junta de TODAS las partes (una marca de tempo suele estar en una
-    # sola, pero no hay garantía de cuál).
-    velocity_funcs = []
-    cambios_tempo = []
+    # texto) calculado UNA vez por FAMILIA de partes (ver _familias_de_partes -- pentagramas
+    # del mismo instrumento comparten un único contexto), sobre el score sin expandir -- ver
+    # _contexto_expresivo_familia(). velocity_funcs[idx_parte] es la función de consulta de
+    # la familia a la que pertenece esa parte; cambios_tempo se junta de TODAS las familias
+    # (una marca de tempo suele estar en una sola parte, pero no hay garantía de cuál).
+    familia_de = _familias_de_partes(score)
+    familias = {}
     for part in partes:
-        velocity_en, cambios_tempo_parte = _contexto_expresivo_parte(part)
-        velocity_funcs.append(velocity_en)
-        cambios_tempo.extend(cambios_tempo_parte)
+        familias.setdefault(familia_de[id(part)], []).append(part)
+    velocity_por_familia = {}
+    cambios_tempo = []
+    for lider, miembros in familias.items():
+        velocity_en, cambios_tempo_familia = _contexto_expresivo_familia(miembros, score)
+        velocity_por_familia[lider] = velocity_en
+        cambios_tempo.extend(cambios_tempo_familia)
+    velocity_funcs = [velocity_por_familia[familia_de[id(part)]] for part in partes]
+
+    compases_fermata_barra = _compases_con_fermata_de_barra(sheet_xml_file) if sheet_xml_file is not None else set()
+    ultima_ocurrencia_fermata_barra = {}
+    if compases_fermata_barra:
+        for indice, compas_num in enumerate(secuencia_canonica):
+            if compas_num in compases_fermata_barra:
+                ultima_ocurrencia_fermata_barra[compas_num] = indice
 
     eventos = []
     paso_ejecucion = -1
@@ -2771,7 +2963,7 @@ def _eventos_ejecucion(score):
     # IMPRESO (ts.RealValue de OSMD, un timestamp absoluto real).
     offset_global = 0.0
 
-    for compas_num in secuencia_canonica:
+    for indice_compas, compas_num in enumerate(secuencia_canonica):
         # + retraso_extra: si un calderón en un compás ANTERIOR ya corrió el timeline, una
         # marca de tempo que arranca acá tiene que anclarse a la posición YA corrida, no a
         # la posición nominal sin calderón (si no, quedaría antes de donde en realidad
@@ -2818,10 +3010,31 @@ def _eventos_ejecucion(score):
         # objects distintos), así que no hay garantía de orden entre ellas sin ordenar a mano.
         entradas.sort(key=lambda e: (e[0], e[1]))
 
+        # Calderón de BARRA (ver _compases_con_fermata_de_barra -- music21 no lo importa
+        # como Fermata en ninguna nota, así que se aplica acá a mano): solo en la ÚLTIMA
+        # ocurrencia de este compás dentro de la secuencia canónica (si hay repetición, el
+        # calderón de la barra final es el gesto de cierre de la pieza, no algo a sostener
+        # también en la vuelta de la repetición).
+        es_ultima_ocurrencia_fermata_barra = ultima_ocurrencia_fermata_barra.get(compas_num) == indice_compas
+
         paso_en_compas = -1
         offset_actual = None
         graces_pendientes = []
+        # Atraso acumulado por calderón(es) del paso rítmico que se está por dejar atrás --
+        # se aplica UNA vez a retraso_extra recién al cambiar de paso (no elemento por
+        # elemento): si varias notas simultáneas comparten el mismo calderón (ej. el acorde
+        # final con las dos manos), sumar el atraso de cada una por separado correría a una
+        # respecto de la otra, rompiendo la simultaneidad entre ellas. Se toma el máximo de
+        # las duraciones involucradas, no la suma.
+        retraso_pendiente_paso = 0.0
         for offset_en_compas, es_grace, pitches, duracion, idx_parte, tie_tipo, el in entradas:
+            if not es_grace and offset_en_compas != offset_actual:
+                retraso_extra = round(retraso_extra + retraso_pendiente_paso, 6)
+                retraso_pendiente_paso = 0.0
+                offset_actual = offset_en_compas
+                paso_en_compas += 1
+                paso_ejecucion += 1
+
             # float() acá también -- offset_en_compas puede ser Fraction por el mismo motivo
             # que duracion (tresillos), y offset_global_evento viaja en el JSON. retraso_extra
             # (ver calderón más abajo) se suma acá -- todo lo que suena después de un calderón
@@ -2833,23 +3046,25 @@ def _eventos_ejecucion(score):
                     graces_pendientes.append({'pitch': p.nameWithOctave, 'ps': p.ps})
                 continue
 
-            if offset_en_compas != offset_actual:
-                offset_actual = offset_en_compas
-                paso_en_compas += 1
-                paso_ejecucion += 1
-
             # Contexto expresivo de ESTE elemento (chord/note completo -- articulaciones y
             # calderón aplican al elemento entero, no a una altura suelta dentro de un
-            # acorde). offset_en_parte usa el objeto `part` (no `m`, que puede ser una
-            # ocurrencia física repetida) porque _contexto_expresivo_parte() resolvió sus
-            # rangos contra ESE mismo objeto part.
-            offset_en_parte = float(el.getOffsetInHierarchy(partes[idx_parte]))
-            velocity_nota = velocity_funcs[idx_parte](offset_en_parte)
+            # acorde). offset_en_score se resuelve contra `score` (no contra `m`, que puede
+            # ser una ocurrencia física repetida, ni contra `partes[idx_parte]`) porque
+            # _contexto_expresivo_familia() resolvió sus rangos contra ESE mismo score --
+            # ver _familias_de_partes() para por qué no alcanza con la parte puntual.
+            offset_en_score = float(el.getOffsetInHierarchy(score))
+            velocity_nota = velocity_funcs[idx_parte](offset_en_score)
             es_staccato = any(isinstance(a, music21.articulations.Staccato) for a in el.articulations)
             es_accent = any(isinstance(a, (music21.articulations.Accent, music21.articulations.StrongAccent)) for a in el.articulations)
             if es_accent:
                 velocity_nota = min(1.0, velocity_nota + 0.25)
             es_fermata = any(isinstance(e, music21.expressions.Fermata) for e in el.expressions)
+            # Un calderón de barra afecta a TODO lo que sigue sonando hasta el final del
+            # compás -- no solo la nota que ataca justo en el último pulso, también una nota
+            # más larga (ej. una redonda) atacada antes que sigue sonando hasta la barra.
+            if es_ultima_ocurrencia_fermata_barra and duracion_compas is not None:
+                if float(offset_en_compas) + float(duracion) >= float(duracion_compas) - 1e-6:
+                    es_fermata = True
 
             for g in graces_pendientes:
                 eventos.append({
@@ -2932,8 +3147,12 @@ def _eventos_ejecucion(score):
             # pitch del acorde. Factor fijo (+100% de su propia duración escrita, "el
             # doble"): un calderón no tiene una duración exacta definida en la partitura,
             # es una decisión interpretativa -- este es un valor razonable, no calculado.
+            # Se acumula en retraso_pendiente_paso (ver arriba), no directo en retraso_extra,
+            # por si otro elemento del MISMO paso también tiene calderón.
             if es_fermata:
-                retraso_extra = round(retraso_extra + float(duracion), 6)
+                retraso_pendiente_paso = max(retraso_pendiente_paso, float(duracion))
+
+        retraso_extra = round(retraso_extra + retraso_pendiente_paso, 6)
 
         if duracion_compas is not None:
             offset_global += duracion_compas
@@ -2977,7 +3196,7 @@ def biblioteca_secuencia_ejecucion(request, score_id):
         return JsonResponse({'status': 'sin_soporte', 'motivo': 'repeticion_compleja'})
 
     try:
-        eventos, cambios_tempo = _eventos_ejecucion(score)
+        eventos, cambios_tempo = _eventos_ejecucion(score, sheet.xml_file)
     except Exception as e:
         return JsonResponse({'status': 'sin_soporte', 'motivo': f'expansion_fallo: {e}'})
 
