@@ -124,6 +124,30 @@
     .fila-switch-gab { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0; }
     .fila-switch-gab input[type="checkbox"] { width: 1.05rem; height: 1.05rem; accent-color: var(--primary); cursor: pointer; }
 
+    /* Switch tipo palanca (no checkbox cuadrado) para "Tema completo" en Reproducción y
+       Modo Ensayo -- pedido explícito. Mismo look que .navbar-gab__mode-switch de
+       base.html/gabinete.css (el toggle Aprendizaje/Evaluación de la navbar), pero sobre
+       un <input type="checkbox"> real en vez de un <div> a mano -- así .checked sigue
+       funcionando tal cual en el JS existente, solo cambia el estilo visual. appearance:none
+       saca el cuadradito nativo del navegador sin perder semántica/teclado de checkbox.
+       Selector con más especificidad que ".fila-switch-gab input[type=checkbox]" de arriba
+       (que solo aplica a los demás toggles de esta página, sin tocar). */
+    .fila-switch-gab input.switch-gab-input[type="checkbox"] {
+        appearance: none; -webkit-appearance: none;
+        width: 34px; height: 18px;
+        background: var(--line-input); border-radius: 20px;
+        position: relative; cursor: pointer;
+        transition: background-color 0.2s ease;
+        margin: 0;
+    }
+    .fila-switch-gab input.switch-gab-input[type="checkbox"]::after {
+        content: ''; position: absolute; top: 2px; left: 2px;
+        width: 14px; height: 14px; background: #ffffff; border-radius: 50%;
+        transition: transform 0.2s ease;
+    }
+    .fila-switch-gab input.switch-gab-input[type="checkbox"]:checked { background: var(--primary); }
+    .fila-switch-gab input.switch-gab-input[type="checkbox"]:checked::after { transform: translateX(16px); }
+
     .lista-chips-gab { display: flex; flex-direction: column; gap: 0.4rem; max-height: 8rem; overflow-y: auto; }
     .chip-fila-gab { font-size: 0.75rem; background: var(--bg); padding: 0.45rem 0.55rem; border-radius: var(--radius); display: flex; justify-content: space-between; gap: 0.5rem; border-left: 2px solid var(--primary); }
     .chip-fila-gab__texto { color: var(--ink); }
@@ -163,6 +187,16 @@
     .panel-box--ensayo { border-left: 3px solid var(--ochre); }
 
     #session-timer { font-family: 'IBM Plex Mono', monospace; }
+
+    /* Clase propia (no la "hidden" de Tailwind) para los bloques de rango de compases:
+       ambos divs también llevan style="display:flex;..." inline (gap/justify-content/
+       align-items no se pueden expresar solo con una clase sin reescribir el markup) --
+       un inline style le gana SIEMPRE a una clase normal sin !important, así que
+       "hidden" (Tailwind, sin !important) nunca los ocultaba de verdad, quedaban
+       visibles desde la carga aunque "Tema completo" estuviera prendido (bug real,
+       confirmado viendo el layout renderizado, no asumido). !important es lo único que
+       le gana a un inline style -- por eso esta clase aparte en vez de reusar "hidden". */
+    .oculto-gab { display: none !important; }
 </style>
 {% endblock %}
 
@@ -179,7 +213,6 @@
     data-txt-teclado-desconectado="{% trans 'Se desconectó el teclado MIDI — reconectalo para seguir.' %}"
     data-txt-sin-teclado-conectado="{% trans 'No se encontró ningún teclado MIDI conectado. Conectalo y volvé a intentar.' %}"
     data-txt-error-reproducir="{% trans 'Error al reproducir:' %}"
-    data-txt-completa-compas-texto="{% trans 'Completa compás y texto' %}"
     data-txt-rango-invalido="{% trans 'Ese rango de compases no tiene notas para practicar.' %}"
     data-txt-practica-terminada="{% trans 'Práctica terminada' %}"
     data-txt-eventos-completados="{% trans 'Eventos completados:' %}"
@@ -247,9 +280,9 @@
 
                     <div class="fila-switch-gab panel-box__separador">
                         <label class="campo-label-gab">{% trans "Tema completo" %}</label>
-                        <input type="checkbox" id="reproduccion-completo-toggle" checked>
+                        <input type="checkbox" id="reproduccion-completo-toggle" class="switch-gab-input" checked>
                     </div>
-                    <div id="reproduccion-compases" class="hidden" style="display: flex; gap: 0.5rem;">
+                    <div id="reproduccion-compases" class="oculto-gab" style="display: flex; gap: 0.5rem;">
                         <div style="flex: 1;">
                             <label class="hint-gab" style="display: block; margin-bottom: 0.25rem;">{% trans "Del Compás:" %}</label>
                             <input type="number" id="loop-start" min="1" value="1" class="campo-gab campo-gab--centrado">
@@ -259,26 +292,6 @@
                             <input type="number" id="loop-end" min="1" value="4" class="campo-gab campo-gab--centrado">
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- Marcadores y Notas -->
-            <div class="panel-box">
-                <h3 class="panel-box__titulo">📌 {% trans "Marcadores (Compás)" %}</h3>
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-                    <input type="number" id="marker-measure" placeholder="{% trans 'Compás' %}" class="campo-gab" style="width: 33%;">
-                    <input type="text" id="marker-text" placeholder="{% trans 'Ej: Difícil' %}" class="campo-gab" style="width: 67%;">
-                </div>
-                <button onclick="addMarker()" class="btn-gab btn-gab--primary" style="width: 100%; margin-bottom: 0.75rem; justify-content: center;">{% trans "Agregar marcador" %}</button>
-                <div id="markers-list" class="lista-chips-gab">
-                    {% for marker in markers %}
-                        <div class="chip-fila-gab">
-                            <span class="chip-fila-gab__texto" style="font-weight: 600;">{% blocktrans with c=marker.measure %}C.{{ c }}{% endblocktrans %}</span>
-                            <span class="chip-fila-gab__texto">{{ marker.text }}</span>
-                        </div>
-                    {% empty %}
-                        <div class="chip-vacio-gab">{% trans "No hay marcadores." %}</div>
-                    {% endfor %}
                 </div>
             </div>
 
@@ -292,9 +305,9 @@
                 <div id="ensayo-setup" style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.75rem; color: var(--ink-body);">
                     <div class="fila-switch-gab">
                         <label class="campo-label-gab">{% trans "Tema completo" %}</label>
-                        <input type="checkbox" id="ensayo-completo-toggle" checked>
+                        <input type="checkbox" id="ensayo-completo-toggle" class="switch-gab-input" checked>
                     </div>
-                    <div id="ensayo-compases" class="hidden" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+                    <div id="ensayo-compases" class="oculto-gab" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
                         <span>{% trans "Compases:" %}</span>
                         <input type="number" id="ensayo-start" min="1" class="campo-gab campo-gab--centrado" style="width: 3.25rem;" value="1">
                         <span>{% trans "a" %}</span>
@@ -319,14 +332,14 @@
                 <div id="practica-activa" class="hidden">
                     <div class="panel-box__titulo">
                         <span>🎯 {% trans "Practicando" %}</span>
-                        <button id="btn-terminar-practica" style="background: none; border: none; cursor: pointer; font-size: 0.75rem; color: var(--ink-soft);">{% trans "Terminar práctica" %}</button>
                     </div>
                     <select id="practica-device-select" class="campo-gab hidden" style="margin-bottom: 0.5rem;"></select>
                     <p id="practica-status" style="font-size: 0.8125rem; color: var(--ink-body); margin-bottom: 0.5rem;">{% trans "Esperando..." %}</p>
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--ink-soft);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--ink-soft); margin-bottom: 0.75rem;">
                         <span>{% trans "Errores:" %} <span id="practica-errores" style="color: var(--ink); font-weight: 600;">0</span></span>
                         <span id="practica-vueltas-fila" class="hidden">{% trans "Vueltas:" %} <span id="practica-vueltas" style="color: var(--ink); font-weight: 600;">0</span></span>
                     </div>
+                    <button id="btn-terminar-practica" class="btn-control btn-control--danger" style="width: 100%;">🛑 {% trans "Detener práctica" %}</button>
                 </div>
                 <div id="practica-resumen" class="hidden" style="font-size: 0.8125rem; color: var(--ink-body);"></div>
             </div>
@@ -1741,7 +1754,7 @@
     btnTerminarPractica.addEventListener('click', terminarPractica);
 
     ensayoCompletoToggle.addEventListener('change', () => {
-        ensayoCompases.classList.toggle('hidden', ensayoCompletoToggle.checked);
+        ensayoCompases.classList.toggle('oculto-gab', ensayoCompletoToggle.checked);
     });
 
     // ==================== Fin Modo Práctica ====================
@@ -2119,7 +2132,7 @@
     });
 
     reproduccionCompletoToggle.addEventListener('change', () => {
-        reproduccionCompases.classList.toggle('hidden', reproduccionCompletoToggle.checked);
+        reproduccionCompases.classList.toggle('oculto-gab', reproduccionCompletoToggle.checked);
     });
 
     btnPlay.addEventListener('click', startPlayback);
@@ -2129,21 +2142,6 @@
     document.addEventListener("DOMContentLoaded", () => {
         initOSMD();
     });
-
-    // Marcadores y Notas JS
-    function addMarker() {
-        const measure = document.getElementById('marker-measure').value;
-        const text = document.getElementById('marker-text').value;
-        if(!measure || !text) return alert(i18nLector.txtCompletaCompasTexto);
-        
-        fetch(`/api/add_sheet_marker/{{ sheet.id }}/`, {
-            method: 'POST',
-            body: JSON.stringify({ measure: measure, text: text }),
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
-        }).then(res => res.json()).then(data => {
-            if(data.status === 'success') location.reload();
-        });
-    }
 
 </script>
 {% endblock %}
