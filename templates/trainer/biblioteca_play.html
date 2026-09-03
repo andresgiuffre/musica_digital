@@ -436,6 +436,11 @@
     // paso de ejecución -- ver resolverSecuenciaEjecucion().
     let eventosEjecucionCrudos = null;
     let secuenciaEjecucionResuelta = null;
+    // Marcas de tempo en texto (allargando/rit./accel./a tempo) detectadas por el backend --
+    // ver _contexto_expresivo_parte() en views.py. Solo disponible junto con
+    // eventosEjecucionCrudos (mismo fetch); si ese fetch falla, queda [] y startPlayback()
+    // simplemente no agenda ninguna rampa de tempo, degradando sin romper nada.
+    let cambiosTempoEjecucion = [];
 
     // Notas que se encienden al sonar durante la reproducción pasiva (--primary, transitorio)
     // -- ver encenderNota/apagarNota más abajo.
@@ -564,8 +569,12 @@
             addBeatDot(3, 'pos-right');
             addBeatDot(4, 'pos-up');
         } else if (patronVisualLength === 3) {
+            // pos-left, no pos-right -- el patrón de 4 tiempos (arriba) ya usa
+            // abajo-izquierda-derecha-arriba; este quedaba inconsistente con
+            // abajo-DERECHA-arriba, el bug real reportado (director de orquesta de
+            // verdad marca 3 en abajo-izquierda-arriba, no abajo-derecha-arriba).
             addBeatDot(1, 'pos-down');
-            addBeatDot(2, 'pos-right');
+            addBeatDot(2, 'pos-left');
             addBeatDot(3, 'pos-up');
         } else if (patronVisualLength === 2) {
             addBeatDot(1, 'pos-down');
@@ -692,6 +701,7 @@
             const data = await response.json();
             if (data.status === 'success' && data.eventos && data.eventos.length > 0) {
                 eventosEjecucionCrudos = data.eventos;
+                cambiosTempoEjecucion = data.cambios_tempo || [];
             } else {
                 console.warn(`[secuencia-ejecucion] No disponible (${data.motivo || data.status}) -- se usa el orden impreso.`);
             }
@@ -848,6 +858,23 @@
         // (tampoco distingue voces para nada más).
         const ligaduraAbierta = new Map(); // ps -> objeto de nota (dentro de evt.notes) que se sigue extendiendo
 
+        // A diferencia de construirEventosDesdeEjecucion() (que itera eventos crudos del
+        // backend y YA los trae con velocity/staccato/accent/fermata puestos), acá se parte
+        // de las notas propias de OSMD, que no tienen nada de esto -- se arma un mapa contra
+        // eventosEjecucionCrudos (mismo fetch de cargarSecuenciaEjecucion(), disponible sin
+        // importar el estado del toggle Repeticiones) para conseguirlo, cruzando por compás
+        // impreso + altura. Si ese fetch todavía no llegó o falló, el mapa queda vacío y las
+        // notas simplemente no llevan esta info -- degradan a sonar sin acentos/dinámica,
+        // no rompen nada.
+        const mapaExpresivoImpreso = new Map();
+        if (eventosEjecucionCrudos) {
+            eventosEjecucionCrudos.forEach(e => {
+                if (e.es_grace) return;
+                const clave = e.compas_impreso + '|' + Math.round(e.ps * 100);
+                if (!mapaExpresivoImpreso.has(clave)) mapaExpresivoImpreso.set(clave, e);
+            });
+        }
+
         notas.forEach(n => {
             const evt = localEvents[n.groupIndex];
             const duracionBeats = n.durationRealValue * 4;
@@ -861,7 +888,14 @@
 
             // logicalNote viaja para poder etiquetar el svgEl más adelante (encendido
             // de notas al sonar) -- se resuelve una sola vez, en obtenerEventos().
-            const notaEvento = { pitch: n.pitchName, duracionBeats: duracionBeats, logicalNote: n.logicalNote };
+            const infoExpresiva = mapaExpresivoImpreso.get((n.measureIndex + 1) + '|' + Math.round(n.ps * 100));
+            const notaEvento = {
+                pitch: n.pitchName, duracionBeats: duracionBeats, logicalNote: n.logicalNote,
+                velocity: infoExpresiva ? infoExpresiva.velocity : undefined,
+                staccato: infoExpresiva ? !!infoExpresiva.staccato : false,
+                accent: infoExpresiva ? !!infoExpresiva.accent : false,
+                fermata: infoExpresiva ? !!infoExpresiva.fermata : false,
+            };
             evt.notes.push(notaEvento);
             if (estado === 'inicio') {
                 ligaduraAbierta.set(n.ps, notaEvento);
@@ -950,7 +984,14 @@
                 // pitchANombre) -- por eso el camino impreso nunca mostró este bug.
                 notes: notasAudibles.map(n => {
                     const impresa = candidatas.find(c => Math.abs(c.ps - n.ps) < 0.01);
-                    return { pitch: OsmdUtils.pitchANombre(n.ps), duracionBeats: n.duracion_ql, logicalNote: impresa ? impresa.logicalNote : null };
+                    // velocity/staccato/accent/fermata vienen directo del backend (n YA es el
+                    // evento crudo de _eventos_ejecucion(), ver views.py) -- nada que resolver
+                    // acá, a diferencia de buildSequence() (camino impreso) que no tiene este
+                    // dato de por sí y necesita mapaExpresivoImpreso() para conseguirlo.
+                    return {
+                        pitch: OsmdUtils.pitchANombre(n.ps), duracionBeats: n.duracion_ql, logicalNote: impresa ? impresa.logicalNote : null,
+                        velocity: n.velocity, staccato: !!n.staccato, accent: !!n.accent, fermata: !!n.fermata,
+                    };
                 }),
                 notesGrace: notasGrace.map(n => ({ pitch: OsmdUtils.pitchANombre(n.ps) }))
             });
@@ -1853,10 +1894,19 @@
                         const alturasDisparadas = new Set();
                         evt.notes.forEach(note => {
                             let durationTicks = Math.round(note.duracionBeats * Tone.Transport.PPQ);
+                            // Staccato: se acorta el SONIDO, no el tiempo -- la nota sigue
+                            // arrancando en su momento escrito y la siguiente sigue arrancando
+                            // en el suyo, exactamente igual que antes; solo cambia cuánto dura
+                            // lo que efectivamente suena. 50% fijo, no calculado -- staccato es
+                            // una indicación interpretativa, no una fracción exacta.
+                            if (note.staccato) durationTicks = Math.max(1, Math.round(durationTicks * 0.5));
                             if(pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded && !alturasDisparadas.has(note.pitch)) {
                                 alturasDisparadas.add(note.pitch);
                                 try {
-                                    AudioEngine.sampler.triggerAttackRelease(note.pitch, durationTicks + "i", time);
+                                    // velocity puede venir undefined (sin dato expresivo para
+                                    // esta nota -- ver buildSequence()/construirEventosDesdeEjecucion())
+                                    // y Tone.js cae en su propio default (1) sin romper nada.
+                                    AudioEngine.sampler.triggerAttackRelease(note.pitch, durationTicks + "i", time, note.velocity);
                                 } catch (err) {
                                     // Red de seguridad independiente de la causa exacta -- una nota
                                     // conflictiva (cualquiera que sea el motivo) no puede matar el
@@ -2082,6 +2132,39 @@
                     }
                 });
 
+                // 4. Rampas de tempo (allargando/rit./accel./a tempo) -- cambiosTempoEjecucion
+                // viene del mismo fetch de cargarSecuenciaEjecucion(), texto-only (sin BPM
+                // objetivo real en el MusicXML -- ver _clasificar_texto_tempo en views.py),
+                // así que el destino es una aproximación fija por tipo, no un valor calculado
+                // de la partitura. Encadenadas en orden: cada rampa parte del BPM que dejó la
+                // anterior (o baseBpm si es la primera), para que una serie tipo "rit. ... a
+                // tempo" vuelva al tempo real que tenía antes, no a baseBpm de nuevo si hubiera
+                // otro cambio en el medio.
+                if (cambiosTempoEjecucion && cambiosTempoEjecucion.length > 0) {
+                    let bpmVigente = baseBpm;
+                    cambiosTempoEjecucion.forEach((cambio, idx) => {
+                        const bpmOrigen = bpmVigente;
+                        let bpmDestino;
+                        if (cambio.tipo === 'ralentar') bpmDestino = Math.round(bpmOrigen * 0.7);
+                        else if (cambio.tipo === 'acelerar') bpmDestino = Math.round(bpmOrigen * 1.3);
+                        else bpmDestino = baseBpm; // 'a_tempo'
+                        bpmDestino = Math.max(20, Math.min(300, bpmDestino));
+
+                        const siguiente = cambiosTempoEjecucion[idx + 1];
+                        const beatFin = siguiente ? siguiente.offset_global : totalBeats;
+                        const beatsSpan = Math.max(0.5, beatFin - cambio.offset_global);
+                        const rampSeconds = beatsSpan * (60 / bpmOrigen);
+
+                        const startTicks = Math.round(cambio.offset_global * Tone.Transport.PPQ);
+                        Tone.Transport.schedule((time) => {
+                            if (miSesion !== sesionReproduccion) return; // sesión vieja
+                            Tone.Transport.bpm.rampTo(bpmDestino, rampSeconds, time);
+                        }, startTicks + "i");
+
+                        bpmVigente = bpmDestino;
+                    });
+                }
+
                 Tone.Transport.start("+0.4");
                 isPlaying = true;
                 btnPlay.disabled = true;
@@ -2118,6 +2201,13 @@
 
         Tone.Transport.stop();
         Tone.Transport.cancel();
+        // Tone.Transport.cancel() cancela los Tone.Transport.schedule() pendientes, pero NO
+        // las curvas de automatización que una rampa de tempo (Tone.Transport.bpm.rampTo())
+        // ya haya dejado corriendo sobre el propio Param de bpm -- son dos mecanismos
+        // separados de Tone.js. Sin esto, un Play siguiente podía arrancar con el BPM a
+        // mitad de una rampa vieja en vez del tempo real de la partitura.
+        Tone.Transport.bpm.cancelScheduledValues(0);
+        Tone.Transport.bpm.value = baseBpm;
         // Tone.Transport.stop() ya debería dejar la posición en 0 -- se fuerza explícito
         // igual, sin asumirlo: costo cero, y descarta de raíz cualquier duda de que el
         // próximo Play pudiera arrancar agendando ticks relativos a una posición vieja.
