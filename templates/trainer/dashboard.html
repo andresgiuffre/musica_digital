@@ -2,8 +2,8 @@
 {% load static %}
 {% load i18n %}
 {% block title %}{% trans "Inicio" %} - Música Digital{% endblock %}
-{% block html_attrs %}data-gabinete-page{% endblock %}
-{% block body_class %}gabinete{% endblock %}
+{% block html_attrs %}data-gabinete-page data-tema-gabinete="oscuro"{% endblock %}
+{% block body_class %}gabinete dashboard-oscuro{% endblock %}
 {% block nav_active_panel %}is-active{% endblock %}
 
 {% block extra_css %}
@@ -15,6 +15,27 @@
        gabinete.css (la usan también biblioteca_play.html y las de
        Orquestar), no acá.
        ============================================================ */
+
+    /* ---------- Panel: solo modo oscuro, sin toggle ----------
+       Pedido explícito: esta pantalla no ofrece claro/oscuro -- se fuerza
+       data-tema-gabinete="oscuro" en el propio html_attrs (sin tocar
+       localStorage, así el resto del sitio conserva la preferencia del
+       usuario) y se oculta el botón flotante de toggle solo acá vía la
+       clase body.dashboard-oscuro (agregada además de "gabinete" en
+       body_class). El listener global del botón en base.html sigue
+       atado igual, pero con el botón oculto/display:none queda inerte
+       para el usuario -- no hace falta tocar el JS compartido. */
+    body.dashboard-oscuro .tema-toggle-btn--gab { display: none; }
+
+    /* Gradiente reemplazando el --bg plano del modo oscuro de Gabinete,
+       pedido explícito del usuario. Selector compuesto (.gabinete +
+       .dashboard-oscuro) a propósito -- más específico que la regla
+       compartida de gabinete.css, así no afecta a otras pantallas en
+       oscuro. background (no --bg): un custom property no puede guardar
+       un gradiente y quedar consumido por background-color. */
+    html[data-tema-gabinete="oscuro"] body.dashboard-oscuro {
+        background: linear-gradient(180deg, #000000 0%, #020d28 100%);
+    }
 
     /* ---------- Saludo + resumen semanal ---------- */
     .saludo-gab { display: grid; grid-template-columns: 1.4fr 1fr; gap: 2.5rem; padding: 2.75rem 0 2.25rem; align-items: end; }
@@ -108,7 +129,17 @@
         transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1), transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
         animation: gab-entrada 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
     }
-    .espacio-gab:hover { border-color: var(--card-acento, var(--primary)); box-shadow: var(--shadow-lift); transform: translateY(-6px); text-decoration: none; }
+        /* Luz neón detrás de la tarjeta al hover, pedido explícito: capas de
+       box-shadow sin blur creciente (spread grande, blur moderado) en vez
+       de un único shadow chico -- así se lee como luz que se derrama por
+       detrás, no como un borde pintado. Se suma a --shadow-lift (la
+       elevación que ya existía), no la reemplaza. */
+    .espacio-gab:hover {
+        border-color: var(--card-acento, var(--primary));
+        box-shadow: var(--shadow-lift), 0 0 18px 2px #062d8c, 0 0 40px 10px rgba(6, 45, 140, 0.55), 0 0 80px 24px rgba(6, 45, 140, 0.28);
+        transform: translateY(-6px);
+        text-decoration: none;
+    }
     /* Stagger de entrada: 6 tarjetas de .espacios-gab__grid + 2 de
        .placas-gab__grid comparten la misma secuencia (60ms de paso), los
        paneles oscuros retoman el conteo donde las tarjetas lo dejan. */
