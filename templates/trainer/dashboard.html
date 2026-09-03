@@ -37,6 +37,44 @@
         background: linear-gradient(180deg, #000000 0%, #020d28 100%);
     }
 
+    /* ---------- Paleta fría propia del panel ----------
+       Pedido explícito: sacar el acento ciruela/rosado viejo de acá y
+       reemplazarlo por algo coherente con el degradé negro/azul marino de
+       fondo. Escopeado a body.gabinete.dashboard-oscuro (dos clases, más
+       específico que el body.gabinete de gabinete.css) -- redefine los
+       MISMOS nombres de token que ya consume todo el markup de esta página
+       (--primary, --slate/--ochre/--green/--brown/--rose de --card-acento,
+       --surface/--line de las cards, --dark-panel/--on-dark de las placas)
+       así ningún otro selector necesita tocarse, y el resto del sitio
+       (Capa 2 de gabinete.css) sigue con la ciruela original intacta. Seis
+       tonos fríos distintos para las 6 tarjetas de "Espacios de trabajo"
+       (mantiene la idea original de "cada una con su propio color"), nunca
+       cálidos -- eso es lo que pidió sacar. */
+    html[data-tema-gabinete="oscuro"] body.gabinete.dashboard-oscuro {
+        --primary: #3b82f6;
+        --primary-dark: #2563eb;
+        --primary-tint: rgba(59, 130, 246, 0.14);
+        --slate: #22d3ee;
+        --ochre: #a78bfa;
+        --green: #2dd4bf;
+        --brown: #38bdf8;
+        --rose: #6366f1;
+        --surface: rgba(15, 23, 55, 0.55);
+        --line: rgba(96, 150, 255, 0.22);
+        --line-soft: rgba(96, 150, 255, 0.12);
+        --line-input: rgba(96, 150, 255, 0.3);
+        --dark-panel: #05081c;
+        --on-dark: #eaf1ff;
+        --on-dark-body: rgba(234, 241, 255, 0.76);
+        --on-dark-soft: rgba(234, 241, 255, 0.6);
+        --shadow-lift: 0 20px 38px -12px rgba(6, 45, 140, 0.6);
+    }
+
+    /* Botones principales del panel: redondeo pedido explícito (25px, "pill"),
+       escopeado acá para no correr esquinas de --radius:3px del resto del
+       sitio, que sigue con el estilo anterior. */
+    body.gabinete.dashboard-oscuro .btn-gab { border-radius: 25px; }
+
     /* ---------- Saludo + resumen semanal ---------- */
     .saludo-gab { display: grid; grid-template-columns: 1.4fr 1fr; gap: 2.5rem; padding: 2.75rem 0 2.25rem; align-items: end; }
     .saludo-gab__kicker { font-size: 0.9375rem; color: var(--primary); }
@@ -170,16 +208,50 @@
        --rose (su propia pildora "PREMIUM" ya es rose) -- no se inventa un
        acento nuevo para ninguno de los dos. */
     .placas-gab__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+    /* Revelado al hacer scroll (pedido explícito), no animación fija al cargar
+       como .espacio-gab: acá no hay keyframe con delay, el estado de reposo
+       ES el "todavía no llegó" (opacity:0 + corrido hacia su costado) y un
+       IntersectionObserver (ver extra_js) agrega .placa-gab--visible cuando
+       cada placa entra en viewport, lo que dispara la transition hacia
+       transform:translateX(0). Director de Estudio entra desde la izquierda,
+       Cursos desde la derecha -- "se acercan hacia el centro" tal cual se
+       pidió, no un fade genérico. */
     .placa-gab {
         background: var(--dark-panel); color: var(--on-dark); border-radius: var(--radius);
         border-top: 3px solid var(--card-acento, var(--rose)); padding: 2.5rem 2.75rem;
         display: flex; flex-direction: column;
-        transition: box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1), transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
-        animation: gab-entrada 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+        opacity: 0;
+        transition: opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .placa-gab:hover { box-shadow: var(--shadow-lift); transform: translateY(-6px); }
-    .placas-gab__grid .placa-gab:nth-child(1) { animation-delay: 360ms; }
-    .placas-gab__grid .placa-gab:nth-child(2) { animation-delay: 420ms; }
+    .placas-gab__grid .placa-gab:nth-child(1) { transform: translateX(-70px); }
+    .placas-gab__grid .placa-gab:nth-child(2) { transform: translateX(70px); }
+    /* Repite el selector completo (con :nth-child incluido) a propósito: sin
+       eso esta regla queda con menos especificidad que las dos de arriba
+       (3 clases vs. .placas-gab__grid+.placa-gab+:nth-child = también 3, pero
+       CONTANDO .placa-gab--visible aparte) y translateX(-70px)/(70px) le
+       ganaba SIEMPRE, incluso con la clase --visible ya puesta -- confirmado
+       viendo el transform real por getComputedStyle en vez de asumir que
+       alcanzaba con agregar la clase. */
+    .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible,
+    .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    /* Luz neón detrás de la placa al hover -- mismo tratamiento que
+       .espacio-gab (mismo color de marca #062d8c), sumada a la elevación
+       que ya existía. box-shadow no compite con ninguna regla de --visible
+       (esa solo toca opacity/transform), así que .placa-gab:hover alcanza.
+       El transform del hover SÍ compite con la regla de arriba
+       (:nth-child(N).placa-gab--visible, especificidad 4 clases) -- repite
+       el mismo selector completo con :hover agregado para ganarle con
+       especificidad inequívoca, mismo motivo que el comentario de arriba. */
+    .placa-gab:hover {
+        box-shadow: var(--shadow-lift), 0 0 20px 2px #062d8c, 0 0 46px 12px rgba(6, 45, 140, 0.55), 0 0 90px 26px rgba(6, 45, 140, 0.28);
+    }
+    .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible:hover,
+    .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible:hover {
+        transform: translateY(-6px);
+    }
     .placa-gab__eyebrow { font-size: 0.9375rem; color: var(--card-acento, var(--rose)); }
     .placa-gab__titulo { font-size: clamp(1.625rem, 2.6vw, 2.25rem); max-width: 26ch; margin: 0.75rem 0 0.9rem; color: var(--on-dark); }
     /* Selector .placa-gab .placa-gab__texto (no solo .placa-gab__texto): el
@@ -231,7 +303,22 @@
         .espacio-gab, .placa-gab {
             animation: none; opacity: 1; transform: none;
         }
+        /* .placa-gab ya no usa "animation" (ver el revelado por scroll más
+           arriba) sino opacity/transform de reposo con especificidad propia
+           (nth-child) -- hace falta repetir el reset acá con la misma
+           especificidad para que gane bajo reduced-motion. El JS del
+           IntersectionObserver también sale temprano en este caso (ver
+           extra_js) y agrega .placa-gab--visible al toque, así que esto es
+           una red de seguridad por si ese JS no llegó a correr todavía. */
+        .placas-gab__grid .placa-gab:nth-child(1),
+        .placas-gab__grid .placa-gab:nth-child(2) {
+            transform: none;
+        }
         .espacio-gab:hover, .placa-gab:hover {
+            transform: translateY(-1px);
+        }
+        .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible:hover,
+        .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible:hover {
             transform: translateY(-1px);
         }
         .saludo-gab__acciones .btn-gab:active,
@@ -422,4 +509,34 @@
         </div>
     </section>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // Revelado de Director de Estudio / Cursos al hacer scroll -- pedido
+    // explícito. El estado de reposo (opacity:0 + translateX hacia el
+    // costado de cada placa) vive en extra_css; acá solo se agrega
+    // .placa-gab--visible cuando cada una entra en el viewport, lo que
+    // dispara la transition ya declarada en CSS hacia su posición final.
+    // unobserve apenas se revela: es de una sola vez, no hace falta seguir
+    // escuchando scroll el resto de la sesión en esta página.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const placas = document.querySelectorAll('.placa-gab');
+    if (!placas.length) return;
+    if (!('IntersectionObserver' in window)) {
+        placas.forEach(function (p) { p.classList.add('placa-gab--visible'); });
+        return;
+    }
+    const observador = new IntersectionObserver(function (entradas) {
+        entradas.forEach(function (entrada) {
+            if (entrada.isIntersecting) {
+                entrada.target.classList.add('placa-gab--visible');
+                observador.unobserve(entrada.target);
+            }
+        });
+    }, { threshold: 0.25 });
+    placas.forEach(function (p) { observador.observe(p); });
+})();
+</script>
 {% endblock %}
