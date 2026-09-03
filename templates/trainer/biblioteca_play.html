@@ -11,8 +11,8 @@
     /* ============================================================
        "Gabinete de estudio" -- Biblioteca y reproductor (pantalla 02).
        El mockup del README solo cubre cabecera + papel + transporte;
-       todo el resto de este archivo (Modo Estudio: práctica MIDI,
-       metrónomo, loop, marcadores, playlist, ensayo) no tiene spec del
+       todo el resto de este archivo (Modo Estudio: reproducción, metrónomo,
+       loop, marcadores, modo ensayo/práctica MIDI) no tiene spec del
        README -- se repinta acá siguiendo el mismo lenguaje visual
        (ciruela de acción, tarjetas blancas, acentos solo para distinguir
        categorías), decisión explícita pedida además de lo que cubre el
@@ -161,7 +161,6 @@
        cards del panel de bienvenida, con ocre (no es un error, es una
        llamada de atención a una función específica). */
     .panel-box--ensayo { border-left: 3px solid var(--ochre); }
-    .panel-box--ensayo .panel-box__titulo span:last-child { font-family: monospace; font-size: 0.6875rem; color: var(--ochre); }
 
     #session-timer { font-family: 'IBM Plex Mono', monospace; }
 </style>
@@ -181,21 +180,12 @@
     data-txt-sin-teclado-conectado="{% trans 'No se encontró ningún teclado MIDI conectado. Conectalo y volvé a intentar.' %}"
     data-txt-error-reproducir="{% trans 'Error al reproducir:' %}"
     data-txt-completa-compas-texto="{% trans 'Completa compás y texto' %}"
-    data-txt-escribe-nota="{% trans 'Escribe una nota' %}"
-    data-txt-selecciona-playlist="{% trans 'Selecciona una playlist' %}"
-    data-txt-anadido-exitosamente="{% trans '¡Añadido exitosamente!' %}"
-    data-txt-error-prefijo="{% trans 'Error:' %}"
-    data-txt-config-guardada="{% trans '¡Configuración guardada!' %}"
-    data-txt-error-guardar="{% trans 'Error al guardar.' %}"
-    data-txt-activo="{% trans 'ACTIVO' %}"
-    data-txt-ensayo-completado="{% trans '¡Ensayo Completado! Has alcanzado el BPM objetivo con éxito. ¡Gran trabajo!' %}"
+    data-txt-rango-invalido="{% trans 'Ese rango de compases no tiene notas para practicar.' %}"
     data-txt-practica-terminada="{% trans 'Práctica terminada' %}"
     data-txt-eventos-completados="{% trans 'Eventos completados:' %}"
     data-txt-errores-label="{% trans 'Errores:' %}"
     data-txt-tiempo-label="{% trans 'Tiempo:' %}"
-    data-txt-volver-empezar="{% trans 'Volver a empezar' %}"
-    data-txt-nombre-ensayo-prompt="{% trans 'Nombre para este ensayo:' %}"
-    data-txt-mi-ensayo="{% trans 'Mi Ensayo' %}">
+    data-txt-volver-empezar="{% trans 'Volver a empezar' %}">
 
     <!-- Cabecera -->
     <div class="lector-gab__cabecera">
@@ -222,13 +212,6 @@
                 <div id="osmdCanvas"></div>
             </div>
 
-            <div id="debug-panel" style="display: none; margin-top: 10px; background: #222; color: #0f0; padding: 10px; font-family: monospace; border-radius: 8px;">
-                <div class="flex justify-between">
-                    <div>{% trans "Compás:" %} <strong id="dbg-measure">0</strong></div>
-                    <div>{% trans "Tiempo:" %} <strong id="dbg-beat">0</strong></div>
-                    <div>CursorIdx: <strong id="dbg-cursor">0</strong></div>
-                </div>
-            </div>
         </div>
 
         <!-- Panel Lateral (Modo Estudio) -->
@@ -241,85 +224,43 @@
                 <div style="font-size: 0.8125rem; color: var(--ink-soft);">{% trans "Repeticiones:" %} <span id="session-plays" style="color: var(--ink); font-weight: 600;">0</span></div>
             </div>
 
-            <!-- Controles Principales -->
-            <div class="panel-box" style="display: flex; flex-direction: column; gap: 0.6rem;">
-                <button id="btn-play" class="btn-control" disabled>▶ {% trans "Reproducir" %}</button>
-                <button id="btn-pause" class="btn-control btn-control--ochre" disabled>⏸ {% trans "Pausar" %}</button>
-                <button id="btn-stop" class="btn-control btn-control--danger" disabled>⏹ {% trans "Detener" %}</button>
-
-                <div class="fila-switch-gab panel-box__separador">
-                    <label class="campo-label-gab">🎹 {% trans "Piano" %}</label>
-                    <input type="checkbox" id="piano-toggle" checked>
-                </div>
-                <div class="fila-switch-gab">
-                    <label class="campo-label-gab">🥁 {% trans "Metrónomo" %}</label>
-                    <input type="checkbox" id="metronomo-toggle" checked>
-                </div>
-                <div class="fila-switch-gab panel-box__separador">
-                    <label class="campo-label-gab" title="{% trans 'Con repeticiones y voltas expandidas; apagalo para tocar la partitura impresa una sola vez' %}">🔁 {% trans "Repeticiones" %}</label>
-                    <input type="checkbox" id="repeticiones-toggle" checked>
-                </div>
-            </div>
-
-            <!-- Modo Práctica (MIDI) -->
-            <div class="panel-box" id="practica-panel">
-                <div id="practica-inicio">
-                    <button id="btn-practica" class="btn-control btn-control--rose" style="width: 100%;">🎯 {% trans "Iniciar práctica" %}</button>
-                    <p class="hint-gab" style="margin-top: 0.5rem;">{% trans "Tocá tu teclado MIDI sobre la partitura — el cursor avanza cuando tocás la nota correcta. El piano de la app no suena en este modo." %}</p>
-                </div>
-                <div id="practica-activa" class="hidden">
-                    <div class="panel-box__titulo">
-                        <span>🎯 {% trans "Modo Práctica" %}</span>
-                        <button id="btn-terminar-practica" style="background: none; border: none; cursor: pointer; font-size: 0.75rem; color: var(--ink-soft);">{% trans "Terminar práctica" %}</button>
-                    </div>
-                    <select id="practica-device-select" class="campo-gab hidden" style="margin-bottom: 0.5rem;"></select>
-                    <p id="practica-status" style="font-size: 0.8125rem; color: var(--ink-body); margin-bottom: 0.5rem;">{% trans "Esperando..." %}</p>
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--ink-soft);">
-                        <span>{% trans "Errores:" %} <span id="practica-errores" style="color: var(--ink); font-weight: 600;">0</span></span>
-                        <label style="display: flex; align-items: center; gap: 0.3rem; cursor: pointer;">
-                            <input type="checkbox" id="practica-sonido-teclado" checked>
-                            🔊 {% trans "Sonido del teclado" %}
-                        </label>
-                    </div>
-                </div>
-                <div id="practica-resumen" class="hidden" style="font-size: 0.8125rem; color: var(--ink-body);"></div>
-            </div>
-
-            <!-- Velocidad -->
+            <!-- Reproducción -->
             <div class="panel-box">
-                <label class="campo-label-gab" style="display: block; margin-bottom: 0.5rem;">⚡ {% trans "Velocidad (BPM)" %}</label>
-                <select id="tempo-selector" class="campo-gab">
-                    <option value="0.5">50% ({% trans "Muy Lento" %})</option>
-                    <option value="0.6">60%</option>
-                    <option value="0.7">70%</option>
-                    <option value="0.8">80%</option>
-                    <option value="0.9">90%</option>
-                    <option value="1.0" selected>100% ({% trans "Original" %})</option>
-                    <option value="1.1">110%</option>
-                    <option value="1.2">120% ({% trans "Rápido" %})</option>
-                </select>
-            </div>
+                <h3 class="panel-box__titulo">🔊 {% trans "Reproducción" %}</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+                    <button id="btn-play" class="btn-control" disabled>▶ {% trans "Reproducir" %}</button>
+                    <button id="btn-pause" class="btn-control btn-control--ochre" disabled>⏸ {% trans "Pausar" %}</button>
+                    <button id="btn-stop" class="btn-control btn-control--danger" disabled>⏹ {% trans "Detener" %}</button>
 
-            <!-- Loop por Compases -->
-            <div class="panel-box">
-                <div class="fila-switch-gab" style="margin-bottom: 0.5rem;">
-                    <label class="campo-label-gab">🔁 {% trans "Repetir Sección" %}</label>
-                    <input type="checkbox" id="loop-toggle">
-                </div>
-
-                <div style="display: flex; gap: 0.5rem;">
-                    <div style="flex: 1;">
-                        <label class="hint-gab" style="display: block; margin-bottom: 0.25rem;">{% trans "Del Compás:" %}</label>
-                        <input type="number" id="loop-start" min="1" value="1" class="campo-gab campo-gab--centrado">
+                    <div class="fila-switch-gab panel-box__separador">
+                        <label class="campo-label-gab">🎹 {% trans "Piano" %}</label>
+                        <input type="checkbox" id="piano-toggle" checked>
                     </div>
-                    <div style="flex: 1;">
-                        <label class="hint-gab" style="display: block; margin-bottom: 0.25rem;">{% trans "Al Compás:" %}</label>
-                        <input type="number" id="loop-end" min="1" value="4" class="campo-gab campo-gab--centrado">
+                    <div class="fila-switch-gab">
+                        <label class="campo-label-gab">🥁 {% trans "Metrónomo" %}</label>
+                        <input type="checkbox" id="metronomo-toggle" checked>
+                    </div>
+                    <div class="fila-switch-gab">
+                        <label class="campo-label-gab" title="{% trans 'Con repeticiones y voltas expandidas; apagalo para tocar la partitura impresa una sola vez' %}">🔁 {% trans "Repeticiones" %}</label>
+                        <input type="checkbox" id="repeticiones-toggle" checked>
+                    </div>
+
+                    <div class="fila-switch-gab panel-box__separador">
+                        <label class="campo-label-gab">{% trans "Tema completo" %}</label>
+                        <input type="checkbox" id="reproduccion-completo-toggle" checked>
+                    </div>
+                    <div id="reproduccion-compases" class="hidden" style="display: flex; gap: 0.5rem;">
+                        <div style="flex: 1;">
+                            <label class="hint-gab" style="display: block; margin-bottom: 0.25rem;">{% trans "Del Compás:" %}</label>
+                            <input type="number" id="loop-start" min="1" value="1" class="campo-gab campo-gab--centrado">
+                        </div>
+                        <div style="flex: 1;">
+                            <label class="hint-gab" style="display: block; margin-bottom: 0.25rem;">{% trans "Al Compás:" %}</label>
+                            <input type="number" id="loop-end" min="1" value="4" class="campo-gab campo-gab--centrado">
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <button id="btn-debug" style="width: 100%; padding: 0.5rem 0; font-size: 0.75rem; color: var(--ink-soft); background: none; border: none; cursor: pointer; margin-bottom: 1rem;">{% trans "Modo Debug" %}</button>
 
             <!-- Marcadores y Notas -->
             <div class="panel-box">
@@ -341,83 +282,53 @@
                 </div>
             </div>
 
-            <!-- Playlists -->
-            <div class="panel-box">
-                <h3 class="panel-box__titulo">🎵 {% trans "Añadir a Playlist" %}</h3>
-                <div style="display: flex; gap: 0.5rem;">
-                    <select id="playlist-select" class="campo-gab" style="width: 67%;">
-                        <option value="">{% trans "Selecciona..." %}</option>
-                        {% for pl in playlists %}
-                            <option value="{{ pl.id }}">{{ pl.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <button onclick="addToPlaylist()" class="btn-control btn-control--slate" style="width: 33%; padding: 0.5rem;">{% trans "Añadir" %}</button>
-                </div>
-            </div>
-
-            <!-- MODO ENSAYO -->
-            <div class="panel-box panel-box--ensayo">
+            <!-- MODO ENSAYO (fusionado con Iniciar Práctica: espera que el usuario toque
+                 la nota correcta en su MIDI para avanzar, no reproduce la partitura) -->
+            <div class="panel-box panel-box--ensayo" id="ensayo-panel">
                 <h3 class="panel-box__titulo">
-                    <span>🔥 {% trans "Modo Ensayo" %}</span>
-                    <span id="rehearsal-status" class="hidden">{% trans "Inactivo" %}</span>
+                    <span>🎯 {% trans "Modo Ensayo" %}</span>
                 </h3>
 
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.75rem; color: var(--ink-body); margin-bottom: 0.75rem;" id="rehearsal-setup">
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+                <div id="ensayo-setup" style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.75rem; color: var(--ink-body);">
+                    <div class="fila-switch-gab">
+                        <label class="campo-label-gab">{% trans "Tema completo" %}</label>
+                        <input type="checkbox" id="ensayo-completo-toggle" checked>
+                    </div>
+                    <div id="ensayo-compases" class="hidden" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
                         <span>{% trans "Compases:" %}</span>
-                        <input type="number" id="rehearsal-start" placeholder="{% trans 'Inicio' context 'rango de compases' %}" class="campo-gab campo-gab--centrado" style="width: 3.25rem;" value="1">
+                        <input type="number" id="ensayo-start" min="1" class="campo-gab campo-gab--centrado" style="width: 3.25rem;" value="1">
                         <span>{% trans "a" %}</span>
-                        <input type="number" id="rehearsal-end" placeholder="{% trans 'Fin' %}" class="campo-gab campo-gab--centrado" style="width: 3.25rem;" value="4">
+                        <input type="number" id="ensayo-end" min="1" class="campo-gab campo-gab--centrado" style="width: 3.25rem;" value="4">
+                    </div>
+                    <div class="fila-switch-gab">
+                        <label class="campo-label-gab">🥁 {% trans "Metrónomo" %}</label>
+                        <input type="checkbox" id="ensayo-metronomo-toggle" checked>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
-                        <span>{% trans "BPM Inicial:" %}</span>
-                        <input type="number" id="rehearsal-bpm-start" class="campo-gab campo-gab--centrado" style="width: 4rem;" value="60">
+                        <span>{% trans "BPM:" %}</span>
+                        <input type="number" id="ensayo-bpm" min="20" max="300" class="campo-gab campo-gab--centrado" style="width: 4rem;" value="100">
                     </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
-                        <span>{% trans "BPM Final:" %}</span>
-                        <input type="number" id="rehearsal-bpm-end" class="campo-gab campo-gab--centrado" style="width: 4rem;" value="100">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
-                        <span>{% trans "Incremento (+BPM):" %}</span>
-                        <input type="number" id="rehearsal-bpm-step" class="campo-gab campo-gab--centrado" style="width: 4rem;" value="5">
-                    </div>
-                    <button onclick="startRehearsal()" class="btn-control btn-control--ochre" style="width: 100%; margin-top: 0.5rem; padding: 0.5rem;">🚀 {% trans "Iniciar Ensayo" %}</button>
-                    <button onclick="saveRehearsalConfig()" class="btn-control btn-control--secundario" style="width: 100%; padding: 0.4rem;">💾 {% trans "Guardar Configuración" %}</button>
+                    <label style="display: flex; align-items: center; gap: 0.3rem; cursor: pointer;">
+                        <input type="checkbox" id="practica-sonido-teclado" checked>
+                        🔊 {% trans "Sonido del teclado" %}
+                    </label>
+                    <button id="btn-practica" class="btn-control btn-control--rose" style="width: 100%; margin-top: 0.25rem;">🎯 {% trans "Iniciar práctica" %}</button>
+                    <p class="hint-gab">{% trans "Tocá tu teclado MIDI sobre la partitura — el cursor avanza cuando tocás la nota correcta. El piano de la app no suena en este modo." %}</p>
                 </div>
 
-                <div id="rehearsal-active-ui" class="hidden" style="font-size: 0.75rem; color: var(--ink-body);">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;"><span>{% trans "BPM Actual:" %}</span> <span id="rehearsal-current-bpm" style="font-weight: 600; color: var(--ink);">60</span></div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;"><span>{% trans "Meta:" %}</span> <span id="rehearsal-target-bpm" style="font-weight: 600; color: var(--green);">100</span></div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;"><span>{% trans "Vuelta:" %}</span> <span id="rehearsal-rep" style="font-weight: 600; color: var(--ink);">1</span></div>
-                    <button onclick="stopRehearsal()" class="btn-control btn-control--danger" style="width: 100%; padding: 0.5rem;">🛑 {% trans "Detener Ensayo" %}</button>
+                <div id="practica-activa" class="hidden">
+                    <div class="panel-box__titulo">
+                        <span>🎯 {% trans "Practicando" %}</span>
+                        <button id="btn-terminar-practica" style="background: none; border: none; cursor: pointer; font-size: 0.75rem; color: var(--ink-soft);">{% trans "Terminar práctica" %}</button>
+                    </div>
+                    <select id="practica-device-select" class="campo-gab hidden" style="margin-bottom: 0.5rem;"></select>
+                    <p id="practica-status" style="font-size: 0.8125rem; color: var(--ink-body); margin-bottom: 0.5rem;">{% trans "Esperando..." %}</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--ink-soft);">
+                        <span>{% trans "Errores:" %} <span id="practica-errores" style="color: var(--ink); font-weight: 600;">0</span></span>
+                        <span id="practica-vueltas-fila" class="hidden">{% trans "Vueltas:" %} <span id="practica-vueltas" style="color: var(--ink); font-weight: 600;">0</span></span>
+                    </div>
                 </div>
-
-                {% if rehearsal_configs %}
-                <div class="panel-box__separador" id="rehearsal-presets">
-                    <label class="hint-gab" style="display: block; margin-bottom: 0.25rem;">{% trans "Cargar Guardado:" %}</label>
-                    <select id="rehearsal-presets-select" onchange="loadRehearsalPreset()" class="campo-gab">
-                        <option value="">{% trans "Selecciona..." %}</option>
-                        {% for cfg in rehearsal_configs %}
-                            <option value="{{ cfg.id }}" data-sm="{{ cfg.start_measure }}" data-em="{{ cfg.end_measure }}" data-sb="{{ cfg.start_bpm }}" data-eb="{{ cfg.end_bpm }}" data-step="{{ cfg.bpm_step }}">{{ cfg.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                {% endif %}
-            </div>
-
-            <div class="panel-box">
-                <h3 class="panel-box__titulo">📝 {% trans "Anotaciones" %}</h3>
-                <textarea id="note-text" placeholder="{% trans 'Anota algo sobre esta obra...' %}" class="campo-gab" style="margin-bottom: 0.5rem; height: 4rem;"></textarea>
-                <button onclick="addNote()" class="btn-gab btn-gab--primary" style="width: 100%; margin-bottom: 0.75rem; justify-content: center;">{% trans "Guardar nota" %}</button>
-                <div id="notes-list" class="lista-chips-gab">
-                    {% for note in notes %}
-                        <div class="chip-fila-gab" style="border-left-color: var(--slate);">
-                            <span class="chip-fila-gab__texto">{{ note.text }}</span>
-                        </div>
-                    {% empty %}
-                        <div class="chip-vacio-gab">{% trans "No hay notas." %}</div>
-                    {% endfor %}
-                </div>
+                <div id="practica-resumen" class="hidden" style="font-size: 0.8125rem; color: var(--ink-body);"></div>
             </div>
 
         </div>
@@ -437,28 +348,38 @@
     const btnPlay = document.getElementById('btn-play');
     const btnPause = document.getElementById('btn-pause');
     const btnStop = document.getElementById('btn-stop');
-    const btnDebug = document.getElementById('btn-debug');
     const pianoToggle = document.getElementById('piano-toggle');
     const metronomoToggle = document.getElementById('metronomo-toggle');
     const repeticionesToggle = document.getElementById('repeticiones-toggle');
 
-    const tempoSelector = document.getElementById('tempo-selector');
-    const loopToggle = document.getElementById('loop-toggle');
+    // Reproducción -- "Tema completo" apagado = usar el rango de compases (mismos
+    // campos loop-start/loop-end de siempre; loopToggle ya no existe como checkbox
+    // propio, se deriva del switch invertido en el único lugar que lo lee, dentro de
+    // startPlayback()).
+    const reproduccionCompletoToggle = document.getElementById('reproduccion-completo-toggle');
+    const reproduccionCompases = document.getElementById('reproduccion-compases');
     const loopStart = document.getElementById('loop-start');
     const loopEnd = document.getElementById('loop-end');
 
     const conductorWidget = document.getElementById('conductor-widget');
-    const debugPanel = document.getElementById('debug-panel');
 
-    // Modo Práctica (MIDI)
+    // Modo Ensayo (fusionado con Modo Práctica MIDI)
+    const ensayoCompletoToggle = document.getElementById('ensayo-completo-toggle');
+    const ensayoCompases = document.getElementById('ensayo-compases');
+    const ensayoStart = document.getElementById('ensayo-start');
+    const ensayoEnd = document.getElementById('ensayo-end');
+    const ensayoMetronomoToggle = document.getElementById('ensayo-metronomo-toggle');
+    const ensayoBpm = document.getElementById('ensayo-bpm');
     const btnPractica = document.getElementById('btn-practica');
     const btnTerminarPractica = document.getElementById('btn-terminar-practica');
-    const practicaInicioEl = document.getElementById('practica-inicio');
+    const ensayoSetupEl = document.getElementById('ensayo-setup');
     const practicaActivaEl = document.getElementById('practica-activa');
     const practicaResumenEl = document.getElementById('practica-resumen');
     const practicaDeviceSelect = document.getElementById('practica-device-select');
     const practicaStatusEl = document.getElementById('practica-status');
     const practicaErroresEl = document.getElementById('practica-errores');
+    const practicaVueltasFila = document.getElementById('practica-vueltas-fila');
+    const practicaVueltasEl = document.getElementById('practica-vueltas');
     const practicaSonidoTeclado = document.getElementById('practica-sonido-teclado');
 
     let osmd = null;
@@ -506,7 +427,7 @@
     let scrollGuardTimeout = null;
     let reengancheAutoScrollTimeout = null;
 
-    // Modo Práctica (MIDI)
+    // Modo Práctica / Modo Ensayo (MIDI, fusionados)
     let practicaActiva = false;
     let practicaSecuencia = [];      // eventos exigibles, ya sin silencios/graces/ligaduras -- ver construirSecuenciaPractica()
     let practicaEventoIdx = 0;       // índice DENTRO de practicaSecuencia (no el índice crudo del cursor)
@@ -514,12 +435,11 @@
     let practicaErrores = 0;
     let practicaInicioTs = null;
     let practicaMidiHandle = null;
-
-    // Variables Modo Ensayo
-    let isRehearsalActive = false;
-    let rehearsalCurrentRep = 1;
-    let rehearsalConfigId = null;
-    let rehearsalJustStarted = false;
+    // true cuando "Tema completo" está apagado: al llegar al final de practicaSecuencia
+    // (ya filtrada al rango elegido) avanzarEventoPractica() vuelve al principio del
+    // rango en vez de terminar la práctica -- "loop constante" pedido explícitamente.
+    let practicaModoLoop = false;
+    let practicaVueltas = 0;
 
     // Timer de Sesión
     let totalSessionSeconds = 0;
@@ -578,10 +498,6 @@
             }
         });
     }
-
-    btnDebug.addEventListener('click', () => {
-        debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
-    });
 
     function initSynth() {
         if (!clickSynth) {
@@ -703,8 +619,6 @@
             {% if active_project %}
             // Restore last measure and tempo
             baseBpm = {{ active_project.last_tempo|default:60 }};
-            tempoSelector.value = "1.0";
-            updateTempoUI();
             Tone.Transport.bpm.value = baseBpm;
             
             let lastMeasure = {{ active_project.last_measure|default:1 }};
@@ -1235,11 +1149,11 @@
     // reservado a la práctica.
     //
     // contadorIluminado lleva la cuenta de encendidos sin su apagado correspondiente por
-    // svgEl, en vez de un simple on/off booleano: en Modo Ensayo con un loop corto, un
-    // apagado agendado en una vuelta puede llegar a disparar DESPUÉS de que la misma nota
-    // ya se encendió de nuevo en la vuelta siguiente (el loop nativo de Tone.Transport
-    // reasigna posiciones; confirmado leyendo handleRehearsalIteration() que el modo
-    // ensayo NO cancela ni reagenda nada entre vueltas, solo cambia el BPM). Con el
+    // svgEl, en vez de un simple on/off booleano: en Reproducción con un rango corto (loop),
+    // un apagado agendado en una vuelta puede llegar a disparar DESPUÉS de que la misma
+    // nota ya se encendió de nuevo en la vuelta siguiente -- el loop nativo de
+    // Tone.Transport (Tone.Transport.loop/loopStart/loopEnd) reasigna posiciones sin
+    // cancelar ni reagendar los eventos ya programados de la vuelta anterior. Con el
     // contador, ese apagado atrasado resta uno pero no apaga el brillo mientras quede al
     // menos un encendido más reciente sin el suyo propio.
     function encenderNota(svgEl) {
@@ -1518,10 +1432,31 @@
         practicaStatusEl.textContent = i18nLector.txtEsperando + ' ' + nombres.join(' + ');
     }
 
+    // Vuelve al primer evento de practicaSecuencia (ya filtrada al rango elegido) sin
+    // terminar la práctica -- mismo mecanismo de reset+avance que activarModoPractica()
+    // usa para arrancar, reusado acá para cada vuelta del loop.
+    function reiniciarVueltaPractica() {
+        practicaVueltas++;
+        practicaVueltasEl.textContent = practicaVueltas;
+        practicaEventoIdx = 0;
+        osmd.cursor.reset();
+        currentCursorIdx = 0;
+        const primero = practicaSecuencia[0];
+        aplicarCompasSiCambio(primero.measureIndex);
+        currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, primero.pasoIdx);
+        autoScrollHaciaCursor();
+        practicaMotor = crearMotorMatching(primero.notasEsperadas);
+        actualizarStatusPractica();
+    }
+
     function avanzarEventoPractica() {
         practicaEventoIdx++;
         if (practicaEventoIdx >= practicaSecuencia.length) {
-            terminarPractica();
+            if (practicaModoLoop) {
+                reiniciarVueltaPractica();
+            } else {
+                terminarPractica();
+            }
             return;
         }
 
@@ -1608,9 +1543,11 @@
         ultimoClickTimePractica = -Infinity;
         ultimoCompasAplicadoPractica = { numerator: timeNumerator, denominator: beatUnitQuarters === 0.5 ? 8 : 4 };
         aplicarCompasSiCambio(practicaSecuencia[0].measureIndex);
-        Tone.Transport.bpm.value = baseBpm * parseFloat(tempoSelector.value);
+        // BPM absoluto del propio Modo Ensayo (no baseBpm*multiplicador -- ese selector
+        // de Reproducción se sacó, ver el campo "BPM:" de este mismo panel).
+        Tone.Transport.bpm.value = parseInt(ensayoBpm.value) || 100;
         metronomoPracticaLoop = new Tone.Loop((time) => {
-            if (metronomoToggle.checked) {
+            if (ensayoMetronomoToggle.checked) {
                 // Acento: pulso 1 del compás siempre, y en compuesto también el inicio del
                 // segundo grupo de 3 corcheas -- mismo criterio que la reproducción pasiva,
                 // ver el comentario en startPlayback().
@@ -1654,8 +1591,9 @@
     function bloquearControlesReproduccion(bloquear) {
         // Pausar/Detener no hace falta tocarlos acá: arrancan deshabilitados y solo
         // startPlayback() los habilita -- como el modo práctica nunca llama a
-        // startPlayback(), quedan afuera del juego solos mientras dure. El toggle de
-        // Metrónomo se deja siempre habilitado a propósito: es la guía del modo práctica.
+        // startPlayback(), quedan afuera del juego solos mientras dure. El metrónomo de
+        // Ensayo (ensayo-metronomo-toggle) es un checkbox aparte del de Reproducción, no
+        // necesita bloquearse acá.
         btnPlay.disabled = bloquear;
         pianoToggle.disabled = bloquear;
     }
@@ -1668,8 +1606,23 @@
         }
 
         practicaSecuencia = construirSecuenciaPractica();
+
+        // "Tema completo" apagado -> se filtra a solo los eventos dentro del rango de
+        // compases elegido, y se practica en loop constante (avanzarEventoPractica()
+        // vuelve al principio del rango en vez de terminar). Conversión a measureIndex de
+        // OSMD (0-based) restando 1 al valor 1-based que ve el usuario -- el bug real que
+        // tenía Modo Ensayo (arrancaba en el compás 2 al pedir "1 a 4") era justamente no
+        // hacer esta resta acá, confirmado leyendo cómo arma measureIndex osmd_utils.js.
+        practicaModoLoop = !ensayoCompletoToggle.checked;
+        practicaVueltas = 0;
+        if (practicaModoLoop) {
+            const inicio = parseInt(ensayoStart.value) || 1;
+            const fin = parseInt(ensayoEnd.value) || inicio;
+            practicaSecuencia = practicaSecuencia.filter(evt => evt.measureIndex >= (inicio - 1) && evt.measureIndex <= (fin - 1));
+        }
+
         if (practicaSecuencia.length === 0) {
-            alert(i18nLector.txtSinNotasPracticar);
+            alert(practicaModoLoop ? i18nLector.txtRangoInvalido : i18nLector.txtSinNotasPracticar);
             return;
         }
 
@@ -1737,9 +1690,11 @@
         currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, practicaSecuencia[0].pasoIdx);
         practicaMotor = crearMotorMatching(practicaSecuencia[0].notasEsperadas);
 
-        practicaInicioEl.classList.add('hidden');
+        ensayoSetupEl.classList.add('hidden');
         practicaResumenEl.classList.add('hidden');
         practicaActivaEl.classList.remove('hidden');
+        practicaVueltasFila.classList.toggle('hidden', !practicaModoLoop);
+        practicaVueltasEl.textContent = practicaVueltas;
 
         practicaDeviceSelect.classList.toggle('hidden', dispositivos.length < 2);
         practicaDeviceSelect.innerHTML = dispositivos.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
@@ -1778,12 +1733,16 @@
         `;
         document.getElementById('btn-nueva-practica').addEventListener('click', () => {
             practicaResumenEl.classList.add('hidden');
-            practicaInicioEl.classList.remove('hidden');
+            ensayoSetupEl.classList.remove('hidden');
         });
     }
 
     btnPractica.addEventListener('click', iniciarPractica);
     btnTerminarPractica.addEventListener('click', terminarPractica);
+
+    ensayoCompletoToggle.addEventListener('change', () => {
+        ensayoCompases.classList.toggle('hidden', ensayoCompletoToggle.checked);
+    });
 
     // ==================== Fin Modo Práctica ====================
 
@@ -1820,8 +1779,9 @@
                 playCount++;
                 document.getElementById('session-plays').innerText = playCount;
 
-                let speedMult = parseFloat(tempoSelector.value);
-                Tone.Transport.bpm.value = baseBpm * speedMult;
+                // Velocidad (BPM) se sacó -- Reproducción siempre suena al tempo nativo de
+                // la partitura (baseBpm, extraído del MusicXML).
+                Tone.Transport.bpm.value = baseBpm;
 
                 const isMuted = AudioEngine && AudioEngine.isMuted;
                 if(isMuted) clickSynth.volume.value = -Infinity;
@@ -1834,9 +1794,6 @@
                         Tone.Draw.schedule(() => {
                             if (miSesion !== sesionReproduccion) return; // sesión vieja, ver comentario junto a sesionReproduccion
                             currentCursorIdx = OsmdUtils.avanzarCursorOsmdHasta(osmd, currentCursorIdx, evt.pasoIdxImpreso);
-
-                            document.getElementById('dbg-measure').innerText = evt.measureIndex;
-                            document.getElementById('dbg-cursor').innerText = currentCursorIdx;
 
                             autoScrollHaciaCursor();
                         }, time);
@@ -1928,36 +1885,27 @@
                 let lastEvent = events[events.length - 1];
                 let totalBeats = Math.ceil(lastEvent.time + lastEvent.maxDuration);
 
-                let isLoop = loopToggle.checked;
+                // "Tema completo" invertido: switch tildado = reproducir todo (sin loop).
+                let isLoop = !reproduccionCompletoToggle.checked;
                 let sMeasure = parseInt(loopStart.value) || 1;
                 let eMeasure = parseInt(loopEnd.value) || 1;
 
                 if (isLoop) {
-                    let startEv = events.find(e => e.measureIndex === sMeasure);
-                    let endEv = events.find(e => e.measureIndex === (eMeasure + 1));
-                    
+                    // measureIndex de OsmdUtils es 0-based; sMeasure/eMeasure son compases
+                    // 1-based tal como los ve el usuario -- de ahí el "-1" (antes faltaba,
+                    // era el bug real de "arranca en el compás 2 al pedir del 1 al 4": buscaba
+                    // measureIndex===1, que es el compás 2). endEv usa eMeasure sin +1 por el
+                    // mismo motivo -- el límite exclusivo correcto es (eMeasure-1)+1 = eMeasure.
+                    let startEv = events.find(e => e.measureIndex === sMeasure - 1);
+                    let endEv = events.find(e => e.measureIndex === eMeasure);
+
                     let startTime = startEv ? startEv.time : 0;
                     let endTime = endEv ? endEv.time : totalBeats;
 
                     Tone.Transport.loop = true;
                     Tone.Transport.loopStart = (startTime * Tone.Transport.PPQ) + "i";
                     Tone.Transport.loopEnd = (endTime * Tone.Transport.PPQ) + "i";
-                    
-                    if (isRehearsalActive) {
-                        // Evento para detectar la repetición
-                        let startTicks = Math.round(startTime * Tone.Transport.PPQ);
-                        Tone.Transport.schedule((time) => {
-                            Tone.Draw.schedule(() => {
-                                if (miSesion !== sesionReproduccion) return; // sesión vieja
-                                if(rehearsalJustStarted) {
-                                    rehearsalJustStarted = false; // Ignorar la primera pasada (inicio)
-                                } else {
-                                    handleRehearsalIteration();
-                                }
-                            }, time);
-                        }, startTicks + "i");
-                    }
-                    
+
                     // Aseguramos que el cursor comience en la posición correcta al inicio manual
                     if(startEv) {
                         Tone.Transport.position = (startTime * Tone.Transport.PPQ) + "i";
@@ -2084,7 +2032,6 @@
 
                                 const pulsoVisual = Math.floor((b % timeNumeratorSegmento) / pulsosPorGrupoVisualSegmento);
                                 const beatNum = pulsoVisual + 1;
-                                document.getElementById('dbg-beat').innerText = beatNum;
 
                                 document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
                                 let dot = document.getElementById(`beat-${beatNum}`);
@@ -2162,12 +2109,6 @@
         autoScrollHaciaCursor();
     }
 
-    tempoSelector.addEventListener('change', () => {
-        if(isPlaying || Tone.Transport.state === "paused" || practicaActiva) {
-            Tone.Transport.bpm.value = baseBpm * parseFloat(tempoSelector.value);
-        }
-    });
-
     // Cambiar el modo de repeticiones a mitad de una reproducción parada no tiene sentido
     // reflejarlo en caliente (cambia la cantidad y el orden de los eventos, no solo un
     // parámetro) -- invalida el cache de `events` para que el próximo Play lo reconstruya
@@ -2175,6 +2116,10 @@
     // en cada "Iniciar práctica", nunca la reusa entre sesiones.
     repeticionesToggle.addEventListener('change', () => {
         events = [];
+    });
+
+    reproduccionCompletoToggle.addEventListener('change', () => {
+        reproduccionCompases.classList.toggle('hidden', reproduccionCompletoToggle.checked);
     });
 
     btnPlay.addEventListener('click', startPlayback);
@@ -2200,155 +2145,5 @@
         });
     }
 
-    function addNote() {
-        const text = document.getElementById('note-text').value;
-        if(!text) return alert(i18nLector.txtEscribeNota);
-        
-        fetch(`/api/add_sheet_note/{{ sheet.id }}/`, {
-            method: 'POST',
-            body: JSON.stringify({ text: text }),
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
-        }).then(res => res.json()).then(data => {
-            if(data.status === 'success') location.reload();
-        });
-    }
-
-    function addToPlaylist() {
-        const plId = document.getElementById('playlist-select').value;
-        if(!plId) return alert(i18nLector.txtSeleccionaPlaylist);
-        
-        fetch('/api/playlist_add_sheet/', {
-            method: 'POST',
-            body: JSON.stringify({ playlist_id: plId, score_id: {{ sheet.id }} }),
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
-        }).then(res => res.json()).then(data => {
-            if(data.status === 'success') alert(i18nLector.txtAnadidoExitosamente);
-            else alert(i18nLector.txtErrorPrefijo + ' ' + data.message);
-        });
-    }
-
-    // Modo Ensayo JS
-    function loadRehearsalPreset() {
-        const select = document.getElementById('rehearsal-presets-select');
-        const opt = select.options[select.selectedIndex];
-        if(!opt || !opt.value) return;
-        
-        document.getElementById('rehearsal-start').value = opt.dataset.sm;
-        document.getElementById('rehearsal-end').value = opt.dataset.em;
-        document.getElementById('rehearsal-bpm-start').value = opt.dataset.sb;
-        document.getElementById('rehearsal-bpm-end').value = opt.dataset.eb;
-        document.getElementById('rehearsal-bpm-step').value = opt.dataset.step;
-        rehearsalConfigId = opt.value;
-    }
-
-    function saveRehearsalConfig() {
-        const name = prompt(i18nLector.txtNombreEnsayoPrompt, i18nLector.txtMiEnsayo);
-        if(!name) return;
-        
-        const payload = {
-            name: name,
-            start_measure: document.getElementById('rehearsal-start').value,
-            end_measure: document.getElementById('rehearsal-end').value,
-            start_bpm: document.getElementById('rehearsal-bpm-start').value,
-            end_bpm: document.getElementById('rehearsal-bpm-end').value,
-            bpm_step: document.getElementById('rehearsal-bpm-step').value
-        };
-        
-        fetch('/api/save_rehearsal_config/{{ sheet.id }}/', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
-        }).then(res => res.json()).then(data => {
-            if(data.status === 'success') {
-                alert(i18nLector.txtConfigGuardada);
-                location.reload();
-            } else {
-                alert(i18nLector.txtErrorGuardar);
-            }
-        });
-    }
-
-    function startRehearsal() {
-        const startBpm = parseInt(document.getElementById('rehearsal-bpm-start').value);
-        const endBpm = parseInt(document.getElementById('rehearsal-bpm-end').value);
-        const startM = document.getElementById('rehearsal-start').value;
-        const endM = document.getElementById('rehearsal-end').value;
-        
-        isRehearsalActive = true;
-        rehearsalCurrentRep = 1;
-        rehearsalJustStarted = true;
-        
-        // UI
-        document.getElementById('rehearsal-setup').classList.add('hidden');
-        document.getElementById('rehearsal-active-ui').classList.remove('hidden');
-        document.getElementById('rehearsal-status').innerText = i18nLector.txtActivo;
-        document.getElementById('rehearsal-status').classList.remove('hidden');
-        if(document.getElementById('rehearsal-presets')) document.getElementById('rehearsal-presets').classList.add('hidden');
-        
-        document.getElementById('rehearsal-current-bpm').innerText = startBpm;
-        document.getElementById('rehearsal-target-bpm').innerText = endBpm;
-        document.getElementById('rehearsal-rep').innerText = rehearsalCurrentRep;
-        
-        // Settings override
-        loopToggle.checked = true;
-        loopStart.value = startM;
-        loopEnd.value = endM;
-        tempoSelector.value = "1.0"; // Ignorar selector global
-        baseBpm = startBpm;
-        
-        btnPlay.click();
-    }
-
-    function handleRehearsalIteration() {
-        rehearsalCurrentRep++;
-        document.getElementById('rehearsal-rep').innerText = rehearsalCurrentRep;
-        
-        const endBpm = parseInt(document.getElementById('rehearsal-bpm-end').value);
-        const stepBpm = parseInt(document.getElementById('rehearsal-bpm-step').value);
-        
-        let currentBpm = Math.round(Tone.Transport.bpm.value);
-        let nextBpm = currentBpm + stepBpm;
-        
-        if (currentBpm >= endBpm) {
-            // Ensayo Terminado Exitosamente
-            stopRehearsal(true);
-            return;
-        }
-        
-        if (nextBpm > endBpm) nextBpm = endBpm;
-        
-        Tone.Transport.bpm.value = nextBpm;
-        document.getElementById('rehearsal-current-bpm').innerText = nextBpm;
-    }
-
-    function stopRehearsal(completed = false) {
-        if(!isRehearsalActive) return;
-        
-        btnStop.click();
-        isRehearsalActive = false;
-        
-        const payload = {
-            config_id: rehearsalConfigId,
-            repetitions: rehearsalCurrentRep,
-            time_spent: totalSessionSeconds,
-            max_bpm: parseInt(document.getElementById('rehearsal-current-bpm').innerText)
-        };
-        
-        fetch('/api/log_rehearsal_session/{{ sheet.id }}/', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
-        });
-        
-        // Reset UI
-        document.getElementById('rehearsal-setup').classList.remove('hidden');
-        document.getElementById('rehearsal-active-ui').classList.add('hidden');
-        document.getElementById('rehearsal-status').classList.add('hidden');
-        if(document.getElementById('rehearsal-presets')) document.getElementById('rehearsal-presets').classList.remove('hidden');
-        
-        if(completed) {
-            alert(i18nLector.txtEnsayoCompletado);
-        }
-    }
 </script>
 {% endblock %}
