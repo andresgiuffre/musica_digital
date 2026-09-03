@@ -2381,7 +2381,7 @@ def biblioteca_list(request):
     favorites_only = request.GET.get('favorites') == 'true'
     query = request.GET.get('q', '').strip()
 
-    scores = SheetMusic.objects.all().order_by('-created_at')
+    scores = SheetMusic.objects.filter(oculto_en_biblioteca=False).order_by('-created_at')
 
     if col_slug:
         scores = scores.filter(collections__slug=col_slug)
