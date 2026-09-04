@@ -169,15 +169,19 @@
        transform:translateX(0). Director de Estudio entra desde la izquierda,
        Cursos desde la derecha -- "se acercan hacia el centro" tal cual se
        pidió, no un fade genérico. */
+    /* Duración del viaje hacia el centro -- pedido explícito (dos rondas): la
+       primera pasada (0.75s -> 1.5s) todavía se sentía rápida, el usuario pidió
+       MUCHO más lenta para que la estela se alcance a ver/disfrutar. 3.6s es el
+       número ancla de esta sección entera -- la duración de la estela (más
+       abajo) y el delay del impacto (más abajo todavía) se calculan a partir
+       de ESTE mismo valor, cambiar uno sin los otros dos los desincroniza. */
     .placa-gab {
         position: relative;
         background: var(--dark-panel); color: var(--on-dark); border-radius: var(--radius);
         border-top: 3px solid var(--card-acento, var(--rose)); padding: 2.5rem 2.75rem;
         display: flex; flex-direction: column;
         opacity: 0;
-        /* Pedido explícito: más lenta que antes (era 0.75s) para que el
-           acercamiento hacia el centro se lea, no que pase de largo. */
-        transition: opacity 1.5s cubic-bezier(0.16, 1, 0.3, 1), transform 1.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+        transition: opacity 3.6s cubic-bezier(0.16, 1, 0.3, 1), transform 3.6s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .placas-gab__grid .placa-gab:nth-child(1) { transform: translateX(-70px); }
     .placas-gab__grid .placa-gab:nth-child(2) { transform: translateX(70px); }
@@ -189,10 +193,11 @@
        exactamente juntos. Un blob radial borroso (mismo azul de marca #062d8c que ya
        usa el glow de :hover, no un color nuevo) que nace corrido hacia el costado de
        origen de la placa (izquierda para Director de Estudio, derecha para Cursos),
-       se intensifica apenas empieza el viaje, y se apaga solo -- 2.2s en total, un
-       poco más que el 1.5s del viaje real, para que la estela "llegue" después que la
-       placa y recién ahí se desvanezca del todo. position:relative en .placa-gab de
-       arriba + z-index:-1 acá para que quede DETRÁS del contenido, nunca tapándolo. */
+       se intensifica apenas empieza el viaje, y se apaga solo -- misma duración que
+       el viaje (3.6s, ver arriba) para que la estela acompañe TODO el trayecto y se
+       apague justo cuando la placa llega, entregándole la posta al impacto de abajo.
+       position:relative en .placa-gab de arriba + z-index:-1 acá para que quede
+       DETRÁS del contenido, nunca tapándolo. */
     .placa-gab::before {
         content: '';
         position: absolute;
@@ -206,19 +211,84 @@
     }
     @keyframes estela-gab-izq {
         0% { opacity: 0; transform: translateX(-55px) scale(0.85); }
-        35% { opacity: 0.9; transform: translateX(-20px) scale(1.05); }
-        100% { opacity: 0; transform: translateX(0) scale(1.2); }
+        50% { opacity: 0.95; transform: translateX(-18px) scale(1.1); }
+        100% { opacity: 0; transform: translateX(0) scale(1.25); }
     }
     @keyframes estela-gab-der {
         0% { opacity: 0; transform: translateX(55px) scale(0.85); }
-        35% { opacity: 0.9; transform: translateX(20px) scale(1.05); }
-        100% { opacity: 0; transform: translateX(0) scale(1.2); }
+        50% { opacity: 0.95; transform: translateX(18px) scale(1.1); }
+        100% { opacity: 0; transform: translateX(0) scale(1.25); }
     }
     .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible::before {
-        animation: estela-gab-izq 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        animation: estela-gab-izq 3.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
     .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible::before {
-        animation: estela-gab-der 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        animation: estela-gab-der 3.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    /* ---------- Impacto al llegar al centro (pedido explícito) ----------
+       Dos animaciones distintas, las dos con animation-delay: 3.6s -- EXACTO el
+       mismo número que la duración del transition de arriba, así arrancan justo
+       cuando la placa termina su viaje, no antes (se verían temblando/con
+       chispas mientras todavía está en movimiento) ni después (quedaría un
+       hueco muerto sin nada pasando).
+       1) Temblor: keyframe de transform en el propio .placa-gab -- SEGURO
+          respecto al transition de arriba porque durante los primeros 3.6s
+          (el delay) la animación no toca la propiedad todavía, así que el
+          transition corre solo sin interferencia; recién a los 3.6s la
+          animación toma el control de transform, arrancando y terminando en
+          translateX(0) (el mismo valor donde lo dejó el transition), así que
+          no hay salto visible en el traspaso.
+       2) Destello + chispas: ::after (::before ya está usado por la estela)
+          -- un resplandor radial que crece y se apaga de golpe, más varios
+          puntitos chicos (mismo mecanismo: radial-gradients en capas,
+          posicionados alrededor del centro) que quedan más lejos del centro a
+          medida que el ::after entero escala hacia arriba -- simulan chispas
+          disparándose hacia afuera sin necesitar elementos de verdad por
+          cada una. Mismo azul de marca (#062d8c / rgba(6,45,140,...)) que ya
+          usa el glow de :hover -- pedido explícito, "ese color brillante que
+          se ve al hacer hover" -- con un núcleo más claro (rgba(147,197,253,...))
+          para que las chispas se lean como puntos de luz, no un blob plano. */
+    @keyframes impacto-temblor {
+        0% { transform: translateX(0); }
+        15% { transform: translateX(-8px); }
+        30% { transform: translateX(7px); }
+        45% { transform: translateX(-5px); }
+        60% { transform: translateX(3px); }
+        75% { transform: translateX(-2px); }
+        90% { transform: translateX(1px); }
+        100% { transform: translateX(0); }
+    }
+    .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible,
+    .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible {
+        animation: impacto-temblor 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) 3.6s 1;
+    }
+    .placa-gab::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        z-index: -1;
+        opacity: 0;
+        pointer-events: none;
+        background:
+            radial-gradient(circle at 50% 50%, rgba(147, 197, 253, 0.95), rgba(147, 197, 253, 0) 7%),
+            radial-gradient(circle at 18% 28%, rgba(147, 197, 253, 0.9), rgba(147, 197, 253, 0) 5%),
+            radial-gradient(circle at 84% 22%, rgba(147, 197, 253, 0.9), rgba(147, 197, 253, 0) 5%),
+            radial-gradient(circle at 22% 78%, rgba(147, 197, 253, 0.9), rgba(147, 197, 253, 0) 5%),
+            radial-gradient(circle at 80% 80%, rgba(147, 197, 253, 0.9), rgba(147, 197, 253, 0) 5%),
+            radial-gradient(circle at 50% 6%, rgba(147, 197, 253, 0.85), rgba(147, 197, 253, 0) 4%),
+            radial-gradient(circle at 50% 94%, rgba(147, 197, 253, 0.85), rgba(147, 197, 253, 0) 4%),
+            radial-gradient(ellipse at center, rgba(6, 45, 140, 0.85), rgba(6, 45, 140, 0.35) 40%, rgba(6, 45, 140, 0) 72%);
+    }
+    @keyframes impacto-destello {
+        0% { opacity: 0; transform: scale(0.5); }
+        12% { opacity: 1; transform: scale(1.05); }
+        45% { opacity: 0.55; transform: scale(1.45); }
+        100% { opacity: 0; transform: scale(2); }
+    }
+    .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible::after,
+    .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible::after {
+        animation: impacto-destello 1s ease-out 3.6s 1;
     }
     /* Repite el selector completo (con :nth-child incluido) a propósito: sin
        eso esta regla queda con menos especificidad que las dos de arriba
@@ -298,7 +368,7 @@
         .espacio-gab, .placa-gab {
             animation: none; opacity: 1; transform: none;
         }
-        .placa-gab::before {
+        .placa-gab::before, .placa-gab::after {
             animation: none; opacity: 0;
         }
         /* .placa-gab ya no usa "animation" (ver el revelado por scroll más
@@ -311,6 +381,17 @@
         .placas-gab__grid .placa-gab:nth-child(1),
         .placas-gab__grid .placa-gab:nth-child(2) {
             transform: none;
+        }
+        /* El temblor de impacto (impacto-temblor) se declara con la misma
+           especificidad completa (.placas-gab__grid .placa-gab:nth-child(N)
+           .placa-gab--visible, 4 clases) que la regla de arriba que lo
+           agrega -- el reset genérico ".placa-gab { animation: none }" de
+           más arriba en este mismo bloque pierde contra eso (solo 1 clase),
+           así que hace falta repetir el selector completo acá también, mismo
+           motivo ya documentado para el transform de reposo. */
+        .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible,
+        .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible {
+            animation: none;
         }
         .espacio-gab:hover, .placa-gab:hover {
             transform: translateY(-1px);
