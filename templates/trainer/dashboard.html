@@ -3,7 +3,7 @@
 {% load i18n %}
 {% block title %}{% trans "Inicio" %} - Música Digital{% endblock %}
 {% block html_attrs %}data-gabinete-page data-tema-gabinete="oscuro"{% endblock %}
-{% block body_class %}gabinete dashboard-oscuro{% endblock %}
+{% block body_class %}gabinete{% endblock %}
 {% block nav_active_panel %}is-active{% endblock %}
 
 {% block extra_css %}
@@ -16,64 +16,15 @@
        Orquestar), no acá.
        ============================================================ */
 
-    /* ---------- Panel: solo modo oscuro, sin toggle ----------
-       Pedido explícito: esta pantalla no ofrece claro/oscuro -- se fuerza
-       data-tema-gabinete="oscuro" en el propio html_attrs (sin tocar
-       localStorage, así el resto del sitio conserva la preferencia del
-       usuario) y se oculta el botón flotante de toggle solo acá vía la
-       clase body.dashboard-oscuro (agregada además de "gabinete" en
-       body_class). El listener global del botón en base.html sigue
-       atado igual, pero con el botón oculto/display:none queda inerte
-       para el usuario -- no hace falta tocar el JS compartido. */
-    body.dashboard-oscuro .tema-toggle-btn--gab { display: none; }
-
-    /* Gradiente reemplazando el --bg plano del modo oscuro de Gabinete,
-       pedido explícito del usuario. Selector compuesto (.gabinete +
-       .dashboard-oscuro) a propósito -- más específico que la regla
-       compartida de gabinete.css, así no afecta a otras pantallas en
-       oscuro. background (no --bg): un custom property no puede guardar
-       un gradiente y quedar consumido por background-color. */
-    html[data-tema-gabinete="oscuro"] body.dashboard-oscuro {
-        background: linear-gradient(180deg, #000000 0%, #020d28 100%);
-    }
-
-    /* ---------- Paleta fría propia del panel ----------
-       Pedido explícito: sacar el acento ciruela/rosado viejo de acá y
-       reemplazarlo por algo coherente con el degradé negro/azul marino de
-       fondo. Escopeado a body.gabinete.dashboard-oscuro (dos clases, más
-       específico que el body.gabinete de gabinete.css) -- redefine los
-       MISMOS nombres de token que ya consume todo el markup de esta página
-       (--primary, --slate/--ochre/--green/--brown/--rose de --card-acento,
-       --surface/--line de las cards, --dark-panel/--on-dark de las placas)
-       así ningún otro selector necesita tocarse, y el resto del sitio
-       (Capa 2 de gabinete.css) sigue con la ciruela original intacta. Seis
-       tonos fríos distintos para las 6 tarjetas de "Espacios de trabajo"
-       (mantiene la idea original de "cada una con su propio color"), nunca
-       cálidos -- eso es lo que pidió sacar. */
-    html[data-tema-gabinete="oscuro"] body.gabinete.dashboard-oscuro {
-        --primary: #3b82f6;
-        --primary-dark: #2563eb;
-        --primary-tint: rgba(59, 130, 246, 0.14);
-        --slate: #22d3ee;
-        --ochre: #a78bfa;
-        --green: #2dd4bf;
-        --brown: #38bdf8;
-        --rose: #6366f1;
-        --surface: rgba(15, 23, 55, 0.55);
-        --line: rgba(96, 150, 255, 0.22);
-        --line-soft: rgba(96, 150, 255, 0.12);
-        --line-input: rgba(96, 150, 255, 0.3);
-        --dark-panel: #05081c;
-        --on-dark: #eaf1ff;
-        --on-dark-body: rgba(234, 241, 255, 0.76);
-        --on-dark-soft: rgba(234, 241, 255, 0.6);
-        --shadow-lift: 0 20px 38px -12px rgba(6, 45, 140, 0.6);
-    }
-
-    /* Botones principales del panel: redondeo pedido explícito (25px, "pill"),
-       escopeado acá para no correr esquinas de --radius:3px del resto del
-       sitio, que sigue con el estilo anterior. */
-    body.gabinete.dashboard-oscuro .btn-gab { border-radius: 25px; }
+    /* ---------- Modo oscuro, píldoras, glow, degradé ----------
+       Todo esto vivía acá escopeado a body.dashboard-oscuro/.dashboard-oscuro
+       (paleta azul, gradiente negro/marino, botones píldora, toggle oculto).
+       El usuario pidió extender exactamente este tratamiento a TODO el sitio
+       Gabinete -- ahora vive centralizado en gabinete.css (bloque
+       html[data-tema-gabinete="oscuro"] body.gabinete) y se forzó oscuro en
+       el html_attrs de cada template migrado, no solo acá. Esta página no
+       necesita ninguna copia local: hereda todo igual que antes, solo que
+       ahora el mismo tratamiento también se ve en el resto del sitio. */
 
     /* ---------- Saludo + resumen semanal ---------- */
     .saludo-gab { display: grid; grid-template-columns: 1.4fr 1fr; gap: 2.5rem; padding: 2.75rem 0 2.25rem; align-items: end; }
