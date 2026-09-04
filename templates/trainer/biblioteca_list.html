@@ -57,9 +57,6 @@
     .partitura-gab__compositor { font-size: 0.8125rem; color: var(--ink-soft); margin: 0; }
     .partitura-gab__tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.2rem 0 0.3rem; }
     .partitura-gab__tag { font-size: 0.6875rem; font-weight: 500; padding: 0.2rem 0.5rem; border-radius: var(--radius); background: var(--primary-tint); color: var(--primary); }
-    .partitura-gab__progreso-label { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-soft); margin-bottom: 0.3rem; }
-    .partitura-gab__progreso-pista { height: 5px; background: var(--line-soft); border-radius: 3px; overflow: hidden; }
-    .partitura-gab__progreso-fill { height: 100%; background: var(--green); border-radius: 3px; }
     .partitura-gab__pie { margin-top: 0.5rem; display: flex; justify-content: flex-end; }
 
     .biblio-gab__vacio { grid-column: 1 / -1; text-align: center; padding: 4rem 1rem; color: var(--ink-soft); }
@@ -141,16 +138,6 @@
                     {% for c in score.collections.all %}
                         <span class="partitura-gab__tag">{{ c.display_name }}</span>
                     {% endfor %}
-                </div>
-
-                <div>
-                    <div class="partitura-gab__progreso-label">
-                        <span>{% trans "Progreso de estudio" %}</span>
-                        <span>{% for pid, perc in user_progress.items %}{% if pid == score.id %}{{ perc }}%{% endif %}{% empty %}0%{% endfor %}</span>
-                    </div>
-                    <div class="partitura-gab__progreso-pista">
-                        <div class="partitura-gab__progreso-fill" style="width: {% for pid, perc in user_progress.items %}{% if pid == score.id %}{{ perc }}{% endif %}{% endfor %}%;"></div>
-                    </div>
                 </div>
 
                 <div class="partitura-gab__pie">
