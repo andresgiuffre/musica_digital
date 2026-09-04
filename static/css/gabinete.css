@@ -512,16 +512,6 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
 .navbar-gab__brand-chispas i:nth-child(4) { --angulo: 30deg; }
 .navbar-gab__brand-chispas i:nth-child(5) { --angulo: 52deg; }
 .navbar-gab__brand-chispas i:nth-child(6) { --angulo: 74deg; }
-
-@media (prefers-reduced-motion: reduce) {
-    .navbar-gab__brand:hover .navbar-gab__brand-letra,
-    .navbar-gab__brand:hover .navbar-gab__brand-chispas i {
-        animation: none;
-    }
-    .navbar-gab__brand:hover .navbar-gab__brand-letra {
-        color: var(--primary);
-    }
-}
 /* El logo tiene fondo negro incorporado a la imagen y usa mix-blend-mode:screen
    para que ese negro se funda con un fondo oscuro -- por eso vive en su propio
    chip oscuro fijo, independiente del tema de la navbar (que en Gabinete es

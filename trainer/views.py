@@ -2396,10 +2396,6 @@ def biblioteca_list(request):
 
     collections = Collection.objects.filter(mostrar_en_biblioteca=True)
     user_favorites = Favorite.objects.filter(user=request.user).values_list('sheet_music_id', flat=True)
-    user_progress = {
-        p.sheet_music_id: p.completion_percentage
-        for p in SheetMusicProgress.objects.filter(user=request.user)
-    }
     # "Abiertas hace poco" (sidebar del rediseño "Gabinete de estudio") -- reusa
     # SheetMusicProgress.last_practiced, que ya se actualiza solo (auto_now) cada
     # vez que se guarda progreso, no hace falta trackear nada nuevo.
@@ -2409,7 +2405,6 @@ def biblioteca_list(request):
         'scores': scores,
         'collections': collections,
         'user_favorites': user_favorites,
-        'user_progress': user_progress,
         'current_collection': col_slug,
         'favorites_only': favorites_only,
         'query': query,

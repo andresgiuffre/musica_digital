@@ -518,8 +518,6 @@
                         <span class="navbar-gab__avatar">{{ user|initials }}</span>
                     </button>
                     <div class="navbar-gab__menu-list" id="user-menu-list" role="menu" aria-labelledby="user-menu-trigger">
-                        <a href="{% url 'proyectos_list' %}" class="navbar-gab__menu-item" role="menuitem">{% trans "Proyectos" %}</a>
-                        <a href="{% url 'midi_trainer_hub' %}" class="navbar-gab__menu-item" role="menuitem">{% trans "Estudio MIDI" %}</a>
                         <a href="{% url 'perfil' %}" class="navbar-gab__menu-item" role="menuitem">{% trans "Mi perfil" %}</a>
                         <form method="post" action="{% url 'logout' %}" style="margin: 0;">
                             {% csrf_token %}
