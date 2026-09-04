@@ -170,6 +170,11 @@ class Piece(models.Model):
 
 class Collection(models.Model):
     name = models.CharField(max_length=100)
+    # name_en, no una fila de Collection separada por idioma (a diferencia de Curso):
+    # SheetMusic.collections es una FK/M2M directa a esta fila, así que la colección
+    # a la que pertenece una partitura tiene que seguir siendo LA MISMA sin importar
+    # qué idioma tenga activo el usuario -- mismo criterio que Game.name_en.
+    name_en = models.CharField(max_length=100, blank=True, help_text="Nombre en inglés. Si queda vacío, se muestra el español (name) también con idioma inglés activo.")
     slug = models.SlugField(unique=True)
     mostrar_en_biblioteca = models.BooleanField(
         default=True,
@@ -190,6 +195,13 @@ class Collection(models.Model):
         ordering = ['orden', 'name']
 
     def __str__(self):
+        return self.name
+
+    @property
+    def display_name(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.name_en:
+            return self.name_en
         return self.name
 
 class SheetMusic(models.Model):
