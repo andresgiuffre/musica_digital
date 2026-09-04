@@ -465,10 +465,35 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
     animation: navbar-gab-letra-brillo 0.55s ease-out forwards;
     animation-delay: calc(var(--i) * 0.15s);
 }
+/* Contorno de neón, no relleno sólido -- el mismo lenguaje que el glow azul
+   de .espacio-gab:hover (--shadow-hover/--shadow-lift en la variante oscura
+   de body.gabinete), pero acá como texto: -webkit-text-stroke dibuja el
+   borde de la letra (Firefox también lo soporta desde hace años pese al
+   prefijo), text-shadow en capas apila el resplandor. El relleno (color) se
+   queda en --ink todo el recorrido a propósito -- pedido explícito de que
+   brille el contorno, no toda la letra. */
 @keyframes navbar-gab-letra-brillo {
-    0% { color: var(--ink); text-shadow: none; }
-    45% { color: var(--primary); text-shadow: 0 0 10px color-mix(in srgb, var(--primary) 65%, transparent); }
-    100% { color: var(--primary); text-shadow: 0 0 5px color-mix(in srgb, var(--primary) 35%, transparent); }
+    0% {
+        color: var(--ink);
+        -webkit-text-stroke: 0 transparent;
+        text-shadow: none;
+    }
+    45% {
+        color: var(--ink);
+        -webkit-text-stroke: 1px var(--primary);
+        text-shadow:
+            0 0 4px var(--primary),
+            0 0 11px var(--primary),
+            0 0 22px var(--primary-dark),
+            0 0 38px color-mix(in srgb, var(--primary) 55%, transparent);
+    }
+    100% {
+        color: var(--ink);
+        -webkit-text-stroke: 0.6px var(--primary);
+        text-shadow:
+            0 0 3px var(--primary),
+            0 0 9px color-mix(in srgb, var(--primary-dark) 70%, transparent);
+    }
 }
 
 /* Chispas al llegar la iluminación a la "L" final de "Digital" (índice 12) --
