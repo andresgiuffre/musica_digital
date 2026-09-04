@@ -171,6 +171,13 @@ class Piece(models.Model):
 class Collection(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True)
+    mostrar_en_biblioteca = models.BooleanField(
+        default=True,
+        help_text="Si está destildado, esta colección no aparece como filtro en la Biblioteca "
+                   "de Partituras (ej. colecciones usadas solo para armar Ejemplos de partitura "
+                   "dentro de un Curso) -- las partituras que contiene siguen funcionando "
+                   "normalmente donde ya estén referenciadas."
+    )
 
     class Meta:
         verbose_name = "Colección de Partituras"

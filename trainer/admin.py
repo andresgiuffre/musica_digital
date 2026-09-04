@@ -160,10 +160,16 @@ class SheetMusicAdmin(admin.ModelAdmin):
     list_filter = ('oculto_en_biblioteca',)
     search_fields = ('title', 'composer')
 
+@admin.register(Collection)
+class CollectionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'mostrar_en_biblioteca')
+    list_editable = ('mostrar_en_biblioteca',)
+    list_filter = ('mostrar_en_biblioteca',)
+    search_fields = ('name', 'slug')
+
 admin.site.register(Game)
 admin.site.register(Score)
 admin.site.register(Attempt)
-admin.site.register(Collection)
 admin.site.register(Favorite)
 admin.site.register(StudySession)
 admin.site.register(SheetMusicProgress)

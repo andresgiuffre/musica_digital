@@ -229,8 +229,6 @@
         <div class="lector-gab__acciones">
             {% if active_project %}
             <a href="{% url 'proyecto_detail' active_project.id %}" class="btn-gab btn-gab--secondary">{% trans "Ver proyecto" %}</a>
-            {% else %}
-            <button onclick="convertToProject()" class="btn-gab btn-gab--primary">{% trans "Convertir a proyecto" %}</button>
             {% endif %}
             <a href="{% url 'biblioteca_list' %}" class="btn-gab btn-gab--secondary">{% trans "Volver a biblioteca" %}</a>
         </div>
@@ -517,20 +515,6 @@
         navigator.sendBeacon('/api/update_project_state/{{ active_project.id }}/', JSON.stringify(statePayload));
         {% endif %}
     });
-
-    function convertToProject() {
-        fetch('/api/create_project/{{ sheet.id }}/', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}',
-                'Content-Type': 'application/json'
-            }
-        }).then(r => r.json()).then(data => {
-            if(data.status === 'success') {
-                window.location.href = `/proyectos/${data.project_id}/`;
-            }
-        });
-    }
 
     function initSynth() {
         if (!clickSynth) {

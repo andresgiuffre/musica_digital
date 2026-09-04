@@ -2394,7 +2394,7 @@ def biblioteca_list(request):
     if query:
         scores = scores.filter(Q(title__icontains=query) | Q(composer__icontains=query))
 
-    collections = Collection.objects.all()
+    collections = Collection.objects.filter(mostrar_en_biblioteca=True)
     user_favorites = Favorite.objects.filter(user=request.user).values_list('sheet_music_id', flat=True)
     user_progress = {
         p.sheet_music_id: p.completion_percentage
