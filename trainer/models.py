@@ -178,10 +178,16 @@ class Collection(models.Model):
                    "dentro de un Curso) -- las partituras que contiene siguen funcionando "
                    "normalmente donde ya estén referenciadas."
     )
+    orden = models.IntegerField(
+        default=0,
+        help_text="Orden de aparición en la Biblioteca -- el número más bajo se muestra primero. "
+                   "Colecciones con el mismo número se ordenan entre sí por nombre."
+    )
 
     class Meta:
         verbose_name = "Colección de Partituras"
         verbose_name_plural = "Colecciones de Partituras"
+        ordering = ['orden', 'name']
 
     def __str__(self):
         return self.name
