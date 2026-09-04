@@ -2969,6 +2969,21 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
     # de la repetición en vez de sonar de nuevo al tempo normal.
     saltos_repeticion = []
 
+    # Buffer de graces pendientes de flushear -- vive AFUERA del loop de compases a
+    # proposito (bug real reportado: el cierre de un trino escrito como 2 grace notes al
+    # final de un compas, sin ninguna nota real despues DENTRO de ese mismo compas, no
+    # sonaba). Antes se reiniciaba en cada iteracion de compas, asi que graces colgando
+    # al final de un compas se descartaban en silencio apenas el loop pasaba al compas
+    # siguiente -- un cierre de trino/mordente/grupeto que resuelve justo en la barra,
+    # contra la primera nota del compas siguiente, es un caso comun, no un borde raro (a
+    # diferencia de _notas_piano_para_ejercicio(), donde ese mismo descarte SI es una
+    # simplificacion aceptada a proposito -- ver su docstring, esa funcion no necesita
+    # que el adorno realmente suene). Cada entrada guarda tambien su propio
+    # paso_ejecucion/compas_num/paso_en_compas/offset_global_evento (ademas de
+    # pitch/ps) para el flush final de mas abajo, por si las graces son literalmente las
+    # ultimas notas de la pieza y no hay ninguna nota real despues en ningun compas.
+    graces_pendientes = []
+
     for indice_compas, compas_num in enumerate(secuencia_canonica):
         # + retraso_extra: si un calderón en un compás ANTERIOR ya corrió el timeline, una
         # marca de tempo que arranca acá tiene que anclarse a la posición YA corrida, no a
@@ -3028,7 +3043,6 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
 
         paso_en_compas = -1
         offset_actual = None
-        graces_pendientes = []
         # Atraso acumulado por calderón(es) del paso rítmico que se está por dejar atrás --
         # se aplica UNA vez a retraso_extra recién al cambiar de paso (no elemento por
         # elemento): si varias notas simultáneas comparten el mismo calderón (ej. el acorde
@@ -3052,7 +3066,16 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
 
             if es_grace:
                 for p in pitches:
-                    graces_pendientes.append({'pitch': p.nameWithOctave, 'ps': p.ps})
+                    graces_pendientes.append({
+                        'pitch': p.nameWithOctave, 'ps': p.ps,
+                        # Solo se usan si esta grace nunca encuentra una nota real después
+                        # (ver el flush final, más abajo) -- el flush normal (unas líneas
+                        # más abajo, cuando SÍ aparece una nota real) sigue usando el
+                        # paso_ejecucion/compas_num/paso_en_compas/offset_global_evento
+                        # vigentes en ESE momento, no estos.
+                        'paso_ejecucion': paso_ejecucion, 'compas_num': compas_num,
+                        'paso_en_compas': paso_en_compas, 'offset_global_evento': offset_global_evento,
+                    })
                 continue
 
             # Contexto expresivo de ESTE elemento (chord/note completo -- articulaciones y
@@ -3165,6 +3188,20 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
 
         if duracion_compas is not None:
             offset_global += duracion_compas
+
+    # Flush final de graces que nunca encontraron una nota real después (ver el
+    # comentario de graces_pendientes más arriba) -- son literalmente las últimas notas
+    # de la pieza (ej. un trino cuyo cierre es el último gesto antes del silencio final).
+    # Usan su propio paso_ejecucion/compas_num/paso_en_compas/offset_global_evento
+    # guardado al momento de encontrarlas, porque acá no hay ninguna nota real de la cual
+    # tomarlos prestados.
+    for g in graces_pendientes:
+        eventos.append({
+            'paso_ejecucion': g['paso_ejecucion'], 'compas_impreso': g['compas_num'], 'paso_en_compas': g['paso_en_compas'],
+            'offset_global': g['offset_global_evento'],
+            'pitch': g['pitch'], 'ps': g['ps'], 'duracion_ql': 0.25, 'es_grace': True,
+            'es_ligadura_continuacion': False,
+        })
 
     # Ancla cada cambio de tempo a un offset_global real (ver offset_global_por_compas más
     # arriba) -- si el compás donde vive la marca no llegó a sonar (raro: pasaría solo si
