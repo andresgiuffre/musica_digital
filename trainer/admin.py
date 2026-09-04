@@ -30,15 +30,15 @@ class GradoInline(admin.TabularInline):
 
 @admin.register(Curso)
 class CursoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'idioma', 'codigo', 'activo')
-    list_editable = ('activo',)
+    list_display = ('nombre', 'idioma', 'codigo', 'es_gratuito', 'precio_ars', 'precio_usd', 'activo')
+    list_editable = ('es_gratuito', 'activo')
     inlines = [GradoInline]
 
 
 class TemaInline(admin.TabularInline):
     model = Tema
     extra = 1
-    fields = ('orden', 'titulo', 'titulo_en', 'slug', 'activo')
+    fields = ('orden', 'titulo', 'titulo_en', 'slug', 'es_muestra_gratuita', 'activo')
 
 
 @admin.register(Grado)
@@ -85,8 +85,8 @@ class BloqueContenidoInline(admin.StackedInline):
 
 @admin.register(Tema)
 class TemaAdmin(admin.ModelAdmin):
-    list_display = ('titulo', 'grado', 'orden', 'activo', 'ver_renderizado')
-    list_editable = ('orden', 'activo')
+    list_display = ('titulo', 'grado', 'orden', 'es_muestra_gratuita', 'activo', 'ver_renderizado')
+    list_editable = ('orden', 'es_muestra_gratuita', 'activo')
     inlines = [BloqueContenidoInline]
 
     def ver_renderizado(self, obj):

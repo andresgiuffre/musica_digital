@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans "Pagos no disponibles" %}{% endblock %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+
+{% block content %}
+<div class="card-gab" style="max-width: 560px; margin: 4rem auto; padding: 2rem; text-align: center;">
+    <h1>{% trans "Pagos no disponibles en este momento" %}</h1>
+    <p>{% trans "No pudimos iniciar el proceso de pago. Por favor, intentá de nuevo más tarde." %}</p>
+    <a class="btn-gab btn-gab--primary" href="{% url 'dashboard' %}">{% trans "Volver al panel" %}</a>
+</div>
+{% endblock %}

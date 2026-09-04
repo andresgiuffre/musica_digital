@@ -79,6 +79,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'trainer',
+    # Excepción puntual y documentada a la convención de "un solo app" de este proyecto
+    # -- ver la sección "Excepción a la convención de un solo app: pagos/" en CLAUDE.md
+    # para la justificación completa (credenciales de proveedores externos, webhooks sin
+    # sesión de Django, bugs que cuestan plata real). trainer/ sigue siendo el único app
+    # para todo lo demás.
+    'pagos',
 ]
 
 MIDDLEWARE = [
@@ -233,3 +239,33 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+
+# ==============================================================================
+# ADMINS / EMAIL -- alertas de pagos/webhooks.py (ver "Visibilidad sobre webhooks
+# fallidos" en el plan que introdujo pagos/) y, como efecto colateral positivo, el email
+# automático que Django ya sabe mandar ante cualquier error 500 con DEBUG=False (algo
+# que este proyecto no tenía para NADA del sitio hasta ahora, no solo pagos).
+#
+# Todo opcional, con degradación sin crash -- mismo patrón que ANTHROPIC_TEST_API_KEY:
+# sin DJANGO_ADMIN_EMAILS configurada, ADMINS queda vacío y mail_admins()/el email de
+# error 500 simplemente no hacen nada (no hay excepción, no hay 500 en la carga del
+# sitio). Nadie debería necesitar SMTP configurado para correr runserver/test.
+# ==============================================================================
+_admin_emails = os.environ.get('DJANGO_ADMIN_EMAILS', '')
+ADMINS = [(f"Admin {i+1}", email.strip()) for i, email in enumerate(_admin_emails.split(',')) if email.strip()]
+MANAGERS = ADMINS
+
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@musica-digital.local')
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# Sin EMAIL_HOST configurado, Django intentaría conectar a localhost:25 y fallar --
+# se degrada a la consola en vez de eso (mail_admins() sigue "funcionando", solo
+# imprime a stdout en vez de mandar de verdad; el try/except alrededor de mail_admins()
+# en pagos/webhooks.py cubre igual el caso de que EMAIL_HOST SÍ esté configurado pero el
+# envío falle en runtime por cualquier otro motivo).
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST else 'django.core.mail.backends.console.EmailBackend'

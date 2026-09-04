@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans "Confirmando tu pago" %}{% endblock %}
+{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+
+{% block content %}
+{# El acceso real lo otorga el webhook (server-to-server), no esta página -- puede que
+   todavía no haya llegado cuando el usuario vuelve del checkout del proveedor (es
+   asíncrono). Por eso el mensaje es deliberadamente genérico ("estamos confirmando"),
+   nunca "listo, ya tenés acceso" -- ver pagos/views.py:checkout_retorno(). #}
+<div class="card-gab" style="max-width: 560px; margin: 4rem auto; padding: 2rem; text-align: center;">
+    <h1>{% trans "Estamos confirmando tu pago" %}</h1>
+    <p>{% trans "Puede tardar unos segundos en reflejarse. Si no ves el acceso habilitado en breve, contactanos." %}</p>
+    <a class="btn-gab btn-gab--primary" href="{% url 'dashboard' %}">{% trans "Volver al panel" %}</a>
+</div>
+{% endblock %}
