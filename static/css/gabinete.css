@@ -77,12 +77,22 @@
 html[data-tema-gabinete="oscuro"] .navbar-gab,
 html[data-tema-gabinete="oscuro"] .footer-gab,
 html[data-tema-gabinete="oscuro"] .tema-toggle-btn.tema-toggle-btn--gab {
-    --bg: #1c1815;
-    --surface: #241f1b;
-    --ink: #eef0ea;
-    --ink-soft: rgba(238, 240, 234, 0.66);
-    --line: rgba(238, 240, 234, 0.16);
-    --line-input: rgba(238, 240, 234, 0.28);
+    /* Pedido explícito: el --bg/--surface anterior (#1c1815/#241f1b) era un
+       negro CÁLIDO (tostado/marrón), sobrado de la época ciruela -- desde que
+       el sitio entero quedó forzado a oscuro con el degradé FRÍO negro/azul
+       marino (#000000 -> #020d28, ver html[data-tema-gabinete="oscuro"]
+       body.gabinete más abajo), el navbar/footer quedaban de un negro
+       visiblemente distinto al fondo real de la página. Valores nuevos
+       calcados de --dark-panel (el mismo tono ya usado en las placas
+       "Director de Estudio"/"Cursos") y de --line/--ink de body.gabinete en
+       oscuro -- no un color inventado aparte, el mismo azul-negro que ya usa
+       el resto del sitio. */
+    --bg: #05081c;
+    --surface: #0e1433;
+    --ink: #eaf1ff;
+    --ink-soft: rgba(234, 241, 255, 0.66);
+    --line: rgba(96, 150, 255, 0.22);
+    --line-input: rgba(96, 150, 255, 0.3);
     --primary: #3b82f6;
     --primary-dark: #60a5fa;
     --primary-tint: rgba(59, 130, 246, 0.16);
