@@ -160,104 +160,59 @@
        (su boton "Analizar" ya es ciruela via .btn-gab--on-dark), Cursos con
        --rose (su propia pildora "PREMIUM" ya es rose) -- no se inventa un
        acento nuevo para ninguno de los dos. */
-    .placas-gab__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+    /* align-items: stretch (default de grid) hace que las dos columnas
+       tomen la altura de la más alta de la fila -- pero eso solo estira el
+       CONTENEDOR del item, no garantiza que .placa-gab (adentro) lo llene.
+       height:100% en .placa-gab de más abajo es lo que efectivamente iguala
+       el alto visual de las dos tarjetas -- confirmado que sin eso Director
+       de Estudio (texto más largo) quedaba más alta que Cursos, aunque el
+       grid ya las estirara por debajo. */
+    .placas-gab__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; align-items: stretch; }
     /* Revelado al hacer scroll (pedido explícito), no animación fija al cargar
        como .espacio-gab: acá no hay keyframe con delay, el estado de reposo
        ES el "todavía no llegó" (opacity:0 + corrido hacia su costado) y un
        IntersectionObserver (ver extra_js) agrega .placa-gab--visible cuando
-       cada ENVOLTORIO entra en viewport, lo que dispara la transition hacia
+       cada placa entra en viewport, lo que dispara la transition hacia
        transform:translateX(0). Director de Estudio entra desde la izquierda,
        Cursos desde la derecha -- "se acercan hacia el centro" tal cual se
        pidió, no un fade genérico.
 
-       .placa-gab-envoltorio (3ra ronda de ajustes): la clase .placa-gab--visible
-       ahora se agrega ACÁ, no en .placa-gab directamente -- necesario porque la
-       estela de camino (más abajo) tiene que vivir AFUERA de .placa-gab -- si
-       fuera hija de .placa-gab, se movería rígida junto con la tarjeta al
-       aplicarle su propio transform, en vez de quedarse marcando el camino ya
-       recorrido. Con el envoltorio de por medio, tanto la tarjeta como la
-       estela son hijas independientes del mismo padre, cada una arma su propia
-       animación en base al MISMO disparador (.placa-gab-envoltorio.placa-gab--visible),
-       sin que el transform de una le pise el posicionamiento a la otra. */
-    .placa-gab-envoltorio { position: relative; }
+       Sin estela de camino (se probó y se sacó -- no funcionaba como se
+       pedía, ver historial). Solo movimiento + choque con temblor y chispas
+       reales al llegar, más abajo. */
 
-    /* Duración/curva del viaje -- pedido explícito (3ra ronda): tiene que
-       arrancar lento y llegar RÁPIDO ("que choquen rápido para sacar
-       chispas"), no lo contrario. cubic-bezier(0.7, 0, 0.84, 0) es una curva
-       ease-in marcada (tipo "easeInExpo") -- se queda casi sin moverse
-       durante gran parte del recorrido y recién acelera fuerte sobre el
-       final, al revés de la curva ease-out (0.16,1,0.3,1) que tenía antes
-       esta misma transition (esa frenaba HACIA el final, por eso el choque
-       se sentía lento/amortiguado -- el motivo de este cambio).
-       3s es el número ancla de esta sección entera -- la duración de la
-       estela y el delay del impacto (más abajo) se calculan a partir de ESTE
-       mismo valor, cambiar uno sin los otros dos los desincroniza.
+    /* Duración/curva del viaje -- pedido explícito: tiene que arrancar lento
+       y llegar RÁPIDO ("que choquen rápido para sacar chispas"), no lo
+       contrario. cubic-bezier(0.7, 0, 0.84, 0) es una curva ease-in marcada
+       (tipo "easeInExpo") -- se queda casi sin moverse durante gran parte
+       del recorrido y recién acelera fuerte sobre el final, al revés de una
+       curva ease-out (que frena HACIA el final, por eso el choque se sentía
+       lento/amortiguado en una versión anterior).
+       3s es el número ancla de esta sección entera -- el delay del impacto
+       (más abajo) se calcula a partir de ESTE mismo valor, cambiar uno sin
+       el otro los desincroniza.
        280px (antes 70px): con la curva ease-in, un recorrido corto casi no
        se nota durante la fase lenta -- hace falta más distancia real para
        que "arranca lento" se perciba antes del golpe final. */
     .placa-gab {
         position: relative;
+        height: 100%;
         background: var(--dark-panel); color: var(--on-dark); border-radius: var(--radius);
         border-top: 3px solid var(--card-acento, var(--rose)); padding: 2.5rem 2.75rem;
         display: flex; flex-direction: column;
         opacity: 0;
         transition: opacity 3s cubic-bezier(0.7, 0, 0.84, 0), transform 3s cubic-bezier(0.7, 0, 0.84, 0), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1) .placa-gab { transform: translateX(-280px); }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2) .placa-gab { transform: translateX(280px); }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1).placa-gab--visible .placa-gab,
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2).placa-gab--visible .placa-gab {
+    .placas-gab__grid .placa-gab:nth-child(1) { transform: translateX(-280px); }
+    .placas-gab__grid .placa-gab:nth-child(2) { transform: translateX(280px); }
+    .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible,
+    .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible {
         opacity: 1;
         transform: translateX(0);
     }
 
-    /* ---------- Estela: una marca de luz en el camino, no un brillo central
-       (pedido explícito, 3ra ronda -- el brillo radial anterior se leía como
-       una luz detrás de la tarjeta, no como un rastro de lo que fue
-       recorriendo). Ahora es una barra angosta, independiente de la tarjeta
-       (vive en .placa-gab-envoltorio, no en .placa-gab -- ver el comentario
-       de arriba), pegada al borde de la tarjeta por el que "viene" y
-       estirada hacia el origen del viaje con transform-origin en el extremo
-       pegado a la tarjeta -- scaleX de 0 a 1 la hace "crecer" hacia atrás,
-       imitando el camino que la tarjeta ya recorrió, no un blob que la sigue.
-       Más clara en el extremo de ORIGEN (el más lejano al punto de choque) y
-       apagándose hacia la tarjeta -- "iluminada por los extremos opuestos a
-       donde impactan", tal cual se pidió. Se desvanece entera (opacity a 0)
-       recién en la cola final, después de haber llegado a su largo completo
-       -- "una marca que se vaya desvaneciendo de a poco". No necesita
-       z-index: geométricamente no se superpone con .placa-gab (vive en el
-       margen AL LADO de la tarjeta, right:100%/left:100%, nunca encima). */
-    .estela-camino-gab {
-        position: absolute;
-        top: 22%; bottom: 22%;
-        width: 280px;
-        opacity: 0;
-        pointer-events: none;
-        border-radius: var(--radius);
-        transform: scaleX(0);
-    }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1) .estela-camino-gab {
-        right: 100%;
-        transform-origin: right center;
-        background: linear-gradient(to right, rgba(147, 197, 253, 0.85), rgba(96, 165, 250, 0.45) 55%, rgba(96, 165, 250, 0) 100%);
-    }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2) .estela-camino-gab {
-        left: 100%;
-        transform-origin: left center;
-        background: linear-gradient(to left, rgba(147, 197, 253, 0.85), rgba(96, 165, 250, 0.45) 55%, rgba(96, 165, 250, 0) 100%);
-    }
-    @keyframes camino-crece {
-        0%   { opacity: 0.9; transform: scaleX(0); }
-        83%  { opacity: 0.9; transform: scaleX(1); }
-        100% { opacity: 0;   transform: scaleX(1); }
-    }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1).placa-gab--visible .estela-camino-gab,
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2).placa-gab--visible .estela-camino-gab {
-        animation: camino-crece 3.6s cubic-bezier(0.7, 0, 0.84, 0) forwards;
-    }
-
     /* ---------- Impacto al llegar al centro (pedido explícito) ----------
-       animation-delay: 3s en las tres piezas de acá abajo -- EXACTO el mismo
+       animation-delay: 3s en las dos piezas de acá abajo -- EXACTO el mismo
        número que la duración del transition de la tarjeta (arriba), así el
        temblor y las chispas arrancan justo cuando la tarjeta termina su
        viaje, ni antes (temblando/con chispas todavía en movimiento) ni
@@ -269,9 +224,7 @@
           animación toma el control de transform, arrancando y terminando en
           translateX(0) (el mismo valor donde lo dejó el transition), sin
           salto visible en el traspaso.
-       2) Chispas de verdad, no círculos (pedido explícito, 3ra ronda -- el
-          resplandor con radial-gradients anterior se leía como puntitos de
-          luz, no como chispas). Ahora son 6 elementos reales por tarjeta
+       2) Chispas de verdad, no círculos -- 6 elementos reales por tarjeta
           (<i>, ver el markup), cada uno una barrita angosta con un degradé
           tipo cometa (clara en la punta, transparente en la base), ancladas
           en el borde por el que la tarjeta impacta (derecho para Director de
@@ -296,8 +249,8 @@
         90% { transform: translateX(1px); }
         100% { transform: translateX(0); }
     }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1).placa-gab--visible .placa-gab,
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2).placa-gab--visible .placa-gab {
+    .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible,
+    .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible {
         animation: impacto-temblor 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) 3s 1;
     }
     .chispas-gab {
@@ -307,8 +260,8 @@
         pointer-events: none;
         z-index: 2;
     }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1) .chispas-gab { right: 0; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2) .chispas-gab { left: 0; }
+    .placas-gab__grid .placa-gab:nth-child(1) .chispas-gab { right: 0; }
+    .placas-gab__grid .placa-gab:nth-child(2) .chispas-gab { left: 0; }
     .chispas-gab i {
         position: absolute;
         top: 0; left: 0;
@@ -325,8 +278,8 @@
         14%  { opacity: 1; transform: rotate(var(--angulo)) translateY(-6px) scaleY(1.2); }
         100% { opacity: 0; transform: rotate(var(--angulo)) translateY(-56px) scaleY(0.5); }
     }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1).placa-gab--visible .chispas-gab i,
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2).placa-gab--visible .chispas-gab i {
+    .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible .chispas-gab i,
+    .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible .chispas-gab i {
         animation: chispa-vuelo 0.65s ease-out 3s 1;
     }
     /* Abanico de ángulos por chispa -- 6 por tarjeta, repartidas en un arco
@@ -334,18 +287,18 @@
        Director de Estudio, izquierdo para Cursos, ver .chispas-gab arriba).
        Los ángulos de Cursos son el espejo (negados) de los de Director de
        Estudio -- mismo abanico, apuntando para el otro lado. */
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1) .chispas-gab i:nth-child(1) { --angulo: -20deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1) .chispas-gab i:nth-child(2) { --angulo: 18deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1) .chispas-gab i:nth-child(3) { --angulo: 56deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1) .chispas-gab i:nth-child(4) { --angulo: 94deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1) .chispas-gab i:nth-child(5) { --angulo: 132deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1) .chispas-gab i:nth-child(6) { --angulo: 170deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2) .chispas-gab i:nth-child(1) { --angulo: 20deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2) .chispas-gab i:nth-child(2) { --angulo: -18deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2) .chispas-gab i:nth-child(3) { --angulo: -56deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2) .chispas-gab i:nth-child(4) { --angulo: -94deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2) .chispas-gab i:nth-child(5) { --angulo: -132deg; }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2) .chispas-gab i:nth-child(6) { --angulo: -170deg; }
+    .placas-gab__grid .placa-gab:nth-child(1) .chispas-gab i:nth-child(1) { --angulo: -20deg; }
+    .placas-gab__grid .placa-gab:nth-child(1) .chispas-gab i:nth-child(2) { --angulo: 18deg; }
+    .placas-gab__grid .placa-gab:nth-child(1) .chispas-gab i:nth-child(3) { --angulo: 56deg; }
+    .placas-gab__grid .placa-gab:nth-child(1) .chispas-gab i:nth-child(4) { --angulo: 94deg; }
+    .placas-gab__grid .placa-gab:nth-child(1) .chispas-gab i:nth-child(5) { --angulo: 132deg; }
+    .placas-gab__grid .placa-gab:nth-child(1) .chispas-gab i:nth-child(6) { --angulo: 170deg; }
+    .placas-gab__grid .placa-gab:nth-child(2) .chispas-gab i:nth-child(1) { --angulo: 20deg; }
+    .placas-gab__grid .placa-gab:nth-child(2) .chispas-gab i:nth-child(2) { --angulo: -18deg; }
+    .placas-gab__grid .placa-gab:nth-child(2) .chispas-gab i:nth-child(3) { --angulo: -56deg; }
+    .placas-gab__grid .placa-gab:nth-child(2) .chispas-gab i:nth-child(4) { --angulo: -94deg; }
+    .placas-gab__grid .placa-gab:nth-child(2) .chispas-gab i:nth-child(5) { --angulo: -132deg; }
+    .placas-gab__grid .placa-gab:nth-child(2) .chispas-gab i:nth-child(6) { --angulo: -170deg; }
 
     /* Luz neón detrás de la placa al hover -- mismo tratamiento que
        .espacio-gab (mismo color de marca #062d8c), sumada a la elevación
@@ -353,8 +306,8 @@
     .placa-gab:hover {
         box-shadow: var(--shadow-lift), 0 0 20px 2px #062d8c, 0 0 46px 12px rgba(6, 45, 140, 0.55), 0 0 90px 26px rgba(6, 45, 140, 0.28);
     }
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(1).placa-gab--visible .placa-gab:hover,
-    .placas-gab__grid .placa-gab-envoltorio:nth-child(2).placa-gab--visible .placa-gab:hover {
+    .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible:hover,
+    .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible:hover {
         transform: translateY(-6px);
     }
     .placa-gab__eyebrow { font-size: 0.9375rem; color: var(--card-acento, var(--rose)); }
@@ -408,19 +361,18 @@
         .espacio-gab, .placa-gab {
             animation: none; opacity: 1; transform: none;
         }
-        .estela-camino-gab, .chispas-gab i {
+        .chispas-gab i {
             animation: none; opacity: 0;
         }
         /* .placa-gab ya no usa "animation" (ver el revelado por scroll más
            arriba) sino opacity/transform de reposo con especificidad propia
-           (nth-child, ahora sobre .placa-gab-envoltorio) -- hace falta
-           repetir el reset acá con la misma especificidad para que gane bajo
-           reduced-motion. El JS del IntersectionObserver también sale
-           temprano en este caso (ver extra_js) y agrega .placa-gab--visible
-           al toque, así que esto es una red de seguridad por si ese JS no
-           llegó a correr todavía. */
-        .placas-gab__grid .placa-gab-envoltorio:nth-child(1) .placa-gab,
-        .placas-gab__grid .placa-gab-envoltorio:nth-child(2) .placa-gab {
+           (nth-child) -- hace falta repetir el reset acá con la misma
+           especificidad para que gane bajo reduced-motion. El JS del
+           IntersectionObserver también sale temprano en este caso (ver
+           extra_js) y agrega .placa-gab--visible al toque, así que esto es
+           una red de seguridad por si ese JS no llegó a correr todavía. */
+        .placas-gab__grid .placa-gab:nth-child(1),
+        .placas-gab__grid .placa-gab:nth-child(2) {
             transform: none;
         }
         /* El temblor de impacto (impacto-temblor) se declara con la misma
@@ -429,15 +381,15 @@
            este mismo bloque pierde contra eso (menos clases), así que hace
            falta repetir el selector completo acá también, mismo motivo ya
            documentado para el transform de reposo. */
-        .placas-gab__grid .placa-gab-envoltorio:nth-child(1).placa-gab--visible .placa-gab,
-        .placas-gab__grid .placa-gab-envoltorio:nth-child(2).placa-gab--visible .placa-gab {
+        .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible,
+        .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible {
             animation: none;
         }
         .espacio-gab:hover, .placa-gab:hover {
             transform: translateY(-1px);
         }
-        .placas-gab__grid .placa-gab-envoltorio:nth-child(1).placa-gab--visible .placa-gab:hover,
-        .placas-gab__grid .placa-gab-envoltorio:nth-child(2).placa-gab--visible .placa-gab:hover {
+        .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible:hover,
+        .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible:hover {
             transform: translateY(-1px);
         }
         .saludo-gab__acciones .btn-gab:active,
@@ -590,33 +542,27 @@
 
     <section style="padding-bottom: 3rem;">
         <div class="placas-gab__grid">
-            <div class="placa-gab-envoltorio">
-                <span class="estela-camino-gab" aria-hidden="true"></span>
-                <div class="placa-gab" style="--card-acento: var(--primary);">
-                    <div class="placa-gab__eyebrow">{% trans "Análisis con IA" %}<span class="placa-gab__premium">{% trans "Premium" %}</span></div>
-                    <h2 class="placa-gab__titulo">{% trans "Director de Estudio" %}</h2>
-                    <p class="placa-gab__texto">{% trans "Subí tu orquestación y recibí una crítica estructurada — dobles verificados, densidad por compás y sugerencias de registro — antes de mostrarla a tu profesor." %}</p>
-                    <div class="placa-gab__acciones">
-                        <a href="{% url 'orquestador_analizar' %}" class="btn-gab btn-gab--on-dark">{% trans "Analizar una partitura" %}</a>
-                        <span class="placa-gab__creditos">{% blocktrans count counter=profile.creditos_analisis|add:profile.creditos_bonus %}{{ counter }} análisis disponible{% plural %}{{ counter }} análisis disponibles{% endblocktrans %}</span>
-                    </div>
-                    <span class="chispas-gab" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            <div class="placa-gab" style="--card-acento: var(--primary);">
+                <div class="placa-gab__eyebrow">{% trans "Análisis con IA" %}<span class="placa-gab__premium">{% trans "Premium" %}</span></div>
+                <h2 class="placa-gab__titulo">{% trans "Director de Estudio" %}</h2>
+                <p class="placa-gab__texto">{% trans "Subí tu orquestación y recibí una crítica estructurada — dobles verificados, densidad por compás y sugerencias de registro — antes de mostrarla a tu profesor." %}</p>
+                <div class="placa-gab__acciones">
+                    <a href="{% url 'orquestador_analizar' %}" class="btn-gab btn-gab--on-dark">{% trans "Analizar una partitura" %}</a>
+                    <span class="placa-gab__creditos">{% blocktrans count counter=profile.creditos_analisis|add:profile.creditos_bonus %}{{ counter }} análisis disponible{% plural %}{{ counter }} análisis disponibles{% endblocktrans %}</span>
                 </div>
+                <span class="chispas-gab" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
             </div>
-            <div class="placa-gab-envoltorio">
-                <span class="estela-camino-gab" aria-hidden="true"></span>
-                <div class="placa-gab" style="--card-acento: var(--rose);">
-                    <div class="placa-gab__eyebrow">{% trans "Contenido educativo" %}<span class="placa-gab__premium">{% trans "Premium" %}</span></div>
-                    <h2 class="placa-gab__titulo">{% trans "Cursos" %}</h2>
-                    <p class="placa-gab__texto">{% trans "Teoría musical organizada en grados, con ejemplos de partitura interactivos y práctica guiada en cada tema." %}</p>
-                    <div class="placa-gab__acciones">
-                        <a href="{% url 'cursos_list' %}" class="btn-gab btn-gab--on-dark">{% trans "Ver cursos" %}</a>
-                        {% if cursos_disponibles_count %}
-                        <span class="placa-gab__creditos">{% blocktrans count counter=cursos_disponibles_count %}{{ counter }} curso disponible{% plural %}{{ counter }} cursos disponibles{% endblocktrans %}</span>
-                        {% endif %}
-                    </div>
-                    <span class="chispas-gab" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            <div class="placa-gab" style="--card-acento: var(--rose);">
+                <div class="placa-gab__eyebrow">{% trans "Contenido educativo" %}<span class="placa-gab__premium">{% trans "Premium" %}</span></div>
+                <h2 class="placa-gab__titulo">{% trans "Cursos" %}</h2>
+                <p class="placa-gab__texto">{% trans "Teoría musical organizada en grados, con ejemplos de partitura interactivos y práctica guiada en cada tema." %}</p>
+                <div class="placa-gab__acciones">
+                    <a href="{% url 'cursos_list' %}" class="btn-gab btn-gab--on-dark">{% trans "Ver cursos" %}</a>
+                    {% if cursos_disponibles_count %}
+                    <span class="placa-gab__creditos">{% blocktrans count counter=cursos_disponibles_count %}{{ counter }} curso disponible{% plural %}{{ counter }} cursos disponibles{% endblocktrans %}</span>
+                    {% endif %}
                 </div>
+                <span class="chispas-gab" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
             </div>
         </div>
     </section>
@@ -633,15 +579,8 @@
     // dispara la transition ya declarada en CSS hacia su posición final.
     // unobserve apenas se revela: es de una sola vez, no hace falta seguir
     // escuchando scroll el resto de la sesión en esta página.
-    //
-    // Observa .placa-gab-envoltorio, NO .placa-gab directamente (cambio de
-    // la 3ra ronda de ajustes): la clase --visible ahora dispara tanto el
-    // movimiento de la tarjeta COMO la estela de camino, que vive afuera de
-    // .placa-gab (ver el comentario largo en extra_css) -- con el disparador
-    // en el envoltorio común, las dos animaciones arrancan del mismo punto
-    // sin que una dependa de la otra.
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const placas = document.querySelectorAll('.placa-gab-envoltorio');
+    const placas = document.querySelectorAll('.placa-gab');
     if (!placas.length) return;
     if (!('IntersectionObserver' in window)) {
         placas.forEach(function (p) { p.classList.add('placa-gab--visible'); });
