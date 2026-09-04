@@ -162,8 +162,8 @@ class SheetMusicAdmin(admin.ModelAdmin):
 
 @admin.register(Collection)
 class CollectionAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'mostrar_en_biblioteca')
-    list_editable = ('mostrar_en_biblioteca',)
+    list_display = ('name', 'slug', 'orden', 'mostrar_en_biblioteca')
+    list_editable = ('orden', 'mostrar_en_biblioteca')
     list_filter = ('mostrar_en_biblioteca',)
     search_fields = ('name', 'slug')
 
