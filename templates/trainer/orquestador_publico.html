@@ -15,33 +15,40 @@
            por eso no extiende base.html (sin navbar, sin sesión). Define acá mismo los
            mismos nombres de token que static/css/gabinete.css usa en body.gabinete
            (ver el comentario en orquestador.css) para que las reglas compartidas del
-           informe se vean idénticas sin duplicar CSS. Siempre en claro -- esta página
-           no tiene el botón de tema del sitio. */
+           informe se vean idénticas sin duplicar CSS. Siempre en oscuro -- esta página
+           no tiene el botón de tema del sitio (nunca lo tuvo), y el resto del sitio
+           quedó forzado a oscuro (ver static/css/gabinete.css), así que estos valores
+           se mantienen sincronizados a mano con el bloque
+           html[data-tema-gabinete="oscuro"] body.gabinete de ese archivo -- copiados
+           de ahí, no reinventados acá. */
         :root {
-            --bg: #eef0ea;
-            --surface: #ffffff;
-            --ink: #23282a;
-            --ink-soft: #55605e;
-            --ink-body: #4c5553;
-            --line: #d3d8cf;
-            --line-soft: #e4e8e0;
-            --line-input: #cbd2c8;
-            --primary: #6b3550;
-            --primary-dark: #56283f;
-            --primary-tint: #f6eff2;
-            --slate: #3f5a6b;
-            --ochre: #b5822e;
-            --green: #4b6b52;
-            --brown: #8c5a3f;
-            --danger: #a33a2b;
+            --bg: #05081c;
+            --surface: rgba(15, 23, 55, 0.55);
+            --ink: #eaf1ff;
+            --ink-soft: rgba(234, 241, 255, 0.66);
+            --ink-body: rgba(234, 241, 255, 0.72);
+            --line: rgba(96, 150, 255, 0.22);
+            --line-soft: rgba(96, 150, 255, 0.12);
+            --line-input: rgba(96, 150, 255, 0.3);
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --primary-tint: rgba(59, 130, 246, 0.14);
+            --slate: #22d3ee;
+            --ochre: #a78bfa;
+            --green: #2dd4bf;
+            --brown: #38bdf8;
+            --danger: #e0685a;
             --radius: 3px;
-            --shadow-window: 0 12px 32px rgba(45, 43, 43, 0.20);
+            --shadow-window: 0 12px 32px rgba(0, 0, 0, 0.45);
             --font-display: 'Newsreader', 'Iowan Old Style', Georgia, serif;
             --font-body: 'Archivo', 'Segoe UI', system-ui, sans-serif;
         }
         body {
             font-family: var(--font-body);
-            background-color: var(--bg);
+            /* Degradado en vez de --bg plano -- mismo motivo que gabinete.css: un
+               custom property no puede guardar un gradiente y quedar consumido por
+               background-color. */
+            background: linear-gradient(180deg, #000000 0%, #020d28 100%);
             color: var(--ink);
             line-height: 1.5;
             min-height: 100vh;

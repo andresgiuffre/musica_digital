@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 {% block title %}{{ game.display_name }}{% endblock %}
-{% block html_attrs %}data-gabinete-page{% endblock %}
+{% block html_attrs %}data-gabinete-page data-tema-gabinete="oscuro"{% endblock %}
 {% block body_class %}gabinete{% endblock %}
 {% block nav_active_entrenamiento %}is-active{% endblock %}
 
@@ -51,16 +51,27 @@
         flex-direction: column;
         gap: 1.5rem;
         width: 100%;
-        background: var(--surface);
+        /* --surface/--line-input NO acá a propósito: este panel vive DENTRO de
+           #playback-area, que siempre es papel blanco (var(--score-paper), theme-
+           invariant -- ver el comentario de --score-paper/--score-ink en
+           gabinete.css). Con el sitio forzado a oscuro, --surface pasa a ser un
+           azul oscuro traslúcido que sobre papel blanco se ve como un parche gris
+           discordante, no como una superficie del tema. Se usa --score-ink en vez
+           de --surface/--line-input -- así el panel siempre lee bien sobre el
+           papel en el que realmente vive, sin importar el tema del resto del sitio. */
+        background: color-mix(in srgb, var(--score-ink) 4%, transparent);
         padding: 1.5rem;
         border-radius: 1rem;
-        border: 1px solid var(--line-input);
+        border: 1px solid color-mix(in srgb, var(--score-ink) 15%, transparent);
     }
 
     .button-group-title {
         font-size: 0.9rem;
         font-weight: bold;
-        color: var(--ink-soft);
+        /* --ink-soft NO acá, mismo motivo que .controls-panel más arriba: en
+           oscuro es un tono CLARO pensado para texto sobre fondo oscuro, casi
+           invisible sobre el papel blanco donde este título realmente vive. */
+        color: color-mix(in srgb, var(--score-ink) 55%, transparent);
         text-transform: uppercase;
         margin-bottom: 0.5rem;
         letter-spacing: 1px;

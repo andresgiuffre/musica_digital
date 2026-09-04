@@ -29,16 +29,18 @@
  *     heredaría sus custom properties.
  *
  * Tema claro/oscuro: "Gabinete" es fundamentalmente un diseño CLARO (el
- * README no define una variante oscura), pero el sitio ya tenía toggle de
- * tema y la consigna fue conservarlo. La variante oscura de acá es una
- * extrapolación mía, no algo pedido punto por punto en el README -- para no
- * inventar de la nada, reusa la única pista que el propio README da: el
- * token --rose (#c9a5b6) ya está documentado ahí como "acento sobre fondo
- * oscuro", visible en el panel oscuro del analizador de los mockups. Sigo
- * esa lógica: en oscuro, --primary pasa a ser --rose (la ciruela pura se lee
- * apagada sobre fondo oscuro), y el resto de la paleta se ajusta con el
- * mismo criterio de contraste que ya usa el sistema viejo (tonos más claros
- * sobre fondo oscuro).
+ * README no define una variante oscura). Historia de la variante oscura de
+ * acá, en dos etapas: originalmente (previo a esta nota) era una
+ * extrapolación propia sin pedido punto por punto -- reusaba --rose
+ * (#c9a5b6, "acento sobre fondo oscuro" en el README) como --primary, con el
+ * resto de la paleta ajustada al mismo criterio de contraste del sistema
+ * viejo. Esa paleta murió: dashboard.html recibió después un tratamiento
+ * propio pedido explícitamente (degradé negro/azul marino, acento azul,
+ * botones píldora, glow), y el usuario pidió extenderlo a TODO el sitio
+ * Gabinete en vez de mantener dos paletas oscuras distintas -- así que la
+ * paleta de dashboard (antes escopeada solo ahí) es ahora la única variante
+ * oscura de este archivo, con el toggle claro/oscuro deshabilitado (oscuro
+ * queda forzado en cada template migrado, ver `{% block html_attrs %}`).
  *
  * Independiente del atributo `data-tema` que ya usa el sistema viejo (vive
  * en <html>, significa otra cosa ahí: default=oscuro, "claro"=claro). Acá se
@@ -154,38 +156,90 @@ body.gabinete {
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* Paleta oscura ÚNICA del sitio, azul/fría -- hasta esta pasada era una
+   extrapolación propia sin diseño de referencia (ver el comentario largo del
+   encabezado de este archivo, "el README no define una variante oscura").
+   Dejó de serlo: el usuario pidió explícitamente extender el tratamiento que
+   ya se había construido a medida para dashboard.html (degradé negro/azul
+   marino, acento azul, glow) a TODO el sitio Gabinete -- estos valores son
+   una copia 1:1 de lo que antes vivía escopeado solo a
+   `body.gabinete.dashboard-oscuro` en dashboard.html; ahora es la variante
+   oscura de gabinete.css entera, dashboard incluido (que perdió su copia
+   local redundante). Reemplaza la paleta rosa/cálida que tenía esta capa
+   antes -- esa paleta murió, no queda ningún selector que la use. */
 html[data-tema-gabinete="oscuro"] body.gabinete {
-    --bg: #1c1815;
-    --surface: #241f1b;
+    --bg: #05081c;
+    --surface: rgba(15, 23, 55, 0.55);
 
-    --ink: #eef0ea;
-    --ink-soft: rgba(238, 240, 234, 0.66);
-    --ink-body: rgba(238, 240, 234, 0.72);
-    --ink-dense: rgba(238, 240, 234, 0.82);
+    --ink: #eaf1ff;
+    --ink-soft: rgba(234, 241, 255, 0.66);
+    --ink-body: rgba(234, 241, 255, 0.72);
+    --ink-dense: rgba(234, 241, 255, 0.82);
 
-    --line: rgba(238, 240, 234, 0.16);
-    --line-soft: rgba(238, 240, 234, 0.12);
-    --line-input: rgba(238, 240, 234, 0.28);
+    --line: rgba(96, 150, 255, 0.22);
+    --line-soft: rgba(96, 150, 255, 0.12);
+    --line-input: rgba(96, 150, 255, 0.3);
 
-    --primary: #c9a5b6;
-    --primary-dark: #b98298;
-    --primary-tint: rgba(201, 165, 182, 0.14);
+    --primary: #3b82f6;
+    --primary-dark: #2563eb;
+    --primary-tint: rgba(59, 130, 246, 0.14);
 
-    --slate: #7391a3;
-    --ochre: #d1a353;
-    --green: #7fa287;
-    --brown: #b98564;
-    --rose: #c9a5b6;
+    --slate: #22d3ee;
+    --ochre: #a78bfa;
+    --green: #2dd4bf;
+    --brown: #38bdf8;
+    --rose: #6366f1;
 
-    --unassigned: rgba(238, 240, 234, 0.32);
+    --unassigned: rgba(234, 241, 255, 0.32);
     --danger: #e0685a;
 
-    --dark-panel: #14110e;
+    --dark-panel: #05081c;
+    --on-dark: #eaf1ff;
+    --on-dark-body: rgba(234, 241, 255, 0.76);
+    --on-dark-soft: rgba(234, 241, 255, 0.6);
+    --on-dark-line: rgba(234, 241, 255, 0.16);
 
-    --shadow-hover: 0 3px 10px rgba(0, 0, 0, 0.35);
+    /* Fondo degradado -- pedido explícito del usuario, reemplaza el --bg
+       plano. Declaración aparte (no vía --bg): un custom property no puede
+       guardar un gradiente y quedar consumido por `background-color: var(--bg)`
+       de la regla body.gabinete de más arriba -- background (shorthand,
+       longhand-equivalente y de mayor especificidad acá por el atributo+clase)
+       la pisa entera. */
+    background: linear-gradient(180deg, #000000 0%, #020d28 100%);
+
+    /* Glow azul -- se agrega como capas EXTRA sobre la sombra ya existente
+       (no se reemplaza) en vez de crear una clase/selector nuevo: casi todo
+       :hover del sitio (.btn-gab, .card-gab--hoverable, .btn-submit,
+       .btn-primary, etc. -- ver grep de var(--shadow-hover)/var(--shadow-lift)
+       en este archivo) ya consume estas dos custom properties, así que
+       enriquecerlas acá basta para que el glow aparezca en todos esos
+       elementos sin tocar cada regla :hover una por una. Valores calcados de
+       los que dashboard.html usaba localmente en .espacio-gab:hover.*/
+    --shadow-hover: 0 3px 10px rgba(0, 0, 0, 0.35), 0 0 14px 1px #062d8c, 0 0 28px 6px rgba(6, 45, 140, 0.45);
     --shadow-window: 0 12px 32px rgba(0, 0, 0, 0.45);
-    --shadow-lift: 0 18px 30px -10px rgba(0, 0, 0, 0.55);
+    --shadow-lift: 0 20px 38px -12px rgba(6, 45, 140, 0.6), 0 0 18px 2px #062d8c, 0 0 40px 10px rgba(6, 45, 140, 0.55), 0 0 80px 24px rgba(6, 45, 140, 0.28);
 }
+
+/* Botones tipo píldora -- pedido explícito, aplica a TODO botón del sitio en
+   oscuro, incluidos los controles chicos/densos de las pantallas de juego
+   (.btn/.btn-submit/.btn-input son las clases viejas compartidas que esas
+   ~10 pantallas trainer_*.html reutilizan, ya overrideadas bajo body.gabinete
+   en otras reglas de este archivo -- ver CLAUDE.md). No se toca --radius
+   (eso afectaría también el redondeo de cards/inputs, que no es lo pedido).*/
+html[data-tema-gabinete="oscuro"] body.gabinete .btn-gab,
+html[data-tema-gabinete="oscuro"] body.gabinete .btn,
+html[data-tema-gabinete="oscuro"] body.gabinete .btn-submit,
+html[data-tema-gabinete="oscuro"] body.gabinete .btn-input {
+    border-radius: 25px;
+}
+
+/* El toggle claro/oscuro deja de tener sentido: TODA página body.gabinete
+   fuerza oscuro desde el servidor (ver {% block html_attrs %} de cada
+   template) -- no queda ningún estado "claro" al que el botón pudiera
+   volver. Generalizado desde la regla que antes vivía solo en dashboard.html
+   (body.dashboard-oscuro .tema-toggle-btn--gab) -- ya no hace falta el
+   atributo ni una clase extra en el selector. */
+body.gabinete .tema-toggle-btn--gab { display: none; }
 
 /* ---------- Tipografía de contenido migrado ---------- */
 body.gabinete h1, body.gabinete h2, body.gabinete h3, body.gabinete h4 {
