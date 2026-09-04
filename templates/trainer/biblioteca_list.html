@@ -99,7 +99,7 @@
                 </a>
                 {% for col in collections %}
                 <a href="?collection={{ col.slug }}" class="biblio-gab__item {% if current_collection == col.slug %}is-active{% endif %}">
-                    <span>{{ col.name }}</span>
+                    <span>{{ col.display_name }}</span>
                 </a>
                 {% endfor %}
             </div>
@@ -139,7 +139,7 @@
                 <div class="partitura-gab__tags">
                     <span class="partitura-gab__tag">{% blocktrans with dif=score.difficulty %}Dif. {{ dif }}{% endblocktrans %}</span>
                     {% for c in score.collections.all %}
-                        <span class="partitura-gab__tag">{{ c.name }}</span>
+                        <span class="partitura-gab__tag">{{ c.display_name }}</span>
                     {% endfor %}
                 </div>
 

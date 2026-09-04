@@ -162,10 +162,10 @@ class SheetMusicAdmin(admin.ModelAdmin):
 
 @admin.register(Collection)
 class CollectionAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'orden', 'mostrar_en_biblioteca')
-    list_editable = ('orden', 'mostrar_en_biblioteca')
+    list_display = ('name', 'name_en', 'slug', 'orden', 'mostrar_en_biblioteca')
+    list_editable = ('name_en', 'orden', 'mostrar_en_biblioteca')
     list_filter = ('mostrar_en_biblioteca',)
-    search_fields = ('name', 'slug')
+    search_fields = ('name', 'name_en', 'slug')
 
 admin.site.register(Game)
 admin.site.register(Score)
