@@ -444,7 +444,84 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
     gap: 0.6rem;
 }
 .navbar-gab__brand:hover { text-decoration: none; }
-.navbar-gab__brand em { color: var(--primary); }
+
+/* Iluminación letra por letra de "Música Digital" al hacer hover -- CSS puro,
+   sin JS: la animación está atada a .navbar-gab__brand:hover, así que se
+   cancela sola al sacar el mouse y arranca de cero cada vez que se vuelve a
+   pasar (no hace falta reiniciarla a mano). --i (puesto inline en cada letra
+   en base.html) da el índice 0..12 continuo a través de las dos palabras
+   (M-ú-s-i-c-a = 0..5, D-i-g-i-t-a-l = 6..12) para que "Digital" continúe
+   el recorrido justo donde termina "Música", no que arranque en paralelo.
+   Antes "Digital" vivía en un <em> con color fijo (por eso no se notaba
+   ningún cambio ahí al pasar el mouse, y quedaba en itálica sin pedirlo) --
+   ahora las 13 letras son spans iguales, todas arrancan del mismo --ink. */
+.navbar-gab__brand-texto { font-style: normal; }
+.navbar-gab__brand-letra {
+    display: inline-block;
+    position: relative;
+    color: var(--ink);
+}
+.navbar-gab__brand:hover .navbar-gab__brand-letra {
+    animation: navbar-gab-letra-brillo 0.55s ease-out forwards;
+    animation-delay: calc(var(--i) * 0.15s);
+}
+@keyframes navbar-gab-letra-brillo {
+    0% { color: var(--ink); text-shadow: none; }
+    45% { color: var(--primary); text-shadow: 0 0 10px color-mix(in srgb, var(--primary) 65%, transparent); }
+    100% { color: var(--primary); text-shadow: 0 0 5px color-mix(in srgb, var(--primary) 35%, transparent); }
+}
+
+/* Chispas al llegar la iluminación a la "L" final de "Digital" (índice 12) --
+   mismo truco de rotate(--angulo) + translateY que .chispas-gab en
+   dashboard.html (las placas "Director de Estudio"/"Cursos"), copiado acá en
+   vez de compartido porque esas viven escopeadas a esa plantilla y el navbar
+   es chrome global (todas las páginas, migradas a Gabinete o no). El delay
+   está calculado para disparar justo cuando la L termina de iluminarse:
+   12 letras anteriores * 0.15s de paso + 0.2s (la L ya está casi en su pico
+   de brillo, ver el keyframe de arriba). */
+.navbar-gab__brand-chispas {
+    position: absolute;
+    top: 45%;
+    left: 100%;
+    width: 0; height: 0;
+    pointer-events: none;
+}
+.navbar-gab__brand-chispas i {
+    position: absolute;
+    top: 0; left: 0;
+    width: 2px; height: 14px;
+    margin: -14px 0 0 -1px;
+    background: linear-gradient(to top, color-mix(in srgb, var(--primary) 0%, transparent), var(--primary) 45%, #fff 100%);
+    border-radius: 2px;
+    opacity: 0;
+    transform-origin: center bottom;
+    transform: rotate(var(--angulo, 0deg));
+}
+.navbar-gab__brand:hover .navbar-gab__brand-chispas i {
+    animation: navbar-gab-chispa-vuelo 0.5s ease-out forwards;
+    animation-delay: calc(12 * 0.15s + 0.2s);
+}
+@keyframes navbar-gab-chispa-vuelo {
+    0%   { opacity: 0; transform: rotate(var(--angulo)) translateY(0) scaleY(0.4); }
+    16%  { opacity: 1; transform: rotate(var(--angulo)) translateY(-5px) scaleY(1.15); }
+    100% { opacity: 0; transform: rotate(var(--angulo)) translateY(-32px) scaleY(0.5); }
+}
+.navbar-gab__brand-chispas i:nth-child(1) { --angulo: -35deg; }
+.navbar-gab__brand-chispas i:nth-child(2) { --angulo: -14deg; }
+.navbar-gab__brand-chispas i:nth-child(3) { --angulo: 8deg; }
+.navbar-gab__brand-chispas i:nth-child(4) { --angulo: 30deg; }
+.navbar-gab__brand-chispas i:nth-child(5) { --angulo: 52deg; }
+.navbar-gab__brand-chispas i:nth-child(6) { --angulo: 74deg; }
+
+@media (prefers-reduced-motion: reduce) {
+    .navbar-gab__brand:hover .navbar-gab__brand-letra,
+    .navbar-gab__brand:hover .navbar-gab__brand-chispas i {
+        animation: none;
+    }
+    .navbar-gab__brand:hover .navbar-gab__brand-letra {
+        color: var(--primary);
+    }
+}
 /* El logo tiene fondo negro incorporado a la imagen y usa mix-blend-mode:screen
    para que ese negro se funda con un fondo oscuro -- por eso vive en su propio
    chip oscuro fijo, independiente del tema de la navbar (que en Gabinete es

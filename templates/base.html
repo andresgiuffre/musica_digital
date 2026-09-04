@@ -445,11 +445,11 @@
     <nav class="navbar-gab">
         <div class="navbar-gab__inner">
             <div class="navbar-gab__left">
-                <a href="{% url 'dashboard' %}" class="navbar-gab__brand">
+                <a href="{% url 'dashboard' %}" class="navbar-gab__brand" aria-label="Música Digital">
                     <span class="navbar-gab__logo">
-                        <img src="{% static 'img/logo.png' %}" alt="Logo Música Digital" style="mix-blend-mode: screen;">
+                        <img src="{% static 'img/logo.png' %}" alt="" style="mix-blend-mode: screen;">
                     </span>
-                    Música <em>Digital</em>
+                    <span class="navbar-gab__brand-texto" aria-hidden="true"><span class="navbar-gab__brand-letra" style="--i:0">M</span><span class="navbar-gab__brand-letra" style="--i:1">ú</span><span class="navbar-gab__brand-letra" style="--i:2">s</span><span class="navbar-gab__brand-letra" style="--i:3">i</span><span class="navbar-gab__brand-letra" style="--i:4">c</span><span class="navbar-gab__brand-letra" style="--i:5">a</span> <span class="navbar-gab__brand-letra" style="--i:6">D</span><span class="navbar-gab__brand-letra" style="--i:7">i</span><span class="navbar-gab__brand-letra" style="--i:8">g</span><span class="navbar-gab__brand-letra" style="--i:9">i</span><span class="navbar-gab__brand-letra" style="--i:10">t</span><span class="navbar-gab__brand-letra" style="--i:11">a</span><span class="navbar-gab__brand-letra" style="--i:12">l<span class="navbar-gab__brand-chispas"><i></i><i></i><i></i><i></i><i></i><i></i></span></span></span>
                 </a>
                 {% if user.is_authenticated %}
                 <div class="navbar-gab__links">
