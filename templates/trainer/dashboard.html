@@ -46,14 +46,17 @@
     .semana-gab__pie strong { font-family: var(--font-display); font-size: 1.375rem; font-weight: 400; color: var(--ink); }
 
     /* ---------- Atril (obra en curso, sin pentagrama -- decisión explícita:
-       card de texto, no reusar OSMD acá para no sumar JS nuevo al panel) --- */
+       card de texto, no reusar OSMD acá para no sumar JS nuevo al panel).
+       Pedido explícito: si no hay atril en curso, no se muestra ningún cuadro
+       de reemplazo -- antes había un estado vacío ("Todavía no tenés ninguna
+       obra en estudio" + botón a la biblioteca), se sacó del todo (ver el if
+       de atril más abajo en el markup, ya no tiene rama alternativa). */
     .atril-gab { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.5rem 1.75rem; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 2.5rem; }
     .atril-gab__eyebrow { font-size: 0.8125rem; color: var(--ink-soft); margin-bottom: 0.35rem; }
     .atril-gab__titulo { font-size: 1.5rem; margin: 0 0 0.2rem; }
     .atril-gab__compositor { font-size: 0.875rem; color: var(--ink-soft); }
     .atril-gab__punto { font-size: 0.8125rem; color: var(--ink-soft); }
     .atril-gab__punto b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-    .atril-gab__vacio { color: var(--ink-body); font-size: 0.9375rem; }
 
     /* ---------- Espacios de trabajo ---------- */
     /* Pentagrama decorativo recuperado del diseño anterior ("Explorar" en la
@@ -129,15 +132,14 @@
         transform: translateY(-6px);
         text-decoration: none;
     }
-    /* Stagger de entrada: 6 tarjetas de .espacios-gab__grid + 2 de
-       .placas-gab__grid comparten la misma secuencia (60ms de paso), los
-       paneles oscuros retoman el conteo donde las tarjetas lo dejan. */
+    /* Stagger de entrada (60ms de paso). Pedido explícito: se sacaron las
+       tarjetas de Analizador y Proyectos del grid (Analizador ya está en el
+       panel grande de "Director de Estudio" más abajo; Proyectos no hace
+       falta) -- quedan 4 tarjetas, no 6. */
     .espacios-gab__grid .espacio-gab:nth-child(1) { animation-delay: 0ms; }
     .espacios-gab__grid .espacio-gab:nth-child(2) { animation-delay: 60ms; }
     .espacios-gab__grid .espacio-gab:nth-child(3) { animation-delay: 120ms; }
     .espacios-gab__grid .espacio-gab:nth-child(4) { animation-delay: 180ms; }
-    .espacios-gab__grid .espacio-gab:nth-child(5) { animation-delay: 240ms; }
-    .espacios-gab__grid .espacio-gab:nth-child(6) { animation-delay: 300ms; }
     @keyframes gab-entrada { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
     .espacio-gab__eyebrow {
         display: inline-block; align-self: flex-start;
@@ -168,14 +170,56 @@
        Cursos desde la derecha -- "se acercan hacia el centro" tal cual se
        pidió, no un fade genérico. */
     .placa-gab {
+        position: relative;
         background: var(--dark-panel); color: var(--on-dark); border-radius: var(--radius);
         border-top: 3px solid var(--card-acento, var(--rose)); padding: 2.5rem 2.75rem;
         display: flex; flex-direction: column;
         opacity: 0;
-        transition: opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+        /* Pedido explícito: más lenta que antes (era 0.75s) para que el
+           acercamiento hacia el centro se lea, no que pase de largo. */
+        transition: opacity 1.5s cubic-bezier(0.16, 1, 0.3, 1), transform 1.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .placas-gab__grid .placa-gab:nth-child(1) { transform: translateX(-70px); }
     .placas-gab__grid .placa-gab:nth-child(2) { transform: translateX(70px); }
+    /* ---------- Estela brillante durante el acercamiento (pedido explícito) ----------
+       No es un transition simple (eso no puede "aparecer, viajar y desvanecerse" --
+       solo interpola de un valor a otro) -- es un ::before propio con @keyframes,
+       disparado por la MISMA clase .placa-gab--visible que ya dispara el
+       acercamiento real (ver el IntersectionObserver en extra_js), así que arrancan
+       exactamente juntos. Un blob radial borroso (mismo azul de marca #062d8c que ya
+       usa el glow de :hover, no un color nuevo) que nace corrido hacia el costado de
+       origen de la placa (izquierda para Director de Estudio, derecha para Cursos),
+       se intensifica apenas empieza el viaje, y se apaga solo -- 2.2s en total, un
+       poco más que el 1.5s del viaje real, para que la estela "llegue" después que la
+       placa y recién ahí se desvanezca del todo. position:relative en .placa-gab de
+       arriba + z-index:-1 acá para que quede DETRÁS del contenido, nunca tapándolo. */
+    .placa-gab::before {
+        content: '';
+        position: absolute;
+        inset: -14px;
+        border-radius: inherit;
+        background: radial-gradient(ellipse at center, rgba(6, 45, 140, 0.7), rgba(6, 45, 140, 0.3) 45%, rgba(6, 45, 140, 0) 75%);
+        filter: blur(20px);
+        z-index: -1;
+        opacity: 0;
+        pointer-events: none;
+    }
+    @keyframes estela-gab-izq {
+        0% { opacity: 0; transform: translateX(-55px) scale(0.85); }
+        35% { opacity: 0.9; transform: translateX(-20px) scale(1.05); }
+        100% { opacity: 0; transform: translateX(0) scale(1.2); }
+    }
+    @keyframes estela-gab-der {
+        0% { opacity: 0; transform: translateX(55px) scale(0.85); }
+        35% { opacity: 0.9; transform: translateX(20px) scale(1.05); }
+        100% { opacity: 0; transform: translateX(0) scale(1.2); }
+    }
+    .placas-gab__grid .placa-gab:nth-child(1).placa-gab--visible::before {
+        animation: estela-gab-izq 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .placas-gab__grid .placa-gab:nth-child(2).placa-gab--visible::before {
+        animation: estela-gab-der 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
     /* Repite el selector completo (con :nth-child incluido) a propósito: sin
        eso esta regla queda con menos especificidad que las dos de arriba
        (3 clases vs. .placas-gab__grid+.placa-gab+:nth-child = también 3, pero
@@ -254,6 +298,9 @@
         .espacio-gab, .placa-gab {
             animation: none; opacity: 1; transform: none;
         }
+        .placa-gab::before {
+            animation: none; opacity: 0;
+        }
         /* .placa-gab ya no usa "animation" (ver el revelado por scroll más
            arriba) sino opacity/transform de reposo con especificidad propia
            (nth-child) -- hace falta repetir el reset acá con la misma
@@ -326,8 +373,8 @@
         </div>
     </header>
 
+    {% if atril %}
     <div class="atril-gab">
-        {% if atril %}
         <div>
             <div class="atril-gab__eyebrow">{% trans "En el atril" %}</div>
             <h3 class="atril-gab__titulo">{{ atril.sheet_music.title|default:atril.sheet_music.xml_file.name }}</h3>
@@ -337,11 +384,8 @@
             <p class="atril-gab__punto">{% blocktrans with compas=atril.last_measure bpm=atril.last_tempo %}Compás <b>{{ compas }}</b> · <b>{{ bpm }}</b> BPM{% endblocktrans %}</p>
             <a href="{% url 'biblioteca_play' atril.sheet_music.id %}?project_id={{ atril.id }}" class="btn-gab btn-gab--primary" style="margin-top: 0.6rem;">{% trans "Continuar donde lo dejé" %}</a>
         </div>
-        {% else %}
-        <p class="atril-gab__vacio">{% trans "Todavía no tenés ninguna obra en estudio — convertí una partitura de la biblioteca en un proyecto para verla acá." %}</p>
-        <a href="{% url 'biblioteca_list' %}" class="btn-gab btn-gab--secondary">{% trans "Ir a la biblioteca" %}</a>
-        {% endif %}
     </div>
+    {% endif %}
 
     <section class="espacios-gab">
         <div class="espacios-gab__pauta-fondo" aria-hidden="true">
@@ -407,23 +451,11 @@
                 <p class="espacio-gab__texto">{% trans "Oído, solfeo y lectura para afilar reflejos." %}</p>
                 <div class="espacio-gab__pie"><span>{% trans "Practicar" %}</span><span>{% trans "Entrar →" %}</span></div>
             </a>
-            <a href="{% url 'orquestador_analizar' %}" class="espacio-gab" style="--card-acento: var(--ochre);">
-                <div class="espacio-gab__eyebrow">{% trans "Escritura" %}</div>
-                <h3 class="espacio-gab__titulo">{% trans "Analizador" %}</h3>
-                <p class="espacio-gab__texto">{% trans "Feedback de orquestación con IA, citado al compás." %}</p>
-                <div class="espacio-gab__pie"><span>{% trans "Analizar" %}</span><span>{% trans "Entrar →" %}</span></div>
-            </a>
             <a href="{% url 'orquestacion_ejercicio_lista' %}" class="espacio-gab" style="--card-acento: var(--green);">
                 <div class="espacio-gab__eyebrow">{% trans "Taller" %}</div>
                 <h3 class="espacio-gab__titulo">{% trans "Orquestar" %}</h3>
                 <p class="espacio-gab__texto">{% trans "Asigná instrumentos por color sobre una reducción de piano." %}</p>
                 <div class="espacio-gab__pie"><span>{% trans "Practicar" %}</span><span>{% trans "Entrar →" %}</span></div>
-            </a>
-            <a href="{% url 'proyectos_list' %}" class="espacio-gab" style="--card-acento: var(--brown);">
-                <div class="espacio-gab__eyebrow">{% trans "Largo plazo" %}</div>
-                <h3 class="espacio-gab__titulo">{% trans "Proyectos" %}</h3>
-                <p class="espacio-gab__texto">{% trans "Tus obras en estudio, con metas y avance propio." %}</p>
-                <div class="espacio-gab__pie"><span>{% trans "Mis obras" %}</span><span>{% trans "Entrar →" %}</span></div>
             </a>
             <a href="{% url 'midi_trainer_hub' %}" class="espacio-gab" style="--card-acento: var(--rose);">
                 <div class="espacio-gab__eyebrow">{% trans "En vivo" %}</div>
@@ -438,7 +470,7 @@
     <section style="padding-bottom: 3rem;">
         <div class="placas-gab__grid">
             <div class="placa-gab" style="--card-acento: var(--primary);">
-                <div class="placa-gab__eyebrow">{% trans "Análisis con IA" %}</div>
+                <div class="placa-gab__eyebrow">{% trans "Análisis con IA" %}<span class="placa-gab__premium">{% trans "Premium" %}</span></div>
                 <h2 class="placa-gab__titulo">{% trans "Director de Estudio" %}</h2>
                 <p class="placa-gab__texto">{% trans "Subí tu orquestación y recibí una crítica estructurada — dobles verificados, densidad por compás y sugerencias de registro — antes de mostrarla a tu profesor." %}</p>
                 <div class="placa-gab__acciones">
