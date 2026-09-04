@@ -19,13 +19,20 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.conf.urls.i18n import i18n_patterns
+from pagos.urls import webhook_urlpatterns
 
-# Solo /admin/ queda AFUERA de i18n_patterns() -- tiene su propio manejo de
-# idioma interno (via Accept-Language/USE_I18N); meterlo bajo /es//en/ es la
-# fuente clásica de bugs de doble-idioma en el admin de Django.
+# Solo /admin/ y los webhooks de pagos quedan AFUERA de i18n_patterns() -- /admin/
+# tiene su propio manejo de idioma interno (via Accept-Language/USE_I18N), meterlo
+# bajo /es//en/ es la fuente clásica de bugs de doble-idioma en el admin de Django.
+# Los webhooks de pagos.urls (MercadoPago/PayPal) son llamados servidor-a-servidor,
+# no por un navegador -- no tienen "idioma" que negociar, y si LocaleMiddleware
+# alguna vez los redirigiera (el mismo riesgo que ya motiva sacar /admin/ de acá),
+# el proveedor vería eso como una entrega fallida silenciosa, no un bug cosmético
+# que alguien note mirando la pantalla.
 urlpatterns = [
     path('admin/', admin.site.urls),
 ]
+urlpatterns += webhook_urlpatterns
 
 # prefix_default_language=False: español (LANGUAGE_CODE, el default) sirve
 # SIN prefijo en la raíz (/biblioteca/) -- cero links/bookmarks rotos sobre
@@ -56,6 +63,7 @@ urlpatterns = [
 urlpatterns += i18n_patterns(
     path('i18n/', include('django.conf.urls.i18n')),
     path('', include('trainer.urls')),
+    path('', include('pagos.urls')),
     path('', include('django.contrib.auth.urls')),
     prefix_default_language=False,
 )

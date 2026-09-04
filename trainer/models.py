@@ -539,6 +539,16 @@ class Curso(models.Model):
         "(ej. 'teoria-musical'). NO se traduce -- solo agrupa variantes de idioma "
         "del mismo curso entre sí."
     ))
+    # Monetización (pagos/). es_gratuito y los dos precios quedan acá, en Curso, no en el
+    # app pagos -- son parte del modelo de contenido (mismo criterio que `activo`), no de
+    # facturación en sí. El acceso real se resuelve SIEMPRE vía pagos.access.tiene_acceso(),
+    # nunca leyendo estos campos directo -- ver ese módulo. La compra (pagos.CompraIndividual)
+    # se ancla a `codigo`, no al id de esta fila puntual, así que un mismo precio aplica a
+    # las dos variantes de idioma de un mismo curso -- si algún día hace falta un precio
+    # distinto por idioma, este campo tendría que dejar de vivir acá.
+    es_gratuito = models.BooleanField(default=False, help_text="Si está activo, el curso es accesible para cualquier usuario logueado sin compra ni suscripción -- ver pagos/access.py:tiene_acceso().")
+    precio_ars = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Precio en pesos argentinos (checkout vía MercadoPago). Ignorado si es_gratuito está activo.")
+    precio_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Precio en dólares (checkout vía PayPal). Ignorado si es_gratuito está activo.")
 
     class Meta:
         unique_together = ('codigo', 'idioma')
@@ -596,6 +606,7 @@ class Tema(models.Model):
     orden = models.PositiveIntegerField(default=0, help_text="Orden dentro del grado.")
     slug = models.SlugField(help_text="Se escribe a mano, no se autogenera (misma convención que Game.slug/Achievement.slug/Collection.slug). Único dentro del grado -- se usa en la URL del tema.")
     activo = models.BooleanField(default=True, help_text="Solo los temas activos son accesibles para los usuarios.")
+    es_muestra_gratuita = models.BooleanField(default=False, help_text="Si está activo, este Tema puntual es visible aunque el Curso que lo contiene no esté comprado/incluido en el plan del usuario -- ver pagos/access.py:tema_es_accesible(). Útil para dar una probada de un curso pago (ej. 2 o 3 ejercicios de muestra).")
 
     class Meta:
         unique_together = ('grado', 'slug')
