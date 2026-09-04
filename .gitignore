@@ -24,3 +24,7 @@ media/
 .claude/skills/
 .claude/settings.local.json
 skills-lock.json
+
+# Manuales/notas internas de uso -- documentación operativa para el admin del
+# sitio, no código ni contenido del producto, no va a producción.
+MANUAL_PAGOS.md
