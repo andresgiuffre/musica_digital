@@ -2857,6 +2857,55 @@ def _compases_con_fermata_de_barra(xml_file_field):
     return compases
 
 
+# Ornamentos que music21 sabe "realizar" (convertir el símbolo en la secuencia real de
+# notas que hay que sonar): Trill (el símbolo "tr", incluye las subclases
+# HalfStepTrill/WholeStepTrill), Turn/InvertedTurn (el grupeto), GeneralMordent (incluye
+# Mordent/InvertedMordent). isinstance contra la clase base alcanza para las subclases.
+_TIPOS_ORNAMENTO_REALIZABLES = (
+    music21.expressions.Trill,
+    music21.expressions.Turn,
+    music21.expressions.InvertedTurn,
+    music21.expressions.GeneralMordent,
+)
+
+
+def _realizar_ornamento_si_corresponde(el):
+    """
+    Si `el` (una Note -- nunca Chord, Ornament.realize() no acepta acordes) tiene
+    encima un símbolo de ornamento realizable (ver _TIPOS_ORNAMENTO_REALIZABLES), lo
+    convierte en la secuencia real de notas cortas que hay que sonar en lugar de (o
+    además de) la nota escrita. Bug real reportado: un trino/grupeto/mordente escrito
+    SOLO como símbolo (sin grace notes a mano, solo el "tr" o el grupeto arriba de la
+    nota) nunca sonaba -- se veía el símbolo en la partitura pero la nota principal
+    sonaba sola y sostenida, sin ningún adorno real.
+
+    Devuelve una lista de {'pitch', 'ps', 'offset_ql', 'duracion_ql'} que en conjunto
+    cubren exactamente la duración de `el` (offset_ql relativo al offset de `el`), o
+    [] si no hay ningún ornamento realizable encima, o si music21 no pudo realizarlo
+    (ExpressionException -- típicamente la nota es demasiado corta para el ornamento).
+    Ese [] hace que el caller trate la nota como si no tuviera ornamento -- sigue
+    sonando simple y sostenida, exactamente como antes de este fix; nunca se rompe la
+    reproducción de la pieza entera por un adorno puntual que no se pudo realizar.
+    """
+    ornamento = next((e for e in el.expressions if isinstance(e, _TIPOS_ORNAMENTO_REALIZABLES)), None)
+    if ornamento is None:
+        return []
+    try:
+        pre, principal, post = ornamento.realize(el)
+        piezas = list(pre) + ([principal] if principal is not None else []) + list(post)
+        resultado = []
+        acumulado = 0.0
+        for pieza in piezas:
+            resultado.append({
+                'pitch': pieza.pitch.nameWithOctave, 'ps': pieza.pitch.ps,
+                'offset_ql': round(float(acumulado), 6), 'duracion_ql': round(float(pieza.duration.quarterLength), 6),
+            })
+            acumulado += pieza.duration.quarterLength
+        return resultado
+    except Exception:
+        return []
+
+
 def _eventos_ejecucion(score, sheet_xml_file=None):
     """
     Arma la secuencia de EJECUCIÓN (orden real en que suena la pieza, con
@@ -3028,7 +3077,15 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
                     continue
                 offset_en_compas = el.getOffsetInHierarchy(m)
                 tie_tipo = el.tie.type if el.tie is not None else None
-                entradas.append((offset_en_compas, el.duration.isGrace, pitches, el.duration.quarterLength, idx_parte, tie_tipo, el))
+                # Solo Note (nunca Chord, ver _realizar_ornamento_si_corresponde) y solo si
+                # no es ya una grace note (una grace con un símbolo de ornamento encima es
+                # un caso raro sin resolver -- se deja sonar como grace simple, sin adorno).
+                ornamento_info = (
+                    _realizar_ornamento_si_corresponde(el)
+                    if isinstance(el, music21.note.Note) and not el.duration.isGrace
+                    else []
+                )
+                entradas.append((offset_en_compas, el.duration.isGrace, pitches, el.duration.quarterLength, idx_parte, tie_tipo, el, ornamento_info))
 
         # Ordenado por offset -- se combinan elementos de partes DISTINTAS (measure
         # objects distintos), así que no hay garantía de orden entre ellas sin ordenar a mano.
@@ -3050,7 +3107,7 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
         # respecto de la otra, rompiendo la simultaneidad entre ellas. Se toma el máximo de
         # las duraciones involucradas, no la suma.
         retraso_pendiente_paso = 0.0
-        for offset_en_compas, es_grace, pitches, duracion, idx_parte, tie_tipo, el in entradas:
+        for offset_en_compas, es_grace, pitches, duracion, idx_parte, tie_tipo, el, ornamento_info in entradas:
             if not es_grace and offset_en_compas != offset_actual:
                 retraso_extra = round(retraso_extra + retraso_pendiente_paso, 6)
                 retraso_pendiente_paso = 0.0
@@ -3158,6 +3215,7 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
                         'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion_json, 'es_grace': False,
                         'es_ligadura_continuacion': True,
                         'velocity': round(velocity_nota, 3), 'staccato': es_staccato, 'accent': es_accent, 'fermata': es_fermata,
+                        'ornamento': ornamento_info,
                     })
                     if tie_tipo == 'stop':
                         del ligadura_abierta[clave]
@@ -3168,6 +3226,14 @@ def _eventos_ejecucion(score, sheet_xml_file=None):
                         'pitch': p.nameWithOctave, 'ps': p.ps, 'duracion_ql': duracion_json, 'es_grace': False,
                         'es_ligadura_continuacion': False,
                         'velocity': round(velocity_nota, 3), 'staccato': es_staccato, 'accent': es_accent, 'fermata': es_fermata,
+                        # Notas reales que hay que sonar en lugar de esta -- solo no-vacío
+                        # si `el` tenía un símbolo de ornamento realizable (ver
+                        # _realizar_ornamento_si_corresponde). El pitch/ps de arriba se
+                        # deja intacto (la nota ORIGINAL, tal como está impresa) para que
+                        # el resaltado visual del cursor siga encontrando la cabeza de nota
+                        # correcta -- el frontend decide con esto si suena la nota simple o
+                        # la secuencia realizada (ver construirEventosDesdeEjecucion()).
+                        'ornamento': ornamento_info,
                     }
                     eventos.append(nuevo_evento)
                     if tie_tipo == 'start':

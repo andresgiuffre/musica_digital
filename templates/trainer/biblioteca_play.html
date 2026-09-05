@@ -980,9 +980,19 @@
                     // evento crudo de _eventos_ejecucion(), ver views.py) -- nada que resolver
                     // acá, a diferencia de buildSequence() (camino impreso) que no tiene este
                     // dato de por sí y necesita mapaExpresivoImpreso() para conseguirlo.
+                    // ornamento: secuencia real (trino/grupeto/mordente REALIZADO por music21
+                    // a partir del símbolo -- ver _realizar_ornamento_si_corresponde() en
+                    // views.py) que hay que sonar EN VEZ de esta nota sostenida simple. Vacío
+                    // para el 99% de las notas (sin ningún símbolo de ornamento encima).
+                    // offsetBeats/duracionBeats de cada pieza son relativos al offset de esta
+                    // nota, en beats (RealValue×4 ya no aplica acá -- offset_ql/duracion_ql
+                    // del backend ya vienen en quarterLength = beats).
                     return {
                         pitch: OsmdUtils.pitchANombre(n.ps), duracionBeats: n.duracion_ql, logicalNote: impresa ? impresa.logicalNote : null,
                         velocity: n.velocity, staccato: !!n.staccato, accent: !!n.accent, fermata: !!n.fermata,
+                        ornamento: (n.ornamento || []).map(o => ({
+                            pitch: OsmdUtils.pitchANombre(o.ps), offsetBeats: o.offset_ql, duracionBeats: o.duracion_ql,
+                        })),
                     };
                 }),
                 notesGrace: notasGrace.map(n => ({ pitch: OsmdUtils.pitchANombre(n.ps) }))
@@ -1892,7 +1902,49 @@
                             // lo que efectivamente suena. 50% fijo, no calculado -- staccato es
                             // una indicación interpretativa, no una fracción exacta.
                             if (note.staccato) durationTicks = Math.max(1, Math.round(durationTicks * 0.5));
-                            if(pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded && !alturasDisparadas.has(note.pitch)) {
+
+                            if (note.ornamento && note.ornamento.length > 0) {
+                                // Trino/grupeto/mordente REALIZADO a partir del símbolo (sin
+                                // grace notes escritas a mano -- ver
+                                // _realizar_ornamento_si_corresponde() en views.py): en vez
+                                // de sonar esta nota sostenida simple, suena la secuencia
+                                // real completa, cada pieza en su propio instante dentro de
+                                // la duración de la nota. Un Tone.Transport.schedule propio
+                                // por pieza -- mismo mecanismo que evt.notesGrace más abajo,
+                                // pero con offset/duración individuales por pieza en vez de
+                                // un adelanto fijo compartido por todo el grupo (un trino
+                                // necesita varias notas repartidas a lo largo de todo el
+                                // pulso, no todas apretadas en el mismo instante).
+                                note.ornamento.forEach(pieza => {
+                                    const offsetTicksPieza = Math.round(pieza.offsetBeats * Tone.Transport.PPQ);
+                                    const durationTicksPieza = Math.max(1, Math.round(pieza.duracionBeats * Tone.Transport.PPQ));
+                                    const dispararPieza = (piezaTime) => {
+                                        if (pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded) {
+                                            try {
+                                                AudioEngine.sampler.triggerAttackRelease(pieza.pitch, durationTicksPieza + "i", piezaTime, note.velocity);
+                                            } catch (err) {
+                                                console.warn(`[reproduccion] Fallo al disparar ornamento ${pieza.pitch} en t=${piezaTime.toFixed(3)} (measureIndex=${evt.measureIndex}):`, err.message || err);
+                                            }
+                                        }
+                                    };
+                                    if (offsetTicksPieza <= 0) {
+                                        // La primera pieza (offset 0, el caso normal) arranca en el
+                                        // MISMO instante que este paso -- se dispara inline con el
+                                        // `time` que este callback ya tiene, sin volver a agendar con
+                                        // Tone.Transport.schedule al mismo tick del que se está
+                                        // ejecutando ahora mismo. Bug real confirmado interceptando
+                                        // Transport.schedule: agendar "ahora mismo" desde DENTRO del
+                                        // callback que ya está corriendo justo en ese tick no dispara
+                                        // ya -- Tone.js lo empuja al próximo hueco libre, así que la
+                                        // primera pieza terminaba sonando fuera de orden, mucho más
+                                        // tarde que las demás (después de la última, no antes).
+                                        dispararPieza(time);
+                                    } else {
+                                        const piezaId = Tone.Transport.schedule((piezaTime) => dispararPieza(piezaTime), (ticks + offsetTicksPieza) + "i");
+                                        transportEvents.push(piezaId);
+                                    }
+                                });
+                            } else if (pianoToggle.checked && AudioEngine && AudioEngine.sampler && AudioEngine.sampler.loaded && !alturasDisparadas.has(note.pitch)) {
                                 alturasDisparadas.add(note.pitch);
                                 try {
                                     // velocity puede venir undefined (sin dato expresivo para
