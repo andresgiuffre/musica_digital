@@ -260,6 +260,7 @@
                 <h3 class="panel-box__titulo">🔊 {% trans "Reproducción" %}</h3>
                 <div style="display: flex; flex-direction: column; gap: 0.6rem;">
                     <button id="btn-play" class="btn-control" disabled>▶ {% trans "Reproducir" %}</button>
+                    <p id="cargando-secuencia-gab" class="hint-gab oculto-gab" style="text-align: center; margin: -0.3rem 0 0;">{% trans "Cargando repeticiones y ornamentos…" %}</p>
                     <button id="btn-pause" class="btn-control btn-control--ochre" disabled>⏸ {% trans "Pausar" %}</button>
                     <button id="btn-stop" class="btn-control btn-control--danger" disabled>⏹ {% trans "Detener" %}</button>
                     <p class="hint-gab" style="text-align: center; margin-top: -0.3rem;">{% trans "Presioná ESC para detener." %}</p>
@@ -364,6 +365,7 @@
 
     const osmdCanvas = document.getElementById('osmdCanvas');
     const btnPlay = document.getElementById('btn-play');
+    const cargandoSecuenciaGab = document.getElementById('cargando-secuencia-gab');
     const btnPause = document.getElementById('btn-pause');
     const btnStop = document.getElementById('btn-stop');
     const pianoToggle = document.getElementById('piano-toggle');
@@ -630,7 +632,6 @@
             if (osmd.cursor.cursorElement) {
                 osmd.cursor.cursorElement.style.zIndex = '5';
             }
-            btnPlay.disabled = false;
 
             // Tempo real de la partitura -- osmd.sheet.getExpressionsStartTempoInBPM() lee
             // la marca de tempo del MusicXML (<sound tempo="...">/<metronome>) si existe, y
@@ -645,10 +646,17 @@
             }
             reproduccionBpm.value = baseBpm;
 
-            // En segundo plano -- no bloquea que el usuario ya pueda tocar Play. Si todavía
-            // no llegó cuando se aprieta Play, esa pasada usa el orden impreso; queda
-            // disponible para la siguiente.
-            cargarSecuenciaEjecucion();
+            // Play queda deshabilitado (con aviso de "cargando") hasta que esta consulta
+            // de fondo resuelva -- antes se habilitaba ya mismo y la consulta seguía atrás
+            // sin bloquear nada, pero eso significaba que el PRIMER Play de una partitura
+            // grande (bug real reportado: 6.6s en una pieza de 73 compases con
+            // repeticiones) sonaba sin repeticiones ni ornamentos, en silencio, sin avisar
+            // nada más que un console.warn -- confuso para cualquiera que no tenga la
+            // consola abierta. Ahora se espera acá, una sola vez por carga de página.
+            cargandoSecuenciaGab.classList.remove('oculto-gab');
+            await cargarSecuenciaEjecucion();
+            cargandoSecuenciaGab.classList.add('oculto-gab');
+            btnPlay.disabled = false;
 
             {% if active_project %}
             // Restore last measure and tempo -- pisa el tempo detectado del archivo arriba:
