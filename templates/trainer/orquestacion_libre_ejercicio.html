@@ -289,6 +289,14 @@
     const ES_MXL = NOMBRE_ARCHIVO.toLowerCase().endsWith('.mxl');
     const URL_GENERAR = '{% url "orquestacion_libre_ejercicio_generar" fragmento.id %}';
     const ANCHO_PX_POR_COMPAS = 210; // punto de partida, calibrar visualmente contra fragmentos reales
+    // Ancho estimado (no medido) del prefijo de clave+compás+armadura que OSMD dibuja
+    // antes de la primera nota del primer compás -- ese prefijo le come espacio real
+    // al compás 1 dentro de su columna, y como el resto de la grilla se reparte en
+    // partes IGUALES (ver etiquetarCeldasCompas), sin este descuento la columna del
+    // compás 1 terminaba angosta de más y no coincidía con dónde realmente arranca su
+    // contenido -- bug real reportado: soltar una sola nota en el compás 1 siempre
+    // fallaba, aunque el resto de los compases (sin ese prefijo) andaban bien.
+    const RESERVA_PREFIJO_CLAVE_PX = 70;
 
     if (!INSTRUMENTOS.length) {
         document.getElementById('ej-orql-ejercicio').style.display = 'none';
@@ -382,7 +390,7 @@
     }
 
     function anchoPentagrama(compases) {
-        return Math.max(compases * ANCHO_PX_POR_COMPAS, 300);
+        return Math.max(compases * ANCHO_PX_POR_COMPAS + RESERVA_PREFIJO_CLAVE_PX, 300);
     }
 
     function mostrarError(msg) {
@@ -945,10 +953,15 @@
         // consistente. El reparto uniforme es 100% determinístico porque el ancho total
         // del contenedor ya lo fija este mismo código (ver anchoPentagrama) usando un
         // ancho fijo por compás -- no depende de ninguna API interna de OSMD.
-        const anchoPorCompas = (rectSvg.right - rectSvg.left) / numerosCompas.length;
+        // RESERVA_PREFIJO_CLAVE_PX se descuenta ANTES de repartir -- el prefijo de
+        // clave/compás/armadura solo existe una vez, al principio del pentagrama, no
+        // por cada compás -- así el compás 1 arranca corrido ese margen y termina con
+        // el mismo ancho de contenido que el resto, en vez de quedar más angosto.
+        const inicioContenido = rectSvg.left + RESERVA_PREFIJO_CLAVE_PX;
+        const anchoPorCompas = (rectSvg.right - inicioContenido) / numerosCompas.length;
         const columnas = numerosCompas.map((numero, i) => ({
             compas: numero,
-            left: rectSvg.left + i * anchoPorCompas,
+            left: inicioContenido + i * anchoPorCompas,
         }));
 
         columnas.forEach((col, i) => {
