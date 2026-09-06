@@ -1143,21 +1143,3 @@ class InstrumentoHabilitadoOrquestacion(models.Model):
 
     def __str__(self):
         return self.nombre
-
-
-class PresetInstrumentacion(models.Model):
-    """Agrupación con nombre de InstrumentoHabilitadoOrquestacion (ej. "Orquesta
-    de cuerdas", "Quinteto de viento") para filtrar qué atriles se muestran en
-    el ejercicio libre sin tener que activar/desactivar instrumentos a mano
-    cada vez."""
-    nombre = models.CharField(max_length=100, help_text="Ej. 'Orquesta de cuerdas', 'Quinteto de viento'.")
-    instrumentos = models.ManyToManyField(InstrumentoHabilitadoOrquestacion, related_name='presets', blank=True)
-    activo = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ['nombre']
-        verbose_name = "Preset de Instrumentación"
-        verbose_name_plural = "Presets de Instrumentación"
-
-    def __str__(self):
-        return self.nombre
