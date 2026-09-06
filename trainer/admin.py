@@ -11,7 +11,7 @@ from .models import (
     MusicalProject, ProjectGoal, ProjectSection,
     MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis,
     Curso, Grado, Tema, BloqueContenido, PracticaDirigidaProgreso,
-    InstrumentoHabilitadoOrquestacion, PresetInstrumentacion,
+    InstrumentoHabilitadoOrquestacion,
 )
 
 class PlaylistSheetInline(admin.TabularInline):
@@ -193,13 +193,5 @@ class InstrumentoHabilitadoOrquestacionAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'clave_rango', 'orden', 'activo')
     list_editable = ('clave_rango', 'orden', 'activo')
     list_filter = ('activo', 'clave_rango')
-    search_fields = ('nombre',)
-
-
-@admin.register(PresetInstrumentacion)
-class PresetInstrumentacionAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'activo')
-    list_editable = ('activo',)
-    filter_horizontal = ('instrumentos',)
     search_fields = ('nombre',)
 
