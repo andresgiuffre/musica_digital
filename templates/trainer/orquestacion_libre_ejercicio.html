@@ -598,22 +598,31 @@
     //    el resto, y la vuelve el ancla para un próximo Shift+click.
     //  - 'rango' (Shift+click): selecciona TODAS las notas entre el ancla y esta nota,
     //    inclusive, en el mismo orden cronológico (offset, luego altura descendente)
-    //    en que ya vienen `notasBackend` -- reemplaza la selección anterior, no la
-    //    extiende nota por nota. Sin ancla todavía (primer click de la sesión), se
-    //    comporta como 'simple'.
+    //    en que ya vienen `notasBackend`, pero SOLO dentro del mismo pentagrama que el
+    //    ancla (nb.parte -- 0=mano derecha/superior, 1=mano izquierda/inferior en un
+    //    piano a dos manos, ver _notas_piano_para_ejercicio) -- si no se filtrara por
+    //    parte, un rango cronológico "de punta a punta" cruza inevitablemente ambas
+    //    manos, arrastrando notas del otro pentagrama que nunca se quisieron
+    //    seleccionar (bug real reportado). Reemplaza la selección anterior, no la
+    //    extiende nota por nota. Sin ancla todavía, o si el ancla está en OTRO
+    //    pentagrama que el click actual, cae al comportamiento 'simple' de abajo.
     //  - 'simple' (click/tap sin modificador): colapsa a esta única nota, o la
     //    deselecciona si ya era la única seleccionada (mismo toggle de siempre), y la
     //    vuelve el nuevo ancla.
     function alternarSeleccion(entry, modo) {
         if (modo === 'rango' && notaAncla != null) {
-            const idxAncla = notasBackend.findIndex(n => n.id === notaAncla);
-            const idxObjetivo = notasBackend.findIndex(n => n.id === entry.id);
-            if (idxAncla !== -1 && idxObjetivo !== -1) {
-                const [desde, hasta] = idxAncla <= idxObjetivo ? [idxAncla, idxObjetivo] : [idxObjetivo, idxAncla];
-                notasSeleccionadas.clear();
-                for (let i = desde; i <= hasta; i++) notasSeleccionadas.add(notasBackend[i].id);
-                actualizarOverlaySeleccion();
-                return;
+            const nbAncla = notasBackend.find(n => n.id === notaAncla);
+            if (nbAncla && nbAncla.parte === entry.parte) {
+                const mismaParte = notasBackend.filter(n => n.parte === entry.parte);
+                const idxAncla = mismaParte.findIndex(n => n.id === notaAncla);
+                const idxObjetivo = mismaParte.findIndex(n => n.id === entry.id);
+                if (idxAncla !== -1 && idxObjetivo !== -1) {
+                    const [desde, hasta] = idxAncla <= idxObjetivo ? [idxAncla, idxObjetivo] : [idxObjetivo, idxAncla];
+                    notasSeleccionadas.clear();
+                    for (let i = desde; i <= hasta; i++) notasSeleccionadas.add(mismaParte[i].id);
+                    actualizarOverlaySeleccion();
+                    return;
+                }
             }
         }
         if (modo === 'individual') {
