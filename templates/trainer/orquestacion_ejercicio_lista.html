@@ -19,6 +19,8 @@
     }
     .fragmento-gab:hover { border-color: var(--primary); box-shadow: var(--shadow-lift); transform: translateY(-6px); text-decoration: none; }
     .fragmento-gab__nombre { font-weight: 600; color: var(--ink); }
+    .fragmento-gab__fila { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    .fragmento-gab__acciones { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 </style>
 {% endblock %}
 
@@ -38,9 +40,15 @@
 
     <div style="display: flex; flex-direction: column; gap: 0.75rem;">
         {% for fragmento in fragmentos %}
-            <a href="{% url 'orquestacion_ejercicio' fragmento.id %}" class="fragmento-gab">
-                <div class="fragmento-gab__nombre">{{ fragmento.nombre }}</div>
-            </a>
+            <div class="fragmento-gab">
+                <div class="fragmento-gab__fila">
+                    <div class="fragmento-gab__nombre">{{ fragmento.nombre }}</div>
+                    <div class="fragmento-gab__acciones">
+                        <a href="{% url 'orquestacion_ejercicio' fragmento.id %}" class="btn-gab btn-gab--secondary">{% trans "Pintar (cuerdas)" %}</a>
+                        <a href="{% url 'orquestacion_libre_ejercicio' fragmento.id %}" class="btn-gab btn-gab--primary">{% trans "Arrastrar (instrumentación libre)" %}</a>
+                    </div>
+                </div>
+            </div>
         {% empty %}
             <p style="color: var(--ink-soft);">{% trans "Todavía no hay fragmentos disponibles para este ejercicio." %}</p>
         {% endfor %}

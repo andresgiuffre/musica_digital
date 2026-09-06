@@ -1,3 +1,4 @@
+import music21
 from django.db import models
 from django.contrib.auth.models import User
 from .storage import EncryptedFileSystemStorage
@@ -1026,3 +1027,137 @@ class PracticaDirigidaProgreso(models.Model):
         unique_together = ('user', 'bloque')
         verbose_name = "Progreso de Práctica Dirigida"
         verbose_name_plural = "Progresos de Práctica Dirigida"
+
+
+# ---------------------------------------------------------------------------
+# RANGOS_COMODOS y compañía se MUEVEN acá desde views.py (sin cambiar su
+# contenido ni comportamiento) porque InstrumentoHabilitadoOrquestacion.clave_rango
+# necesita sus claves como `choices=` en tiempo de definición de clase, y
+# views.py ya importa de models.py -- nunca al revés (mismo motivo que
+# INSTRUMENTOS_DISPONIBLES_INFO/CLAVE_CHOICES del Proyecto Multistem viven acá).
+# views.py pasa a importar RANGOS_COMODOS/_buscar_rango_comodo/
+# _serializar_rangos_comodos desde acá; evaluar_viabilidad_instrumental() (el
+# analizador de orquestación con IA) sigue funcionando igual, solo cambia el import.
+# ---------------------------------------------------------------------------
+
+# Rangos prácticos/cómodos de referencia por instrumento (no el extremo teórico),
+# en pitch escrito (igual que estadisticas_por_instrumento, sin transponer a concert pitch).
+# Son aproximados y pensados para ajustarse con el tiempo, no una fuente normativa única.
+RANGOS_COMODOS = {
+    'Flautín': ('D5', 'C8'),
+    'Flauta': ('C4', 'C7'),
+    'Corno Inglés': ('B3', 'C6'),
+    'Oboe': ('Bb3', 'F6'),
+    'Clarinete Bajo': ('D3', 'G5'),
+    'Clarinete': ('E3', 'C6'),
+    'Contrafagot': ('Bb0', 'C4'),
+    'Fagot': ('Bb1', 'D5'),
+    'Corno': ('F2', 'C6'),
+    'Trompeta': ('F#3', 'C6'),
+    'Trombón Bajo': ('Bb1', 'F4'),
+    'Trombón': ('E2', 'Bb4'),
+    'Tuba': ('D1', 'F4'),
+    'Violín': ('G3', 'C7'),
+    'Viola': ('C3', 'E6'),
+    'Violonchelo': ('C2', 'C6'),
+    'Contrabajo': ('C1', 'G4'),
+    'Arpa': ('C1', 'G7'),
+}
+
+# Orden deliberado: las entradas más específicas van antes que las genéricas que
+# las contienen como substring (ej. 'contrafagot' antes que 'fagot', 'trombón bajo'
+# antes que 'trombón'), para que el primer match gane siempre correctamente.
+SINONIMOS_INSTRUMENTOS = [
+    (('piccolo', 'flautín', 'flautin'), 'Flautín'),
+    (('corno inglés', 'corno ingles', 'english horn', 'cor anglais'), 'Corno Inglés'),
+    (('oboe',), 'Oboe'),
+    (('clarinete bajo', 'bass clarinet'), 'Clarinete Bajo'),
+    (('clarinet', 'clarinete'), 'Clarinete'),
+    (('contrafagot', 'contrabassoon'), 'Contrafagot'),
+    (('fagot', 'bassoon'), 'Fagot'),
+    (('horn', 'corno', 'trompa'), 'Corno'),
+    (('trumpet', 'trompeta'), 'Trompeta'),
+    (('trombón bajo', 'trombon bajo', 'bass trombone'), 'Trombón Bajo'),
+    (('trombone', 'trombón', 'trombon'), 'Trombón'),
+    (('tuba',), 'Tuba'),
+    (('violin', 'violín'), 'Violín'),
+    (('viola',), 'Viola'),
+    (('violoncello', 'violonchelo', 'cello'), 'Violonchelo'),
+    (('contrabass', 'contrabajo', 'double bass'), 'Contrabajo'),
+    (('harp', 'arpa'), 'Arpa'),
+    (('flute', 'flauta', 'fl.'), 'Flauta'),
+]
+
+
+def _buscar_rango_comodo(part_name):
+    nombre_norm = (part_name or '').lower()
+    for keywords, canonico in SINONIMOS_INSTRUMENTOS:
+        if any(kw in nombre_norm for kw in keywords):
+            return RANGOS_COMODOS[canonico]
+    return None
+
+
+def _serializar_rangos_comodos():
+    """
+    RANGOS_COMODOS en formato JSON-friendly (con .ps ya calculado) para el ejercicio
+    de orquestación en el frontend — ahí no hay ningún parser de nombres de nota en
+    JS, así que la altura en semitonos (.ps) se calcula acá, la única fuente de
+    verdad para pitch-math en todo el proyecto.
+    """
+    return {
+        nombre: {
+            'min': lo, 'max': hi,
+            'min_ps': music21.pitch.Pitch(lo).ps, 'max_ps': music21.pitch.Pitch(hi).ps,
+        }
+        for nombre, (lo, hi) in RANGOS_COMODOS.items()
+    }
+
+
+class InstrumentoHabilitadoOrquestacion(models.Model):
+    """
+    Un "atril" disponible en el ejercicio de orquestación libre (drag-and-drop) --
+    envuelve una entrada de RANGOS_COMODOS con un nombre propio y un flag de
+    activo, gestionado a mano desde el admin. `nombre` va separado de
+    `clave_rango` a propósito: permite crear "Violín I" y "Violín II" como dos
+    filas distintas que comparten el mismo rango cómodo (mismo criterio que
+    ZONAS_EJERCICIO_ORQUESTACION en views.py, que ya distingue "Violín I"/
+    "Violín II" con el mismo rango_key) -- una orquesta real necesita más de
+    un atril del mismo instrumento.
+    """
+    nombre = models.CharField(
+        max_length=100,
+        help_text="Nombre mostrado en el pentagrama en blanco (ej. 'Violín I', 'Violín II') -- "
+                   "podés repetir el mismo rango con nombres distintos para tener varios atriles."
+    )
+    clave_rango = models.CharField(
+        max_length=30, choices=[(k, k) for k in RANGOS_COMODOS.keys()],
+        help_text="Qué entrada de RANGOS_COMODOS gobierna el rango cómodo de este instrumento."
+    )
+    activo = models.BooleanField(default=True, help_text="Solo los activos aparecen como destino en el ejercicio.")
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden', 'nombre']
+        verbose_name = "Instrumento Habilitado (Orquestación)"
+        verbose_name_plural = "Instrumentos Habilitados (Orquestación)"
+
+    def __str__(self):
+        return self.nombre
+
+
+class PresetInstrumentacion(models.Model):
+    """Agrupación con nombre de InstrumentoHabilitadoOrquestacion (ej. "Orquesta
+    de cuerdas", "Quinteto de viento") para filtrar qué atriles se muestran en
+    el ejercicio libre sin tener que activar/desactivar instrumentos a mano
+    cada vez."""
+    nombre = models.CharField(max_length=100, help_text="Ej. 'Orquesta de cuerdas', 'Quinteto de viento'.")
+    instrumentos = models.ManyToManyField(InstrumentoHabilitadoOrquestacion, related_name='presets', blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['nombre']
+        verbose_name = "Preset de Instrumentación"
+        verbose_name_plural = "Presets de Instrumentación"
+
+    def __str__(self):
+        return self.nombre

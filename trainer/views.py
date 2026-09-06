@@ -589,77 +589,11 @@ def calcular_estadisticas_parte(part):
     }
 
 
-# Rangos prácticos/cómodos de referencia por instrumento (no el extremo teórico),
-# en pitch escrito (igual que estadisticas_por_instrumento, sin transponer a concert pitch).
-# Son aproximados y pensados para ajustarse con el tiempo, no una fuente normativa única.
-RANGOS_COMODOS = {
-    'Flautín': ('D5', 'C8'),
-    'Flauta': ('C4', 'C7'),
-    'Corno Inglés': ('B3', 'C6'),
-    'Oboe': ('Bb3', 'F6'),
-    'Clarinete Bajo': ('D3', 'G5'),
-    'Clarinete': ('E3', 'C6'),
-    'Contrafagot': ('Bb0', 'C4'),
-    'Fagot': ('Bb1', 'D5'),
-    'Corno': ('F2', 'C6'),
-    'Trompeta': ('F#3', 'C6'),
-    'Trombón Bajo': ('Bb1', 'F4'),
-    'Trombón': ('E2', 'Bb4'),
-    'Tuba': ('D1', 'F4'),
-    'Violín': ('G3', 'C7'),
-    'Viola': ('C3', 'E6'),
-    'Violonchelo': ('C2', 'C6'),
-    'Contrabajo': ('C1', 'G4'),
-    'Arpa': ('C1', 'G7'),
-}
-
-# Orden deliberado: las entradas más específicas van antes que las genéricas que
-# las contienen como substring (ej. 'contrafagot' antes que 'fagot', 'trombón bajo'
-# antes que 'trombón'), para que el primer match gane siempre correctamente.
-SINONIMOS_INSTRUMENTOS = [
-    (('piccolo', 'flautín', 'flautin'), 'Flautín'),
-    (('corno inglés', 'corno ingles', 'english horn', 'cor anglais'), 'Corno Inglés'),
-    (('oboe',), 'Oboe'),
-    (('clarinete bajo', 'bass clarinet'), 'Clarinete Bajo'),
-    (('clarinet', 'clarinete'), 'Clarinete'),
-    (('contrafagot', 'contrabassoon'), 'Contrafagot'),
-    (('fagot', 'bassoon'), 'Fagot'),
-    (('horn', 'corno', 'trompa'), 'Corno'),
-    (('trumpet', 'trompeta'), 'Trompeta'),
-    (('trombón bajo', 'trombon bajo', 'bass trombone'), 'Trombón Bajo'),
-    (('trombone', 'trombón', 'trombon'), 'Trombón'),
-    (('tuba',), 'Tuba'),
-    (('violin', 'violín'), 'Violín'),
-    (('viola',), 'Viola'),
-    (('violoncello', 'violonchelo', 'cello'), 'Violonchelo'),
-    (('contrabass', 'contrabajo', 'double bass'), 'Contrabajo'),
-    (('harp', 'arpa'), 'Arpa'),
-    (('flute', 'flauta', 'fl.'), 'Flauta'),
-]
-
-
-def _buscar_rango_comodo(part_name):
-    nombre_norm = (part_name or '').lower()
-    for keywords, canonico in SINONIMOS_INSTRUMENTOS:
-        if any(kw in nombre_norm for kw in keywords):
-            return RANGOS_COMODOS[canonico]
-    return None
-
-
-def _serializar_rangos_comodos():
-    """
-    RANGOS_COMODOS en formato JSON-friendly (con .ps ya calculado) para el ejercicio
-    de orquestación en el frontend — ahí no hay ningún parser de nombres de nota en
-    JS, así que la altura en semitonos (.ps) se calcula acá, la única fuente de
-    verdad para pitch-math en todo el proyecto.
-    """
-    return {
-        nombre: {
-            'min': lo, 'max': hi,
-            'min_ps': music21.pitch.Pitch(lo).ps, 'max_ps': music21.pitch.Pitch(hi).ps,
-        }
-        for nombre, (lo, hi) in RANGOS_COMODOS.items()
-    }
+# RANGOS_COMODOS/SINONIMOS_INSTRUMENTOS/_buscar_rango_comodo/_serializar_rangos_comodos
+# viven en models.py (InstrumentoHabilitadoOrquestacion.clave_rango los necesita como
+# `choices=` en tiempo de definición de clase) -- ver el comentario ahí. Se importan acá
+# tal cual, mismo contenido y comportamiento de siempre.
+from .models import RANGOS_COMODOS, _buscar_rango_comodo, _serializar_rangos_comodos
 
 
 def evaluar_viabilidad_instrumental(part_name, part):
@@ -1797,6 +1731,56 @@ def orquestacion_ejercicio_archivo(request, fragmento_id):
     )
 
 
+def _serializar_instrumentos_habilitados(queryset):
+    """
+    InstrumentoHabilitadoOrquestacion -> lista JSON-friendly para el ejercicio libre,
+    con el rango cómodo (min_ps/max_ps, en pitch ESCRITO, reusando
+    _serializar_rangos_comodos()) y el ajuste de transposición (ver
+    _ajuste_escrito_semitonos) ya resueltos -- el frontend no parsea nombres de
+    nota ni sabe nada de transposición, solo hace `nb.ps + 12*octava +
+    ajuste_escrito_semitonos` contra min_ps/max_ps, mismo criterio de "toda la
+    música-matemática vive en Python" que el resto del sitio.
+    """
+    rangos = _serializar_rangos_comodos()
+    return [
+        {
+            'id': inst.id,
+            'nombre': inst.nombre,
+            'clave_rango': inst.clave_rango,
+            'min_ps': rangos[inst.clave_rango]['min_ps'],
+            'max_ps': rangos[inst.clave_rango]['max_ps'],
+            'ajuste_escrito_semitonos': _ajuste_escrito_semitonos(inst.clave_rango),
+        }
+        for inst in queryset
+    ]
+
+
+@login_required
+def orquestacion_libre_ejercicio(request, fragmento_id):
+    """
+    Ejercicio de orquestación LIBRE (drag-and-drop, instrumentos abiertos) -- misma
+    pieza (FragmentoOrquestacion) que el ejercicio de pintado, pero instrumentos
+    configurables desde el admin (InstrumentoHabilitadoOrquestacion) en vez de las
+    5 zonas de cuerdas fijas. `presets_data` deja que el frontend filtre qué atriles
+    mostrar sin otro viaje al servidor -- el preset no es una restricción de acceso,
+    todos los instrumentos activos ya viajaron en `instrumentos_data`.
+    """
+    from .models import FragmentoOrquestacion, InstrumentoHabilitadoOrquestacion, PresetInstrumentacion
+
+    fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
+    instrumentos = InstrumentoHabilitadoOrquestacion.objects.filter(activo=True)
+    presets = PresetInstrumentacion.objects.filter(activo=True).prefetch_related('instrumentos')
+
+    return render(request, 'trainer/orquestacion_libre_ejercicio.html', {
+        'fragmento': fragmento,
+        'instrumentos_data': _serializar_instrumentos_habilitados(instrumentos),
+        'presets_data': [
+            {'id': p.id, 'nombre': p.nombre, 'instrumento_ids': [i.id for i in p.instrumentos.all()]}
+            for p in presets
+        ],
+    })
+
+
 @login_required
 def cursos_list(request):
     from .models import Curso
@@ -2088,6 +2072,62 @@ INSTRUMENTOS_EJERCICIO_ORQUESTACION = {
 
 OCTAVAS_VALIDAS_EJERCICIO = (-1, 0, 1)
 
+# Mapeo clave_rango (una clave de models.RANGOS_COMODOS) -> clase music21.instrument.*
+# y clase de clave (clef) por defecto, para el ejercicio de orquestación LIBRE (drag,
+# instrumentos abiertos vía InstrumentoHabilitadoOrquestacion) -- generaliza
+# INSTRUMENTOS_EJERCICIO_ORQUESTACION/CLEFES_EJERCICIO_ORQUESTACION (que siguen
+# existiendo tal cual arriba, sin tocar, solo para las 5 partes fijas del ejercicio
+# de pintado) a los 18 instrumentos de RANGOS_COMODOS. Cubre TODAS sus claves --
+# si el admin habilita cualquier clave_rango, esto tiene que resolver.
+INSTRUMENTOS_ORQUESTACION_INFO = {
+    'Flautín': {'clase': music21.instrument.Piccolo, 'clave': music21.clef.TrebleClef},
+    'Flauta': {'clase': music21.instrument.Flute, 'clave': music21.clef.TrebleClef},
+    'Corno Inglés': {'clase': music21.instrument.EnglishHorn, 'clave': music21.clef.TrebleClef},
+    'Oboe': {'clase': music21.instrument.Oboe, 'clave': music21.clef.TrebleClef},
+    'Clarinete Bajo': {'clase': music21.instrument.BassClarinet, 'clave': music21.clef.TrebleClef},
+    'Clarinete': {'clase': music21.instrument.Clarinet, 'clave': music21.clef.TrebleClef},
+    'Contrafagot': {'clase': music21.instrument.Contrabassoon, 'clave': music21.clef.BassClef},
+    'Fagot': {'clase': music21.instrument.Bassoon, 'clave': music21.clef.BassClef},
+    'Corno': {'clase': music21.instrument.Horn, 'clave': music21.clef.TrebleClef},
+    'Trompeta': {'clase': music21.instrument.Trumpet, 'clave': music21.clef.TrebleClef},
+    'Trombón Bajo': {'clase': music21.instrument.BassTrombone, 'clave': music21.clef.BassClef},
+    'Trombón': {'clase': music21.instrument.Trombone, 'clave': music21.clef.BassClef},
+    'Tuba': {'clase': music21.instrument.Tuba, 'clave': music21.clef.BassClef},
+    'Violín': {'clase': music21.instrument.Violin, 'clave': music21.clef.TrebleClef},
+    'Viola': {'clase': music21.instrument.Viola, 'clave': music21.clef.AltoClef},
+    'Violonchelo': {'clase': music21.instrument.Violoncello, 'clave': music21.clef.BassClef},
+    'Contrabajo': {'clase': music21.instrument.Contrabass, 'clave': music21.clef.BassClef},
+    'Arpa': {'clase': music21.instrument.Harp, 'clave': music21.clef.TrebleClef},
+}
+
+def _ajuste_escrito_semitonos(clave_rango):
+    """
+    Semitonos a sumar a la altura SONANDO (nb.ps + 12*octava_relativa, ver
+    _serializar_instrumentos_habilitados) para obtener la altura ESCRITA
+    equivalente -- necesario para el chequeo de rango en tiempo real del
+    frontend del ejercicio libre, que compara contra RANGOS_COMODOS (en pitch
+    ESCRITO, ver su docstring en models.py).
+
+    music21 define Instrument.transposition como el intervalo de ESCRITO a
+    SONANDO (ej. Clarinet = M-2: escrito Do suena Sib, un tono abajo) --
+    confirmado empíricamente antes de escribir esto (no asumido) recorriendo
+    los 18 instrumentos de RANGOS_COMODOS uno por uno. El ajuste es el signo
+    opuesto: escrito = sonando - transposicion.semitones.
+
+    Sin este ajuste, el chequeo de rango del ejercicio de pintado (que no lo
+    aplica) queda mal para Contrabajo -- confirmado con el mismo cálculo: un
+    Do4 asignado a Contrabajo con octava 0 pasa el chequeo de rango (compara
+    contra el techo escrito G4 sin corregir), pero el Score final generado
+    (toWrittenPitch(), transposition=P-8) sale escrito una octava arriba, por
+    encima de ese mismo techo. No se toca el ejercicio de pintado ya en uso
+    (fuera de alcance de este trabajo), pero el ejercicio libre nuevo sí
+    aplica el ajuste correcto desde el arranque.
+    """
+    info = INSTRUMENTOS_ORQUESTACION_INFO[clave_rango]
+    transposicion = info['clase']().transposition
+    return -transposicion.semitones if transposicion is not None else 0
+
+
 INTERVALO_POR_OCTAVA_EJERCICIO = {
     -1: music21.interval.Interval('P-8'),
     0: None,
@@ -2146,20 +2186,36 @@ def _offsets_inicio_compas(part):
 
 
 def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_por_compas, armadura):
+    """Envoltorio sobre _armar_parte_orquestal_libre() para el ejercicio de pintado
+    (5 partes fijas) -- no cambia su comportamiento, solo resuelve instrumento/clave
+    desde los dicts fijos de siempre en vez de recibirlos como parámetro."""
+    return _armar_parte_orquestal_libre(
+        nombre, INSTRUMENTOS_EJERCICIO_ORQUESTACION[nombre], CLEFES_EJERCICIO_ORQUESTACION[nombre],
+        eventos_por_compas, compases_totales, tiempo_por_compas, armadura,
+    )
+
+
+def _armar_parte_orquestal_libre(nombre, clase_instrumento, clase_clave, eventos_por_compas, compases_totales, tiempo_por_compas, armadura):
     """
+    Generaliza _armar_parte_orquestal() a una lista ABIERTA de instrumentos (ejercicio
+    de orquestación libre, vía InstrumentoHabilitadoOrquestacion) -- misma lógica exacta,
+    solo que instrumento/clave se reciben como parámetro en vez de resolverse desde los
+    dicts fijos de las 5 partes del ejercicio de pintado.
+
     eventos_por_compas: {numero_compas: [{'offset_local', 'duracion', 'pitch' (music21.pitch.Pitch, ya con la octava aplicada y grafía heredada), 'graces'}, ...]}.
     Los compases sin eventos quedan enteramente en silencio. Los silencios se calculan
     a mano (antes de la primera nota, entre notas, después de la última) — makeRests()
     de music21 no dio resultados confiables en las pruebas (compases con duración
     incorrecta o directamente vacíos sin silencio explícito). Varias notas del mismo
-    instrumento en el mismo offset (ej. dobles cuerdas) se combinan en un acorde en vez
-    de insertarse superpuestas — los acordes no llevan graces en v1 (simplificación
+    instrumento en el mismo offset (ej. dobles cuerdas, o varias copias del alumno
+    cayendo en el mismo instrumento y tiempo) se combinan en un acorde en vez de
+    insertarse superpuestas — los acordes no llevan graces en v1 (simplificación
     deliberada: decorar un acorde completo es mucho menos común y complica bastante el
     agrupamiento). Para una nota individual, sus graces (si tiene) se insertan como
     Note(...).getGrace() en el mismo offset, justo antes de la nota principal.
     """
     parte = music21.stream.Part()
-    instr = INSTRUMENTOS_EJERCICIO_ORQUESTACION[nombre]()
+    instr = clase_instrumento()
     instr.partName = nombre
     parte.insert(0, instr)
 
@@ -2171,7 +2227,7 @@ def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_
         if numero == 1:
             # Sin esto music21 no emite NINGÚN <clef> en el XML exportado (verificado) —
             # queda a criterio del renderizador, que es peor que elegir mal.
-            compas.insert(0, CLEFES_EJERCICIO_ORQUESTACION[nombre]())
+            compas.insert(0, clase_clave())
             if armadura is not None:
                 compas.insert(0, copy.deepcopy(armadura))
             compas.insert(0, copy.deepcopy(tiempo_compas))
@@ -2298,6 +2354,69 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
     return exporter.parse().decode('utf-8')
 
 
+def _generar_score_orquestal_libre(score_original, notas_por_id, asignaciones, instrumentos_por_id):
+    """
+    Generaliza _generar_score_orquestal() al ejercicio de orquestación LIBRE: en vez
+    de 5 partes fijas, arma una parte por cada InstrumentoHabilitadoOrquestacion que
+    efectivamente aparece en `asignaciones` -- a diferencia del pintado (siempre las
+    mismas 5), acá la lista de instrumentos habilitados puede ser larga, así que no
+    se generan pentagramas vacíos para instrumentos que el alumno no llegó a usar.
+
+    `asignaciones` es {notaId: [{'instrumento_id', 'octava'}, ...]} -- instrumento_id
+    referencia la PK de InstrumentoHabilitadoOrquestacion, NUNCA su nombre/clave_rango
+    directo (el cliente no manda eso, ver orquestacion_libre_ejercicio_generar).
+    `instrumentos_por_id` es {id: InstrumentoHabilitadoOrquestacion} ya resuelto y
+    validado por el llamador. Mismo criterio de octava/grafía/graces/sounding-pitch
+    que _generar_score_orquestal -- ver ahí para el detalle, no se repite acá.
+    """
+    partes_originales = list(score_original.parts)
+    compases_totales = max(len(list(p.getElementsByClass(music21.stream.Measure))) for p in partes_originales)
+    tiempo_por_compas, armadura = _tiempo_y_armadura_por_compas(partes_originales, compases_totales)
+    offsets_inicio = _offsets_inicio_compas(partes_originales[0])
+
+    eventos_por_instrumento = {}
+    for nota_id, lista in asignaciones.items():
+        evento = notas_por_id[nota_id]
+        compas = evento['compas']
+        offset_local = evento['offset'] - offsets_inicio.get(compas, 0.0)
+        for asignacion in lista:
+            instrumento_id = asignacion['instrumento_id']
+            octava = asignacion['octava']
+            graces_transportadas = [
+                {'pitch': _transportar_pitch_preservando_grafia(g['pitch'], octava), 'tipo': g['tipo']}
+                for g in evento.get('graces', [])
+            ]
+            eventos_por_instrumento.setdefault(instrumento_id, {}).setdefault(compas, []).append({
+                'offset_local': offset_local,
+                'duracion': evento['duracion_ql'],
+                'pitch': _transportar_pitch_preservando_grafia(evento['pitch'], octava),
+                'graces': graces_transportadas,
+            })
+
+    score = music21.stream.Score()
+    # Orden estable por el `orden`/nombre configurado en el admin -- no por orden de
+    # aparición en las asignaciones, que dependería de en qué secuencia arrastró el
+    # alumno, sin ningún criterio musical.
+    ids_ordenados = sorted(
+        eventos_por_instrumento.keys(),
+        key=lambda iid: (instrumentos_por_id[iid].orden, instrumentos_por_id[iid].nombre),
+    )
+    for instrumento_id in ids_ordenados:
+        instrumento = instrumentos_por_id[instrumento_id]
+        info = INSTRUMENTOS_ORQUESTACION_INFO[instrumento.clave_rango]
+        parte = _armar_parte_orquestal_libre(
+            instrumento.nombre, info['clase'], info['clave'],
+            eventos_por_instrumento[instrumento_id], compases_totales, tiempo_por_compas, armadura,
+        )
+        score.insert(0, parte)
+
+    score.atSoundingPitch = True
+    score_escrito = score.toWrittenPitch()
+
+    exporter = music21.musicxml.m21ToXml.GeneralObjectExporter(score_escrito)
+    return exporter.parse().decode('utf-8')
+
+
 @login_required
 def orquestacion_ejercicio_generar(request, fragmento_id):
     """
@@ -2371,6 +2490,82 @@ def orquestacion_ejercicio_generar(request, fragmento_id):
         musicxml = _generar_score_orquestal(score_original, notas_por_id, asignaciones)
     except Exception as e:
         logger.exception('orquestacion_ejercicio_generar: fallo armando la partitura orquestal')
+        return JsonResponse({'status': 'error', 'message': f'No se pudo generar la partitura: {e}'}, status=500)
+
+    return JsonResponse({'status': 'success', 'musicxml': musicxml})
+
+
+@login_required
+def orquestacion_libre_ejercicio_generar(request, fragmento_id):
+    """
+    Mismo patrón exacto que orquestacion_ejercicio_generar, generalizado a
+    instrumentos abiertos. Nunca confía en pitch/offset/duración del cliente --
+    solo en qué notaId citó y qué instrumento_id/octava eligió (instrumento_id
+    referencia la PK de InstrumentoHabilitadoOrquestacion, nunca un nombre/clave_rango
+    mandado directo); todo lo demás se re-deriva de _notas_piano_para_ejercicio sobre
+    el archivo real, igual que el ejercicio de pintado.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    from .models import FragmentoOrquestacion, InstrumentoHabilitadoOrquestacion
+    fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
+
+    try:
+        body = json.loads(request.body)
+        asignaciones_crudas = body.get('asignaciones')
+        if not isinstance(asignaciones_crudas, dict):
+            raise ValueError('falta asignaciones')
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'status': 'error', 'message': 'Body inválido: se esperaba JSON con "asignaciones".'}, status=400)
+
+    instrumentos_habilitados = {i.id: i for i in InstrumentoHabilitadoOrquestacion.objects.filter(activo=True)}
+
+    asignaciones = {}
+    for nota_id, lista_cruda in asignaciones_crudas.items():
+        if not isinstance(lista_cruda, list) or not lista_cruda:
+            return JsonResponse({'status': 'error', 'message': f'Asignación inválida para "{nota_id}": se esperaba una lista no vacía.'}, status=400)
+
+        lista_validada = []
+        instrumentos_vistos = set()
+        for valor in lista_cruda:
+            if not isinstance(valor, dict):
+                return JsonResponse({'status': 'error', 'message': f'Asignación inválida para "{nota_id}".'}, status=400)
+            instrumento_id = valor.get('instrumento_id')
+            octava = valor.get('octava')
+            if instrumento_id not in instrumentos_habilitados:
+                return JsonResponse({'status': 'error', 'message': f'Instrumento inválido o deshabilitado: {instrumento_id!r}.'}, status=400)
+            if octava not in OCTAVAS_VALIDAS_EJERCICIO:
+                return JsonResponse({'status': 'error', 'message': f'Octava inválida: {octava!r}.'}, status=400)
+            if instrumento_id in instrumentos_vistos:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'"{nota_id}" repite el instrumento {instrumento_id!r} más de una vez — dato ambiguo.',
+                }, status=400)
+            instrumentos_vistos.add(instrumento_id)
+            lista_validada.append({'instrumento_id': instrumento_id, 'octava': octava})
+        asignaciones[nota_id] = lista_validada
+
+    try:
+        score_original = music21.converter.parse(fragmento.archivo.path)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'No se pudo leer el archivo: {e}'}, status=500)
+
+    notas_por_id = {n['id']: n for n in _notas_piano_para_ejercicio(score_original)}
+    ids_desconocidos = [nid for nid in asignaciones if nid not in notas_por_id]
+    if ids_desconocidos:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'{len(ids_desconocidos)} nota(s) no existen en este fragmento (ej. {ids_desconocidos[0]}).',
+        }, status=400)
+
+    if not asignaciones:
+        return JsonResponse({'status': 'error', 'message': 'No hay ninguna nota asignada todavía.'}, status=400)
+
+    try:
+        musicxml = _generar_score_orquestal_libre(score_original, notas_por_id, asignaciones, instrumentos_habilitados)
+    except Exception as e:
+        logger.exception('orquestacion_libre_ejercicio_generar: fallo armando la partitura orquestal')
         return JsonResponse({'status': 'error', 'message': f'No se pudo generar la partitura: {e}'}, status=500)
 
     return JsonResponse({'status': 'success', 'musicxml': musicxml})
