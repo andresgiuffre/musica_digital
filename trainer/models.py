@@ -1143,3 +1143,27 @@ class InstrumentoHabilitadoOrquestacion(models.Model):
 
     def __str__(self):
         return self.nombre
+
+
+class ProgresoOrquestacionLibre(models.Model):
+    """
+    Estado guardado de un alumno en el ejercicio de orquestación LIBRE para un
+    fragmento puntual -- un botón "Guardar" explícito lo sobreescribe (no hay
+    historial de versiones, un solo estado vivo por alumno+fragmento, mismo patrón
+    que SheetMusicProgress). `asignaciones` tiene la misma forma exacta que ya recibe
+    orquestacion_libre_ejercicio_generar ({notaId: [{'instrumento_id','octava'}, ...]}),
+    para poder mandarla tal cual de vuelta al frontend al recargar la página sin
+    traducir formatos.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='progresos_orquestacion_libre')
+    fragmento = models.ForeignKey(FragmentoOrquestacion, on_delete=models.CASCADE, related_name='progresos_orquestacion_libre')
+    asignaciones = models.JSONField(default=dict, blank=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'fragmento')
+        verbose_name = "Progreso de Orquestación Libre"
+        verbose_name_plural = "Progresos de Orquestación Libre"
+
+    def __str__(self):
+        return f"{self.user.username} — {self.fragmento.nombre}"

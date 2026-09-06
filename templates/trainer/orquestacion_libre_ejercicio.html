@@ -218,7 +218,12 @@
     data-txt-solta-sobre-pentagrama="{% trans 'Soltá la nota sobre el pentagrama de un instrumento.' %}"
     data-txt-compas-incorrecto-pre="{% trans 'Esa nota es del compás' %}"
     data-txt-compas-incorrecto-post="{% trans '— soltala en esa misma columna.' %}"
-    data-txt-actualizando="{% trans 'Actualizando…' %}">
+    data-txt-actualizando="{% trans 'Actualizando…' %}"
+    data-txt-guardando="{% trans 'Guardando…' %}"
+    data-txt-guardado="{% trans '✓ Guardado' %}"
+    data-txt-guardar="{% trans '💾 Guardar' %}"
+    data-txt-error-guardar="{% trans 'No se pudo guardar.' %}"
+    data-txt-error-red-guardar="{% trans 'Error de red guardando:' %}">
     <a href="{% url 'orquestacion_ejercicio_lista' %}" class="volver-gab">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
@@ -248,6 +253,9 @@
             <button type="button" id="ej-orql-original" class="ej-orql-boton-secundario">
                 ▶ {% trans "Escuchar fragmento original (piano)" %}
             </button>
+            <button type="button" id="ej-orql-guardar" class="ej-orql-boton-secundario">
+                💾 {% trans "Guardar" %}
+            </button>
             <button type="button" id="ej-orql-reiniciar" class="ej-orql-boton-secundario">
                 ↺ {% trans "Reiniciar" %}
             </button>
@@ -276,6 +284,7 @@
 </div>
 
 {{ instrumentos_data|json_script:"instrumentos-data" }}
+{{ asignaciones_guardadas|json_script:"asignaciones-guardadas-data" }}
 {% endblock %}
 
 {% block extra_js %}
@@ -285,9 +294,11 @@
 (function () {
     const i18nEjOrql = document.getElementById('ej-orql-root').dataset;
     const INSTRUMENTOS = JSON.parse(document.getElementById('instrumentos-data').textContent);
+    const ASIGNACIONES_GUARDADAS = JSON.parse(document.getElementById('asignaciones-guardadas-data').textContent); // null si el alumno nunca guardó
     const NOMBRE_ARCHIVO = "{{ fragmento.archivo.name|escapejs }}";
     const ES_MXL = NOMBRE_ARCHIVO.toLowerCase().endsWith('.mxl');
     const URL_GENERAR = '{% url "orquestacion_libre_ejercicio_generar" fragmento.id %}';
+    const URL_GUARDAR = '{% url "orquestacion_libre_ejercicio_guardar" fragmento.id %}';
     const ANCHO_PX_POR_COMPAS = 210; // punto de partida, calibrar visualmente contra fragmentos reales
     // Ancho estimado (no medido) del prefijo de clave+compás+armadura que OSMD dibuja
     // antes de la primera nota del primer compás -- ese prefijo le come espacio real
@@ -362,6 +373,8 @@
     ];
     let seccionesActivas = new Set();
 
+    const botonesSeccionPorFamilia = new Map();
+
     function crearBotonesSeccion() {
         const contenedor = document.getElementById('ej-orql-secciones');
         SECCIONES.forEach(sec => {
@@ -371,13 +384,23 @@
             btn.className = 'ej-orql-seccion-btn';
             btn.textContent = sec.label;
             btn.addEventListener('click', () => {
-                if (seccionesActivas.has(sec.familia)) seccionesActivas.delete(sec.familia);
-                else seccionesActivas.add(sec.familia);
-                btn.classList.toggle('ej-orql-seccion-activa', seccionesActivas.has(sec.familia));
+                alternarSeccion(sec.familia);
                 actualizarPanelOrquestaDebounced();
             });
             contenedor.appendChild(btn);
+            botonesSeccionPorFamilia.set(sec.familia, btn);
         });
+    }
+
+    // Reusado tanto por el click normal del botón como por la restauración de un
+    // progreso guardado (ver ASIGNACIONES_GUARDADAS más abajo), que necesita activar
+    // secciones programáticamente sin simular un click.
+    function alternarSeccion(familia, forzarActiva) {
+        const btn = botonesSeccionPorFamilia.get(familia);
+        if (!btn) return;
+        const activa = forzarActiva !== undefined ? forzarActiva : !seccionesActivas.has(familia);
+        if (activa) seccionesActivas.add(familia); else seccionesActivas.delete(familia);
+        btn.classList.toggle('ej-orql-seccion-activa', activa);
     }
 
     // Ya viene en orden (orden, nombre) heredado de InstrumentoHabilitadoOrquestacion.Meta.ordering
@@ -1041,6 +1064,36 @@
         actualizarPanelOrquestaDebounced();
     }
 
+    // Guardado manual (nunca automático) del progreso en la base -- un solo estado
+    // vivo por alumno+fragmento (ver ProgresoOrquestacionLibre en views.py), se
+    // sobreescribe en cada click, no hay historial de versiones.
+    function guardarProgreso() {
+        const btn = document.getElementById('ej-orql-guardar');
+        btn.disabled = true;
+        btn.textContent = i18nEjOrql.txtGuardando;
+        fetch(URL_GUARDAR, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify({ asignaciones }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false;
+                if (data.status !== 'success') {
+                    mostrarMensajeDrop(data.message || i18nEjOrql.txtErrorGuardar);
+                    btn.textContent = i18nEjOrql.txtGuardar;
+                    return;
+                }
+                btn.textContent = i18nEjOrql.txtGuardado;
+                setTimeout(() => { btn.textContent = i18nEjOrql.txtGuardar; }, 2000);
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.textContent = i18nEjOrql.txtGuardar;
+                mostrarMensajeDrop(i18nEjOrql.txtErrorRedGuardar + ' ' + err.message);
+            });
+    }
+
     // --- Panel 2: partitura de orquesta, en vivo ---
 
     function transportarPitch(pitchStr, octava) {
@@ -1243,6 +1296,7 @@
     crearSelectorOctava();
     document.getElementById('ej-orql-original').addEventListener('click', reproducirOriginal);
     document.getElementById('ej-orql-reiniciar').addEventListener('click', reiniciar);
+    document.getElementById('ej-orql-guardar').addEventListener('click', guardarProgreso);
 
     Promise.all([
         fetch('{% url "orquestacion_ejercicio_archivo" fragmento.id %}').then(res => {
@@ -1264,7 +1318,27 @@
             return (ES_MXL ? osmd.load(buffer) : osmd.load(new TextDecoder('utf-8').decode(buffer))).then(() => {
                 osmd.render();
                 correlacionarNotas();
-                etiquetarNotas();
+
+                // Restaurar un progreso guardado (ver ASIGNACIONES_GUARDADAS/guardarProgreso):
+                // activa las secciones que cubran los instrumentos ya asignados (si no,
+                // las notas restauradas quedarían asignadas pero invisibles hasta que el
+                // alumno prenda la sección a mano) y dispara un único render de Panel 2
+                // con todo ya cargado, en vez de uno por sección.
+                const hayProgresoGuardado = ASIGNACIONES_GUARDADAS && Object.keys(ASIGNACIONES_GUARDADAS).length > 0;
+                if (hayProgresoGuardado) {
+                    asignaciones = ASIGNACIONES_GUARDADAS;
+                    const familiasARestaurar = new Set();
+                    Object.values(asignaciones).forEach(lista => lista.forEach(a => {
+                        const inst = INSTRUMENTOS_POR_ID.get(a.instrumento_id);
+                        if (inst) familiasARestaurar.add(inst.familia);
+                    }));
+                    familiasARestaurar.forEach(familia => alternarSeccion(familia, true));
+                    rerenderYEtiquetar();
+                    actualizarPanelOrquestaDebounced();
+                } else {
+                    etiquetarNotas();
+                }
+
                 contenedorOsmd.addEventListener('pointerdown', onPointerDownPartitura);
                 window.addEventListener('resize', onResize);
                 actualizarEstado();

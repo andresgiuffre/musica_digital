@@ -1775,15 +1775,22 @@ def orquestacion_libre_ejercicio(request, fragmento_id):
     `instrumentos_data` -- ver _serializar_instrumentos_habilitados), sin necesitar
     otro viaje al servidor -- ya no hay un mecanismo de presets curados por separado
     (se eliminó PresetInstrumentacion: los botones de sección lo reemplazan).
+
+    `asignaciones_guardadas` trae el último progreso guardado por este alumno para
+    este fragmento (ver ProgresoOrquestacionLibre/orquestacion_libre_ejercicio_guardar),
+    o `null` si todavía no guardó nada -- el frontend lo usa para restaurar el estado
+    al cargar la página, en vez de arrancar siempre en blanco.
     """
-    from .models import FragmentoOrquestacion, InstrumentoHabilitadoOrquestacion
+    from .models import FragmentoOrquestacion, InstrumentoHabilitadoOrquestacion, ProgresoOrquestacionLibre
 
     fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
     instrumentos = InstrumentoHabilitadoOrquestacion.objects.filter(activo=True)
+    progreso = ProgresoOrquestacionLibre.objects.filter(user=request.user, fragmento=fragmento).first()
 
     return render(request, 'trainer/orquestacion_libre_ejercicio.html', {
         'fragmento': fragmento,
         'instrumentos_data': _serializar_instrumentos_habilitados(instrumentos),
+        'asignaciones_guardadas': progreso.asignaciones if progreso else None,
     })
 
 
@@ -2625,6 +2632,41 @@ def orquestacion_ejercicio_generar(request, fragmento_id):
     return JsonResponse({'status': 'success', 'musicxml': musicxml})
 
 
+def _validar_asignaciones_libres(asignaciones_crudas, instrumentos_habilitados):
+    """
+    Valida y normaliza `asignaciones` ({notaId: [{'instrumento_id','octava'}, ...]})
+    tal como lo manda el cliente para el ejercicio libre -- nunca se confía en el body
+    tal cual. Devuelve (asignaciones_validadas, None) si todo está bien, o (None,
+    mensaje_de_error) si algo no pasa -- reusado tanto por
+    orquestacion_libre_ejercicio_generar como por orquestacion_libre_ejercicio_guardar.
+    """
+    if not isinstance(asignaciones_crudas, dict):
+        return None, 'Se esperaba un objeto para "asignaciones".'
+
+    asignaciones = {}
+    for nota_id, lista_cruda in asignaciones_crudas.items():
+        if not isinstance(lista_cruda, list) or not lista_cruda:
+            return None, f'Asignación inválida para "{nota_id}": se esperaba una lista no vacía.'
+
+        lista_validada = []
+        instrumentos_vistos = set()
+        for valor in lista_cruda:
+            if not isinstance(valor, dict):
+                return None, f'Asignación inválida para "{nota_id}".'
+            instrumento_id = valor.get('instrumento_id')
+            octava = valor.get('octava')
+            if instrumento_id not in instrumentos_habilitados:
+                return None, f'Instrumento inválido o deshabilitado: {instrumento_id!r}.'
+            if octava not in OCTAVAS_VALIDAS_EJERCICIO:
+                return None, f'Octava inválida: {octava!r}.'
+            if instrumento_id in instrumentos_vistos:
+                return None, f'"{nota_id}" repite el instrumento {instrumento_id!r} más de una vez — dato ambiguo.'
+            instrumentos_vistos.add(instrumento_id)
+            lista_validada.append({'instrumento_id': instrumento_id, 'octava': octava})
+        asignaciones[nota_id] = lista_validada
+    return asignaciones, None
+
+
 @login_required
 def orquestacion_libre_ejercicio_generar(request, fragmento_id):
     """
@@ -2673,30 +2715,9 @@ def orquestacion_libre_ejercicio_generar(request, fragmento_id):
         return JsonResponse({'status': 'error', 'message': 'No hay ninguna sección de instrumentos activa.'}, status=400)
     instrumentos_a_renderizar = [instrumentos_habilitados[iid] for iid in ids_visibles_crudos]
 
-    asignaciones = {}
-    for nota_id, lista_cruda in asignaciones_crudas.items():
-        if not isinstance(lista_cruda, list) or not lista_cruda:
-            return JsonResponse({'status': 'error', 'message': f'Asignación inválida para "{nota_id}": se esperaba una lista no vacía.'}, status=400)
-
-        lista_validada = []
-        instrumentos_vistos = set()
-        for valor in lista_cruda:
-            if not isinstance(valor, dict):
-                return JsonResponse({'status': 'error', 'message': f'Asignación inválida para "{nota_id}".'}, status=400)
-            instrumento_id = valor.get('instrumento_id')
-            octava = valor.get('octava')
-            if instrumento_id not in instrumentos_habilitados:
-                return JsonResponse({'status': 'error', 'message': f'Instrumento inválido o deshabilitado: {instrumento_id!r}.'}, status=400)
-            if octava not in OCTAVAS_VALIDAS_EJERCICIO:
-                return JsonResponse({'status': 'error', 'message': f'Octava inválida: {octava!r}.'}, status=400)
-            if instrumento_id in instrumentos_vistos:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': f'"{nota_id}" repite el instrumento {instrumento_id!r} más de una vez — dato ambiguo.',
-                }, status=400)
-            instrumentos_vistos.add(instrumento_id)
-            lista_validada.append({'instrumento_id': instrumento_id, 'octava': octava})
-        asignaciones[nota_id] = lista_validada
+    asignaciones, error = _validar_asignaciones_libres(asignaciones_crudas, instrumentos_habilitados)
+    if error:
+        return JsonResponse({'status': 'error', 'message': error}, status=400)
 
     try:
         score_original = music21.converter.parse(fragmento.archivo.path)
@@ -2718,6 +2739,58 @@ def orquestacion_libre_ejercicio_generar(request, fragmento_id):
         return JsonResponse({'status': 'error', 'message': f'No se pudo generar la partitura: {e}'}, status=500)
 
     return JsonResponse({'status': 'success', 'musicxml': musicxml})
+
+
+@login_required
+def orquestacion_libre_ejercicio_guardar(request, fragmento_id):
+    """
+    Guarda (sobreescribe) el progreso del alumno en el ejercicio libre para este
+    fragmento -- un solo estado vivo por alumno+fragmento (ProgresoOrquestacionLibre),
+    no un historial de versiones; se guarda a mano vía un botón "Guardar" explícito
+    en el frontend, nunca automático. Se guarda en la base (no en localStorage): mismo
+    criterio que StudySession/SheetMusicProgress/RehearsalConfig para "progreso de un
+    alumno en una pieza puntual" en el resto del sitio, y el volumen real es
+    insignificante -- un JSONField chico por alumno+fragmento, nada comparable a lo
+    que ya guarda ScoreAnalysis.
+
+    Misma validación que orquestacion_libre_ejercicio_generar (nunca confía en el body
+    tal cual, ni siquiera para guardar) para no dejar basura en la base.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    from .models import FragmentoOrquestacion, InstrumentoHabilitadoOrquestacion, ProgresoOrquestacionLibre
+    fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
+
+    try:
+        body = json.loads(request.body)
+        asignaciones_crudas = body.get('asignaciones')
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Body inválido: se esperaba JSON con "asignaciones".'}, status=400)
+
+    instrumentos_habilitados = {i.id: i for i in InstrumentoHabilitadoOrquestacion.objects.filter(activo=True)}
+    asignaciones, error = _validar_asignaciones_libres(asignaciones_crudas, instrumentos_habilitados)
+    if error:
+        return JsonResponse({'status': 'error', 'message': error}, status=400)
+
+    try:
+        score_original = music21.converter.parse(fragmento.archivo.path)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'No se pudo leer el archivo: {e}'}, status=500)
+
+    notas_por_id = {n['id']: n for n in _notas_piano_para_ejercicio(score_original)}
+    ids_desconocidos = [nid for nid in asignaciones if nid not in notas_por_id]
+    if ids_desconocidos:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'{len(ids_desconocidos)} nota(s) no existen en este fragmento (ej. {ids_desconocidos[0]}).',
+        }, status=400)
+
+    ProgresoOrquestacionLibre.objects.update_or_create(
+        user=request.user, fragmento=fragmento,
+        defaults={'asignaciones': asignaciones},
+    )
+    return JsonResponse({'status': 'success'})
 
 
 @login_required
