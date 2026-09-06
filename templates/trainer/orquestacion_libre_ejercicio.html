@@ -1153,7 +1153,23 @@
             osmdOrquesta = new opensheetmusicdisplay.OpenSheetMusicDisplay(contenedorOrquesta, {
                 drawTitle: false,
                 autoResize: false,
+                autoGenerateMultipleRestMeasuresFromRestMeasures: false,
             });
+            // Sin esto, OSMD condensa automáticamente varios compases de silencio
+            // consecutivos (típico en un instrumento sin ninguna nota asignada todavía)
+            // en un único símbolo "𝄻 N" -- confirmado grepeando directamente el bundle
+            // real pineado (no alcanzaba con buscarlo por WebFetch en un archivo tan
+            // grande, dio falso negativo la primera vez): existen
+            // EngravingRules.RenderMultipleRestMeasures y
+            // AutoGenerateMultipleRestMeasuresFromRestMeasures, ambos true por default.
+            // Esto coincide con el bug visto en pantalla: 6 compases en blanco se
+            // mostraban como un solo compás con "6" encima, y la grilla de celdas de
+            // abajo terminaba con varias celdas superpuestas en el mismo lugar (una por
+            // cada compás real "tapado" por el símbolo condensado), rompiendo la
+            // validación de compás del drag. Se apagan las dos vías (opción del
+            // constructor Y la regla ya instanciada) por las dudas, ya que no se pudo
+            // confirmar en un navegador real cuál de las dos alcanza sola.
+            osmdOrquesta.EngravingRules.RenderMultipleRestMeasures = false;
             contenedorOrquesta.style.width = anchoPentagrama(numerosCompas.length) + 'px';
         }
         osmdOrquesta.load(musicxml).then(() => {
@@ -1223,7 +1239,9 @@
     const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(contenedorOsmd, {
         drawTitle: false,
         autoResize: false,
+        autoGenerateMultipleRestMeasuresFromRestMeasures: false,
     });
+    osmd.EngravingRules.RenderMultipleRestMeasures = false;
 
     crearBotonesSeccion();
     crearSelectorOctava();
