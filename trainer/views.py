@@ -2232,17 +2232,78 @@ def _offsets_inicio_compas(part):
     return {m.number: m.offset for m in part.getElementsByClass(music21.stream.Measure)}
 
 
-def _armar_parte_orquestal(nombre, eventos_por_compas, numeros_compas, tiempo_por_compas, armadura):
+def _duraciones_reales_por_compas(numeros_compas, offsets_inicio, tiempo_por_compas):
+    """
+    Duración REAL (en negras) de cada compás, derivada de la diferencia entre los
+    offsets de inicio de compases consecutivos -- NUNCA se asume igual a la duración
+    "de manual" del compás DECLARADO (tiempo_compas.barDuration.quarterLength).
+
+    Confirmado con un caso real: un archivo exportado de MuseScore declaraba <time>
+    4/4 en sus <attributes>, pero cada compás solo tenía 3 negras de contenido real
+    (un `<backup>` de 6 divisiones con divisions=2, o sea 3 negras) -- music21 arranca
+    igual el compás 2 en el offset 3.0, no en el 4.0 que correspondería a un 4/4
+    genuino, y sigue reportando el <time> declarado (4/4) sin corregirlo. Usar
+    barDuration ahí generaba silencios de 4 negras en un compás que en la pieza real
+    dura 3, corriendo TODO lo que viene después y rompiendo la validación de compás
+    del arrastre (una nota del "compás 2 real" nunca caía donde el pentagrama en
+    blanco la esperaba). Esto es una inconsistencia del archivo fuente (compás
+    declarado vs. contenido real no coinciden) que no se puede "corregir" adivinando
+    cuál de los dos es el correcto -- se prioriza el offset real porque es el que
+    también usa el resto del pipeline (_offsets_inicio_compas) para ubicar notas.
+
+    El último compás no tiene un "siguiente" con el que restar -- ahí no queda otra
+    que asumir la duración declarada (tiempo_por_compas), sin poder verificarla.
+    """
+    duraciones = {}
+    for i, numero in enumerate(numeros_compas):
+        if i + 1 < len(numeros_compas) and numero in offsets_inicio and numeros_compas[i + 1] in offsets_inicio:
+            duraciones[numero] = offsets_inicio[numeros_compas[i + 1]] - offsets_inicio[numero]
+        else:
+            duraciones[numero] = tiempo_por_compas[numero].barDuration.quarterLength
+    return duraciones
+
+
+def _corregir_tiempo_por_duracion_real(numeros_compas, tiempo_por_compas, duraciones_por_compas):
+    """
+    Corrige tiempo_por_compas para que el compás INSERTADO en la parte generada
+    coincida con la duración REAL de cada compás (duraciones_por_compas) en vez de la
+    declarada en el archivo fuente, cuando ambas no coinciden.
+
+    Necesario porque insertar igual el compás DECLARADO (aunque no coincida con el
+    contenido real) no es inofensivo: confirmado reparseando un caso real (MuseScore
+    declaraba <time> 4/4, cada compás real tenía 3 negras de contenido) que music21
+    "completa" en silencio el compás con una negra invisible extra para llegar a lo
+    que el 4/4 insertado promete -- y esa negra invisible SÍ corre el offset real de
+    todo lo que viene después un compás entero atrás (confirmado: el compás 2 quedaba
+    en el beat 4.0 en vez del 3.0 real), reproduciendo el mismo problema que se venía
+    arrastrando, ahora escondido detrás de un silencio no impreso en vez de uno visible.
+
+    Solo se corrige cuando la duración real es un número entero de negras (el caso
+    confirmado) -- construir un compás con un denominador distinto de 4 (corcheas,
+    dieciseisavos) sin poder verificarlo arriesga construir algo peor que lo
+    declarado, así que ahí se prioriza lo declarado tal cual.
+    """
+    resultado = {}
+    for numero in numeros_compas:
+        duracion_real = duraciones_por_compas[numero]
+        if duracion_real > 0 and duracion_real == int(duracion_real):
+            resultado[numero] = music21.meter.TimeSignature(f'{int(duracion_real)}/4')
+        else:
+            resultado[numero] = tiempo_por_compas[numero]
+    return resultado
+
+
+def _armar_parte_orquestal(nombre, eventos_por_compas, numeros_compas, tiempo_por_compas, duraciones_por_compas, armadura):
     """Envoltorio sobre _armar_parte_orquestal_libre() para el ejercicio de pintado
     (5 partes fijas) -- no cambia su comportamiento, solo resuelve instrumento/clave
     desde los dicts fijos de siempre en vez de recibirlos como parámetro."""
     return _armar_parte_orquestal_libre(
         nombre, INSTRUMENTOS_EJERCICIO_ORQUESTACION[nombre], CLEFES_EJERCICIO_ORQUESTACION[nombre],
-        eventos_por_compas, numeros_compas, tiempo_por_compas, armadura,
+        eventos_por_compas, numeros_compas, tiempo_por_compas, duraciones_por_compas, armadura,
     )
 
 
-def _armar_parte_orquestal_libre(nombre, clase_instrumento, clase_clave, eventos_por_compas, numeros_compas, tiempo_por_compas, armadura):
+def _armar_parte_orquestal_libre(nombre, clase_instrumento, clase_clave, eventos_por_compas, numeros_compas, tiempo_por_compas, duraciones_por_compas, armadura):
     """
     Generaliza _armar_parte_orquestal() a una lista ABIERTA de instrumentos (ejercicio
     de orquestación libre, vía InstrumentoHabilitadoOrquestacion) -- misma lógica exacta,
@@ -2269,7 +2330,7 @@ def _armar_parte_orquestal_libre(nombre, clase_instrumento, clase_clave, eventos
     for indice, numero in enumerate(numeros_compas):
         compas = music21.stream.Measure(number=numero)
         tiempo_compas = tiempo_por_compas[numero]
-        duracion_compas = tiempo_compas.barDuration.quarterLength
+        duracion_compas = duraciones_por_compas[numero]
 
         if indice == 0:
             # Sin esto music21 no emite NINGÚN <clef> en el XML exportado (verificado) —
@@ -2367,6 +2428,8 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
     numeros_compas = _numeros_compas_de_partes(partes_originales)
     tiempo_por_compas, armadura = _tiempo_y_armadura_por_compas(partes_originales, numeros_compas)
     offsets_inicio = _offsets_inicio_compas(partes_originales[0])
+    duraciones_por_compas = _duraciones_reales_por_compas(numeros_compas, offsets_inicio, tiempo_por_compas)
+    tiempo_por_compas = _corregir_tiempo_por_duracion_real(numeros_compas, tiempo_por_compas, duraciones_por_compas)
 
     eventos_por_instrumento = {nombre: {} for nombre in ORDEN_PARTES_ORQUESTACION}
     for nota_id, lista in asignaciones.items():
@@ -2390,7 +2453,7 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
     score = music21.stream.Score()
     for nombre in ORDEN_PARTES_ORQUESTACION:
         parte = _armar_parte_orquestal(
-            nombre, eventos_por_instrumento[nombre], numeros_compas, tiempo_por_compas, armadura
+            nombre, eventos_por_instrumento[nombre], numeros_compas, tiempo_por_compas, duraciones_por_compas, armadura
         )
         score.insert(0, parte)
 
@@ -2437,6 +2500,8 @@ def _generar_score_orquestal_libre(score_original, notas_por_id, asignaciones, i
     numeros_compas = _numeros_compas_de_partes(partes_originales)
     tiempo_por_compas, armadura = _tiempo_y_armadura_por_compas(partes_originales, numeros_compas)
     offsets_inicio = _offsets_inicio_compas(partes_originales[0])
+    duraciones_por_compas = _duraciones_reales_por_compas(numeros_compas, offsets_inicio, tiempo_por_compas)
+    tiempo_por_compas = _corregir_tiempo_por_duracion_real(numeros_compas, tiempo_por_compas, duraciones_por_compas)
 
     eventos_por_instrumento = {}
     for nota_id, lista in asignaciones.items():
@@ -2465,7 +2530,7 @@ def _generar_score_orquestal_libre(score_original, notas_por_id, asignaciones, i
         info = INSTRUMENTOS_ORQUESTACION_INFO[instrumento.clave_rango]
         parte = _armar_parte_orquestal_libre(
             instrumento.nombre, info['clase'], info['clave'],
-            eventos_por_instrumento.get(instrumento.id, {}), numeros_compas, tiempo_por_compas, armadura,
+            eventos_por_instrumento.get(instrumento.id, {}), numeros_compas, tiempo_por_compas, duraciones_por_compas, armadura,
         )
         score.insert(0, parte)
 
