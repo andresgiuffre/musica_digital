@@ -136,11 +136,21 @@ const AudioEngine = {
         return synth;
     },
 
-    // --- Muestras reales de cuerda (tonejs-instruments, ver <script> en base.html,
-    // pineado a un commit concreto vía jsDelivr). Solo cubre violin/cello/contrabass —
-    // viento/metal siguen con el synth de familia de arriba. Si el nombre no matchea
-    // ninguna clave, o el CDN falló, playSequence() cae solo al synth — nunca silencio. ---
-
+    // --- Muestras reales (tonejs-instruments, ver <script> en base.html, pineado a un
+    // commit concreto vía jsDelivr). Cubre 12 de los 18 instrumentos de RANGOS_COMODOS
+    // (ver views.py) -- confirmado contra el listado real de samples/ en ese commit
+    // pineado (bass-electric, bassoon, cello, clarinet, contrabass, flute, french-horn,
+    // guitar-*, harmonium, harp, organ, piano, saxophone, trombone, trumpet, tuba,
+    // violin, xylophone), no asumido de antemano. Los 6 restantes (Flautín ya cubierto
+    // vía flute; Corno Inglés/Oboe SIN aproximación real -- no hay ningún instrumento de
+    // lengüeta doble en la librería, y clarinet/bassoon están tímbricamente demasiado
+    // lejos como para no confundir más de lo que ayudan) caen al synth de familia de
+    // arriba. Si el nombre no matchea ninguna clave, o el CDN falló, playSequence() cae
+    // solo al synth — nunca silencio.
+    // Orden deliberado, mismo criterio que FAMILIAS_INSTRUMENTO: entradas más
+    // específicas antes que las genéricas que las contienen como substring (ej. "corno
+    // inglés" -> sin proxy, ANTES que "corno" -> french-horn; si no, "Corno Inglés"
+    // matchearía mal).
     MUESTRA_INSTRUMENTO: [
         [['contrabass', 'contrabajo', 'double bass'], 'contrabass'],
         [['violoncello', 'violonchelo', 'cello'], 'cello'],
@@ -150,6 +160,29 @@ const AudioEngine = {
         // cercano (oscuro/cálido) que violín.
         [['viola'], 'cello'],
         [['violin', 'violín'], 'violin'],
+        // Flautín/Piccolo sin muestra propia -- se aproxima con flute (misma familia,
+        // una octava abajo de donde realmente suena, igual que el resto del motor deja
+        // que Tone.Sampler estire/transporte la muestra más cercana).
+        [['flautín', 'flautin', 'piccolo', 'flauta', 'flute', 'fl.'], 'flute'],
+        // Clarinete Bajo sin muestra propia -- se aproxima con clarinet (misma familia,
+        // registro más grave).
+        [['clarinete bajo', 'bass clarinet', 'clarinete', 'clarinet'], 'clarinet'],
+        // Contrafagot sin muestra propia -- se aproxima con bassoon (misma familia,
+        // registro más grave), mismo criterio que viola/cello arriba.
+        [['contrafagot', 'contrabassoon', 'fagot', 'bassoon'], 'bassoon'],
+        // Corno Inglés/Oboe: sin ningún instrumento de lengüeta doble en la librería
+        // pineada -- clave null explícita (no ausencia silenciosa) para dejar registrado
+        // que SÍ se pensó un proxy acá y se descartó, no que se olvidó. null hace que
+        // playSequence() caiga directo al synth de familia (madera), igual que si no
+        // hubiera ninguna entrada.
+        [['corno inglés', 'corno ingles', 'english horn', 'cor anglais', 'oboe'], null],
+        [['corno', 'horn', 'trompa'], 'french-horn'],
+        [['trompeta', 'trumpet'], 'trumpet'],
+        // Trombón Bajo sin muestra propia -- se aproxima con trombone (misma familia,
+        // registro más grave).
+        [['trombón bajo', 'trombon bajo', 'bass trombone', 'trombón', 'trombon', 'trombone'], 'trombone'],
+        [['tuba'], 'tuba'],
+        [['arpa', 'harp'], 'harp'],
     ],
 
     // OJO: NO jsDelivr acá, a propósito -- Tone.js (ToneAudioBuffer.load) arma la URL de
