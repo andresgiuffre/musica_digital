@@ -11,7 +11,7 @@ from .models import (
     MusicalProject, ProjectGoal, ProjectSection,
     MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis,
     Curso, Grado, Tema, BloqueContenido, PracticaDirigidaProgreso,
-    InstrumentoHabilitadoOrquestacion,
+    InstrumentoHabilitadoOrquestacion, ProgresoOrquestacionLibre,
 )
 
 class PlaylistSheetInline(admin.TabularInline):
@@ -194,4 +194,14 @@ class InstrumentoHabilitadoOrquestacionAdmin(admin.ModelAdmin):
     list_editable = ('clave_rango', 'orden', 'activo')
     list_filter = ('activo', 'clave_rango')
     search_fields = ('nombre',)
+
+
+@admin.register(ProgresoOrquestacionLibre)
+class ProgresoOrquestacionLibreAdmin(admin.ModelAdmin):
+    """Dato operacional, no contenido a curar -- solo para inspeccionar/borrar un
+    progreso puntual desde el admin, no se edita a mano (ver ProgresoOrquestacionLibre)."""
+    list_display = ('user', 'fragmento', 'actualizado_en')
+    list_filter = ('fragmento',)
+    search_fields = ('user__username', 'fragmento__nombre')
+    readonly_fields = ('asignaciones', 'actualizado_en')
 

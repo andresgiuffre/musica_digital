@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/orquestacion/ejercicio/<int:fragmento_id>/generar/', views.orquestacion_ejercicio_generar, name='orquestacion_ejercicio_generar'),
     path('orquestacion/libre/<int:fragmento_id>/', views.orquestacion_libre_ejercicio, name='orquestacion_libre_ejercicio'),
     path('api/orquestacion/libre/<int:fragmento_id>/generar/', views.orquestacion_libre_ejercicio_generar, name='orquestacion_libre_ejercicio_generar'),
+    path('api/orquestacion/libre/<int:fragmento_id>/guardar/', views.orquestacion_libre_ejercicio_guardar, name='orquestacion_libre_ejercicio_guardar'),
     path('cursos/', views.cursos_list, name='cursos_list'),
     path('cursos/<int:curso_id>/', views.curso_detail, name='curso_detail'),
     path('cursos/<int:curso_id>/exportar-pdf/', views.curso_exportar_pdf, name='curso_exportar_pdf'),
