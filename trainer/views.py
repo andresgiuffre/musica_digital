@@ -2206,11 +2206,16 @@ def _tiempo_y_armadura_por_compas(partes_originales, numeros_compas):
     for p in partes_originales:
         for m in p.getElementsByClass(music21.stream.Measure):
             if m.number not in tiempo_explicito:
-                ts_list = m.getElementsByClass(music21.meter.TimeSignature)
+                # .recurse() en vez de un getElementsByClass plano -- algunos exportadores
+                # dejan el <time>/<key> anidado dentro de una Voice en vez de como hijo
+                # directo del Measure (ej. compases con más de una voz simultánea); un
+                # scan plano se lo perdía en esos casos, quedando en el default 4/4 más
+                # abajo aunque la pieza sí declarara su compás real.
+                ts_list = m.recurse().getElementsByClass(music21.meter.TimeSignature)
                 if ts_list:
                     tiempo_explicito[m.number] = ts_list[0]
             if armadura is None:
-                ks_list = m.getElementsByClass(music21.key.KeySignature)
+                ks_list = m.recurse().getElementsByClass(music21.key.KeySignature)
                 if ks_list:
                     armadura = ks_list[0]
 

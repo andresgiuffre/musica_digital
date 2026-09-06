@@ -935,38 +935,21 @@
             };
         });
 
-        const columnas = [];
-        osmdOrquesta.cursor.reset();
-        let medidaAnterior = -1;
-        while (!osmdOrquesta.cursor.iterator.EndReached) {
-            const medidaActual = osmdOrquesta.cursor.iterator.CurrentMeasureIndex;
-            if (medidaActual !== medidaAnterior) {
-                let left = null;
-                try { left = osmdOrquesta.cursor.cursorElement.getBoundingClientRect().left; } catch (e) { /* ver fallback abajo */ }
-                // CurrentMeasureIndex es la posición SECUENCIAL (0-based) dentro de la
-                // partitura renderizada, NO el número real de compás -- el servidor arma
-                // cada parte en el mismo orden que numerosCompas (ver
-                // _armar_parte_orquestal_libre), así que el compás N-ésimo encontrado acá
-                // es numerosCompas[N]. Usar medidaActual+1 directamente (asumiendo que
-                // los compases arrancan en 1) fue la causa real de un bug reportado: en
-                // piezas con anacrusa (primer compás numerado 0 en music21) la celda
-                // nunca coincidía con el compás real de la nota.
-                columnas.push({ compas: numerosCompas[medidaActual], left });
-                medidaAnterior = medidaActual;
-            }
-            osmdOrquesta.cursor.next();
-        }
-        osmdOrquesta.cursor.reset();
-        try { osmdOrquesta.cursor.hide(); } catch (e) { /* cosmético */ }
-
-        // Fallback si el cursor de OSMD no expuso su posición (ver comentario de la
-        // función): reparte el ancho del sistema en partes iguales por compás -- menos
-        // preciso con compases de duración despareja, pero evita dejar la grilla vacía.
-        if (columnas.some(c => c.left === null)) {
-            console.warn('[orquestacion-libre] No se pudo leer la posición del cursor de OSMD -- usando reparto uniforme de ancho por compás.');
-            const anchoPorCompas = (rectSvg.right - rectSvg.left) / columnas.length;
-            columnas.forEach((col, i) => { col.left = rectSvg.left + i * anchoPorCompas; });
-        }
+        // Columnas por compás: reparto matemático de ancho IGUAL por compás, NO leído
+        // del cursor de OSMD. Se probó primero con osmd.cursor.iterator.CurrentMeasureIndex
+        // + cursor.cursorElement.getBoundingClientRect() para ubicar cada compás real,
+        // pero resultó no confiable en la práctica (bug real reportado: el drag de una
+        // sola nota nunca coincidía con la celda, incluso soltando en el lugar correcto)
+        // -- probablemente porque un instrumento en blanco (silencio en TODOS sus
+        // compases) hace que el cursor de OSMD no genere una parada por compás de forma
+        // consistente. El reparto uniforme es 100% determinístico porque el ancho total
+        // del contenedor ya lo fija este mismo código (ver anchoPentagrama) usando un
+        // ancho fijo por compás -- no depende de ninguna API interna de OSMD.
+        const anchoPorCompas = (rectSvg.right - rectSvg.left) / numerosCompas.length;
+        const columnas = numerosCompas.map((numero, i) => ({
+            compas: numero,
+            left: rectSvg.left + i * anchoPorCompas,
+        }));
 
         columnas.forEach((col, i) => {
             const siguiente = columnas[i + 1];
