@@ -1,0 +1,981 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+{% block title %}{{ fragmento.nombre }}{% endblock %}
+{% block html_attrs %}data-gabinete-page data-tema-gabinete="oscuro"{% endblock %}
+{% block body_class %}gabinete{% endblock %}
+{% block nav_active_orquestar %}is-active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ej-orql-osmd-wrap {
+        overflow-x: auto;
+        background: var(--score-paper);
+        border-radius: var(--radius);
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--line);
+        overflow-anchor: none;
+    }
+    .ej-orql-osmd-wrap .nota-clickeable { cursor: grab; }
+    .ej-orql-anillo-seleccion {
+        position: absolute;
+        z-index: 150;
+        border: 2px solid var(--primary);
+        border-radius: 4px;
+        box-shadow: 0 0 6px var(--primary);
+        pointer-events: none;
+    }
+    .ej-orql-indicador-octava {
+        position: absolute;
+        z-index: 150;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: var(--danger);
+        background: rgba(255,255,255,0.92);
+        border-radius: 3px;
+        padding: 0 3px;
+        line-height: 1.3;
+        pointer-events: none;
+        transform: translate(0, -100%);
+    }
+    .ej-orql-badge-multi {
+        position: absolute;
+        z-index: 150;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        border: 1px solid rgba(0,0,0,0.3);
+        pointer-events: none;
+    }
+    .ej-orql-presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .ej-orql-preset-btn {
+        background: var(--surface);
+        border: 1px solid var(--line-input);
+        color: var(--ink);
+        font-family: var(--font-body);
+        border-radius: 999px;
+        padding: 0.35rem 0.9rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+    }
+    .ej-orql-preset-btn.ej-orql-preset-activo {
+        border-color: var(--primary);
+        background: var(--primary-tint);
+        color: var(--primary);
+        font-weight: 700;
+    }
+    .ej-orql-paleta {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    .ej-orql-instrumento {
+        background: var(--surface);
+        border: 2px solid var(--line);
+        border-radius: var(--radius);
+        padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .ej-orql-instrumento.ej-orql-dropzone-activa {
+        border-color: var(--zona-color);
+        background: color-mix(in srgb, var(--zona-color) 14%, transparent);
+    }
+    .ej-orql-instrumento-nombre {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        color: var(--ink);
+    }
+    .ej-orql-punto {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--zona-color);
+        flex-shrink: 0;
+    }
+    .ej-orql-registro-track {
+        position: relative;
+        height: 8px;
+        border-radius: 4px;
+        background: var(--line-soft);
+    }
+    .ej-orql-registro-barra {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        border-radius: 4px;
+        background: var(--zona-color);
+        opacity: 0.75;
+    }
+    .ej-orql-advertencia {
+        font-size: 0.78rem;
+        color: var(--danger);
+        min-height: 1em;
+    }
+    .ej-orql-octava-selector {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .ej-orql-octava-label {
+        font-size: 0.85rem;
+        color: var(--ink-soft);
+    }
+    .ej-orql-octava-btn {
+        background: var(--surface);
+        border: 1px solid var(--line-input);
+        color: var(--ink);
+        font-family: var(--font-body);
+        border-radius: var(--radius);
+        padding: 0.35rem 0.8rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+    }
+    .ej-orql-octava-btn.ej-orql-octava-activa {
+        border-color: var(--primary);
+        background: var(--primary-tint);
+        color: var(--primary);
+        font-weight: 700;
+    }
+    .ej-orql-boton-secundario {
+        background: var(--surface);
+        border: 1px solid var(--line-input);
+        color: var(--ink);
+        font-family: var(--font-body);
+        border-radius: var(--radius);
+        padding: 0.4rem 0.9rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+    }
+    .ej-orql-boton-secundario:hover { border-color: var(--primary); color: var(--primary); }
+    .ej-orql-boton-primario {
+        background: var(--primary);
+        border: none;
+        color: #ffffff;
+        font-weight: 600;
+        font-family: var(--font-body);
+        border-radius: var(--radius);
+        padding: 0.5rem 1.1rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+    .ej-orql-boton-primario:hover:not(:disabled) { background: var(--primary-dark); }
+    .ej-orql-boton-primario:disabled { opacity: 0.6; cursor: not-allowed; }
+    .ej-orql-separador {
+        border-top: 1px solid var(--line-soft);
+        margin: 2rem 0 1.5rem;
+        padding-top: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    #ej-orql-error-orquesta, #ej-orql-error-general {
+        display: none;
+        background: color-mix(in srgb, var(--danger) 10%, transparent);
+        border: 1px solid var(--danger);
+        color: var(--danger);
+        border-radius: var(--radius);
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        font-size: 0.85rem;
+    }
+    .ej-orql-controles-orquesta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .ej-orql-boton-parte {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--surface);
+        border: 1px solid var(--line-input);
+        border-radius: var(--radius);
+        padding: 0.35rem 0.7rem;
+        font-size: 0.8rem;
+        font-family: var(--font-body);
+        color: var(--ink);
+        cursor: pointer;
+    }
+    .ej-orql-boton-parte:hover { border-color: var(--zona-color); }
+    .ej-orql-boton-parte:disabled { opacity: 0.6; cursor: not-allowed; }
+    .ej-orql-boton-parte .ej-orql-punto { width: 10px; height: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="ej-orql-root" class="envoltorio-gab" style="max-width: 64rem; padding-top: 1.75rem; padding-bottom: 2.5rem;"
+    data-txt-fuera-de-registro="{% trans 'fuera de registro' %}"
+    data-txt-notas-sin-asignar="{% trans 'nota(s) todavía sin asignar.' %}"
+    data-txt-todas-asignadas="{% trans 'Todas las notas están asignadas a un instrumento.' %}"
+    data-txt-cargando-sonido="{% trans '⏳ Cargando sonido…' %}"
+    data-txt-todo="{% trans '▶ Todo' %}"
+    data-txt-error-partitura-orquestal="{% trans 'Error mostrando la partitura orquestal:' %}"
+    data-txt-sin-notas-asignadas="{% trans 'Todavía no asignaste ninguna nota.' %}"
+    data-txt-generando="{% trans 'Generando...' %}"
+    data-txt-ver-orquestacion="{% trans 'Ver orquestación' %}"
+    data-txt-error-generar="{% trans 'No se pudo generar la partitura orquestal.' %}"
+    data-txt-error-red-generar="{% trans 'Error de red generando la partitura:' %}"
+    data-txt-error-cargar-fragmento="{% trans 'No se pudo cargar el fragmento.' %}"
+    data-txt-error-cargando-fragmento="{% trans 'Error cargando el fragmento:' %}"
+    data-txt-sin-instrumentos="{% trans 'Todavía no hay instrumentos habilitados para este ejercicio — pedile a un administrador que habilite alguno.' %}"
+    data-txt-preset-todos="{% trans 'Todos' %}">
+    <a href="{% url 'orquestacion_ejercicio_lista' %}" class="volver-gab">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        {% trans "Volver" %}
+    </a>
+    <div class="eyebrow-gab" style="margin-bottom: 0.4rem;">{% trans "Reducción de piano" %}</div>
+    <h1 style="font-size: 1.75rem; margin-bottom: 0.6rem;">{{ fragmento.nombre }}</h1>
+    <p style="color: var(--ink-soft); margin-bottom: 1.5rem; max-width: 68ch;">
+        {% trans "Arrastrá una cabeza de nota de la reducción de piano hasta el instrumento que quieras que la toque (en dispositivos táctiles, tocá la nota y después tocá el instrumento). Podés copiar la misma nota a varios instrumentos con distinta octava cada vez, y varias notas que caigan sobre el mismo instrumento y el mismo momento forman un acorde. La barra debajo de cada instrumento marca su registro cómodo — se evalúa sobre la altura real resultante, ya con la octava y la transposición del instrumento aplicadas." %}
+    </p>
+
+    <div id="ej-orql-error-general"></div>
+    <p id="ej-orql-sin-instrumentos" style="display: none; color: var(--ink-soft);"></p>
+
+    <div id="ej-orql-ejercicio">
+        <div class="ej-orql-presets" id="ej-orql-presets"></div>
+
+        <div class="ej-orql-paleta" id="ej-orql-paleta"></div>
+
+        <div class="ej-orql-octava-selector" id="ej-orql-octava-selector">
+            <span class="ej-orql-octava-label">{% trans "Octava de la próxima copia:" %}</span>
+            <button type="button" class="ej-orql-octava-btn" data-octava="-1">8vb</button>
+            <button type="button" class="ej-orql-octava-btn ej-orql-octava-activa" data-octava="0">—</button>
+            <button type="button" class="ej-orql-octava-btn" data-octava="1">8va</button>
+        </div>
+
+        <div class="flex items-center justify-between mb-3">
+            <button type="button" id="ej-orql-original" class="ej-orql-boton-secundario">
+                ▶ {% trans "Escuchar fragmento original (piano)" %}
+            </button>
+            <button type="button" id="ej-orql-reiniciar" class="ej-orql-boton-secundario">
+                ↺ {% trans "Reiniciar" %}
+            </button>
+        </div>
+
+        <div class="ej-orql-osmd-wrap">
+            <div id="ej-orql-osmd"></div>
+        </div>
+
+        <p id="ej-orql-estado" style="font-size: 0.875rem; color: var(--ink-soft);"></p>
+
+        <div class="ej-orql-separador">
+            <h2 style="font-family: var(--font-display); font-size: 1.375rem;">{% trans "Partitura de orquesta" %}</h2>
+            <button type="button" id="ej-orql-ver-orquesta" class="ej-orql-boton-primario">{% trans "Ver orquestación" %}</button>
+        </div>
+
+        <div id="ej-orql-error-orquesta"></div>
+        <p id="ej-orql-panel-orquesta-vacio" style="color: var(--ink-soft);">
+            {% trans 'Todavía no generaste la orquestación — asigná algunas notas y apretá "Ver orquestación".' %}
+        </p>
+        <div id="ej-orql-panel-orquesta-contenido" style="display: none;">
+            <div class="ej-orql-controles-orquesta" id="ej-orql-controles-orquesta"></div>
+            <div class="ej-orql-osmd-wrap">
+                <div id="ej-orql-osmd-orquesta"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ instrumentos_data|json_script:"instrumentos-data" }}
+{{ presets_data|json_script:"presets-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
+<script src="{% static 'js/osmd_utils.js' %}"></script>
+<script>
+(function () {
+    const i18nEjOrql = document.getElementById('ej-orql-root').dataset;
+    const INSTRUMENTOS = JSON.parse(document.getElementById('instrumentos-data').textContent);
+    const PRESETS = JSON.parse(document.getElementById('presets-data').textContent);
+    const NOMBRE_ARCHIVO = "{{ fragmento.archivo.name|escapejs }}";
+    const ES_MXL = NOMBRE_ARCHIVO.toLowerCase().endsWith('.mxl');
+    const URL_GENERAR = '{% url "orquestacion_libre_ejercicio_generar" fragmento.id %}';
+
+    if (!INSTRUMENTOS.length) {
+        document.getElementById('ej-orql-ejercicio').style.display = 'none';
+        const aviso = document.getElementById('ej-orql-sin-instrumentos');
+        aviso.textContent = i18nEjOrql.txtSinInstrumentos;
+        aviso.style.display = 'block';
+        return;
+    }
+
+    const INSTRUMENTOS_POR_ID = new Map(INSTRUMENTOS.map(inst => [inst.id, inst]));
+
+    // Color estable por instrumento (rotación de ángulo dorado) -- a diferencia del
+    // ejercicio de pintado, acá la lista de instrumentos es abierta (config. de admin),
+    // no hay una paleta fija de 5 colores para elegir a mano.
+    function generarColor(indice) {
+        const hue = (indice * 137.508) % 360;
+        return `hsl(${hue.toFixed(1)}, 55%, 42%)`;
+    }
+    const COLOR_POR_ID = new Map(INSTRUMENTOS.map((inst, i) => [inst.id, generarColor(i)]));
+
+    // Identificador para AudioEngine (familiaInstrumento/muestraInstrumento hacen match
+    // por substring de palabras clave contra clave_rango, ver audio_engine.js) -- se
+    // concatena con el nombre elegido por el admin para que dos instrumentos con la
+    // misma clave_rango (ej. "Violín I"/"Violín II", ambos clave_rango='Violín') no
+    // compartan la misma instancia de synth/sampler cacheada por nombre.
+    function idAudio(inst) {
+        return `${inst.clave_rango} · ${inst.nombre}`;
+    }
+
+    const estadoEl = document.getElementById('ej-orql-estado');
+    const contenedorOsmd = document.getElementById('ej-orql-osmd');
+
+    let notasBackend = []; // del endpoint de datos, mutado in-place con .logicalNote y .svgEl
+    let tempoBpm = 100;
+    let mapaElementoANotas = new Map(); // svgEl -> array de entries (largo 1 si no es acorde)
+    let asignaciones = {}; // notaId -> [{instrumento_id, octava}, ...]
+    let octavaActiva = 0;
+    let notaSeleccionadaId = null; // tap-tap: nota esperando destino
+    let indicadoresOctava = [];
+    let badgesMultiAsignacion = [];
+    let overlaySeleccion = null;
+    let osmdOrquesta = null;
+
+    const globalMinPs = Math.min(...INSTRUMENTOS.map(i => i.min_ps));
+    const globalMaxPs = Math.max(...INSTRUMENTOS.map(i => i.max_ps));
+    const globalRangoPs = (globalMaxPs - globalMinPs) || 1;
+
+    function mostrarError(msg) {
+        estadoEl.textContent = msg;
+        console.error('[orquestacion-libre]', msg);
+    }
+
+    // --- Filtro de presets (solo visibilidad de tarjetas, no restringe qué instrumento
+    // puede recibir una nota -- ver docstring de orquestacion_libre_ejercicio en views.py) ---
+
+    function aplicarFiltroPreset(preset) {
+        document.querySelectorAll('[data-instrumento-id]').forEach(card => {
+            const id = parseInt(card.dataset.instrumentoId, 10);
+            const visible = !preset || preset.instrumento_ids.includes(id);
+            card.style.display = visible ? '' : 'none';
+        });
+    }
+
+    function crearFiltrosPreset() {
+        const contenedor = document.getElementById('ej-orql-presets');
+        if (!PRESETS.length) return;
+
+        function marcarActivo(btn) {
+            contenedor.querySelectorAll('.ej-orql-preset-btn').forEach(b => b.classList.toggle('ej-orql-preset-activo', b === btn));
+        }
+
+        const btnTodos = document.createElement('button');
+        btnTodos.type = 'button';
+        btnTodos.className = 'ej-orql-preset-btn ej-orql-preset-activo';
+        btnTodos.textContent = i18nEjOrql.txtPresetTodos;
+        btnTodos.addEventListener('click', () => { aplicarFiltroPreset(null); marcarActivo(btnTodos); });
+        contenedor.appendChild(btnTodos);
+
+        PRESETS.forEach(preset => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'ej-orql-preset-btn';
+            btn.textContent = preset.nombre;
+            btn.addEventListener('click', () => { aplicarFiltroPreset(preset); marcarActivo(btn); });
+            contenedor.appendChild(btn);
+        });
+    }
+
+    // --- Tarjetas de instrumento (destino de drag-and-drop y de tap-tap) ---
+
+    function crearPaleta() {
+        const contenedor = document.getElementById('ej-orql-paleta');
+        INSTRUMENTOS.forEach(inst => {
+            const left = ((inst.min_ps - globalMinPs) / globalRangoPs) * 100;
+            const width = Math.max(((inst.max_ps - inst.min_ps) / globalRangoPs) * 100, 1.5);
+            const color = COLOR_POR_ID.get(inst.id);
+
+            const card = document.createElement('div');
+            card.className = 'ej-orql-instrumento';
+            card.dataset.instrumentoId = String(inst.id);
+            card.style.setProperty('--zona-color', color);
+            card.innerHTML = `
+                <div class="ej-orql-instrumento-nombre">
+                    <span class="ej-orql-punto"></span>${inst.nombre}
+                </div>
+                <div class="ej-orql-registro-track">
+                    <div class="ej-orql-registro-barra" style="left:${left.toFixed(2)}%; width:${width.toFixed(2)}%;"></div>
+                </div>
+                <div class="ej-orql-advertencia" data-instrumento-advertencia="${inst.id}"></div>
+            `;
+
+            card.addEventListener('dragover', ev => { ev.preventDefault(); card.classList.add('ej-orql-dropzone-activa'); });
+            card.addEventListener('dragleave', () => card.classList.remove('ej-orql-dropzone-activa'));
+            card.addEventListener('drop', ev => {
+                ev.preventDefault();
+                card.classList.remove('ej-orql-dropzone-activa');
+                const notaId = ev.dataTransfer.getData('text/plain');
+                if (!notaId) return;
+                asignarNotaAInstrumento(notaId, inst.id, octavaActiva);
+            });
+            card.addEventListener('click', () => {
+                if (!notaSeleccionadaId) return;
+                asignarNotaAInstrumento(notaSeleccionadaId, inst.id, octavaActiva);
+                notaSeleccionadaId = null;
+                actualizarOverlaySeleccion();
+            });
+
+            contenedor.appendChild(card);
+        });
+    }
+
+    function crearSelectorOctava() {
+        document.querySelectorAll('.ej-orql-octava-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                octavaActiva = parseInt(btn.dataset.octava, 10);
+                document.querySelectorAll('.ej-orql-octava-btn').forEach(b => b.classList.toggle('ej-orql-octava-activa', b === btn));
+            });
+        });
+    }
+
+    // --- Correlación OSMD <-> backend (offset + ps, ambos "beats desde el inicio del
+    // fragmento" — no hace falta comparar compás) ---
+
+    function recolectarNotasOsmd() {
+        const resultado = [];
+        let descartadasPorGrace = 0;
+        osmd.cursor.reset();
+        while (!osmd.cursor.iterator.EndReached) {
+            const ts = osmd.cursor.iterator.currentTimeStamp;
+            if (!ts) break;
+            const offsetBeats = ts.RealValue * 4;
+            const voces = osmd.cursor.iterator.CurrentVoiceEntries;
+            if (voces) {
+                voces.forEach(v => {
+                    if (v && v.Notes) {
+                        v.Notes.forEach(n => {
+                            if (!n.Pitch || n.Pitch.halfTone === undefined) return;
+                            if (n.IsGraceNote) {
+                                descartadasPorGrace++;
+                                return;
+                            }
+                            resultado.push({ logicalNote: n, offset: offsetBeats, ps: n.Pitch.halfTone + 12 });
+                        });
+                    }
+                });
+            }
+            osmd.cursor.next();
+        }
+        osmd.cursor.reset();
+        try { osmd.cursor.hide(); } catch (e) { /* cosmético, no bloquea nada */ }
+        console.warn(`[orquestacion-libre] Grace notes descartadas del lado OSMD (IsGraceNote): ${descartadasPorGrace}`);
+        return resultado;
+    }
+
+    function correlacionarNotas() {
+        const notasOsmd = recolectarNotasOsmd();
+        const usadas = new Set();
+        let sinGrafica = 0;
+
+        notasBackend.forEach(nb => {
+            const idx = notasOsmd.findIndex((no, i) =>
+                !usadas.has(i) && Math.abs(no.offset - nb.offset) < 0.01 && Math.abs(no.ps - nb.ps) < 0.01
+            );
+            if (idx === -1) {
+                sinGrafica++;
+                console.warn('[orquestacion-libre] Nota del backend sin nota gráfica correspondiente en OSMD:', nb);
+                nb.logicalNote = null;
+            } else {
+                usadas.add(idx);
+                nb.logicalNote = notasOsmd[idx].logicalNote;
+            }
+        });
+
+        const sinBackend = notasOsmd.length - usadas.size;
+        if (sinGrafica > 0 || sinBackend > 0) {
+            console.warn(`[orquestacion-libre] Correlación incompleta: ${sinGrafica} notas del backend sin gráfica, ${sinBackend} notas gráficas sin backend.`);
+        }
+    }
+
+    // --- Etiquetado de elementos SVG (se repite después de CADA render) ---
+
+    function etiquetarNotas() {
+        mapaElementoANotas = new Map();
+        OsmdUtils.etiquetarNotasConSvg(osmd, notasBackend);
+        notasBackend.forEach(entry => {
+            if (!entry.svgEl) {
+                console.warn('[orquestacion-libre] No se encontró elemento SVG para una nota:', entry);
+                return;
+            }
+            entry.svgEl.setAttribute('data-osmd-nota', '1');
+            entry.svgEl.classList.add('nota-clickeable');
+            entry.svgEl.setAttribute('draggable', 'true');
+            if (!entry.svgEl.dataset.dragBound) {
+                entry.svgEl.addEventListener('dragstart', onDragStartNota);
+                entry.svgEl.dataset.dragBound = '1';
+            }
+            if (!mapaElementoANotas.has(entry.svgEl)) mapaElementoANotas.set(entry.svgEl, []);
+            mapaElementoANotas.get(entry.svgEl).push(entry);
+        });
+        aplicarHalosDeRegistro();
+        actualizarIndicadoresOctava();
+        actualizarBadgesMultiAsignacion();
+        actualizarOverlaySeleccion();
+    }
+
+    // Actualiza NoteheadColor en las notas LÓGICAS -- tiene que correr ANTES de
+    // osmd.render() para que el color del click/drop actual se vea en el próximo render.
+    function aplicarColoresLogicos() {
+        notasBackend.forEach(nb => {
+            if (!nb.logicalNote) return;
+            const lista = asignaciones[nb.id];
+            nb.logicalNote.NoteheadColor = (lista && lista.length) ? COLOR_POR_ID.get(lista[0].instrumento_id) : '#000000';
+        });
+    }
+
+    // Altura efectiva corregida por transposición (ver _ajuste_escrito_semitonos en
+    // views.py) -- a diferencia del ejercicio de pintado, este chequeo sí corrige por el
+    // instrumento transpositor.
+    function psEfectivo(nb, asignacion) {
+        const inst = INSTRUMENTOS_POR_ID.get(asignacion.instrumento_id);
+        return nb.ps + 12 * asignacion.octava + inst.ajuste_escrito_semitonos;
+    }
+
+    function aplicarHalosDeRegistro() {
+        notasBackend.forEach(nb => {
+            if (!nb.svgEl) return;
+            const lista = asignaciones[nb.id];
+            if (!lista || !lista.length) {
+                nb.svgEl.style.filter = '';
+                return;
+            }
+            const algunaFueraDeRango = lista.some(asign => {
+                const inst = INSTRUMENTOS_POR_ID.get(asign.instrumento_id);
+                const ps = psEfectivo(nb, asign);
+                return ps < inst.min_ps || ps > inst.max_ps;
+            });
+            nb.svgEl.style.filter = algunaFueraDeRango ? 'drop-shadow(0 0 2px red) drop-shadow(0 0 4px red)' : '';
+        });
+    }
+
+    function limpiarIndicadoresOctava() {
+        indicadoresOctava.forEach(el => el.remove());
+        indicadoresOctava = [];
+    }
+
+    function actualizarIndicadoresOctava() {
+        limpiarIndicadoresOctava();
+        notasBackend.forEach(nb => {
+            const lista = asignaciones[nb.id];
+            if (!lista || !lista.length || lista[0].octava === 0 || !nb.svgEl) return;
+            const rect = nb.svgEl.getBoundingClientRect();
+            const div = document.createElement('div');
+            div.className = 'ej-orql-indicador-octava';
+            div.textContent = lista[0].octava > 0 ? '8↑' : '8↓';
+            div.style.left = (rect.right + window.scrollX) + 'px';
+            div.style.top = (rect.top + window.scrollY) + 'px';
+            document.body.appendChild(div);
+            indicadoresOctava.push(div);
+        });
+    }
+
+    function limpiarBadgesMultiAsignacion() {
+        badgesMultiAsignacion.forEach(el => el.remove());
+        badgesMultiAsignacion = [];
+    }
+
+    function actualizarBadgesMultiAsignacion() {
+        limpiarBadgesMultiAsignacion();
+        notasBackend.forEach(nb => {
+            const lista = asignaciones[nb.id];
+            if (!lista || lista.length < 2 || !nb.svgEl) return;
+            const rect = nb.svgEl.getBoundingClientRect();
+            lista.slice(1).forEach((asign, i) => {
+                const div = document.createElement('div');
+                div.className = 'ej-orql-badge-multi';
+                div.style.background = COLOR_POR_ID.get(asign.instrumento_id);
+                div.style.left = (rect.right + window.scrollX + 2 + i * 9) + 'px';
+                div.style.top = (rect.bottom + window.scrollY - 6) + 'px';
+                document.body.appendChild(div);
+                badgesMultiAsignacion.push(div);
+            });
+        });
+    }
+
+    // Anillo de selección (tap-tap): overlay HTML sobre la nota esperando destino, mismo
+    // mecanismo de posicionamiento que los indicadores de octava.
+    function limpiarOverlaySeleccion() {
+        if (overlaySeleccion) { overlaySeleccion.remove(); overlaySeleccion = null; }
+    }
+
+    function actualizarOverlaySeleccion() {
+        limpiarOverlaySeleccion();
+        if (!notaSeleccionadaId) return;
+        const nb = notasBackend.find(n => n.id === notaSeleccionadaId);
+        if (!nb || !nb.svgEl) return;
+        const rect = nb.svgEl.getBoundingClientRect();
+        const div = document.createElement('div');
+        div.className = 'ej-orql-anillo-seleccion';
+        div.style.left = (rect.left + window.scrollX - 4) + 'px';
+        div.style.top = (rect.top + window.scrollY - 4) + 'px';
+        div.style.width = (rect.width + 8) + 'px';
+        div.style.height = (rect.height + 8) + 'px';
+        document.body.appendChild(div);
+        overlaySeleccion = div;
+    }
+
+    function rerenderYEtiquetar() {
+        aplicarColoresLogicos();
+        const alturaPrevia = contenedorOsmd.offsetHeight;
+        if (alturaPrevia > 0) contenedorOsmd.style.minHeight = alturaPrevia + 'px';
+        osmd.render();
+        etiquetarNotas();
+        if (alturaPrevia > 0) {
+            requestAnimationFrame(() => { contenedorOsmd.style.minHeight = ''; });
+        }
+    }
+
+    // --- Resolución de click/drag, incluida la desambiguación geométrica de acordes
+    // (idéntica a la del ejercicio de pintado: mismo elemento SVG puede representar
+    // varias notas apiladas de un acorde, hay que desambiguar por posición vertical) ---
+
+    function encontrarCabezasDeNota(elGrupo) {
+        const vistos = new Set();
+        const cabezas = [];
+        elGrupo.querySelectorAll('*').forEach(hijo => {
+            const rect = hijo.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return;
+            const proporcion = rect.width / rect.height;
+            if (proporcion < 0.4 || proporcion > 2.5) return;
+            const clave = `${rect.left.toFixed(1)},${rect.top.toFixed(1)},${rect.width.toFixed(1)},${rect.height.toFixed(1)}`;
+            if (vistos.has(clave)) return;
+            vistos.add(clave);
+            cabezas.push(rect);
+        });
+        cabezas.sort((a, b) => a.top - b.top);
+        return cabezas;
+    }
+
+    function resolverNotaDeClick(ev, el) {
+        const candidatos = mapaElementoANotas.get(el);
+        if (!candidatos || !candidatos.length) return null;
+        if (candidatos.length === 1) return candidatos[0];
+
+        const ordenados = [...candidatos].sort((a, b) => b.ps - a.ps);
+        const cabezas = encontrarCabezasDeNota(el);
+        if (cabezas.length !== ordenados.length) {
+            console.warn(`[orquestacion-libre] Geometría de acorde no coincide (esperadas ${ordenados.length}, encontradas ${cabezas.length}) — usando respaldo de tercios parejos.`);
+            const rect = el.getBoundingClientRect();
+            const posicionRelativa = rect.height > 0 ? (ev.clientY - rect.top) / rect.height : 0;
+            const indice = Math.min(ordenados.length - 1, Math.max(0, Math.floor(posicionRelativa * ordenados.length)));
+            return ordenados[indice];
+        }
+
+        let mejorIndice = 0;
+        let mejorDistancia = Infinity;
+        cabezas.forEach((rect, i) => {
+            const centroY = rect.top + rect.height / 2;
+            const distancia = Math.abs(ev.clientY - centroY);
+            if (distancia < mejorDistancia) { mejorDistancia = distancia; mejorIndice = i; }
+        });
+        return ordenados[mejorIndice];
+    }
+
+    // Toggle idéntico al del ejercicio de pintado: agrega el instrumento si no estaba,
+    // lo quita si ya estaba con la misma octava, lo actualiza si estaba con otra octava.
+    // Nunca pisa asignaciones de otros instrumentos de la misma nota.
+    function asignarNotaAInstrumento(notaId, instrumentoId, octava) {
+        const lista = asignaciones[notaId] || [];
+        const idx = lista.findIndex(a => a.instrumento_id === instrumentoId);
+        if (idx === -1) {
+            lista.push({ instrumento_id: instrumentoId, octava });
+        } else if (lista[idx].octava === octava) {
+            lista.splice(idx, 1);
+        } else {
+            lista[idx].octava = octava;
+        }
+
+        if (lista.length > 0) {
+            asignaciones[notaId] = lista;
+        } else {
+            delete asignaciones[notaId];
+        }
+
+        rerenderYEtiquetar();
+        actualizarContadoresAdvertencia();
+        actualizarEstado();
+    }
+
+    function onDragStartNota(ev) {
+        const entry = resolverNotaDeClick(ev, ev.currentTarget);
+        if (!entry) { ev.preventDefault(); return; }
+        ev.dataTransfer.setData('text/plain', entry.id);
+        ev.dataTransfer.effectAllowed = 'copy';
+    }
+
+    // Tap-tap: primer tap selecciona (o deselecciona si se vuelve a tocar la misma nota,
+    // o cambia la selección si se toca otra) -- el segundo tap sobre una tarjeta de
+    // instrumento (ver crearPaleta) aplica la asignación. Corre en paralelo al drag
+    // nativo, no en reemplazo -- en desktop, un click sin arrastre solo activa esta vía.
+    function onClickPartitura(ev) {
+        const el = ev.target.closest('[data-osmd-nota]');
+        if (!el) return;
+        const entry = resolverNotaDeClick(ev, el);
+        if (!entry) return;
+        notaSeleccionadaId = (notaSeleccionadaId === entry.id) ? null : entry.id;
+        actualizarOverlaySeleccion();
+    }
+
+    // --- Contadores y estado ---
+
+    function actualizarContadoresAdvertencia() {
+        INSTRUMENTOS.forEach(inst => {
+            const fueraDeRango = notasBackend.filter(nb => {
+                const lista = asignaciones[nb.id];
+                if (!lista) return false;
+                const asign = lista.find(a => a.instrumento_id === inst.id);
+                if (!asign) return false;
+                const ps = psEfectivo(nb, asign);
+                return ps < inst.min_ps || ps > inst.max_ps;
+            }).length;
+            const el = document.querySelector(`[data-instrumento-advertencia="${inst.id}"]`);
+            if (el) el.textContent = fueraDeRango > 0 ? `⚠ ${fueraDeRango} ${i18nEjOrql.txtFueraDeRegistro}` : '';
+        });
+    }
+
+    function actualizarEstado() {
+        const sinAsignar = notasBackend.filter(nb => !asignaciones[nb.id]).length;
+        estadoEl.textContent = sinAsignar > 0
+            ? `${sinAsignar} ${i18nEjOrql.txtNotasSinAsignar}`
+            : i18nEjOrql.txtTodasAsignadas;
+    }
+
+    // --- Reproducción del fragmento original completo (piano) ---
+
+    function reproducirOriginal() {
+        const eventos = [...notasBackend]
+            .sort((a, b) => a.offset - b.offset)
+            .map(nb => ({ notes: [nb.pitch], offset: nb.offset, duration: nb.duracion_ql }));
+        if (!eventos.length) return;
+        AudioEngine.playSequence(eventos, tempoBpm, null); // null -> timbre de piano
+    }
+
+    function reiniciar() {
+        asignaciones = {};
+        notaSeleccionadaId = null;
+        rerenderYEtiquetar();
+        actualizarContadoresAdvertencia();
+        actualizarEstado();
+    }
+
+    // --- Panel 2: partitura de orquesta ---
+
+    function transportarPitch(pitchStr, octava) {
+        if (!octava) return pitchStr;
+        const m = pitchStr.match(/^([A-Ga-g][#\-]*)(-?\d+)$/);
+        if (!m) return pitchStr;
+        return m[1] + (parseInt(m[2], 10) + octava);
+    }
+
+    function instrumentosUsados() {
+        const idsUsados = new Set();
+        Object.values(asignaciones).forEach(lista => lista.forEach(a => idsUsados.add(a.instrumento_id)));
+        return INSTRUMENTOS.filter(inst => idsUsados.has(inst.id));
+    }
+
+    // Los eventos de reproducción del Panel 2 se derivan de notasBackend + asignaciones
+    // (ya en memoria en el frontend), no del MusicXML generado -- mismo criterio que el
+    // ejercicio de pintado.
+    function eventosDeParteOrquesta(instrumentoId) {
+        const eventos = [];
+        notasBackend.forEach(nb => {
+            const lista = asignaciones[nb.id];
+            if (!lista) return;
+            const asign = lista.find(a => a.instrumento_id === instrumentoId);
+            if (!asign) return;
+            eventos.push({ notes: [transportarPitch(nb.pitch, asign.octava)], offset: nb.offset, duration: nb.duracion_ql });
+        });
+        eventos.sort((a, b) => a.offset - b.offset);
+        return eventos;
+    }
+
+    function ponerBotonEnCarga(boton, textoCargando) {
+        if (!boton) return () => {};
+        boton.disabled = true;
+        const textoEl = boton.querySelector('.ej-orql-boton-parte-texto');
+        const previo = textoEl ? textoEl.textContent : boton.textContent;
+        if (textoEl) textoEl.textContent = textoCargando; else boton.textContent = textoCargando;
+        return () => {
+            boton.disabled = false;
+            if (textoEl) textoEl.textContent = previo; else boton.textContent = previo;
+        };
+    }
+
+    function reproducirParteOrquesta(instrumentoId, boton) {
+        const inst = INSTRUMENTOS_POR_ID.get(instrumentoId);
+        const eventos = eventosDeParteOrquesta(instrumentoId);
+        if (!eventos.length) return;
+        const restaurar = ponerBotonEnCarga(boton, i18nEjOrql.txtCargandoSonido);
+        AudioEngine.precargarMuestraInstrumento(idAudio(inst)).finally(restaurar).then(() => {
+            AudioEngine.playSequence(eventos, tempoBpm, idAudio(inst));
+        });
+    }
+
+    function reproducirTodoOrquesta(boton) {
+        const usados = instrumentosUsados();
+        const restaurar = ponerBotonEnCarga(boton, i18nEjOrql.txtCargandoSonido);
+        Promise.all(usados.map(inst => AudioEngine.precargarMuestraInstrumento(idAudio(inst))))
+            .finally(restaurar)
+            .then(() => {
+                usados.forEach(inst => reproducirParteOrquesta(inst.id));
+            });
+    }
+
+    function crearControlesOrquesta() {
+        const contenedor = document.getElementById('ej-orql-controles-orquesta');
+        contenedor.innerHTML = '';
+
+        const btnTodo = document.createElement('button');
+        btnTodo.type = 'button';
+        btnTodo.className = 'ej-orql-boton-parte';
+        btnTodo.textContent = i18nEjOrql.txtTodo;
+        btnTodo.addEventListener('click', () => reproducirTodoOrquesta(btnTodo));
+        contenedor.appendChild(btnTodo);
+
+        instrumentosUsados().forEach(inst => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'ej-orql-boton-parte';
+            btn.style.setProperty('--zona-color', COLOR_POR_ID.get(inst.id));
+            btn.innerHTML = `<span class="ej-orql-punto"></span><span class="ej-orql-boton-parte-texto">▶ ${inst.nombre}</span>`;
+            btn.addEventListener('click', () => reproducirParteOrquesta(inst.id, btn));
+            contenedor.appendChild(btn);
+        });
+    }
+
+    function mostrarErrorOrquesta(msg) {
+        const el = document.getElementById('ej-orql-error-orquesta');
+        el.textContent = msg;
+        el.style.display = 'block';
+        console.error('[orquestacion-libre]', msg);
+    }
+
+    function renderizarPanelOrquesta(musicxml) {
+        document.getElementById('ej-orql-error-orquesta').style.display = 'none';
+        const contenedorOrquesta = document.getElementById('ej-orql-osmd-orquesta');
+        if (!osmdOrquesta) {
+            osmdOrquesta = new opensheetmusicdisplay.OpenSheetMusicDisplay(contenedorOrquesta, {
+                drawTitle: false,
+                autoResize: false,
+            });
+        }
+        osmdOrquesta.load(musicxml).then(() => {
+            document.getElementById('ej-orql-panel-orquesta-vacio').style.display = 'none';
+            document.getElementById('ej-orql-panel-orquesta-contenido').style.display = 'block';
+            requestAnimationFrame(() => {
+                osmdOrquesta.render();
+            });
+        }).catch(err => {
+            mostrarErrorOrquesta(i18nEjOrql.txtErrorPartituraOrquestal + ' ' + err.message);
+        });
+    }
+
+    function verOrquestacion() {
+        if (Object.keys(asignaciones).length === 0) {
+            mostrarErrorOrquesta(i18nEjOrql.txtSinNotasAsignadas);
+            return;
+        }
+
+        const btn = document.getElementById('ej-orql-ver-orquesta');
+        btn.disabled = true;
+        btn.textContent = i18nEjOrql.txtGenerando;
+
+        fetch(URL_GENERAR, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify({ asignaciones }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.textContent = i18nEjOrql.txtVerOrquestacion;
+                if (data.status !== 'success') {
+                    mostrarErrorOrquesta(data.message || i18nEjOrql.txtErrorGenerar);
+                    return;
+                }
+                crearControlesOrquesta();
+                renderizarPanelOrquesta(data.musicxml);
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.textContent = i18nEjOrql.txtVerOrquestacion;
+                mostrarErrorOrquesta(i18nEjOrql.txtErrorRedGenerar + ' ' + err.message);
+            });
+    }
+
+    // --- Resize manual (autoResize de OSMD desactivado -- ver comentario equivalente en
+    // el ejercicio de pintado) ---
+
+    let resizeTimeout = null;
+    function onResize() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            rerenderYEtiquetar();
+            if (osmdOrquesta) osmdOrquesta.render();
+        }, 250);
+    }
+
+    // --- Arranque ---
+
+    const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(contenedorOsmd, {
+        drawTitle: false,
+        autoResize: false,
+    });
+
+    crearFiltrosPreset();
+    crearPaleta();
+    crearSelectorOctava();
+    document.getElementById('ej-orql-original').addEventListener('click', reproducirOriginal);
+    document.getElementById('ej-orql-reiniciar').addEventListener('click', reiniciar);
+    document.getElementById('ej-orql-ver-orquesta').addEventListener('click', verOrquestacion);
+
+    fetch('{% url "orquestacion_ejercicio_archivo" fragmento.id %}')
+        .then(res => {
+            if (!res.ok) throw new Error('No se pudo descargar el archivo (' + res.status + ')');
+            return res.arrayBuffer();
+        })
+        .then(buffer => ES_MXL ? osmd.load(buffer) : osmd.load(new TextDecoder('utf-8').decode(buffer)))
+        .then(() => {
+            osmd.render();
+            return fetch('{% url "orquestacion_ejercicio_datos" fragmento.id %}');
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== 'success') {
+                mostrarError(data.message || i18nEjOrql.txtErrorCargarFragmento);
+                return;
+            }
+            notasBackend = data.notas;
+            tempoBpm = data.fragmento.tempo_bpm;
+            correlacionarNotas();
+            etiquetarNotas();
+            contenedorOsmd.addEventListener('click', onClickPartitura);
+            window.addEventListener('resize', onResize);
+            actualizarEstado();
+        })
+        .catch(err => mostrarError(i18nEjOrql.txtErrorCargandoFragmento + ' ' + err.message));
+})();
+</script>
+{% endblock %}
