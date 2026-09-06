@@ -1630,7 +1630,7 @@ def _notas_piano_para_ejercicio(score):
     """
     notas = []
     contador = 0
-    for part in score.parts:
+    for indice_parte, part in enumerate(score.parts):
         for m in part.getElementsByClass(music21.stream.Measure):
             graces_pendientes = []
             for el in m.recurse().notes:
@@ -1668,6 +1668,12 @@ def _notas_piano_para_ejercicio(score):
                         'pitch_solfeo': _a_solfeo(p.nameWithOctave),  # solo para mostrar en el chip
                         'ps': p.ps,
                         'graces': graces_para_este_grupo,
+                        # Índice de score.parts (0=mano derecha/pentagrama superior,
+                        # 1=mano izquierda/inferior en un piano a dos manos) -- lo usa el
+                        # ejercicio libre para no dejar que una selección de rango
+                        # (Shift+click) cruce de un pentagrama a otro (ver
+                        # orquestacion_libre_ejercicio.html, alternarSeleccion).
+                        'parte': indice_parte,
                     })
 
     notas.sort(key=lambda n: (n['offset'], -n['ps']))
@@ -2385,11 +2391,14 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
 
     score.atSoundingPitch = True
     score_escrito = score.toWrittenPitch()
-    # Sin esto, GeneralObjectExporter completa un título default ("Music21 Fragment")
-    # que se veía en pantalla en el panel de orquesta -- confirmado que un Metadata()
-    # vacío NO alcanza (el default sigue apareciendo), hace falta el title='' explícito.
+    # Sin esto, GeneralObjectExporter completa un título ("Music21 Fragment") Y un
+    # compositor ("Music21") default -- confirmado que un Metadata() vacío NO alcanza
+    # para ninguno de los dos (el default sigue apareciendo), hace falta title='' y
+    # composer='' explícitos en ambos. El compositor "Music21" fue el que seguía
+    # apareciendo en pantalla después de sacar solo el título (bug real reportado).
     score_escrito.insert(0, music21.metadata.Metadata())
     score_escrito.metadata.title = ''
+    score_escrito.metadata.composer = ''
 
     exporter = music21.musicxml.m21ToXml.GeneralObjectExporter(score_escrito)
     return exporter.parse().decode('utf-8')
@@ -2458,9 +2467,11 @@ def _generar_score_orquestal_libre(score_original, notas_por_id, asignaciones, i
     score.atSoundingPitch = True
     score_escrito = score.toWrittenPitch()
     # Ver comentario equivalente en _generar_score_orquestal -- sin esto queda un
-    # título default "Music21 Fragment" visible en el panel de orquesta.
+    # título "Music21 Fragment" Y un compositor "Music21" default visibles en el
+    # panel de orquesta.
     score_escrito.insert(0, music21.metadata.Metadata())
     score_escrito.metadata.title = ''
+    score_escrito.metadata.composer = ''
 
     exporter = music21.musicxml.m21ToXml.GeneralObjectExporter(score_escrito)
     return exporter.parse().decode('utf-8')
