@@ -2044,16 +2044,20 @@ def orquestacion_ejercicio_datos(request, fragmento_id):
 
     tempos = score.recurse().getElementsByClass(music21.tempo.MetronomeMark)
     tempo_bpm = (tempos[0].number if tempos else None) or 100
-    # Igual cálculo que _generar_score_orquestal(_libre) -- hace falta para dimensionar
-    # el ancho del pentagrama en el ejercicio libre (ver orquestacion_libre_ejercicio.html):
-    # no se puede derivar de forma confiable del máximo compás en `notas`, porque un
-    # compás final sin ninguna nota real (solo silencio) no aparece ahí y quedaría
-    # subcontado.
-    compases_totales = max(len(list(p.getElementsByClass(music21.stream.Measure))) for p in score.parts)
+    # Números REALES de compás (ver _numeros_compas_de_partes) -- hace falta para
+    # dimensionar el ancho del pentagrama en el ejercicio libre (ver
+    # orquestacion_libre_ejercicio.html) Y para que el frontend pueda tagear cada celda
+    # de su grilla compás×instrumento con el mismo número real que trae cada nota (ver
+    # 'compas' en _notas_piano_para_ejercicio) -- nunca se puede asumir que los compases
+    # arrancan en 1 ni que son contiguos (una pieza con anacrusa suele numerar su primer
+    # compás como 0 en music21; confirmado como causa real de un bug reportado: la
+    # validación de compás del ejercicio libre nunca coincidía, y los pentagramas en
+    # blanco salían en 4/4 en vez del compás real de la pieza).
+    numeros_compas = _numeros_compas_de_partes(score.parts)
 
     return JsonResponse({
         'status': 'success',
-        'fragmento': {'nombre': fragmento.nombre, 'tempo_bpm': tempo_bpm, 'compases_totales': compases_totales},
+        'fragmento': {'nombre': fragmento.nombre, 'tempo_bpm': tempo_bpm, 'numeros_compas': numeros_compas},
         'notas': _notas_piano_para_ejercicio(score),
     })
 
@@ -2164,12 +2168,32 @@ def _transportar_pitch_preservando_grafia(nombre_pitch, octava):
     return p
 
 
-def _tiempo_y_armadura_por_compas(partes_originales, compases_totales):
+def _numeros_compas_de_partes(partes_originales):
+    """
+    Lista ORDENADA de los números de compás REALES presentes en las partes originales
+    -- nunca se asume que arrancan en 1 ni que son contiguos. Una pieza con compás de
+    anacrusa, por ejemplo, suele numerar su primer compás como 0 en music21 (confirmado
+    con un caso real: una pieza en 3/4 con anacrusa generaba pentagramas en blanco en
+    4/4 y validaciones de compás que nunca coincidían, porque el resto del pipeline
+    asumía "range(1, compases_totales+1)" en vez de leer los números reales). Se calcula
+    sobre la UNIÓN de todas las partes (no alcanza con la primera -- un piano a dos
+    manos parseado como dos PartStaff podría, en teoría, traer compases declarados de
+    forma ligeramente distinta entre mano y mano).
+    """
+    numeros = set()
+    for p in partes_originales:
+        for m in p.getElementsByClass(music21.stream.Measure):
+            numeros.add(m.number)
+    return sorted(numeros)
+
+
+def _tiempo_y_armadura_por_compas(partes_originales, numeros_compas):
     """
     Recorre todas las partes originales (no solo la primera) buscando dónde se declaran
     explícitamente compás/armadura, y rellena hacia adelante para los compases donde no
     se vuelven a declarar — soporta cambios de compás a mitad de la obra en vez de asumir
-    un único compás constante.
+    un único compás constante. `numeros_compas` son los números REALES de compás (ver
+    _numeros_compas_de_partes) -- ver ahí por qué no se puede asumir que arrancan en 1.
     """
     tiempo_explicito = {}
     armadura = None
@@ -2185,8 +2209,8 @@ def _tiempo_y_armadura_por_compas(partes_originales, compases_totales):
                     armadura = ks_list[0]
 
     resultado = {}
-    actual = tiempo_explicito.get(1) or music21.meter.TimeSignature('4/4')
-    for numero in range(1, compases_totales + 1):
+    actual = tiempo_explicito.get(numeros_compas[0]) or music21.meter.TimeSignature('4/4')
+    for numero in numeros_compas:
         if numero in tiempo_explicito:
             actual = tiempo_explicito[numero]
         resultado[numero] = actual
@@ -2197,17 +2221,17 @@ def _offsets_inicio_compas(part):
     return {m.number: m.offset for m in part.getElementsByClass(music21.stream.Measure)}
 
 
-def _armar_parte_orquestal(nombre, eventos_por_compas, compases_totales, tiempo_por_compas, armadura):
+def _armar_parte_orquestal(nombre, eventos_por_compas, numeros_compas, tiempo_por_compas, armadura):
     """Envoltorio sobre _armar_parte_orquestal_libre() para el ejercicio de pintado
     (5 partes fijas) -- no cambia su comportamiento, solo resuelve instrumento/clave
     desde los dicts fijos de siempre en vez de recibirlos como parámetro."""
     return _armar_parte_orquestal_libre(
         nombre, INSTRUMENTOS_EJERCICIO_ORQUESTACION[nombre], CLEFES_EJERCICIO_ORQUESTACION[nombre],
-        eventos_por_compas, compases_totales, tiempo_por_compas, armadura,
+        eventos_por_compas, numeros_compas, tiempo_por_compas, armadura,
     )
 
 
-def _armar_parte_orquestal_libre(nombre, clase_instrumento, clase_clave, eventos_por_compas, compases_totales, tiempo_por_compas, armadura):
+def _armar_parte_orquestal_libre(nombre, clase_instrumento, clase_clave, eventos_por_compas, numeros_compas, tiempo_por_compas, armadura):
     """
     Generaliza _armar_parte_orquestal() a una lista ABIERTA de instrumentos (ejercicio
     de orquestación libre, vía InstrumentoHabilitadoOrquestacion) -- misma lógica exacta,
@@ -2231,19 +2255,19 @@ def _armar_parte_orquestal_libre(nombre, clase_instrumento, clase_clave, eventos
     instr.partName = nombre
     parte.insert(0, instr)
 
-    for numero in range(1, compases_totales + 1):
+    for indice, numero in enumerate(numeros_compas):
         compas = music21.stream.Measure(number=numero)
         tiempo_compas = tiempo_por_compas[numero]
         duracion_compas = tiempo_compas.barDuration.quarterLength
 
-        if numero == 1:
+        if indice == 0:
             # Sin esto music21 no emite NINGÚN <clef> en el XML exportado (verificado) —
             # queda a criterio del renderizador, que es peor que elegir mal.
             compas.insert(0, clase_clave())
             if armadura is not None:
                 compas.insert(0, copy.deepcopy(armadura))
             compas.insert(0, copy.deepcopy(tiempo_compas))
-        elif tiempo_compas.ratioString != tiempo_por_compas[numero - 1].ratioString:
+        elif tiempo_compas.ratioString != tiempo_por_compas[numeros_compas[indice - 1]].ratioString:
             compas.insert(0, copy.deepcopy(tiempo_compas))
 
         agrupados = {}
@@ -2329,8 +2353,8 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
     no tienen transposition y quedan intactas.
     """
     partes_originales = list(score_original.parts)
-    compases_totales = max(len(list(p.getElementsByClass(music21.stream.Measure))) for p in partes_originales)
-    tiempo_por_compas, armadura = _tiempo_y_armadura_por_compas(partes_originales, compases_totales)
+    numeros_compas = _numeros_compas_de_partes(partes_originales)
+    tiempo_por_compas, armadura = _tiempo_y_armadura_por_compas(partes_originales, numeros_compas)
     offsets_inicio = _offsets_inicio_compas(partes_originales[0])
 
     eventos_por_instrumento = {nombre: {} for nombre in ORDEN_PARTES_ORQUESTACION}
@@ -2355,12 +2379,17 @@ def _generar_score_orquestal(score_original, notas_por_id, asignaciones):
     score = music21.stream.Score()
     for nombre in ORDEN_PARTES_ORQUESTACION:
         parte = _armar_parte_orquestal(
-            nombre, eventos_por_instrumento[nombre], compases_totales, tiempo_por_compas, armadura
+            nombre, eventos_por_instrumento[nombre], numeros_compas, tiempo_por_compas, armadura
         )
         score.insert(0, parte)
 
     score.atSoundingPitch = True
     score_escrito = score.toWrittenPitch()
+    # Sin esto, GeneralObjectExporter completa un título default ("Music21 Fragment")
+    # que se veía en pantalla en el panel de orquesta -- confirmado que un Metadata()
+    # vacío NO alcanza (el default sigue apareciendo), hace falta el title='' explícito.
+    score_escrito.insert(0, music21.metadata.Metadata())
+    score_escrito.metadata.title = ''
 
     exporter = music21.musicxml.m21ToXml.GeneralObjectExporter(score_escrito)
     return exporter.parse().decode('utf-8')
@@ -2391,8 +2420,8 @@ def _generar_score_orquestal_libre(score_original, notas_por_id, asignaciones, i
     el detalle, no se repite acá.
     """
     partes_originales = list(score_original.parts)
-    compases_totales = max(len(list(p.getElementsByClass(music21.stream.Measure))) for p in partes_originales)
-    tiempo_por_compas, armadura = _tiempo_y_armadura_por_compas(partes_originales, compases_totales)
+    numeros_compas = _numeros_compas_de_partes(partes_originales)
+    tiempo_por_compas, armadura = _tiempo_y_armadura_por_compas(partes_originales, numeros_compas)
     offsets_inicio = _offsets_inicio_compas(partes_originales[0])
 
     eventos_por_instrumento = {}
@@ -2422,12 +2451,16 @@ def _generar_score_orquestal_libre(score_original, notas_por_id, asignaciones, i
         info = INSTRUMENTOS_ORQUESTACION_INFO[instrumento.clave_rango]
         parte = _armar_parte_orquestal_libre(
             instrumento.nombre, info['clase'], info['clave'],
-            eventos_por_instrumento.get(instrumento.id, {}), compases_totales, tiempo_por_compas, armadura,
+            eventos_por_instrumento.get(instrumento.id, {}), numeros_compas, tiempo_por_compas, armadura,
         )
         score.insert(0, parte)
 
     score.atSoundingPitch = True
     score_escrito = score.toWrittenPitch()
+    # Ver comentario equivalente en _generar_score_orquestal -- sin esto queda un
+    # título default "Music21 Fragment" visible en el panel de orquesta.
+    score_escrito.insert(0, music21.metadata.Metadata())
+    score_escrito.metadata.title = ''
 
     exporter = music21.musicxml.m21ToXml.GeneralObjectExporter(score_escrito)
     return exporter.parse().decode('utf-8')

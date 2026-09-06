@@ -70,6 +70,7 @@
         background: transparent;
         border: 1px dashed transparent;
         box-sizing: border-box;
+        cursor: pointer;
     }
     .ej-orql-celda-compas.ej-orql-celda-hover {
         background: color-mix(in srgb, var(--primary) 14%, transparent);
@@ -323,11 +324,17 @@
 
     let notasBackend = []; // del endpoint de datos, mutado in-place con .logicalNote y .svgEl
     let tempoBpm = 100;
-    let compasesTotales = 1;
+    // Números REALES de compás de la pieza, en orden (ver _numeros_compas_de_partes en
+    // views.py) -- nunca se asume que arrancan en 1 ni que son contiguos (una pieza con
+    // anacrusa suele numerar su primer compás como 0). El índice N-ésimo de esta lista
+    // es el mismo número real que usa el compás N-ésimo del pentagrama de orquesta
+    // (ver etiquetarCeldasCompas) y que trae cada nota del piano (nb.compas).
+    let numerosCompas = [1];
     let mapaElementoANotas = new Map(); // svgEl -> array de entries (largo 1 si no es acorde)
     let asignaciones = {}; // notaId -> [{instrumento_id, octava}, ...]
     let octavaActiva = 0;
     let notasSeleccionadas = new Set(); // ids -- selección múltiple (Shift/Ctrl+click), o una sola nota vía tap-tap
+    let notaAncla = null; // id de la última nota seleccionada SIN Shift -- punto de partida del rango de Shift+click
     let indicadoresOctava = [];
     let badgesMultiAsignacion = [];
     let overlaysSeleccion = [];
@@ -585,20 +592,52 @@
         });
     }
 
-    // Alterna la selección de una nota: con `extender` (Shift/Ctrl/Cmd apretado), la
-    // agrega o saca del conjunto sin tocar el resto (multi-selección estándar de
-    // sistema operativo); sin `extender` (tap/click simple), colapsa a esa única nota,
-    // o la deselecciona si ya era la única seleccionada (mismo toggle de siempre).
-    function alternarSeleccion(entry, extender) {
-        if (extender) {
+    // Alterna la selección de una nota, con 3 modos (mismas convenciones que un
+    // explorador de archivos):
+    //  - 'individual' (Ctrl/Cmd+click): agrega o saca ESA nota del conjunto sin tocar
+    //    el resto, y la vuelve el ancla para un próximo Shift+click.
+    //  - 'rango' (Shift+click): selecciona TODAS las notas entre el ancla y esta nota,
+    //    inclusive, en el mismo orden cronológico (offset, luego altura descendente)
+    //    en que ya vienen `notasBackend` -- reemplaza la selección anterior, no la
+    //    extiende nota por nota. Sin ancla todavía (primer click de la sesión), se
+    //    comporta como 'simple'.
+    //  - 'simple' (click/tap sin modificador): colapsa a esta única nota, o la
+    //    deselecciona si ya era la única seleccionada (mismo toggle de siempre), y la
+    //    vuelve el nuevo ancla.
+    function alternarSeleccion(entry, modo) {
+        if (modo === 'rango' && notaAncla != null) {
+            const idxAncla = notasBackend.findIndex(n => n.id === notaAncla);
+            const idxObjetivo = notasBackend.findIndex(n => n.id === entry.id);
+            if (idxAncla !== -1 && idxObjetivo !== -1) {
+                const [desde, hasta] = idxAncla <= idxObjetivo ? [idxAncla, idxObjetivo] : [idxObjetivo, idxAncla];
+                notasSeleccionadas.clear();
+                for (let i = desde; i <= hasta; i++) notasSeleccionadas.add(notasBackend[i].id);
+                actualizarOverlaySeleccion();
+                return;
+            }
+        }
+        if (modo === 'individual') {
             if (notasSeleccionadas.has(entry.id)) notasSeleccionadas.delete(entry.id);
             else notasSeleccionadas.add(entry.id);
-        } else if (notasSeleccionadas.size === 1 && notasSeleccionadas.has(entry.id)) {
+            notaAncla = entry.id;
+            actualizarOverlaySeleccion();
+            return;
+        }
+        // 'simple', o 'rango' sin ancla previo todavía.
+        if (notasSeleccionadas.size === 1 && notasSeleccionadas.has(entry.id)) {
             notasSeleccionadas.clear();
+            notaAncla = null;
         } else {
             notasSeleccionadas.clear();
             notasSeleccionadas.add(entry.id);
+            notaAncla = entry.id;
         }
+        actualizarOverlaySeleccion();
+    }
+
+    function limpiarSeleccionCompleta() {
+        notasSeleccionadas.clear();
+        notaAncla = null;
         actualizarOverlaySeleccion();
     }
 
@@ -685,6 +724,30 @@
         actualizarPanelOrquestaDebounced();
     }
 
+    // Quita del pentagrama de orquesta cualquier nota del compás dado que esté asignada
+    // al instrumento dado (vuelve a silencio) -- destino de un click sobre una celda ya
+    // ocupada, sin necesitar volver al piano a "des-arrastrar" la nota. Si el compás
+    // tenía un acorde (varias notas del piano asignadas juntas a este instrumento), las
+    // quita todas -- la celda representa el lugar completo, no una nota puntual.
+    function quitarAsignacionesDeCelda(compas, instrumentoId) {
+        let removioAlgo = false;
+        notasBackend.forEach(nb => {
+            if (nb.compas !== compas) return;
+            const lista = asignaciones[nb.id];
+            if (!lista) return;
+            const idx = lista.findIndex(a => a.instrumento_id === instrumentoId);
+            if (idx === -1) return;
+            lista.splice(idx, 1);
+            if (lista.length > 0) asignaciones[nb.id] = lista; else delete asignaciones[nb.id];
+            removioAlgo = true;
+        });
+        if (!removioAlgo) return;
+        rerenderYEtiquetar();
+        actualizarContadoresAdvertencia();
+        actualizarEstado();
+        actualizarPanelOrquestaDebounced();
+    }
+
     // --- Drag-and-drop real vía Pointer Events (unifica mouse/touch/lápiz) + tap-tap,
     // en vez de HTML5 Drag and Drop nativo -- confirmado que `dragstart` no dispara de
     // forma confiable sobre elementos SVG (Firefox bug #691796, React issue #3192), así
@@ -722,8 +785,12 @@
         if (!entry) return;
         ev.preventDefault();
 
-        if (ev.shiftKey || ev.ctrlKey || ev.metaKey) {
-            alternarSeleccion(entry, true);
+        if (ev.shiftKey) {
+            alternarSeleccion(entry, 'rango');
+            return;
+        }
+        if (ev.ctrlKey || ev.metaKey) {
+            alternarSeleccion(entry, 'individual');
             return;
         }
 
@@ -771,7 +838,7 @@
         if (!esArrastre) {
             // Tap simple (sin arrastre real, sin modificador): primer tap de la vía
             // tap-tap -- colapsa la selección a esta única nota.
-            alternarSeleccion(entry, false);
+            alternarSeleccion(entry, 'simple');
             return;
         }
         intentarAsignarLoteACelda(notasDelGesto, celdaBajoPuntero(ev));
@@ -798,8 +865,7 @@
             }
         }
         notas.forEach(nb => asignarNotaAInstrumento(nb.id, instrumentoId, octavaActiva));
-        notasSeleccionadas.clear();
-        actualizarOverlaySeleccion();
+        limpiarSeleccionCompleta();
     }
 
     // --- Grilla de celdas compás × instrumento sobre el pentagrama de orquesta (destino
@@ -868,7 +934,15 @@
             if (medidaActual !== medidaAnterior) {
                 let left = null;
                 try { left = osmdOrquesta.cursor.cursorElement.getBoundingClientRect().left; } catch (e) { /* ver fallback abajo */ }
-                columnas.push({ compas: medidaActual + 1, left });
+                // CurrentMeasureIndex es la posición SECUENCIAL (0-based) dentro de la
+                // partitura renderizada, NO el número real de compás -- el servidor arma
+                // cada parte en el mismo orden que numerosCompas (ver
+                // _armar_parte_orquestal_libre), así que el compás N-ésimo encontrado acá
+                // es numerosCompas[N]. Usar medidaActual+1 directamente (asumiendo que
+                // los compases arrancan en 1) fue la causa real de un bug reportado: en
+                // piezas con anacrusa (primer compás numerado 0 en music21) la celda
+                // nunca coincidía con el compás real de la nota.
+                columnas.push({ compas: numerosCompas[medidaActual], left });
                 medidaAnterior = medidaActual;
             }
             osmdOrquesta.cursor.next();
@@ -899,9 +973,15 @@
                 div.style.width = Math.max(right - left, 4) + 'px';
                 div.style.height = Math.max(banda.bottom - banda.top, 4) + 'px';
                 div.addEventListener('click', () => {
-                    if (!notasSeleccionadas.size) return;
-                    const notas = [...notasSeleccionadas].map(id => notasBackend.find(n => n.id === id));
-                    intentarAsignarLoteACelda(notas, div);
+                    if (notasSeleccionadas.size) {
+                        const notas = [...notasSeleccionadas].map(id => notasBackend.find(n => n.id === id));
+                        intentarAsignarLoteACelda(notas, div);
+                        return;
+                    }
+                    // Sin ninguna nota seleccionada en el piano: un click sobre una
+                    // celda YA ocupada la vacía (vuelve a silencio) -- forma de sacar
+                    // una nota del pentagrama de orquesta sin tener que volver al piano.
+                    quitarAsignacionesDeCelda(parseInt(div.dataset.compas, 10), parseInt(div.dataset.instrumentoId, 10));
                 });
                 document.body.appendChild(div);
                 celdasCompas.push(div);
@@ -948,6 +1028,7 @@
 
     function reiniciar() {
         asignaciones = {};
+        notaAncla = null;
         notasSeleccionadas.clear();
         rerenderYEtiquetar();
         actualizarContadoresAdvertencia();
@@ -1064,7 +1145,7 @@
                 drawTitle: false,
                 autoResize: false,
             });
-            contenedorOrquesta.style.width = anchoPentagrama(compasesTotales) + 'px';
+            contenedorOrquesta.style.width = anchoPentagrama(numerosCompas.length) + 'px';
         }
         osmdOrquesta.load(musicxml).then(() => {
             document.getElementById('ej-orql-panel-orquesta-vacio').style.display = 'none';
@@ -1154,8 +1235,8 @@
             }
             notasBackend = data.notas;
             tempoBpm = data.fragmento.tempo_bpm;
-            compasesTotales = data.fragmento.compases_totales;
-            contenedorOsmd.style.width = anchoPentagrama(compasesTotales) + 'px';
+            numerosCompas = data.fragmento.numeros_compas;
+            contenedorOsmd.style.width = anchoPentagrama(numerosCompas.length) + 'px';
 
             return (ES_MXL ? osmd.load(buffer) : osmd.load(new TextDecoder('utf-8').decode(buffer))).then(() => {
                 osmd.render();
