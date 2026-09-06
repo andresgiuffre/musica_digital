@@ -58,6 +58,11 @@
         opacity: 0.85;
         pointer-events: none;
         display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: #ffffff;
     }
     .ej-orql-celda-compas {
         position: absolute;
@@ -322,10 +327,10 @@
     let mapaElementoANotas = new Map(); // svgEl -> array de entries (largo 1 si no es acorde)
     let asignaciones = {}; // notaId -> [{instrumento_id, octava}, ...]
     let octavaActiva = 0;
-    let notaSeleccionadaId = null; // tap-tap: nota esperando destino
+    let notasSeleccionadas = new Set(); // ids -- selección múltiple (Shift/Ctrl+click), o una sola nota vía tap-tap
     let indicadoresOctava = [];
     let badgesMultiAsignacion = [];
-    let overlaySeleccion = null;
+    let overlaysSeleccion = [];
     let celdasCompas = [];
     let advertenciasInstrumento = [];
     let osmdOrquesta = null;
@@ -555,26 +560,46 @@
         });
     }
 
-    // Anillo de selección (tap-tap): overlay HTML sobre la nota esperando destino, mismo
-    // mecanismo de posicionamiento que los indicadores de octava.
+    // Anillo(s) de selección: overlay HTML sobre cada nota esperando destino (una o
+    // varias, con selección múltiple), mismo mecanismo de posicionamiento que los
+    // indicadores de octava.
     function limpiarOverlaySeleccion() {
-        if (overlaySeleccion) { overlaySeleccion.remove(); overlaySeleccion = null; }
+        overlaysSeleccion.forEach(el => el.remove());
+        overlaysSeleccion = [];
     }
 
     function actualizarOverlaySeleccion() {
         limpiarOverlaySeleccion();
-        if (!notaSeleccionadaId) return;
-        const nb = notasBackend.find(n => n.id === notaSeleccionadaId);
-        if (!nb || !nb.svgEl) return;
-        const rect = nb.svgEl.getBoundingClientRect();
-        const div = document.createElement('div');
-        div.className = 'ej-orql-anillo-seleccion';
-        div.style.left = (rect.left + window.scrollX - 4) + 'px';
-        div.style.top = (rect.top + window.scrollY - 4) + 'px';
-        div.style.width = (rect.width + 8) + 'px';
-        div.style.height = (rect.height + 8) + 'px';
-        document.body.appendChild(div);
-        overlaySeleccion = div;
+        notasSeleccionadas.forEach(id => {
+            const nb = notasBackend.find(n => n.id === id);
+            if (!nb || !nb.svgEl) return;
+            const rect = nb.svgEl.getBoundingClientRect();
+            const div = document.createElement('div');
+            div.className = 'ej-orql-anillo-seleccion';
+            div.style.left = (rect.left + window.scrollX - 4) + 'px';
+            div.style.top = (rect.top + window.scrollY - 4) + 'px';
+            div.style.width = (rect.width + 8) + 'px';
+            div.style.height = (rect.height + 8) + 'px';
+            document.body.appendChild(div);
+            overlaysSeleccion.push(div);
+        });
+    }
+
+    // Alterna la selección de una nota: con `extender` (Shift/Ctrl/Cmd apretado), la
+    // agrega o saca del conjunto sin tocar el resto (multi-selección estándar de
+    // sistema operativo); sin `extender` (tap/click simple), colapsa a esa única nota,
+    // o la deselecciona si ya era la única seleccionada (mismo toggle de siempre).
+    function alternarSeleccion(entry, extender) {
+        if (extender) {
+            if (notasSeleccionadas.has(entry.id)) notasSeleccionadas.delete(entry.id);
+            else notasSeleccionadas.add(entry.id);
+        } else if (notasSeleccionadas.size === 1 && notasSeleccionadas.has(entry.id)) {
+            notasSeleccionadas.clear();
+        } else {
+            notasSeleccionadas.clear();
+            notasSeleccionadas.add(entry.id);
+        }
+        actualizarOverlaySeleccion();
     }
 
     function rerenderYEtiquetar() {
@@ -667,14 +692,25 @@
     // arranca el seguimiento; si el puntero se mueve más de UMBRAL_ARRASTRE_PX antes de
     // soltar, es un arrastre real (aparece un "fantasma" siguiendo al cursor); si se
     // suelta casi sin moverse, es un tap (selecciona/deselecciona la nota, igual que
-    // antes -- el segundo tap sobre una celda de compás completa la asignación). ---
+    // antes -- el segundo tap sobre una celda de compás completa la asignación).
+    //
+    // Selección múltiple (Shift/Ctrl/Cmd+click, ver alternarSeleccion): SOLO cambia qué
+    // notas quedan en `notasSeleccionadas`, nunca arranca un arrastre en el mismo click
+    // -- convención estándar de sistema operativo (Explorer/Finder), y evita mezclar
+    // "extender selección" con "empezar a arrastrar" en el mismo gesto. Si el pointerdown
+    // cae sobre una nota que YA es parte de una selección múltiple (2+), el arrastre
+    // mueve TODO ese conjunto junto; si cae sobre una nota fuera de la selección actual,
+    // el arrastre opera solo sobre esa nota (sin tocar el resto de la selección viva).
+    // Solo desktop: no hay equivalente táctil de Shift/Ctrl -- limitación reconocida,
+    // no resuelta acá. ---
 
     const UMBRAL_ARRASTRE_PX = 6;
     let arrastreActivo = null;
 
-    function crearGhost() {
+    function crearGhost(cantidad) {
         const div = document.createElement('div');
         div.className = 'ej-orql-ghost-nota';
+        if (cantidad > 1) div.textContent = String(cantidad);
         document.body.appendChild(div);
         return div;
     }
@@ -685,8 +721,19 @@
         const entry = resolverNotaDeClick(ev, el);
         if (!entry) return;
         ev.preventDefault();
+
+        if (ev.shiftKey || ev.ctrlKey || ev.metaKey) {
+            alternarSeleccion(entry, true);
+            return;
+        }
+
+        const notasDelGesto = (notasSeleccionadas.size > 1 && notasSeleccionadas.has(entry.id))
+            ? [...notasSeleccionadas].map(id => notasBackend.find(n => n.id === id))
+            : [entry];
+
         arrastreActivo = {
-            entry, ghost: crearGhost(), startX: ev.clientX, startY: ev.clientY, esArrastre: false,
+            entry, notasDelGesto, ghost: crearGhost(notasDelGesto.length),
+            startX: ev.clientX, startY: ev.clientY, esArrastre: false,
         };
         window.addEventListener('pointermove', onPointerMoveGlobal);
         window.addEventListener('pointerup', onPointerUpGlobal, { once: true });
@@ -703,7 +750,7 @@
         const dy = ev.clientY - arrastreActivo.startY;
         if (!arrastreActivo.esArrastre && Math.hypot(dx, dy) > UMBRAL_ARRASTRE_PX) {
             arrastreActivo.esArrastre = true;
-            arrastreActivo.ghost.style.display = 'block';
+            arrastreActivo.ghost.style.display = 'flex';
         }
         if (!arrastreActivo.esArrastre) return;
         arrastreActivo.ghost.style.left = (ev.clientX + window.scrollX - 10) + 'px';
@@ -716,36 +763,43 @@
     function onPointerUpGlobal(ev) {
         window.removeEventListener('pointermove', onPointerMoveGlobal);
         if (!arrastreActivo) return;
-        const { entry, ghost, esArrastre } = arrastreActivo;
+        const { entry, notasDelGesto, ghost, esArrastre } = arrastreActivo;
         ghost.remove();
         arrastreActivo = null;
         document.querySelectorAll('.ej-orql-celda-compas.ej-orql-celda-hover').forEach(c => c.classList.remove('ej-orql-celda-hover'));
 
         if (!esArrastre) {
-            // Tap simple (sin arrastre real): primer tap de la vía tap-tap.
-            notaSeleccionadaId = (notaSeleccionadaId === entry.id) ? null : entry.id;
-            actualizarOverlaySeleccion();
+            // Tap simple (sin arrastre real, sin modificador): primer tap de la vía
+            // tap-tap -- colapsa la selección a esta única nota.
+            alternarSeleccion(entry, false);
             return;
         }
-        intentarAsignarPorCelda(entry, celdaBajoPuntero(ev));
+        intentarAsignarLoteACelda(notasDelGesto, celdaBajoPuntero(ev));
     }
 
-    // Exige que el compás de la celda coincida con el compás real de la nota de origen
-    // (decisión del usuario: no alcanza con soltar en cualquier columna del pentagrama
-    // correcto) -- el compás/tiempo de la nota nunca lo elige el alumno, siempre lo
-    // determina su posición original en el piano.
-    function intentarAsignarPorCelda(entry, celda) {
+    // Con UNA sola nota, exige que el compás de la celda coincida con el compás real de
+    // la nota de origen (decisión del usuario: no alcanza con soltar en cualquier
+    // columna del pentagrama correcto). Con selección MÚLTIPLE, alcanza con soltar
+    // sobre cualquier celda del instrumento destino -- exigir una única columna común a
+    // notas de compases distintos no es geométricamente posible con un solo punto de
+    // soltado, y cada nota igual conserva su propio compás real al asignarse (nunca lo
+    // elige el alumno, siempre lo determina su posición original en el piano).
+    function intentarAsignarLoteACelda(notas, celda) {
         if (!celda) {
             mostrarMensajeDrop(i18nEjOrql.txtSoltaSobrePentagrama);
             return;
         }
-        const compasCelda = parseInt(celda.dataset.compas, 10);
         const instrumentoId = parseInt(celda.dataset.instrumentoId, 10);
-        if (compasCelda !== entry.compas) {
-            mostrarMensajeDrop(`${i18nEjOrql.txtCompasIncorrectoPre} ${entry.compas} ${i18nEjOrql.txtCompasIncorrectoPost}`);
-            return;
+        if (notas.length === 1) {
+            const compasCelda = parseInt(celda.dataset.compas, 10);
+            if (compasCelda !== notas[0].compas) {
+                mostrarMensajeDrop(`${i18nEjOrql.txtCompasIncorrectoPre} ${notas[0].compas} ${i18nEjOrql.txtCompasIncorrectoPost}`);
+                return;
+            }
         }
-        asignarNotaAInstrumento(entry.id, instrumentoId, octavaActiva);
+        notas.forEach(nb => asignarNotaAInstrumento(nb.id, instrumentoId, octavaActiva));
+        notasSeleccionadas.clear();
+        actualizarOverlaySeleccion();
     }
 
     // --- Grilla de celdas compás × instrumento sobre el pentagrama de orquesta (destino
@@ -845,11 +899,9 @@
                 div.style.width = Math.max(right - left, 4) + 'px';
                 div.style.height = Math.max(banda.bottom - banda.top, 4) + 'px';
                 div.addEventListener('click', () => {
-                    if (!notaSeleccionadaId) return;
-                    const entry = notasBackend.find(n => n.id === notaSeleccionadaId);
-                    intentarAsignarPorCelda(entry, div);
-                    notaSeleccionadaId = null;
-                    actualizarOverlaySeleccion();
+                    if (!notasSeleccionadas.size) return;
+                    const notas = [...notasSeleccionadas].map(id => notasBackend.find(n => n.id === id));
+                    intentarAsignarLoteACelda(notas, div);
                 });
                 document.body.appendChild(div);
                 celdasCompas.push(div);
@@ -896,7 +948,7 @@
 
     function reiniciar() {
         asignaciones = {};
-        notaSeleccionadaId = null;
+        notasSeleccionadas.clear();
         rerenderYEtiquetar();
         actualizarContadoresAdvertencia();
         actualizarEstado();
