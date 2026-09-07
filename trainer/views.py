@@ -1702,8 +1702,19 @@ ZONAS_EJERCICIO_ORQUESTACION = [
 ]
 
 
+# Ejercicio de pintado (click, 5 zonas de cuerdas fijas) DESACTIVADO a pedido explícito
+# del usuario -- se reemplazó por el ejercicio libre (drag-and-drop, instrumentos
+# abiertos) como única opción. Deliberadamente NO se borra nada del código/vistas/
+# templates -- ver las 3 vistas de abajo (orquestacion_ejercicio/_datos/_generar), cada
+# una corta temprano si este flag es False. Reactivar = volver este flag a True y
+# descomentar el link en orquestacion_ejercicio_lista.html, nada más.
+EJERCICIO_PINTADO_HABILITADO = False
+
+
 @login_required
 def orquestacion_ejercicio(request, fragmento_id):
+    if not EJERCICIO_PINTADO_HABILITADO:
+        return redirect('orquestacion_ejercicio_lista')
     from .models import FragmentoOrquestacion
     fragmento = get_object_or_404(FragmentoOrquestacion, id=fragmento_id, activo=True)
     return render(request, 'trainer/orquestacion_ejercicio.html', {
@@ -2567,6 +2578,8 @@ def orquestacion_ejercicio_generar(request, fragmento_id):
     instrumento/octava eligió; todo lo demás se re-deriva de _notas_piano_para_ejercicio
     sobre el archivo real, igual que orquestacion_ejercicio_datos.
     """
+    if not EJERCICIO_PINTADO_HABILITADO:
+        return JsonResponse({'status': 'error', 'message': 'Este ejercicio está desactivado.'}, status=403)
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
 
