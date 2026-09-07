@@ -137,6 +137,8 @@
                 {% endif %}
             {% elif bloque.tipo == 'PRACTICA_DIRIGIDA' %}
                 {% include 'trainer/_bloque_practica_dirigida.html' %}
+            {% elif bloque.tipo == 'RITMO_MATEMATICA' %}
+                {% include 'trainer/_bloque_ritmo_matematica.html' %}
             {% endif %}
         </div>
     {% empty %}
@@ -414,9 +416,12 @@
 })();
 
 (function () {
+    // Solo entran acá los bloques YA DESBLOQUEADOS server-side (bloque.bloqueado
+    // calculado en views.py) -- uno bloqueado ni siquiera renderizó su OSMD/data-*
+    // (ver _bloque_practica_dirigida.html), no tiene sentido intentar inicializarlo.
     const bloquesPractica = [
         {% for bloque in bloques %}
-        {% if bloque.tipo == 'PRACTICA_DIRIGIDA' %}
+        {% if bloque.tipo == 'PRACTICA_DIRIGIDA' and not bloque.bloqueado %}
         { bloqueId: {{ bloque.id }} },
         {% endif %}
         {% endfor %}
@@ -434,12 +439,17 @@
 
     const LETRA_POR_INICIAL = { C: 'c', D: 'd', E: 'e', F: 'f', G: 'g', A: 'a', B: 'b' };
 
-    // alCompletar: callback sin argumentos, invocado cuando ESTE bloque termina
-    // su intento (se registró el resultado, con éxito o no) -- lo usa la
-    // orquestación de abajo para recién ahí destrabar el siguiente bloque de la
-    // página. Devuelve un controlador { cargar, mostrarBloqueado } en vez de
-    // arrancar solo -- quien orquesta decide CUÁNDO llamar a cargar().
-    function initPracticaDirigida(bloqueId, alCompletar) {
+    // alListo: callback sin argumentos, invocado cuando ESTE bloque termina de
+    // CARGAR Y RENDERIZAR su OSMD (no cuando termina un intento -- eso ya no
+    // hace falta esperarlo: el bloqueo entre ejercicios ahora es persistente y
+    // server-side, ver bloque.bloqueado en views.py/_bloque_practica_dirigida.html,
+    // así que puede haber varios bloques YA desbloqueados de sesiones anteriores
+    // en la misma carga de página). La orquestación de abajo sigue escalonando
+    // estas cargas de todos modos -- esa parte no cambió: sigue sin ser seguro
+    // que dos instancias de OSMD carguen/rendericen en paralelo en esta página.
+    // Devuelve un controlador { cargar } en vez de arrancar solo -- quien
+    // orquesta decide CUÁNDO llamar a cargar().
+    function initPracticaDirigida(bloqueId, alListo) {
         const contenedor = document.getElementById('pdir-bloque-' + bloqueId);
         if (!contenedor) return null;
         const data = contenedor.dataset;
@@ -454,6 +464,11 @@
         const textoResumen = document.getElementById('pdir-resumen-texto-' + bloqueId);
         const btnReintentar = document.getElementById('pdir-reintentar-' + bloqueId);
         const divBadge = document.getElementById('pdir-badge-' + bloqueId);
+        // Capturado ANTES de cualquier intento en esta carga de página -- si ya
+        // estaba completado de una sesión anterior, un reintento no debería
+        // disparar el "siguiente ejercicio desbloqueado, recargando" (nada
+        // cambió realmente respecto de lo que ya se veía al entrar).
+        let yaEstabaCompletado = divBadge.classList.contains('pdir-gab__badge--completado');
 
         // --green/--danger viven en body.gabinete, no en :root -- no se heredan
         // "hacia arriba" hasta <html>, hay que leerlas de document.body (mismo
@@ -601,15 +616,19 @@
                         divBadge.textContent = fmt(data.txtNoCompletado, { veces: resultado.veces_practicado });
                     }
                     divBadge.style.display = '';
+
+                    // Recién ACÁ se completó por primera vez en esta sesión -- el
+                    // servidor ya desbloqueó el siguiente ejercicio, pero esta página
+                    // sigue mostrando su placeholder de "bloqueado" viejo. Más simple
+                    // que traer/inyectar el HTML real por AJAX: recargar, así
+                    // tema_detail() recalcula bloque.bloqueado fresco y listo.
+                    if (resultado.completado && !yaEstabaCompletado) {
+                        textoResumen.textContent += ' ' + data.txtDesbloqueado;
+                        setTimeout(function () { location.reload(); }, 1500);
+                    }
+                    yaEstabaCompletado = resultado.completado;
                 })
-                .catch(function (err) { console.error('[practica-dirigida] Error registrando resultado:', err); })
-                .finally(function () {
-                    // Se avisa que este bloque terminó su intento SIEMPRE, incluso si
-                    // el POST de registro falló (error de red) -- el usuario ya
-                    // respondió todas las notas, no tiene sentido dejarlo trabado acá
-                    // por un problema ajeno a lo que hizo.
-                    if (alCompletar) alCompletar();
-                });
+                .catch(function (err) { console.error('[practica-dirigida] Error registrando resultado:', err); });
         }
 
         function empezar() {
@@ -735,6 +754,11 @@
 
                 divEstado.style.display = 'none';
                 empezar();
+                // El siguiente bloque de la cola puede empezar a cargar su propio
+                // OSMD ahora que este ya terminó de renderizar -- no hace falta
+                // esperar a que el usuario TERMINE el intento (ver el comentario
+                // en la firma de esta función).
+                if (alListo) alListo();
             } catch (err) {
                 console.error('[practica-dirigida] Error cargando ejercicio:', err);
                 divEstado.textContent = data.txtError;
@@ -746,26 +770,19 @@
         });
         btnReintentar.addEventListener('click', empezar);
 
-        return {
-            cargar: cargar,
-            mostrarBloqueado: function () {
-                divEstado.textContent = data.txtBloqueado;
-                divEstado.style.display = '';
-            },
-        };
+        return { cargar: cargar };
     }
 
-    // Orquestación secuencial entre bloques PRACTICA_DIRIGIDA de la misma
-    // página: cargar todos a la vez rompía la carga (varias instancias de OSMD
-    // pidiendo/renderizando en paralelo) -- ahora solo el bloque activo carga
-    // su MusicXML; los siguientes muestran un mensaje de bloqueado y recién
-    // arrancan cuando el anterior termina su intento (registrado con éxito o
-    // no -- ver el comentario en terminar()/finally más arriba).
+    // Orquestación secuencial ENTRE los bloques PRACTICA_DIRIGIDA ya
+    // desbloqueados de esta página (los bloqueados ni entraron a
+    // bloquesPractica más arriba): cargar varias instancias de OSMD en
+    // paralelo rompía la carga, así que solo una a la vez pide/renderiza su
+    // MusicXML; la siguiente arranca en cuanto la anterior termina de
+    // RENDERIZAR (no de completarse -- ver el comentario en initPracticaDirigida).
+    // Esto puede ser más de un bloque en la misma carga: un alumno que ya
+    // completó los ejercicios 1 y 2 en sesiones anteriores los ve ambos
+    // desbloqueados de entrada, y a ambos hay que escalonarles la carga igual.
     let indiceActivo = 0;
-    // Cada bloque avisa CON SU PROPIO índice (capturado por clausura, no un
-    // callback compartido) -- si no, "Practicar de nuevo" en un bloque ya
-    // pasado (ej. el #0 después de que ya avanzamos al #2) volvía a disparar
-    // el avance igual, aunque no fuera el bloque activo el que terminó.
     const controladores = bloquesPractica.map(function (info, i) {
         return initPracticaDirigida(info.bloqueId, function () { avanzarDesde(i); });
     });
@@ -779,11 +796,345 @@
     }
 
     if (controladores.length > 0) {
-        controladores.forEach(function (c, i) {
-            if (i > 0) c.mostrarBloqueado();
-        });
         controladores[0].cargar();
     }
+})();
+
+(function () {
+    // Botón "↺ Reiniciar" -- compartido entre Práctica dirigida y Ritmo
+    // matemático (ver ambos parciales, mismo data-reiniciar-url/data-txt-confirmar):
+    // un solo POST genérico + recarga alcanza para los dos tipos.
+    document.querySelectorAll('.reiniciar-progreso-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (!window.confirm(btn.dataset.txtConfirmar)) return;
+            fetch(btn.dataset.reiniciarUrl, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            })
+                .then(function (res) { return res.json(); })
+                .then(function () { location.reload(); })
+                .catch(function (err) { console.error('[cursos] Error reiniciando progreso:', err); });
+        });
+    });
+})();
+
+(function () {
+    // "Calculadora de Equivalencias Rítmicas" -- arrastrar figuras (redonda/
+    // blanca/negra/corchea/semicorchea) hasta sumar EXACTO un valor objetivo,
+    // en tandas de bloque.ritmo_problemas_requeridos problemas distintos.
+    // Sin OSMD ni archivo externo que cargar -- a diferencia de Práctica
+    // dirigida, no hay ninguna razón técnica para escalonar la inicialización
+    // entre varios bloques de este tipo: cada uno ya desbloqueado arranca
+    // solo, apenas carga la página.
+    const bloquesRitmo = [
+        {% for bloque in bloques %}
+        {% if bloque.tipo == 'RITMO_MATEMATICA' and not bloque.bloqueado %}
+        { bloqueId: {{ bloque.id }} },
+        {% endif %}
+        {% endfor %}
+    ];
+    if (bloquesRitmo.length === 0) return;
+
+    function fmt(str, vars) {
+        return str.replace(/\{(\w+)\}/g, function (_, k) {
+            return vars[k] !== undefined ? vars[k] : '';
+        });
+    }
+
+    // Valores en dieciseisavos (semicorchea = 1) -- todo entero, así la suma
+    // se compara EXACTA sin errores de coma flotante.
+    const FIGURAS = [
+        { tipo: 'redonda', valor: 16 },
+        { tipo: 'blanca', valor: 8 },
+        { tipo: 'negra', valor: 4 },
+        { tipo: 'corchea', valor: 2 },
+        { tipo: 'semicorchea', valor: 1 },
+    ];
+    // Pool de objetivos "prolijos" (combinaciones razonables con las figuras
+    // de arriba, en dieciseisavos) -- se arma cada tanda barajando y
+    // concatenando este pool las veces que hagan falta, así ritmo_problemas_
+    // requeridos puede configurarse por encima del tamaño del pool sin romper.
+    const POOL_OBJETIVOS = [16, 12, 10, 9, 7, 6, 5, 13];
+
+    function mcd(a, b) { return b === 0 ? a : mcd(b, a % b); }
+    function fraccionDe16(valor) {
+        const divisor = mcd(valor, 16);
+        return { num: valor / divisor, den: 16 / divisor };
+    }
+
+    function barajar(arr) {
+        const copia = arr.slice();
+        for (let i = copia.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = copia[i]; copia[i] = copia[j]; copia[j] = tmp;
+        }
+        return copia;
+    }
+
+    function objetivosParaTanda(cantidad) {
+        let resultado = [];
+        while (resultado.length < cantidad) {
+            resultado = resultado.concat(barajar(POOL_OBJETIVOS));
+        }
+        return resultado.slice(0, cantidad);
+    }
+
+    function svgFigura(tipo) {
+        // Hecho a mano en vez de un glifo Unicode de música (𝅘𝅥𝅮/♩/etc.) -- mismo
+        // motivo ya confirmado en este sitio para las banderas del selector de
+        // idioma: el renderizado de esos glifos no es confiable entre sistemas.
+        const hueca = tipo === 'redonda';
+        const conPlica = tipo !== 'redonda';
+        let corchetes = '';
+        if (tipo === 'corchea') {
+            corchetes = '<path d="M21 8 C30 12, 30 22, 22 26" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>';
+        } else if (tipo === 'semicorchea') {
+            corchetes = '<path d="M21 8 C30 12, 30 22, 22 26" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'
+                      + '<path d="M21 16 C30 20, 30 30, 22 34" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>';
+        }
+        return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
+            + (conPlica ? '<line x1="21" y1="46" x2="21" y2="8" stroke="currentColor" stroke-width="2.5"/>' : '')
+            + '<ellipse cx="12" cy="48" rx="9" ry="6.5" transform="rotate(-18 12 48)" '
+            + (hueca ? 'fill="none" stroke="currentColor" stroke-width="2.5"' : 'fill="currentColor"')
+            + '/>'
+            + corchetes
+            + '</svg>';
+    }
+
+    function initRitmoMatematica(bloqueId) {
+        const contenedor = document.getElementById('ritmo-bloque-' + bloqueId);
+        if (!contenedor || !contenedor.dataset.registrarUrl) return; // bloqueado -- nada que inicializar
+
+        const data = contenedor.dataset;
+        const problemasRequeridos = parseInt(data.problemasRequeridos, 10) || 5;
+
+        const divProgreso = document.getElementById('ritmo-progreso-' + bloqueId);
+        const divObjetivo = document.getElementById('ritmo-objetivo-' + bloqueId);
+        const divZona = document.getElementById('ritmo-zona-' + bloqueId);
+        const divBarra = document.getElementById('ritmo-barra-' + bloqueId);
+        const divSuma = document.getElementById('ritmo-suma-' + bloqueId);
+        const divPiezasZona = document.getElementById('ritmo-piezas-' + bloqueId);
+        const divBanco = document.getElementById('ritmo-banco-' + bloqueId);
+        const divResumen = document.getElementById('ritmo-resumen-' + bloqueId);
+        const textoResumen = document.getElementById('ritmo-resumen-texto-' + bloqueId);
+        const btnReintentar = document.getElementById('ritmo-reintentar-' + bloqueId);
+        const divBadge = document.getElementById('ritmo-badge-' + bloqueId);
+
+        // Capturado ANTES de cualquier intento en esta carga -- mismo motivo que
+        // en initPracticaDirigida: un reintento sobre algo ya completado antes
+        // no debería disparar el aviso de "siguiente desbloqueado, recargando".
+        let yaEstabaCompletado = divBadge.classList.contains('ritmo-gab__badge--completado');
+
+        let objetivos = [];
+        let indiceProblema = 0;
+        let objetivoActual = 0;
+        let piezasColocadas = []; // [{ tipo, valor, id }]
+        let contadorIds = 0;
+        let resolviendo = false;
+
+        function sumaActual() {
+            return piezasColocadas.reduce(function (acc, p) { return acc + p.valor; }, 0);
+        }
+
+        function textoObjetivo(valor) {
+            const f = fraccionDe16(valor);
+            return f.num === f.den ? data.txtObjetivoEntera : fmt(data.txtObjetivoFraccion, { num: f.num, den: f.den });
+        }
+
+        function actualizarZona() {
+            const suma = sumaActual();
+            const porcentaje = Math.max(0, Math.min(100, Math.round(100 * suma / objetivoActual)));
+            divBarra.style.width = porcentaje + '%';
+            const f = fraccionDe16(suma);
+            divSuma.textContent = suma === 0 ? '' : fmt(data.txtSumaActual, { num: f.num, den: f.den });
+
+            divZona.classList.remove('ritmo-gab__zona--exacto', 'ritmo-gab__zona--pasado');
+            if (suma === objetivoActual) {
+                divZona.classList.add('ritmo-gab__zona--exacto');
+                resolverProblema();
+            } else if (suma > objetivoActual) {
+                divZona.classList.add('ritmo-gab__zona--pasado');
+            }
+        }
+
+        function crearChip(tipo, enBanco) {
+            const chip = document.createElement('div');
+            chip.className = 'ritmo-gab__pieza' + (enBanco ? ' ritmo-gab__pieza--banco' : '');
+            chip.innerHTML = svgFigura(tipo);
+            return chip;
+        }
+
+        function agregarPieza(tipo, valor) {
+            const id = ++contadorIds;
+            piezasColocadas.push({ tipo: tipo, valor: valor, id: id });
+            const chip = crearChip(tipo, false);
+            chip.dataset.piezaId = id;
+            chip.addEventListener('pointerdown', function (ev) { empezarArrastre(ev, 'zona', tipo, valor, id); });
+            divPiezasZona.appendChild(chip);
+            actualizarZona();
+        }
+
+        function quitarPieza(id) {
+            piezasColocadas = piezasColocadas.filter(function (p) { return p.id !== id; });
+            const chip = divPiezasZona.querySelector('[data-pieza-id="' + id + '"]');
+            if (chip) chip.remove();
+            actualizarZona();
+        }
+
+        // Arrastre por Pointer Events (mouse/touch/lápiz con una sola API) --
+        // "fantasma" que sigue al cursor y elementFromPoint para resolver el
+        // destino al soltar. Sin movimiento real, se trata como un tap simple:
+        // tap en el banco agrega, tap en una pieza ya colocada la quita --
+        // atajo de accesibilidad táctil, no depende de un gesto de arrastre
+        // preciso para nada de esto.
+        let arrastrando = null;
+        let arrastreConMovimiento = false;
+
+        function empezarArrastre(ev, origen, tipo, valor, piezaId) {
+            ev.preventDefault();
+            const fantasma = crearChip(tipo, false);
+            fantasma.classList.add('ritmo-gab__pieza--fantasma');
+            document.body.appendChild(fantasma);
+            arrastrando = { origen: origen, tipo: tipo, valor: valor, piezaId: piezaId, fantasma: fantasma };
+            arrastreConMovimiento = false;
+            moverFantasma(ev.clientX, ev.clientY);
+        }
+
+        function moverFantasma(x, y) {
+            if (!arrastrando) return;
+            arrastrando.fantasma.style.left = (x - 20) + 'px';
+            arrastrando.fantasma.style.top = (y - 30) + 'px';
+        }
+
+        function terminarArrastre(x, y) {
+            if (!arrastrando) return;
+            const info = arrastrando;
+            info.fantasma.remove();
+            arrastrando = null;
+
+            const destino = document.elementFromPoint(x, y);
+            const sobreZona = destino && destino.closest('#ritmo-zona-' + bloqueId);
+
+            if (!arrastreConMovimiento) {
+                if (info.origen === 'zona') quitarPieza(info.piezaId);
+                else if (info.origen === 'banco') agregarPieza(info.tipo, info.valor);
+                return;
+            }
+
+            if (info.origen === 'banco' && sobreZona) {
+                agregarPieza(info.tipo, info.valor);
+            } else if (info.origen === 'zona' && !sobreZona) {
+                quitarPieza(info.piezaId);
+            }
+        }
+
+        window.addEventListener('pointermove', function (ev) {
+            if (!arrastrando) return;
+            arrastreConMovimiento = true;
+            moverFantasma(ev.clientX, ev.clientY);
+        });
+        window.addEventListener('pointerup', function (ev) {
+            if (!arrastrando) return;
+            terminarArrastre(ev.clientX, ev.clientY);
+        });
+
+        function poblarBanco() {
+            divBanco.innerHTML = '';
+            FIGURAS.forEach(function (fig) {
+                const chip = crearChip(fig.tipo, true);
+                const f = fraccionDe16(fig.valor);
+                const etiqueta = document.createElement('span');
+                etiqueta.className = 'ritmo-gab__pieza-etiqueta';
+                etiqueta.textContent = f.num === f.den ? '1' : (f.num + '/' + f.den);
+                chip.appendChild(etiqueta);
+                chip.addEventListener('pointerdown', function (ev) { empezarArrastre(ev, 'banco', fig.tipo, fig.valor, null); });
+                divBanco.appendChild(chip);
+            });
+        }
+
+        function siguienteProblema() {
+            if (indiceProblema >= objetivos.length) {
+                terminarTanda();
+                return;
+            }
+            objetivoActual = objetivos[indiceProblema];
+            piezasColocadas = [];
+            divPiezasZona.innerHTML = '';
+            divZona.classList.remove('ritmo-gab__zona--exacto', 'ritmo-gab__zona--pasado');
+            divObjetivo.textContent = textoObjetivo(objetivoActual);
+            divProgreso.textContent = fmt(data.txtProgreso, { actual: indiceProblema + 1, total: objetivos.length });
+            actualizarZona();
+        }
+
+        function resolverProblema() {
+            if (resolviendo) return;
+            resolviendo = true;
+            divZona.style.pointerEvents = 'none';
+            divBanco.style.pointerEvents = 'none';
+            setTimeout(function () {
+                indiceProblema++;
+                resolviendo = false;
+                divZona.style.pointerEvents = '';
+                divBanco.style.pointerEvents = '';
+                siguienteProblema();
+            }, 900);
+        }
+
+        function terminarTanda() {
+            divZona.style.display = 'none';
+            divBanco.style.display = 'none';
+            divProgreso.style.display = 'none';
+            divObjetivo.style.display = 'none';
+            divResumen.style.display = '';
+            textoResumen.textContent = fmt(data.txtResultado, { total: objetivos.length });
+
+            fetch(data.registrarUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': data.csrf },
+                body: JSON.stringify({}),
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (resultado) {
+                    if (resultado.status !== 'success') return;
+                    divBadge.classList.remove('ritmo-gab__badge--progreso', 'ritmo-gab__badge--completado');
+                    if (resultado.completado) {
+                        divBadge.classList.add('ritmo-gab__badge--completado');
+                        divBadge.textContent = fmt(data.txtCompletado, { racha: resultado.mejor_racha });
+                    } else {
+                        divBadge.classList.add('ritmo-gab__badge--progreso');
+                        divBadge.textContent = fmt(data.txtNoCompletado, { veces: resultado.veces_practicado });
+                    }
+                    divBadge.style.display = '';
+
+                    // Mismo criterio que Práctica dirigida: recién acá se completó por
+                    // primera vez en esta sesión -- recargar así tema_detail() recalcula
+                    // bloque.bloqueado fresco y el siguiente ejercicio aparece de verdad.
+                    if (resultado.completado && !yaEstabaCompletado) {
+                        textoResumen.textContent += ' ' + data.txtDesbloqueado;
+                        setTimeout(function () { location.reload(); }, 1500);
+                    }
+                    yaEstabaCompletado = resultado.completado;
+                })
+                .catch(function (err) { console.error('[ritmo-matematica] Error registrando resultado:', err); });
+        }
+
+        function empezar() {
+            objetivos = objetivosParaTanda(problemasRequeridos);
+            indiceProblema = 0;
+            divZona.style.display = '';
+            divBanco.style.display = '';
+            divProgreso.style.display = '';
+            divObjetivo.style.display = '';
+            divResumen.style.display = 'none';
+            siguienteProblema();
+        }
+
+        poblarBanco();
+        btnReintentar.addEventListener('click', empezar);
+        empezar();
+    }
+
+    bloquesRitmo.forEach(function (info) { initRitmoMatematica(info.bloqueId); });
 })();
 </script>
 {% endblock %}

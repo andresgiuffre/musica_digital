@@ -3,9 +3,16 @@
 Parcial incluido desde tema_detail.html donde ya despacha por bloque.tipo --
 no es una página con URL propia. `bloque` y `csrf_token` llegan del contexto
 del include (sin `only`), no se re-pasan a mano.
+
+bloque.bloqueado viene calculado server-side (_bloque_desbloqueado en
+views.py) -- si está bloqueado, NO se renderiza ningún data-* ni la marcación
+interactiva: el bloque ni siquiera entra al array de JS que orquesta la carga
+secuencial en tema_detail.html, ese es justo el punto (antes esto se manejaba
+puramente en JS y se reseteaba en cada recarga).
 {% endcomment %}
 <div class="pdir-gab" id="pdir-bloque-{{ bloque.id }}"
     data-bloque-id="{{ bloque.id }}"
+    {% if not bloque.bloqueado %}
     data-archivo-url="{% url 'bloque_practica_dirigida_archivo' bloque.id %}"
     data-es-mxl="{{ bloque.es_mxl_practica|yesno:'true,false' }}"
     data-registrar-url="{% url 'practica_dirigida_registrar' bloque.id %}"
@@ -13,41 +20,55 @@ del include (sin `only`), no se re-pasan a mano.
     data-lang="{{ LANGUAGE_CODE }}"
     data-txt-cargando="{% trans 'Cargando ejercicio…' %}"
     data-txt-error="{% trans 'No se pudo cargar el ejercicio.' %}"
-    data-txt-bloqueado="{% trans 'Completá el ejercicio anterior para desbloquear este.' %}"
     data-txt-resultado="{% trans 'Acertaste {correctas} de {total}.' %}"
     data-txt-completado="{% trans 'Completado — mejor puntaje: {precision}%' %}"
     data-txt-no-completado="{% trans 'Practicado {veces} veces — todavía no completado' %}"
-    data-txt-contador="{% trans '{correctas} / {total} aciertos ({porcentaje}%)' %}">
+    data-txt-contador="{% trans '{correctas} / {total} aciertos ({porcentaje}%)' %}"
+    data-txt-desbloqueado="{% trans '¡Siguiente ejercicio desbloqueado! Actualizando la página…' %}"
+    {% endif %}>
 
-    <div class="pdir-gab__badge {% if bloque.progreso_usuario.completado %}pdir-gab__badge--completado{% elif bloque.progreso_usuario %}pdir-gab__badge--progreso{% endif %}"
-        id="pdir-badge-{{ bloque.id }}" {% if not bloque.progreso_usuario %}style="display:none;"{% endif %}>
-        {% if bloque.progreso_usuario.completado %}
-            {% blocktrans with precision=bloque.progreso_usuario.mejor_precision|floatformat:0 %}Completado — mejor puntaje: {{ precision }}%{% endblocktrans %}
-        {% elif bloque.progreso_usuario %}
-            {% blocktrans count veces=bloque.progreso_usuario.veces_practicado %}Practicado {{ veces }} vez — todavía no completado{% plural %}Practicado {{ veces }} veces — todavía no completado{% endblocktrans %}
-        {% endif %}
-    </div>
+    {% if bloque.bloqueado %}
+        <div class="pdir-gab__estado">{% trans "Completá el ejercicio anterior para desbloquear este." %}</div>
+    {% else %}
+        <div class="pdir-gab__cabecera">
+            <div class="pdir-gab__badge {% if bloque.progreso_usuario.completado %}pdir-gab__badge--completado{% elif bloque.progreso_usuario %}pdir-gab__badge--progreso{% endif %}"
+                id="pdir-badge-{{ bloque.id }}" {% if not bloque.progreso_usuario %}style="display:none;"{% endif %}>
+                {% if bloque.progreso_usuario.completado %}
+                    {% blocktrans with precision=bloque.progreso_usuario.mejor_precision|floatformat:0 %}Completado — mejor puntaje: {{ precision }}%{% endblocktrans %}
+                {% elif bloque.progreso_usuario %}
+                    {% blocktrans count veces=bloque.progreso_usuario.veces_practicado %}Practicado {{ veces }} vez — todavía no completado{% plural %}Practicado {{ veces }} veces — todavía no completado{% endblocktrans %}
+                {% endif %}
+            </div>
+            {% if bloque.progreso_usuario %}
+            <button type="button" class="btn-gab btn-gab--secondary reiniciar-progreso-btn"
+                data-reiniciar-url="{% url 'bloque_progreso_reiniciar' bloque.id %}"
+                data-txt-confirmar="{% trans '¿Reiniciar el progreso de este ejercicio? Vas a tener que resolverlo de nuevo.' %}">
+                ↺ {% trans "Reiniciar" %}
+            </button>
+            {% endif %}
+        </div>
 
-    <div class="pdir-gab__partitura" id="pdir-partitura-{{ bloque.id }}">
-        <div id="pdir-osmd-{{ bloque.id }}" class="pdir-gab__osmd"></div>
-    </div>
+        <div class="pdir-gab__partitura" id="pdir-partitura-{{ bloque.id }}">
+            <div id="pdir-osmd-{{ bloque.id }}" class="pdir-gab__osmd"></div>
+        </div>
 
-    <div class="pdir-gab__contador" id="pdir-contador-{{ bloque.id }}" style="display:none;"></div>
+        <div class="pdir-gab__contador" id="pdir-contador-{{ bloque.id }}" style="display:none;"></div>
 
-    <div class="pdir-gab__estado" id="pdir-estado-{{ bloque.id }}">{% trans "Cargando ejercicio…" %}</div>
+        <div class="pdir-gab__estado" id="pdir-estado-{{ bloque.id }}">{% trans "Cargando ejercicio…" %}</div>
 
-    <div class="pdir-gab__notas-grid" id="pdir-notas-{{ bloque.id }}" style="display:none;">
-        <button type="button" class="btn-input pdir-gab__nota-btn" data-note="c">{% if LANGUAGE_CODE == 'en' %}C{% else %}Do{% endif %}</button>
-        <button type="button" class="btn-input pdir-gab__nota-btn" data-note="d">{% if LANGUAGE_CODE == 'en' %}D{% else %}Re{% endif %}</button>
-        <button type="button" class="btn-input pdir-gab__nota-btn" data-note="e">{% if LANGUAGE_CODE == 'en' %}E{% else %}Mi{% endif %}</button>
-        <button type="button" class="btn-input pdir-gab__nota-btn" data-note="f">{% if LANGUAGE_CODE == 'en' %}F{% else %}Fa{% endif %}</button>
-        <button type="button" class="btn-input pdir-gab__nota-btn" data-note="g">{% if LANGUAGE_CODE == 'en' %}G{% else %}Sol{% endif %}</button>
-        <button type="button" class="btn-input pdir-gab__nota-btn" data-note="a">{% if LANGUAGE_CODE == 'en' %}A{% else %}La{% endif %}</button>
-        <button type="button" class="btn-input pdir-gab__nota-btn" data-note="b">{% if LANGUAGE_CODE == 'en' %}B{% else %}Si{% endif %}</button>
-    </div>
+        <div class="pdir-gab__notas-grid" id="pdir-notas-{{ bloque.id }}" style="display:none;">
+            <button type="button" class="btn-input pdir-gab__nota-btn" data-note="c">{% if LANGUAGE_CODE == 'en' %}C{% else %}Do{% endif %}</button>
+            <button type="button" class="btn-input pdir-gab__nota-btn" data-note="d">{% if LANGUAGE_CODE == 'en' %}D{% else %}Re{% endif %}</button>
+            <button type="button" class="btn-input pdir-gab__nota-btn" data-note="e">{% if LANGUAGE_CODE == 'en' %}E{% else %}Mi{% endif %}</button>
+            <button type="button" class="btn-input pdir-gab__nota-btn" data-note="f">{% if LANGUAGE_CODE == 'en' %}F{% else %}Fa{% endif %}</button>
+            <button type="button" class="btn-input pdir-gab__nota-btn" data-note="g">{% if LANGUAGE_CODE == 'en' %}G{% else %}Sol{% endif %}</button>
+            <button type="button" class="btn-input pdir-gab__nota-btn" data-note="a">{% if LANGUAGE_CODE == 'en' %}A{% else %}La{% endif %}</button>
+            <button type="button" class="btn-input pdir-gab__nota-btn" data-note="b">{% if LANGUAGE_CODE == 'en' %}B{% else %}Si{% endif %}</button>
+        </div>
 
-    <div class="pdir-gab__resumen" id="pdir-resumen-{{ bloque.id }}" style="display:none;">
-        <p class="pdir-gab__resumen-texto" id="pdir-resumen-texto-{{ bloque.id }}"></p>
-        <button type="button" class="btn-gab btn-gab--secondary" id="pdir-reintentar-{{ bloque.id }}">{% trans "Practicar de nuevo" %}</button>
-    </div>
+        <div class="pdir-gab__resumen" id="pdir-resumen-{{ bloque.id }}" style="display:none;">
+            <p class="pdir-gab__resumen-texto" id="pdir-resumen-texto-{{ bloque.id }}"></p>
+            <button type="button" class="btn-gab btn-gab--secondary" id="pdir-reintentar-{{ bloque.id }}">{% trans "Practicar de nuevo" %}</button>
+        </div>
+    {% endif %}
 </div>

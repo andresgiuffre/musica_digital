@@ -666,6 +666,7 @@ class BloqueContenido(models.Model):
     IMAGEN = 'IMAGEN'
     VIDEO = 'VIDEO'
     PRACTICA_DIRIGIDA = 'PRACTICA_DIRIGIDA'
+    RITMO_MATEMATICA = 'RITMO_MATEMATICA'
     TIPO_CHOICES = (
         (TEXTO, 'Texto'),
         (EJEMPLO_PARTITURA, 'Ejemplo de partitura'),
@@ -673,6 +674,7 @@ class BloqueContenido(models.Model):
         (IMAGEN, 'Imagen'),
         (VIDEO, 'Video'),
         (PRACTICA_DIRIGIDA, 'Práctica dirigida'),
+        (RITMO_MATEMATICA, 'Ritmo matemático'),
     )
 
     MODO_IDENTIFICAR_NOTAS = 'identificar_notas'
@@ -806,6 +808,16 @@ class BloqueContenido(models.Model):
     precision_minima = models.PositiveSmallIntegerField(
         default=80,
         help_text="Porcentaje de aciertos (0-100) para marcar el intento como completado. Editable por bloque por si algún tema necesita ser más permisivo."
+    )
+
+    # --- RITMO_MATEMATICA ---
+    # Sin archivo ni _en: los problemas se generan proceduralmente en JS a
+    # partir de un pool fijo de valores objetivo (redonda/blanca/negra/corchea/
+    # semicorchea), no hay contenido que el admin cargue ni texto que traducir
+    # -- mismo criterio "sin _en" que PRACTICA_DIRIGIDA de arriba.
+    ritmo_problemas_requeridos = models.PositiveSmallIntegerField(
+        default=5,
+        help_text="Cantidad de problemas distintos a resolver correctamente, en una misma tanda, para marcar el ejercicio como completado."
     )
 
     class Meta:
@@ -1003,6 +1015,20 @@ class BloqueContenido(models.Model):
             if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
                 errores['video_fuente'] = "No debería llenarse en un bloque de Práctica dirigida."
 
+        elif self.tipo == self.RITMO_MATEMATICA:
+            if self.texto_markdown:
+                errores['texto_markdown'] = "No debería llenarse en un bloque de Ritmo matemático."
+            if self.sheet_music_id or self.fragmento_orquestacion_id:
+                errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Ritmo matemático."
+            if self.practica_texto:
+                errores['practica_texto'] = "No debería llenarse en un bloque de Ritmo matemático."
+            if self.imagen or self.imagen_en:
+                errores['imagen'] = "No debería llenarse en un bloque de Ritmo matemático."
+            if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
+                errores['video_fuente'] = "No debería llenarse en un bloque de Ritmo matemático."
+            if self.musicxml_practica:
+                errores['musicxml_practica'] = "No debería llenarse en un bloque de Ritmo matemático."
+
         if errores:
             raise ValidationError(errores)
 
@@ -1027,6 +1053,28 @@ class PracticaDirigidaProgreso(models.Model):
         unique_together = ('user', 'bloque')
         verbose_name = "Progreso de Práctica Dirigida"
         verbose_name_plural = "Progresos de Práctica Dirigida"
+
+
+class RitmoMatematicaProgreso(models.Model):
+    """
+    Progreso AGREGADO por usuario y por bloque de Ritmo matemático -- mismo
+    espíritu que PracticaDirigidaProgreso, pero sin campos de precisión: acá no
+    hay noción de "parcialmente correcto" por problema (el alumno sigue
+    ajustando la zona de destino hasta que suma exacto, o abandona), así que lo
+    único que hace falta guardar es la mejor racha de problemas seguidos
+    resueltos en una misma tanda y si ya alcanzó el umbral para completar.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    bloque = models.ForeignKey(BloqueContenido, on_delete=models.CASCADE)
+    mejor_racha = models.PositiveSmallIntegerField(default=0)
+    veces_practicado = models.PositiveIntegerField(default=0)
+    completado = models.BooleanField(default=False)
+    ultima_vez = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'bloque')
+        verbose_name = "Progreso de Ritmo Matemático"
+        verbose_name_plural = "Progresos de Ritmo Matemático"
 
 
 # ---------------------------------------------------------------------------
