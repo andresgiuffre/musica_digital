@@ -952,10 +952,12 @@
     // "filtrar por proporción/tamaño" que ya usa encontrarCabezasDeNota más arriba
     // para distinguir cabezas de nota de otros elementos del SVG.
     function encontrarBarrasDeCompas(svgOrquesta, alturaMinima) {
+        const candidatosAngostos = []; // para diagnóstico si el filtro de altura sigue sin acertar
         const xs = [];
         svgOrquesta.querySelectorAll('rect, path, line').forEach(el => {
             const rect = el.getBoundingClientRect();
-            if (rect.width <= 0 || rect.height <= 0 || rect.width > 3) return;
+            if (rect.width <= 0 || rect.height <= 0 || rect.width > 6) return;
+            candidatosAngostos.push(rect.height);
             if (rect.height < alturaMinima) return;
             xs.push(rect.left);
         });
@@ -967,6 +969,11 @@
             if (fusionadas.length && x - fusionadas[fusionadas.length - 1] < 4) return;
             fusionadas.push(x);
         });
+        if (!fusionadas.length && candidatosAngostos.length) {
+            // Ninguno pasó el filtro de altura -- esto ayuda a calibrar alturaMinima la
+            // próxima vez, en vez de adivinar de nuevo a ciegas.
+            console.warn(`[orquestacion-libre] ${candidatosAngostos.length} trazo(s) angosto(s) encontrados, ninguno alcanzó la altura mínima (${alturaMinima.toFixed(1)}px). Alturas vistas:`, candidatosAngostos.sort((a, b) => b - a).slice(0, 10));
+        }
         return fusionadas;
     }
 
@@ -1001,7 +1008,7 @@
         // las filas de instrumentos a la vez (convención estándar), así que sirve como
         // límite compartido para toda la grilla, no por fila.
         const alturaSistema = bandas.length ? (bandas[bandas.length - 1].bottom - bandas[0].top) : 0;
-        const barras = alturaSistema > 0 ? encontrarBarrasDeCompas(svgOrquesta, alturaSistema * 0.7) : [];
+        const barras = alturaSistema > 0 ? encontrarBarrasDeCompas(svgOrquesta, alturaSistema * 0.5) : [];
 
         // Columnas por compás: se prioriza leer las barras REALES ya renderizadas (ver
         // encontrarBarrasDeCompas) -- nunca se pudo confiar ni en el cursor de OSMD
@@ -1117,8 +1124,36 @@
         reproduccionPausada = false;
     }
 
+    // Los botones por instrumento se reconstruyen cada vez que el panel de orquesta se
+    // regenera (después de cada asignación/cambio de sección) -- si el botón activo era
+    // uno de esos, su nodo del DOM está por desaparecer, así que hay que soltar la
+    // referencia para no quedar apuntando a algo huérfano. A propósito NO llama a
+    // AudioEngine acá (ni pausa ni corta el audio de verdad): esto se dispara en medio
+    // de un fetch (regenerar el panel), no de un click real del alumno, y llamar a
+    // Tone.getContext().resume() fuera de un gesto de usuario genuino es lo que
+    // disparaba el warning/cuelgue real del navegador (ver marcarBotonActivo) -- si
+    // estaba sonando algo, sigue sonando en segundo plano y el botón "Detener" global
+    // lo sigue pudiendo cortar en cualquier momento.
+    function limpiarBotonActivoSiEsDeControlesOrquesta() {
+        const contenedor = document.getElementById('ej-orql-controles-orquesta');
+        if (botonActivo && contenedor.contains(botonActivo)) {
+            botonActivo = null;
+            reproduccionPausada = false;
+        }
+    }
+
+    // Ya NO llama a detenerReproduccion() acá adentro -- cada llamador lo hace ANTES
+    // de arrancar cualquier paso asincrónico (precarga de muestras), no después.
+    // Llamarlo DESPUÉS (como estaba antes) rompía justo el camino de orquesta: ese
+    // camino precarga la muestra del instrumento ANTES de tocar, y para cuando la
+    // precarga terminaba y se llegaba acá, detenerReproduccion() destruía (dispose())
+    // la muestra recién cargada un instante antes de usarla -- bug real reportado
+    // ("se cuelga todo" al tocar la orquesta, el piano no lo sufre porque nunca
+    // precarga nada, toca directo). Además, llamar a AudioEngine.detenerTodo() (que
+    // reanuda el AudioContext) desde ADENTRO de un .then() ya no cuenta como gesto de
+    // usuario para el navegador (confirmado por el warning real de Chrome en consola)
+    // -- moverlo al principio del click, antes de cualquier await, lo resuelve también.
     function marcarBotonActivo(boton, accionPlay) {
-        detenerReproduccion();
         accionPlay();
         botonActivo = boton;
         reproduccionPausada = false;
@@ -1145,6 +1180,7 @@
             .sort((a, b) => a.offset - b.offset)
             .map(nb => ({ notes: [nb.pitch], offset: nb.offset, duration: nb.duracion_ql }));
         if (!eventos.length) return;
+        detenerReproduccion(); // corta lo anterior ANTES de arrancar la nueva secuencia
         marcarBotonActivo(btn, () => AudioEngine.playSequence(eventos, tempoBpm, null)); // null -> timbre de piano
     }
 
@@ -1233,6 +1269,9 @@
         const inst = INSTRUMENTOS_POR_ID.get(instrumentoId);
         const eventos = eventosDeParteOrquesta(instrumentoId);
         if (!eventos.length) return;
+        // Corta lo anterior ANTES de precargar la muestra nueva -- ver el comentario en
+        // marcarBotonActivo sobre por qué el orden importa acá.
+        detenerReproduccion();
         const restaurar = ponerBotonEnCarga(boton, i18nEjOrql.txtCargandoSonido);
         AudioEngine.precargarMuestraInstrumento(idAudio(inst)).finally(restaurar).then(() => {
             marcarBotonActivo(boton, () => AudioEngine.playSequence(eventos, tempoBpm, idAudio(inst)));
@@ -1247,6 +1286,7 @@
         if (botonActivo === boton) { alternarPausaBotonActivo(boton); return; }
         const usados = instrumentosUsados();
         if (!usados.length) return;
+        detenerReproduccion(); // corta lo anterior ANTES de precargar las muestras nuevas
         const restaurar = ponerBotonEnCarga(boton, i18nEjOrql.txtCargandoSonido);
         Promise.all(usados.map(inst => AudioEngine.precargarMuestraInstrumento(idAudio(inst))))
             .finally(restaurar)
@@ -1261,10 +1301,7 @@
     }
 
     function crearControlesOrquesta() {
-        // Los botones se recrean acá abajo -- si alguno de los anteriores estaba
-        // activo/pausado, su referencia queda huérfana (el DOM viejo se descarta), así
-        // que se corta la reproducción en curso antes de reconstruir nada.
-        detenerReproduccion();
+        limpiarBotonActivoSiEsDeControlesOrquesta();
         const contenedor = document.getElementById('ej-orql-controles-orquesta');
         contenedor.innerHTML = '';
         const usados = instrumentosUsados();
@@ -1300,7 +1337,7 @@
     }
 
     function mostrarPanelOrquestaVacio() {
-        detenerReproduccion(); // los botones por instrumento están por desaparecer del DOM
+        limpiarBotonActivoSiEsDeControlesOrquesta();
         limpiarCeldasCompas();
         document.getElementById('ej-orql-panel-orquesta-vacio').style.display = 'block';
         wrapOrquesta.style.display = 'none';

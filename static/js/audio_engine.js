@@ -413,10 +413,16 @@ const AudioEngine = {
     // Tone.Transport, que sí tendría pause()/cancel() nativos), así que estos 3 métodos
     // actúan directo sobre el motor de audio en vez de sobre la secuencia puntual:
     //
-    // - pausar()/reanudar() suspenden/reanudan el AudioContext nativo entero (confirmado
-    //   contra el bundle real de Tone.js pineado: Tone.getContext().suspend()/.resume()
-    //   existen). Mientras está suspendido, el reloj de audio se congela -- cualquier
-    //   evento ya agendado a futuro simplemente espera, no se pierde ni se adelanta.
+    // - pausar()/reanudar() suspenden/reanudan el AudioContext nativo entero. Mientras
+    //   está suspendido, el reloj de audio se congela -- cualquier evento ya agendado a
+    //   futuro simplemente espera, no se pierde ni se adelanta. `Context.suspend()` NO
+    //   es parte de la API pública documentada de Tone.js (solo resume()/close(),
+    //   confirmado contra la documentación oficial de la versión pineada después de un
+    //   error real en producción: `Tone.getContext().suspend` no es una función) --
+    //   hay que bajar un nivel a `.rawContext`, el AudioContext nativo del navegador
+    //   sin envolver, que sí expone suspend()/resume() estándar (spec de Web Audio).
+    //   reanudar() sí puede quedarse con el método público documentado de Tone
+    //   (Context.resume()), que internamente hace lo mismo.
     // - detenerTodo() corta lo que suena YA (releaseAll()) y además descarta cualquier
     //   nota agendada a futuro que todavía no sonó -- Tone.js no expone una forma de
     //   cancelar puntualmente un triggerAttackRelease ya agendado, así que la única vía
@@ -427,7 +433,7 @@ const AudioEngine = {
     //   al CDN de cero en la práctica. ---
 
     pausar() {
-        Tone.getContext().suspend();
+        Tone.getContext().rawContext.suspend();
     },
 
     reanudar() {
