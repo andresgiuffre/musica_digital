@@ -19,7 +19,7 @@ from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib.auth.forms import UserCreationForm
-from django.http import JsonResponse, HttpResponse, StreamingHttpResponse, FileResponse
+from django.http import JsonResponse, HttpResponse, StreamingHttpResponse, FileResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator
 from django.template.loader import render_to_string
@@ -1877,9 +1877,45 @@ def curso_exportar_pdf(request, curso_id):
     return response
 
 
+def _bloque_completado(bloque, user):
+    """
+    Única fuente de verdad de "¿el usuario ya superó este bloque-ejercicio?" --
+    la usan tanto _bloque_desbloqueado() como tema_detail() (para el badge) y
+    los endpoints de registrar/reiniciar. Devuelve True para cualquier tipo que
+    no sea un ejercicio (nunca bloquea nada por sí solo).
+    """
+    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso
+    if bloque.tipo == BloqueContenido.PRACTICA_DIRIGIDA:
+        progreso = PracticaDirigidaProgreso.objects.filter(user=user, bloque=bloque).first()
+    elif bloque.tipo == BloqueContenido.RITMO_MATEMATICA:
+        progreso = RitmoMatematicaProgreso.objects.filter(user=user, bloque=bloque).first()
+    else:
+        return True
+    return bool(progreso and progreso.completado)
+
+
+def _bloque_desbloqueado(bloque, user):
+    """
+    Bloqueo persistente y server-side entre ejercicios de un mismo Tema (antes
+    era puramente client-side y se reseteaba en cada recarga -- ver
+    tema_detail.html). Desbloqueado si el bloque no es de tipo ejercicio, si es
+    el primer bloque-ejercicio del Tema, o si el bloque-ejercicio INMEDIATO
+    ANTERIOR (por orden, entre EJERCICIO_TIPOS) ya está completado para este
+    usuario. Único punto de verdad -- lo usan tanto tema_detail() para decidir
+    qué renderiza cada bloque como los endpoints que sirven/reciben datos de
+    cada ejercicio, para que el bloqueo sea real y no solo cosmético.
+    """
+    from .models import BloqueContenido
+    EJERCICIO_TIPOS = (BloqueContenido.PRACTICA_DIRIGIDA, BloqueContenido.RITMO_MATEMATICA)
+    if bloque.tipo not in EJERCICIO_TIPOS:
+        return True
+    anterior = bloque.tema.bloques.filter(tipo__in=EJERCICIO_TIPOS, orden__lt=bloque.orden).order_by('-orden').first()
+    return True if anterior is None else _bloque_completado(anterior, user)
+
+
 @login_required
 def tema_detail(request, curso_id, grado_numero, tema_slug):
-    from .models import Curso, Grado, Tema, PracticaDirigidaProgreso
+    from .models import Curso, Grado, Tema, PracticaDirigidaProgreso, RitmoMatematicaProgreso
     from .services import render_markdown_seguro
 
     curso = get_object_or_404(Curso, id=curso_id, activo=True)
@@ -1910,8 +1946,13 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
             archivo_name = bloque.sheet_music.xml_file.name if bloque.sheet_music else bloque.fragmento_orquestacion.archivo.name
             bloque.es_mxl = pathlib.Path(archivo_name).suffix.lower() == '.mxl'
         elif bloque.tipo == bloque.PRACTICA_DIRIGIDA:
-            bloque.es_mxl_practica = pathlib.Path(bloque.musicxml_practica.name).suffix.lower() == '.mxl'
+            bloque.bloqueado = not _bloque_desbloqueado(bloque, request.user)
+            if not bloque.bloqueado:
+                bloque.es_mxl_practica = pathlib.Path(bloque.musicxml_practica.name).suffix.lower() == '.mxl'
             bloque.progreso_usuario = PracticaDirigidaProgreso.objects.filter(user=request.user, bloque=bloque).first()
+        elif bloque.tipo == bloque.RITMO_MATEMATICA:
+            bloque.bloqueado = not _bloque_desbloqueado(bloque, request.user)
+            bloque.progreso_usuario = RitmoMatematicaProgreso.objects.filter(user=request.user, bloque=bloque).first()
 
     response = render(request, 'trainer/tema_detail.html', {
         'curso': curso, 'grado': grado, 'tema': tema, 'bloques': bloques,
@@ -2005,6 +2046,8 @@ def bloque_practica_dirigida_archivo(request, bloque_id):
     """
     from .models import BloqueContenido
     bloque = get_object_or_404(BloqueContenido, id=bloque_id, tipo=BloqueContenido.PRACTICA_DIRIGIDA)
+    if not _bloque_desbloqueado(bloque, request.user):
+        return HttpResponseForbidden("Este ejercicio todavía está bloqueado.")
 
     extension = pathlib.Path(bloque.musicxml_practica.name).suffix.lower()
     content_type = 'application/vnd.recordare.musicxml' if extension == '.mxl' else 'application/vnd.recordare.musicxml+xml'
@@ -2032,6 +2075,8 @@ def practica_dirigida_registrar(request, bloque_id):
     from .models import BloqueContenido, PracticaDirigidaProgreso
 
     bloque = get_object_or_404(BloqueContenido, id=bloque_id, tipo=BloqueContenido.PRACTICA_DIRIGIDA)
+    if not _bloque_desbloqueado(bloque, request.user):
+        return JsonResponse({'status': 'error', 'message': 'Este ejercicio todavía está bloqueado.'}, status=403)
 
     try:
         data = json.loads(request.body)
@@ -2054,6 +2099,78 @@ def practica_dirigida_registrar(request, bloque_id):
         })
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+
+@login_required
+def bloque_ritmo_matematica_registrar(request, bloque_id):
+    """
+    Registra la finalización de una tanda de Ritmo matemático -- mismo
+    espíritu que practica_dirigida_registrar, pero sin porcentaje de precisión:
+    acá no hay noción de "parcialmente correcto" por problema (el alumno sigue
+    ajustando la zona de destino hasta sumar exacto, o abandona el problema),
+    así que llegar a este endpoint ya implica que resolvió los
+    bloque.ritmo_problemas_requeridos problemas de la tanda -- mismo nivel de
+    confianza en el cliente que ya acepta practica_dirigida_registrar con
+    correctas/total autoreportados.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    from .models import BloqueContenido, RitmoMatematicaProgreso
+
+    bloque = get_object_or_404(BloqueContenido, id=bloque_id, tipo=BloqueContenido.RITMO_MATEMATICA)
+    if not _bloque_desbloqueado(bloque, request.user):
+        return JsonResponse({'status': 'error', 'message': 'Este ejercicio todavía está bloqueado.'}, status=403)
+
+    progreso, _ = RitmoMatematicaProgreso.objects.get_or_create(user=request.user, bloque=bloque)
+    progreso.veces_practicado += 1
+    progreso.mejor_racha = max(progreso.mejor_racha, bloque.ritmo_problemas_requeridos)
+    progreso.completado = True
+    progreso.save()
+
+    return JsonResponse({
+        'status': 'success',
+        'mejor_racha': progreso.mejor_racha,
+        'completado': progreso.completado,
+        'veces_practicado': progreso.veces_practicado,
+    })
+
+
+@login_required
+def bloque_progreso_reiniciar(request, bloque_id):
+    """
+    Reinicia el progreso propio de un bloque-ejercicio (Práctica dirigida o
+    Ritmo matemático) para "empezar de cero" -- pedido explícito del usuario
+    junto con el bloqueo persistente: si se completó por error o se quiere
+    repasar desde cero, hay que poder volver a bloquear lo que dependía de él,
+    no solo volver a intentarlo. Genérico por tipo, no dos endpoints separados.
+
+    Reinicia en CASCADA -- también borra el progreso de todos los
+    bloques-ejercicio POSTERIORES (por orden) dentro del mismo Tema, no solo
+    el bloque puntual. Sin esto, reiniciar el Ejercicio 1 solo re-bloqueaba el
+    2 pero el 3 seguía marcado completado con su propio progreso intacto (su
+    candado depende de si el 2 está completado, no directamente del 1) --
+    quedaba accesible/completo un ejercicio "posterior a uno que ahora hay que
+    rehacer desde cero", que no es lo que "empezar de cero" pide.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso
+
+    bloque = get_object_or_404(BloqueContenido, id=bloque_id)
+    if bloque.tipo not in (BloqueContenido.PRACTICA_DIRIGIDA, BloqueContenido.RITMO_MATEMATICA):
+        return JsonResponse({'status': 'error', 'message': 'Este bloque no tiene progreso para reiniciar.'}, status=400)
+
+    EJERCICIO_TIPOS = (BloqueContenido.PRACTICA_DIRIGIDA, BloqueContenido.RITMO_MATEMATICA)
+    posteriores = bloque.tema.bloques.filter(tipo__in=EJERCICIO_TIPOS, orden__gte=bloque.orden)
+    for b in posteriores:
+        if b.tipo == BloqueContenido.PRACTICA_DIRIGIDA:
+            PracticaDirigidaProgreso.objects.filter(user=request.user, bloque=b).delete()
+        else:
+            RitmoMatematicaProgreso.objects.filter(user=request.user, bloque=b).delete()
+
+    return JsonResponse({'status': 'success'})
 
 
 @login_required

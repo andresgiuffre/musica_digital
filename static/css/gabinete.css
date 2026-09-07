@@ -757,16 +757,20 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
 }
 
 /* ---------- Práctica dirigida (bloque de Cursos, tema_detail) ---------- */
-body.gabinete .pdir-gab__badge {
+/* Compartida con Ritmo matemático (mismo layout badge + botón Reiniciar). */
+body.gabinete .pdir-gab__cabecera, body.gabinete .ritmo-gab__cabecera {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    flex-wrap: wrap; margin-bottom: 1rem;
+}
+body.gabinete .pdir-gab__badge, body.gabinete .ritmo-gab__badge {
     display: inline-block;
     font-size: 0.8125rem;
     font-weight: 600;
     padding: 0.35rem 0.85rem;
     border-radius: 999px;
-    margin-bottom: 1rem;
 }
-body.gabinete .pdir-gab__badge--completado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
-body.gabinete .pdir-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
+body.gabinete .pdir-gab__badge--completado, body.gabinete .ritmo-gab__badge--completado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+body.gabinete .pdir-gab__badge--progreso, body.gabinete .ritmo-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
 
 body.gabinete .pdir-gab__partitura {
     background-color: var(--score-paper); color: var(--score-ink); padding: 1.25rem 1.25rem 2.25rem;
@@ -811,3 +815,46 @@ body.gabinete .pdir-gab__resumen-texto { font-weight: 600; margin-bottom: 0.75re
 @media (max-width: 560px) {
     body.gabinete .pdir-gab__notas-grid { grid-template-columns: repeat(4, 1fr); }
 }
+
+/* ---------- Ritmo matemático (bloque de Cursos, tema_detail) ---------- */
+body.gabinete .ritmo-gab__progreso { color: var(--ink-soft); font-size: 0.875rem; margin: 0 0 0.25rem; }
+body.gabinete .ritmo-gab__objetivo { font-weight: 600; font-size: 1.0625rem; color: var(--ink); margin: 0 0 1rem; }
+
+body.gabinete .ritmo-gab__zona {
+    background: var(--bg); border: 2px dashed var(--line); border-radius: var(--radius-data);
+    padding: 1rem; margin-bottom: 1.25rem; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+body.gabinete .ritmo-gab__zona--exacto { border-color: var(--green); border-style: solid; box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 30%, transparent); }
+body.gabinete .ritmo-gab__zona--pasado { border-color: var(--danger); }
+
+body.gabinete .ritmo-gab__zona-barra { height: 10px; border-radius: 999px; background: var(--surface); overflow: hidden; margin-bottom: 0.5rem; }
+body.gabinete .ritmo-gab__zona-barra-fill { height: 100%; width: 0; background: var(--primary); transition: width 0.2s ease; border-radius: 999px; }
+body.gabinete .ritmo-gab__zona--exacto .ritmo-gab__zona-barra-fill { background: var(--green); }
+body.gabinete .ritmo-gab__zona--pasado .ritmo-gab__zona-barra-fill { background: var(--danger); }
+
+body.gabinete .ritmo-gab__zona-suma { text-align: center; font-size: 0.875rem; color: var(--ink-soft); min-height: 1.25em; margin: 0 0 0.5rem; }
+
+body.gabinete .ritmo-gab__zona-piezas {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; min-height: 62px;
+    align-items: center; justify-content: center;
+}
+
+body.gabinete .ritmo-gab__banco {
+    display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center;
+    padding: 1rem; border-radius: var(--radius-data); background: var(--surface); border: 1px solid var(--line);
+}
+
+body.gabinete .ritmo-gab__pieza {
+    color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 0.35rem 0.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+    cursor: grab; user-select: none; touch-action: none;
+}
+body.gabinete .ritmo-gab__zona-piezas .ritmo-gab__pieza { background: var(--score-paper); color: var(--score-ink); border-color: transparent; }
+body.gabinete .ritmo-gab__pieza--banco:active { cursor: grabbing; }
+body.gabinete .ritmo-gab__pieza--fantasma { position: fixed; top: 0; left: 0; z-index: 1000; pointer-events: none; opacity: 0.85; box-shadow: var(--shadow-lift); }
+body.gabinete .ritmo-gab__pieza-etiqueta { font-size: 0.6875rem; color: var(--ink-soft); }
+
+body.gabinete .ritmo-gab__resumen { text-align: center; }
+body.gabinete .ritmo-gab__resumen-texto { font-weight: 600; margin-bottom: 0.75rem; }
+
+body.gabinete .ritmo-gab__estado { color: var(--ink-soft); text-align: center; padding: 1rem 0; }

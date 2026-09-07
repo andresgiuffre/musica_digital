@@ -1,0 +1,62 @@
+{% load i18n %}
+{% comment %}
+Parcial incluido desde tema_detail.html donde ya despacha por bloque.tipo --
+no es una página con URL propia. `bloque` y `csrf_token` llegan del contexto
+del include (sin `only`), no se re-pasan a mano. Mismo patrón de bloqueo
+server-side que _bloque_practica_dirigida.html: si bloque.bloqueado, no se
+renderiza ningún data-* ni la mecánica interactiva.
+{% endcomment %}
+<div class="ritmo-gab" id="ritmo-bloque-{{ bloque.id }}"
+    data-bloque-id="{{ bloque.id }}"
+    {% if not bloque.bloqueado %}
+    data-registrar-url="{% url 'bloque_ritmo_matematica_registrar' bloque.id %}"
+    data-csrf="{{ csrf_token }}"
+    data-problemas-requeridos="{{ bloque.ritmo_problemas_requeridos }}"
+    data-txt-objetivo-entera="{% trans 'Objetivo: una redonda entera' %}"
+    data-txt-objetivo-fraccion="{% trans 'Objetivo: {num}/{den} de una redonda' %}"
+    data-txt-progreso="{% trans 'Problema {actual} de {total}' %}"
+    data-txt-suma-actual="{% trans 'Llevás {num}/{den}' %}"
+    data-txt-resultado="{% trans 'Resolviste {total} problemas distintos.' %}"
+    data-txt-completado="{% trans 'Completado — racha de {racha} problemas' %}"
+    data-txt-no-completado="{% trans 'Practicado {veces} veces — todavía no completado' %}"
+    data-txt-desbloqueado="{% trans '¡Siguiente ejercicio desbloqueado! Actualizando la página…' %}"
+    {% endif %}>
+
+    {% if bloque.bloqueado %}
+        <div class="ritmo-gab__estado">{% trans "Completá el ejercicio anterior para desbloquear este." %}</div>
+    {% else %}
+        <div class="ritmo-gab__cabecera">
+            <div class="ritmo-gab__badge {% if bloque.progreso_usuario.completado %}ritmo-gab__badge--completado{% elif bloque.progreso_usuario %}ritmo-gab__badge--progreso{% endif %}"
+                id="ritmo-badge-{{ bloque.id }}" {% if not bloque.progreso_usuario %}style="display:none;"{% endif %}>
+                {% if bloque.progreso_usuario.completado %}
+                    {% blocktrans with racha=bloque.progreso_usuario.mejor_racha %}Completado — racha de {{ racha }} problemas{% endblocktrans %}
+                {% elif bloque.progreso_usuario %}
+                    {% blocktrans count veces=bloque.progreso_usuario.veces_practicado %}Practicado {{ veces }} vez — todavía no completado{% plural %}Practicado {{ veces }} veces — todavía no completado{% endblocktrans %}
+                {% endif %}
+            </div>
+            {% if bloque.progreso_usuario %}
+            <button type="button" class="btn-gab btn-gab--secondary reiniciar-progreso-btn"
+                data-reiniciar-url="{% url 'bloque_progreso_reiniciar' bloque.id %}"
+                data-txt-confirmar="{% trans '¿Reiniciar el progreso de este ejercicio? Vas a tener que resolverlo de nuevo.' %}">
+                ↺ {% trans "Reiniciar" %}
+            </button>
+            {% endif %}
+        </div>
+
+        <p class="ritmo-gab__progreso" id="ritmo-progreso-{{ bloque.id }}"></p>
+        <p class="ritmo-gab__objetivo" id="ritmo-objetivo-{{ bloque.id }}"></p>
+
+        <div class="ritmo-gab__zona" id="ritmo-zona-{{ bloque.id }}">
+            <div class="ritmo-gab__zona-barra"><div class="ritmo-gab__zona-barra-fill" id="ritmo-barra-{{ bloque.id }}"></div></div>
+            <p class="ritmo-gab__zona-suma" id="ritmo-suma-{{ bloque.id }}"></p>
+            <div class="ritmo-gab__zona-piezas" id="ritmo-piezas-{{ bloque.id }}"></div>
+        </div>
+
+        <div class="ritmo-gab__banco" id="ritmo-banco-{{ bloque.id }}"></div>
+
+        <div class="ritmo-gab__resumen" id="ritmo-resumen-{{ bloque.id }}" style="display:none;">
+            <p class="ritmo-gab__resumen-texto" id="ritmo-resumen-texto-{{ bloque.id }}"></p>
+            <button type="button" class="btn-gab btn-gab--secondary" id="ritmo-reintentar-{{ bloque.id }}">{% trans "Practicar de nuevo" %}</button>
+        </div>
+    {% endif %}
+</div>

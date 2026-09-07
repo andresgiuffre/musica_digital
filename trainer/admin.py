@@ -10,7 +10,7 @@ from .models import (
     SheetMarker, SessionAudio, RehearsalConfig, RehearsalLog,
     MusicalProject, ProjectGoal, ProjectSection,
     MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis,
-    Curso, Grado, Tema, BloqueContenido, PracticaDirigidaProgreso,
+    Curso, Grado, Tema, BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso,
     InstrumentoHabilitadoOrquestacion, ProgresoOrquestacionLibre,
 )
 
@@ -81,6 +81,10 @@ class BloqueContenidoInline(admin.StackedInline):
             'fields': ('musicxml_practica', 'modo_practica', 'precision_minima'),
             'classes': ('collapse',),
         }),
+        ('Ritmo matemático', {
+            'fields': ('ritmo_problemas_requeridos',),
+            'classes': ('collapse',),
+        }),
     )
 
 
@@ -101,6 +105,14 @@ class PracticaDirigidaProgresoAdmin(admin.ModelAdmin):
     """Dato operacional, no contenido a curar -- solo para inspeccionar rápido
     desde el admin, no se edita a mano."""
     list_display = ('user', 'bloque', 'mejor_precision', 'veces_practicado', 'completado', 'ultima_vez')
+    list_filter = ('completado',)
+
+
+@admin.register(RitmoMatematicaProgreso)
+class RitmoMatematicaProgresoAdmin(admin.ModelAdmin):
+    """Mismo criterio que PracticaDirigidaProgresoAdmin: dato operacional, solo
+    para inspeccionar, no se edita a mano."""
+    list_display = ('user', 'bloque', 'mejor_racha', 'veces_practicado', 'completado', 'ultima_vez')
     list_filter = ('completado',)
 
 
