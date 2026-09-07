@@ -406,6 +406,52 @@ const AudioEngine = {
             const duration = Math.max(ev.duration * secondsPerBeat, 0.05);
             voz.triggerAttackRelease(midiNotes, duration, time);
         });
+    },
+
+    // --- Pausar/reanudar/detener una reproducción en curso -- playSequence() agenda
+    // TODOS los eventos de una vez contra el reloj del AudioContext (no usa
+    // Tone.Transport, que sí tendría pause()/cancel() nativos), así que estos 3 métodos
+    // actúan directo sobre el motor de audio en vez de sobre la secuencia puntual:
+    //
+    // - pausar()/reanudar() suspenden/reanudan el AudioContext nativo entero (confirmado
+    //   contra el bundle real de Tone.js pineado: Tone.getContext().suspend()/.resume()
+    //   existen). Mientras está suspendido, el reloj de audio se congela -- cualquier
+    //   evento ya agendado a futuro simplemente espera, no se pierde ni se adelanta.
+    // - detenerTodo() corta lo que suena YA (releaseAll()) y además descarta cualquier
+    //   nota agendada a futuro que todavía no sonó -- Tone.js no expone una forma de
+    //   cancelar puntualmente un triggerAttackRelease ya agendado, así que la única vía
+    //   confiable es destruir (dispose()) cada voz de synth/sampler cacheada y sacarla
+    //   de la caché; la próxima vez que se pida (precargarMuestraInstrumento/
+    //   playSequence) se crea una voz nueva -- las muestras de audio ya descargadas
+    //   probablemente sigan en la caché HTTP del navegador, así que no vuelve a pegarle
+    //   al CDN de cero en la práctica. ---
+
+    pausar() {
+        Tone.getContext().suspend();
+    },
+
+    reanudar() {
+        Tone.getContext().resume();
+    },
+
+    detenerTodo() {
+        Tone.getContext().resume(); // por si se llama a detenerTodo() estando pausado
+        if (this.sampler) {
+            this.sampler.releaseAll();
+            this.sampler.dispose();
+            this.sampler = null;
+            this.isReady = false;
+        }
+        Object.keys(this.synthsInstrumento).forEach(nombre => {
+            this.synthsInstrumento[nombre].releaseAll();
+            this.synthsInstrumento[nombre].dispose();
+            delete this.synthsInstrumento[nombre];
+        });
+        Object.keys(this.samplesInstrumento).forEach(clave => {
+            this.samplesInstrumento[clave].releaseAll();
+            this.samplesInstrumento[clave].dispose();
+            delete this.samplesInstrumento[clave];
+        });
     }
 };
 
