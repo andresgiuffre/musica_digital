@@ -753,7 +753,23 @@
                 if (notas.length === 0) throw new Error('El archivo no tiene notas con altura reconocible.');
 
                 divEstado.style.display = 'none';
-                empezar();
+                // Si ya estaba completado de una sesión anterior, NO arranca solo
+                // el intento (eso dispararía audio -- AudioEngine.playNote -- e
+                // inicialización del motor de sonido de entrada, para un ejercicio
+                // que el usuario no pidió rehacer). Confirmado como la causa real
+                // de un cuelgue reportado: con persistencia server-side, puede
+                // haber más de un bloque YA completado desbloqueado en la misma
+                // carga (ver el comentario en la firma de esta función) -- antes
+                // de este chequeo, CADA UNO de esos arrancaba su intento e
+                // inicializaba audio automáticamente, en cadena rápida, uno atrás
+                // del otro. Alcanza con dejar la partitura renderizada y esperar
+                // a que el usuario mismo pida "Practicar de nuevo".
+                if (yaEstabaCompletado) {
+                    divResumen.style.display = '';
+                    textoResumen.textContent = data.txtYaCompletado;
+                } else {
+                    empezar();
+                }
                 // El siguiente bloque de la cola puede empezar a cargar su propio
                 // OSMD ahora que este ya terminó de renderizar -- no hace falta
                 // esperar a que el usuario TERMINE el intento (ver el comentario
@@ -819,9 +835,13 @@
 })();
 
 (function () {
-    // "Calculadora de Equivalencias Rítmicas" -- arrastrar figuras (redonda/
-    // blanca/negra/corchea/semicorchea) hasta sumar EXACTO un valor objetivo,
-    // en tandas de bloque.ritmo_problemas_requeridos problemas distintos.
+    // "Calculadora de Equivalencias Rítmicas" -- se muestra un objetivo como
+    // ícono(s) de figura CON SU NOMBRE (nunca una fracción cruda sin explicar),
+    // y hay que armar la MISMA duración con una combinación de figuras
+    // DISTINTA a la que ya se ve arriba -- no alcanza con repetir la misma
+    // figura que ya está mostrada, hay que demostrar una equivalencia real
+    // (ej: para "1 Negra" hay que encontrar que 2 Corcheas duran lo mismo).
+    // En tandas de bloque.ritmo_problemas_requeridos problemas distintos.
     // Sin OSMD ni archivo externo que cargar -- a diferencia de Práctica
     // dirigida, no hay ninguna razón técnica para escalonar la inicialización
     // entre varios bloques de este tipo: cada uno ya desbloqueado arranca
@@ -850,16 +870,49 @@
         { tipo: 'corchea', valor: 2 },
         { tipo: 'semicorchea', valor: 1 },
     ];
-    // Pool de objetivos "prolijos" (combinaciones razonables con las figuras
-    // de arriba, en dieciseisavos) -- se arma cada tanda barajando y
-    // concatenando este pool las veces que hagan falta, así ritmo_problemas_
-    // requeridos puede configurarse por encima del tamaño del pool sin romper.
-    const POOL_OBJETIVOS = [16, 12, 10, 9, 7, 6, 5, 13];
+    // Nombres reales de cada figura -- SIEMPRE acompañan al ícono, nunca se
+    // muestra una fracción sola sin explicar qué representa (pedido explícito
+    // del usuario tras probar la primera versión). Con traducción a inglés
+    // (mismo criterio ya aplicado a los nombres de nota Do/Re/Mi -> C/D/E en
+    // trainer_notas.html: un hablante de inglés no reconoce "Corchea" como
+    // figura musical, a diferencia del vocabulario de intervalos/acordes que
+    // se deja sin traducir).
+    const NOMBRE_FIGURA = {
+        es: { redonda: 'Redonda', blanca: 'Blanca', negra: 'Negra', corchea: 'Corchea', semicorchea: 'Semicorchea' },
+        en: { redonda: 'Whole note', blanca: 'Half note', negra: 'Quarter note', corchea: 'Eighth note', semicorchea: 'Sixteenth note' },
+    };
+
+    // Pool de objetivos: cada uno es una combinación de 1-2 figuras "de
+    // referencia" que se muestran como el objetivo (íconos + nombres). Siempre
+    // existe al menos una combinación DISTINTA que suma lo mismo -- ninguno
+    // usa semicorchea sola como única referencia porque no habría forma de
+    // armar su valor (1) con una figura distinta a ella misma.
+    const REFERENCE_POOL = [
+        { valor: 4, figuras: ['negra'] },
+        { valor: 8, figuras: ['blanca'] },
+        { valor: 16, figuras: ['redonda'] },
+        { valor: 2, figuras: ['corchea'] },
+        { valor: 6, figuras: ['negra', 'corchea'] },
+        { valor: 12, figuras: ['blanca', 'negra'] },
+        { valor: 10, figuras: ['blanca', 'corchea'] },
+    ];
 
     function mcd(a, b) { return b === 0 ? a : mcd(b, a % b); }
     function fraccionDe16(valor) {
         const divisor = mcd(valor, 16);
         return { num: valor / divisor, den: 16 / divisor };
+    }
+
+    function contarTipos(listaTipos) {
+        const conteo = {};
+        listaTipos.forEach(function (t) { conteo[t] = (conteo[t] || 0) + 1; });
+        return conteo;
+    }
+
+    function mismoConteo(a, b) {
+        const clavesA = Object.keys(a), clavesB = Object.keys(b);
+        if (clavesA.length !== clavesB.length) return false;
+        return clavesA.every(function (k) { return a[k] === b[k]; });
     }
 
     function barajar(arr) {
@@ -874,7 +927,7 @@
     function objetivosParaTanda(cantidad) {
         let resultado = [];
         while (resultado.length < cantidad) {
-            resultado = resultado.concat(barajar(POOL_OBJETIVOS));
+            resultado = resultado.concat(barajar(REFERENCE_POOL));
         }
         return resultado.slice(0, cantidad);
     }
@@ -924,10 +977,11 @@
         // en initPracticaDirigida: un reintento sobre algo ya completado antes
         // no debería disparar el aviso de "siguiente desbloqueado, recargando".
         let yaEstabaCompletado = divBadge.classList.contains('ritmo-gab__badge--completado');
+        const idioma = data.lang === 'en' ? 'en' : 'es';
 
         let objetivos = [];
         let indiceProblema = 0;
-        let objetivoActual = 0;
+        let objetivoActual = null; // { valor, figuras }
         let piezasColocadas = []; // [{ tipo, valor, id }]
         let contadorIds = 0;
         let resolviendo = false;
@@ -936,23 +990,40 @@
             return piezasColocadas.reduce(function (acc, p) { return acc + p.valor; }, 0);
         }
 
-        function textoObjetivo(valor) {
-            const f = fraccionDe16(valor);
-            return f.num === f.den ? data.txtObjetivoEntera : fmt(data.txtObjetivoFraccion, { num: f.num, den: f.den });
+        function renderObjetivo(ref) {
+            let html = '<div class="ritmo-gab__objetivo-figuras">';
+            ref.figuras.forEach(function (tipo, i) {
+                if (i > 0) html += '<span class="ritmo-gab__objetivo-mas">+</span>';
+                html += '<span class="ritmo-gab__objetivo-figura">' + svgFigura(tipo)
+                    + '<span class="ritmo-gab__objetivo-figura-nombre">' + NOMBRE_FIGURA[idioma][tipo] + '</span></span>';
+            });
+            html += '</div>';
+            const f = fraccionDe16(ref.valor);
+            html += '<p class="ritmo-gab__objetivo-fraccion">' + (f.num === f.den ? data.txtEquivaleEntera : fmt(data.txtEquivaleFraccion, { num: f.num, den: f.den })) + '</p>';
+            divObjetivo.innerHTML = html;
         }
 
         function actualizarZona() {
             const suma = sumaActual();
-            const porcentaje = Math.max(0, Math.min(100, Math.round(100 * suma / objetivoActual)));
+            const porcentaje = Math.max(0, Math.min(100, Math.round(100 * suma / objetivoActual.valor)));
             divBarra.style.width = porcentaje + '%';
-            const f = fraccionDe16(suma);
-            divSuma.textContent = suma === 0 ? '' : fmt(data.txtSumaActual, { num: f.num, den: f.den });
+            divSuma.textContent = suma === 0 ? '' : fmt(data.txtPorcentaje, { porcentaje: porcentaje });
 
-            divZona.classList.remove('ritmo-gab__zona--exacto', 'ritmo-gab__zona--pasado');
-            if (suma === objetivoActual) {
-                divZona.classList.add('ritmo-gab__zona--exacto');
-                resolverProblema();
-            } else if (suma > objetivoActual) {
+            divZona.classList.remove('ritmo-gab__zona--exacto', 'ritmo-gab__zona--pasado', 'ritmo-gab__zona--repetido');
+            if (suma === objetivoActual.valor) {
+                // Sumar bien no alcanza -- tiene que ser una combinación de
+                // figuras DISTINTA a la que ya se ve arriba (si no, "resolver"
+                // el ejercicio era simplemente repetir la misma figura que ya
+                // estaba mostrada N veces, sin demostrar ninguna equivalencia).
+                const igual = mismoConteo(contarTipos(piezasColocadas.map(function (p) { return p.tipo; })), contarTipos(objetivoActual.figuras));
+                if (igual) {
+                    divZona.classList.add('ritmo-gab__zona--repetido');
+                    divSuma.textContent = data.txtRepetido;
+                } else {
+                    divZona.classList.add('ritmo-gab__zona--exacto');
+                    resolverProblema();
+                }
+            } else if (suma > objetivoActual.valor) {
                 divZona.classList.add('ritmo-gab__zona--pasado');
             }
         }
@@ -961,6 +1032,10 @@
             const chip = document.createElement('div');
             chip.className = 'ritmo-gab__pieza' + (enBanco ? ' ritmo-gab__pieza--banco' : '');
             chip.innerHTML = svgFigura(tipo);
+            const nombre = document.createElement('span');
+            nombre.className = 'ritmo-gab__pieza-nombre';
+            nombre.textContent = NOMBRE_FIGURA[idioma][tipo];
+            chip.appendChild(nombre);
             return chip;
         }
 
@@ -1060,8 +1135,8 @@
             objetivoActual = objetivos[indiceProblema];
             piezasColocadas = [];
             divPiezasZona.innerHTML = '';
-            divZona.classList.remove('ritmo-gab__zona--exacto', 'ritmo-gab__zona--pasado');
-            divObjetivo.textContent = textoObjetivo(objetivoActual);
+            divZona.classList.remove('ritmo-gab__zona--exacto', 'ritmo-gab__zona--pasado', 'ritmo-gab__zona--repetido');
+            renderObjetivo(objetivoActual);
             divProgreso.textContent = fmt(data.txtProgreso, { actual: indiceProblema + 1, total: objetivos.length });
             actualizarZona();
         }
@@ -1131,7 +1206,20 @@
 
         poblarBanco();
         btnReintentar.addEventListener('click', empezar);
-        empezar();
+        // Si ya estaba completado de una sesión anterior, no arranca solo una
+        // tanda nueva de 5 problemas -- mismo criterio que initPracticaDirigida:
+        // el usuario no pidió rehacerlo, alcanza con dejarlo listo para "Practicar
+        // de nuevo" si quiere.
+        if (yaEstabaCompletado) {
+            divZona.style.display = 'none';
+            divBanco.style.display = 'none';
+            divProgreso.style.display = 'none';
+            divObjetivo.style.display = 'none';
+            divResumen.style.display = '';
+            textoResumen.textContent = data.txtYaCompletado;
+        } else {
+            empezar();
+        }
     }
 
     bloquesRitmo.forEach(function (info) { initRitmoMatematica(info.bloqueId); });
