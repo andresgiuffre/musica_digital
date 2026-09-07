@@ -44,7 +44,12 @@
                 <div class="fragmento-gab__fila">
                     <div class="fragmento-gab__nombre">{{ fragmento.nombre }}</div>
                     <div class="fragmento-gab__acciones">
+                        {% comment %}
+                        Ejercicio de pintado DESACTIVADO a pedido explícito del usuario --
+                        ver EJERCICIO_PINTADO_HABILITADO en views.py. No se borra, solo se
+                        comenta: reactivar es volver ese flag a True y descomentar este link.
                         <a href="{% url 'orquestacion_ejercicio' fragmento.id %}" class="btn-gab btn-gab--secondary">{% trans "Pintar (cuerdas)" %}</a>
+                        {% endcomment %}
                         <a href="{% url 'orquestacion_libre_ejercicio' fragmento.id %}" class="btn-gab btn-gab--primary">{% trans "Arrastrar (instrumentación libre)" %}</a>
                     </div>
                 </div>
