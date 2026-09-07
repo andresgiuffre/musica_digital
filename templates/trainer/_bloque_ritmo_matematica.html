@@ -11,12 +11,15 @@ renderiza ningún data-* ni la mecánica interactiva.
     {% if not bloque.bloqueado %}
     data-registrar-url="{% url 'bloque_ritmo_matematica_registrar' bloque.id %}"
     data-csrf="{{ csrf_token }}"
+    data-lang="{{ LANGUAGE_CODE }}"
     data-problemas-requeridos="{{ bloque.ritmo_problemas_requeridos }}"
-    data-txt-objetivo-entera="{% trans 'Objetivo: una redonda entera' %}"
-    data-txt-objetivo-fraccion="{% trans 'Objetivo: {num}/{den} de una redonda' %}"
+    data-txt-equivale-entera="{% trans '(equivale a una redonda entera)' %}"
+    data-txt-equivale-fraccion="{% trans '(equivale a {num}/{den} de una redonda)' %}"
     data-txt-progreso="{% trans 'Problema {actual} de {total}' %}"
-    data-txt-suma-actual="{% trans 'Llevás {num}/{den}' %}"
+    data-txt-porcentaje="{% trans '{porcentaje}% completado' %}"
+    data-txt-repetido="{% trans 'Esa es la misma combinación que ya ves arriba — ¡probá con otras figuras!' %}"
     data-txt-resultado="{% trans 'Resolviste {total} problemas distintos.' %}"
+    data-txt-ya-completado="{% trans 'Ya completaste este ejercicio. Podés practicarlo de nuevo si querés.' %}"
     data-txt-completado="{% trans 'Completado — racha de {racha} problemas' %}"
     data-txt-no-completado="{% trans 'Practicado {veces} veces — todavía no completado' %}"
     data-txt-desbloqueado="{% trans '¡Siguiente ejercicio desbloqueado! Actualizando la página…' %}"
@@ -44,7 +47,7 @@ renderiza ningún data-* ni la mecánica interactiva.
         </div>
 
         <p class="ritmo-gab__progreso" id="ritmo-progreso-{{ bloque.id }}"></p>
-        <p class="ritmo-gab__objetivo" id="ritmo-objetivo-{{ bloque.id }}"></p>
+        <div class="ritmo-gab__objetivo" id="ritmo-objetivo-{{ bloque.id }}"></div>
 
         <div class="ritmo-gab__zona" id="ritmo-zona-{{ bloque.id }}">
             <div class="ritmo-gab__zona-barra"><div class="ritmo-gab__zona-barra-fill" id="ritmo-barra-{{ bloque.id }}"></div></div>
