@@ -253,6 +253,9 @@
             <button type="button" id="ej-orql-original" class="ej-orql-boton-secundario">
                 ▶ {% trans "Escuchar fragmento original (piano)" %}
             </button>
+            <button type="button" id="ej-orql-detener" class="ej-orql-boton-secundario">
+                ⏹ {% trans "Detener" %}
+            </button>
             <button type="button" id="ej-orql-guardar" class="ej-orql-boton-secundario">
                 💾 {% trans "Guardar" %}
             </button>
@@ -940,6 +943,33 @@
         return total;
     }
 
+    // Encuentra las barras de compás YA renderizadas en el SVG, midiendo en vez de
+    // adivinar -- una barra de compás es un trazo angosto (pocos px de ancho) que
+    // atraviesa TODO el sistema (todas las filas de instrumentos a la vez, convención
+    // estándar de partitura orquestal: una sola barra vertical cruza todos los
+    // pentagramas), lo que la distingue de una plica de nota (mucho más corta,
+    // sub-alturaMinima) o de cualquier otro trazo fino del dibujo. Mismo criterio de
+    // "filtrar por proporción/tamaño" que ya usa encontrarCabezasDeNota más arriba
+    // para distinguir cabezas de nota de otros elementos del SVG.
+    function encontrarBarrasDeCompas(svgOrquesta, alturaMinima) {
+        const xs = [];
+        svgOrquesta.querySelectorAll('rect, path, line').forEach(el => {
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0 || rect.width > 3) return;
+            if (rect.height < alturaMinima) return;
+            xs.push(rect.left);
+        });
+        xs.sort((a, b) => a - b);
+        // Fusiona candidatos casi pegados (a veces una barra se dibuja con más de un
+        // trazo fino superpuesto, ej. barras dobles/de repetición) en uno solo.
+        const fusionadas = [];
+        xs.forEach(x => {
+            if (fusionadas.length && x - fusionadas[fusionadas.length - 1] < 4) return;
+            fusionadas.push(x);
+        });
+        return fusionadas;
+    }
+
     function etiquetarCeldasCompas() {
         limpiarCeldasCompas();
         const svgOrquesta = contenedorOrquesta.querySelector('svg');
@@ -966,26 +996,42 @@
             };
         });
 
-        // Columnas por compás: reparto matemático de ancho IGUAL por compás, NO leído
-        // del cursor de OSMD. Se probó primero con osmd.cursor.iterator.CurrentMeasureIndex
-        // + cursor.cursorElement.getBoundingClientRect() para ubicar cada compás real,
-        // pero resultó no confiable en la práctica (bug real reportado: el drag de una
-        // sola nota nunca coincidía con la celda, incluso soltando en el lugar correcto)
-        // -- probablemente porque un instrumento en blanco (silencio en TODOS sus
-        // compases) hace que el cursor de OSMD no genere una parada por compás de forma
-        // consistente. El reparto uniforme es 100% determinístico porque el ancho total
-        // del contenedor ya lo fija este mismo código (ver anchoPentagrama) usando un
-        // ancho fijo por compás -- no depende de ninguna API interna de OSMD.
-        // RESERVA_PREFIJO_CLAVE_PX se descuenta ANTES de repartir -- el prefijo de
-        // clave/compás/armadura solo existe una vez, al principio del pentagrama, no
-        // por cada compás -- así el compás 1 arranca corrido ese margen y termina con
-        // el mismo ancho de contenido que el resto, en vez de quedar más angosto.
-        const inicioContenido = rectSvg.left + RESERVA_PREFIJO_CLAVE_PX;
-        const anchoPorCompas = (rectSvg.right - inicioContenido) / numerosCompas.length;
-        const columnas = numerosCompas.map((numero, i) => ({
-            compas: numero,
-            left: inicioContenido + i * anchoPorCompas,
-        }));
+        // Barras de compás reales (ver encontrarBarrasDeCompas más abajo): en una
+        // partitura orquestal, la barra de compás es un único trazo que atraviesa TODAS
+        // las filas de instrumentos a la vez (convención estándar), así que sirve como
+        // límite compartido para toda la grilla, no por fila.
+        const alturaSistema = bandas.length ? (bandas[bandas.length - 1].bottom - bandas[0].top) : 0;
+        const barras = alturaSistema > 0 ? encontrarBarrasDeCompas(svgOrquesta, alturaSistema * 0.7) : [];
+
+        // Columnas por compás: se prioriza leer las barras REALES ya renderizadas (ver
+        // encontrarBarrasDeCompas) -- nunca se pudo confiar ni en el cursor de OSMD
+        // (osmd.cursor.iterator.CurrentMeasureIndex + cursor.cursorElement, probado
+        // primero: bug real reportado, el drag de una sola nota nunca coincidía) ni en
+        // un reparto uniforme con un margen fijo adivinado para el prefijo de
+        // clave/compás/armadura (probado después: bug real reportado, la celda del
+        // compás 1 quedaba mitad afuera/mitad adentro de su contenido real -- un
+        // margen fijo no puede acertarle a algo que varía según clave/armadura/anacrusa
+        // reales de cada pieza). Leer las barras reales no tiene ese problema porque no
+        // adivina nada -- se mide.
+        let columnas;
+        if (barras.length === numerosCompas.length - 1) {
+            // Caso limpio: lo encontrado son EXACTAMENTE los límites internos entre
+            // compases. No hay (en general) una barra antes del compás 1 -- se estima
+            // su borde izquierdo extrapolando el ancho promedio de los compases ya
+            // medidos, en vez de un margen adivinado.
+            const anchoPromedio = barras.length > 1
+                ? (barras[barras.length - 1] - barras[0]) / (barras.length - 1)
+                : (rectSvg.right - barras[0]);
+            const bordes = [barras[0] - anchoPromedio, ...barras];
+            columnas = numerosCompas.map((numero, i) => ({ compas: numero, left: bordes[i] }));
+        } else {
+            // Respaldo: no se pudieron identificar las barras con confianza (ninguna, o
+            // una cantidad ambigua) -- reparto uniforme con un margen fijo estimado.
+            console.warn(`[orquestacion-libre] Se detectaron ${barras.length} barra(s) de compás, se esperaban ${numerosCompas.length - 1} -- usando reparto uniforme de respaldo.`);
+            const inicioContenido = rectSvg.left + RESERVA_PREFIJO_CLAVE_PX;
+            const anchoPorCompas = (rectSvg.right - inicioContenido) / numerosCompas.length;
+            columnas = numerosCompas.map((numero, i) => ({ compas: numero, left: inicioContenido + i * anchoPorCompas }));
+        }
 
         columnas.forEach((col, i) => {
             const siguiente = columnas[i + 1];
@@ -1044,14 +1090,62 @@
             : i18nEjOrql.txtTodasAsignadas;
     }
 
+    // --- Control de reproducción: play/pausa por botón + un botón "Detener" global.
+    // AudioEngine.playSequence() agenda toda la secuencia de una vez contra el reloj
+    // del AudioContext (no hay Tone.Transport de por medio), así que solo puede sonar
+    // UNA reproducción iniciada por este sistema a la vez -- arrancar una nueva corta
+    // la anterior primero (ver marcarBotonActivo). "Todo" (varios instrumentos a la
+    // vez) sigue siendo una sola reproducción a estos efectos: pausar/detener actúan
+    // sobre el motor de audio entero, no sobre un instrumento puntual. ---
+
+    let botonActivo = null;      // el botón (DOM) que representa la reproducción en curso
+    let reproduccionPausada = false;
+
+    // Both "Todo"/original (texto plano) y los botones por instrumento (con un span
+    // interno .ej-orql-boton-parte-texto) conviven acá -- mismo criterio de detección
+    // que ya usa ponerBotonEnCarga.
+    function iconoBoton(boton, icono) {
+        const textoEl = boton.querySelector('.ej-orql-boton-parte-texto');
+        const el = textoEl || boton;
+        el.textContent = el.textContent.replace(/^[▶⏸]/, icono);
+    }
+
+    function detenerReproduccion() {
+        AudioEngine.detenerTodo();
+        if (botonActivo) iconoBoton(botonActivo, '▶');
+        botonActivo = null;
+        reproduccionPausada = false;
+    }
+
+    function marcarBotonActivo(boton, accionPlay) {
+        detenerReproduccion();
+        accionPlay();
+        botonActivo = boton;
+        reproduccionPausada = false;
+        iconoBoton(boton, '⏸');
+    }
+
+    function alternarPausaBotonActivo(boton) {
+        if (reproduccionPausada) {
+            AudioEngine.reanudar();
+            iconoBoton(boton, '⏸');
+        } else {
+            AudioEngine.pausar();
+            iconoBoton(boton, '▶');
+        }
+        reproduccionPausada = !reproduccionPausada;
+    }
+
     // --- Reproducción del fragmento original completo (piano) ---
 
     function reproducirOriginal() {
+        const btn = document.getElementById('ej-orql-original');
+        if (botonActivo === btn) { alternarPausaBotonActivo(btn); return; }
         const eventos = [...notasBackend]
             .sort((a, b) => a.offset - b.offset)
             .map(nb => ({ notes: [nb.pitch], offset: nb.offset, duration: nb.duracion_ql }));
         if (!eventos.length) return;
-        AudioEngine.playSequence(eventos, tempoBpm, null); // null -> timbre de piano
+        marcarBotonActivo(btn, () => AudioEngine.playSequence(eventos, tempoBpm, null)); // null -> timbre de piano
     }
 
     function reiniciar() {
@@ -1135,26 +1229,42 @@
     }
 
     function reproducirParteOrquesta(instrumentoId, boton) {
+        if (botonActivo === boton) { alternarPausaBotonActivo(boton); return; }
         const inst = INSTRUMENTOS_POR_ID.get(instrumentoId);
         const eventos = eventosDeParteOrquesta(instrumentoId);
         if (!eventos.length) return;
         const restaurar = ponerBotonEnCarga(boton, i18nEjOrql.txtCargandoSonido);
         AudioEngine.precargarMuestraInstrumento(idAudio(inst)).finally(restaurar).then(() => {
-            AudioEngine.playSequence(eventos, tempoBpm, idAudio(inst));
+            marcarBotonActivo(boton, () => AudioEngine.playSequence(eventos, tempoBpm, idAudio(inst)));
         });
     }
 
+    // No delega en reproducirParteOrquesta (a diferencia de la versión anterior) --
+    // "Todo" tiene su PROPIO botón activo/pausa (varios instrumentos suenan juntos como
+    // una sola reproducción a estos efectos), en vez de pisar el estado de cada botón
+    // individual.
     function reproducirTodoOrquesta(boton) {
+        if (botonActivo === boton) { alternarPausaBotonActivo(boton); return; }
         const usados = instrumentosUsados();
+        if (!usados.length) return;
         const restaurar = ponerBotonEnCarga(boton, i18nEjOrql.txtCargandoSonido);
         Promise.all(usados.map(inst => AudioEngine.precargarMuestraInstrumento(idAudio(inst))))
             .finally(restaurar)
             .then(() => {
-                usados.forEach(inst => reproducirParteOrquesta(inst.id));
+                marcarBotonActivo(boton, () => {
+                    usados.forEach(inst => {
+                        const eventos = eventosDeParteOrquesta(inst.id);
+                        if (eventos.length) AudioEngine.playSequence(eventos, tempoBpm, idAudio(inst));
+                    });
+                });
             });
     }
 
     function crearControlesOrquesta() {
+        // Los botones se recrean acá abajo -- si alguno de los anteriores estaba
+        // activo/pausado, su referencia queda huérfana (el DOM viejo se descarta), así
+        // que se corta la reproducción en curso antes de reconstruir nada.
+        detenerReproduccion();
         const contenedor = document.getElementById('ej-orql-controles-orquesta');
         contenedor.innerHTML = '';
         const usados = instrumentosUsados();
@@ -1190,6 +1300,7 @@
     }
 
     function mostrarPanelOrquestaVacio() {
+        detenerReproduccion(); // los botones por instrumento están por desaparecer del DOM
         limpiarCeldasCompas();
         document.getElementById('ej-orql-panel-orquesta-vacio').style.display = 'block';
         wrapOrquesta.style.display = 'none';
@@ -1295,6 +1406,7 @@
     crearBotonesSeccion();
     crearSelectorOctava();
     document.getElementById('ej-orql-original').addEventListener('click', reproducirOriginal);
+    document.getElementById('ej-orql-detener').addEventListener('click', detenerReproduccion);
     document.getElementById('ej-orql-reiniciar').addEventListener('click', reiniciar);
     document.getElementById('ej-orql-guardar').addEventListener('click', guardarProgreso);
 
