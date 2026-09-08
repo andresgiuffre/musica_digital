@@ -1360,7 +1360,18 @@
         });
         // El hueco SIEMPRE va al final -- así el frontend sabe, sin ambigüedad,
         // cuál es "el último evento del compás" tras recorrer el cursor de OSMD.
-        const eventoHueco = { tipo: VALOR_A_TIPO[hueco], valor: hueco, esSilencio: true, pitch: null };
+        // esSilencio al azar (NO siempre true) -- la respuesta correcta acepta
+        // tanto la figura como su silencio equivalente (ver responder(), que
+        // compara solo por duración), pero la notación REVELADA al acertar
+        // tiene que poder ser también una figura real, no siempre un silencio.
+        // Bug real confirmado por el usuario: con esSilencio hardcodeado en
+        // true, cualquier respuesta correcta revelaba siempre un silencio,
+        // sin importar si había elegido la figura o el silencio.
+        const esSilencioHueco = Math.random() < 0.5;
+        const eventoHueco = {
+            tipo: VALOR_A_TIPO[hueco], valor: hueco, esSilencio: esSilencioHueco,
+            pitch: esSilencioHueco ? null : PITCHES[Math.floor(Math.random() * PITCHES.length)],
+        };
         return { ts: ts, hueco: hueco, eventos: eventosDados.concat([eventoHueco]) };
     }
 
@@ -1415,8 +1426,13 @@
 
         function poblarOpciones() {
             divOpciones.innerHTML = '';
-            FIGURAS.forEach(function (fig) {
-                [false, true].forEach(function (esSilencio) {
+            // Fila de arriba: las 5 figuras. Fila de abajo: los 5 silencios --
+            // pedido explícito del usuario (antes alternaba figura/silencio
+            // por columna, mezclado y confuso). El grid de 5 columnas en CSS
+            // hace que este orden [todas las figuras, todos los silencios]
+            // caiga exactamente en esas dos filas.
+            [false, true].forEach(function (esSilencio) {
+                FIGURAS.forEach(function (fig) {
                     const boton = document.createElement('button');
                     boton.type = 'button';
                     boton.className = 'compas-gab__opcion';
