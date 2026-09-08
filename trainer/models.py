@@ -708,9 +708,13 @@ class BloqueContenido(models.Model):
     # antes de guardar el Tema -- mismo patrón que ZONAS_EJERCICIO_ORQUESTACION,
     # que tampoco puede vivir en un solo lugar por la misma razón de raíz:
     # Python y JS no comparten runtime). Agregar un tipo nuevo: sumarlo acá Y
-    # en el archivo JS.
+    # en el archivo JS (mismo texto EXACTO de TIPO_CHOICES, el JS matchea por
+    # el título del fieldset). PRACTICA queda deliberadamente afuera de ambos
+    # grupos -- confirmado con el usuario que no se usa, ya no tiene fieldset
+    # en BloqueContenidoInline (ver admin.py); el valor del modelo se deja sin
+    # tocar solo por si algún bloque viejo ya lo tiene cargado.
     TIPOS_LECTURA = (TEXTO, EJEMPLO_PARTITURA, IMAGEN, VIDEO)
-    TIPOS_PRACTICA = (PRACTICA, PRACTICA_DIRIGIDA, RITMO_MATEMATICA, COMPLETAR_COMPAS, LINEAS_ESPACIOS)
+    TIPOS_PRACTICA = (PRACTICA_DIRIGIDA, RITMO_MATEMATICA, COMPLETAR_COMPAS, LINEAS_ESPACIOS)
 
     MODO_IDENTIFICAR_NOTAS = 'identificar_notas'
     MODO_PRACTICA_CHOICES = (
