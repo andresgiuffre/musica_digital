@@ -1884,14 +1884,24 @@ def _bloque_completado(bloque, user):
     los endpoints de registrar/reiniciar. Devuelve True para cualquier tipo que
     no sea un ejercicio (nunca bloquea nada por sí solo).
     """
-    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso
+    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso
     if bloque.tipo == BloqueContenido.PRACTICA_DIRIGIDA:
         progreso = PracticaDirigidaProgreso.objects.filter(user=user, bloque=bloque).first()
     elif bloque.tipo == BloqueContenido.RITMO_MATEMATICA:
         progreso = RitmoMatematicaProgreso.objects.filter(user=user, bloque=bloque).first()
+    elif bloque.tipo == BloqueContenido.COMPLETAR_COMPAS:
+        progreso = CompletarCompasProgreso.objects.filter(user=user, bloque=bloque).first()
     else:
         return True
     return bool(progreso and progreso.completado)
+
+
+def _tipos_ejercicio():
+    """Único lugar que enumera qué tipos de BloqueContenido participan del
+    bloqueo secuencial -- agregar un ejercicio nuevo a la progresión (ver
+    RITMO_MATEMATICA y COMPLETAR_COMPAS) es sumarlo acá, nada más."""
+    from .models import BloqueContenido
+    return (BloqueContenido.PRACTICA_DIRIGIDA, BloqueContenido.RITMO_MATEMATICA, BloqueContenido.COMPLETAR_COMPAS)
 
 
 def _bloque_desbloqueado(bloque, user):
@@ -1900,22 +1910,21 @@ def _bloque_desbloqueado(bloque, user):
     era puramente client-side y se reseteaba en cada recarga -- ver
     tema_detail.html). Desbloqueado si el bloque no es de tipo ejercicio, si es
     el primer bloque-ejercicio del Tema, o si el bloque-ejercicio INMEDIATO
-    ANTERIOR (por orden, entre EJERCICIO_TIPOS) ya está completado para este
+    ANTERIOR (por orden, entre _tipos_ejercicio()) ya está completado para este
     usuario. Único punto de verdad -- lo usan tanto tema_detail() para decidir
     qué renderiza cada bloque como los endpoints que sirven/reciben datos de
     cada ejercicio, para que el bloqueo sea real y no solo cosmético.
     """
-    from .models import BloqueContenido
-    EJERCICIO_TIPOS = (BloqueContenido.PRACTICA_DIRIGIDA, BloqueContenido.RITMO_MATEMATICA)
-    if bloque.tipo not in EJERCICIO_TIPOS:
+    tipos = _tipos_ejercicio()
+    if bloque.tipo not in tipos:
         return True
-    anterior = bloque.tema.bloques.filter(tipo__in=EJERCICIO_TIPOS, orden__lt=bloque.orden).order_by('-orden').first()
+    anterior = bloque.tema.bloques.filter(tipo__in=tipos, orden__lt=bloque.orden).order_by('-orden').first()
     return True if anterior is None else _bloque_completado(anterior, user)
 
 
 @login_required
 def tema_detail(request, curso_id, grado_numero, tema_slug):
-    from .models import Curso, Grado, Tema, PracticaDirigidaProgreso, RitmoMatematicaProgreso
+    from .models import Curso, Grado, Tema, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso
     from .services import render_markdown_seguro
 
     curso = get_object_or_404(Curso, id=curso_id, activo=True)
@@ -1953,6 +1962,9 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
         elif bloque.tipo == bloque.RITMO_MATEMATICA:
             bloque.bloqueado = not _bloque_desbloqueado(bloque, request.user)
             bloque.progreso_usuario = RitmoMatematicaProgreso.objects.filter(user=request.user, bloque=bloque).first()
+        elif bloque.tipo == bloque.COMPLETAR_COMPAS:
+            bloque.bloqueado = not _bloque_desbloqueado(bloque, request.user)
+            bloque.progreso_usuario = CompletarCompasProgreso.objects.filter(user=request.user, bloque=bloque).first()
 
     response = render(request, 'trainer/tema_detail.html', {
         'curso': curso, 'grado': grado, 'tema': tema, 'bloques': bloques,
@@ -2137,13 +2149,45 @@ def bloque_ritmo_matematica_registrar(request, bloque_id):
 
 
 @login_required
+def bloque_completar_compas_registrar(request, bloque_id):
+    """
+    Registra la finalización de una tanda de Completar el compás -- mismo
+    espíritu/confianza que bloque_ritmo_matematica_registrar: cada compás es
+    de elección única (una figura/silencio o no), no hay porcentaje parcial
+    que registrar por intento, así que llegar acá ya implica que resolvió los
+    bloque.compas_problemas_requeridos compases de la tanda.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    from .models import BloqueContenido, CompletarCompasProgreso
+
+    bloque = get_object_or_404(BloqueContenido, id=bloque_id, tipo=BloqueContenido.COMPLETAR_COMPAS)
+    if not _bloque_desbloqueado(bloque, request.user):
+        return JsonResponse({'status': 'error', 'message': 'Este ejercicio todavía está bloqueado.'}, status=403)
+
+    progreso, _ = CompletarCompasProgreso.objects.get_or_create(user=request.user, bloque=bloque)
+    progreso.veces_practicado += 1
+    progreso.mejor_racha = max(progreso.mejor_racha, bloque.compas_problemas_requeridos)
+    progreso.completado = True
+    progreso.save()
+
+    return JsonResponse({
+        'status': 'success',
+        'mejor_racha': progreso.mejor_racha,
+        'completado': progreso.completado,
+        'veces_practicado': progreso.veces_practicado,
+    })
+
+
+@login_required
 def bloque_progreso_reiniciar(request, bloque_id):
     """
-    Reinicia el progreso propio de un bloque-ejercicio (Práctica dirigida o
-    Ritmo matemático) para "empezar de cero" -- pedido explícito del usuario
-    junto con el bloqueo persistente: si se completó por error o se quiere
-    repasar desde cero, hay que poder volver a bloquear lo que dependía de él,
-    no solo volver a intentarlo. Genérico por tipo, no dos endpoints separados.
+    Reinicia el progreso propio de un bloque-ejercicio para "empezar de cero"
+    -- pedido explícito del usuario junto con el bloqueo persistente: si se
+    completó por error o se quiere repasar desde cero, hay que poder volver a
+    bloquear lo que dependía de él, no solo volver a intentarlo. Genérico por
+    tipo (ver _tipos_ejercicio()), no un endpoint separado por cada uno.
 
     Reinicia en CASCADA -- también borra el progreso de todos los
     bloques-ejercicio POSTERIORES (por orden) dentro del mismo Tema, no solo
@@ -2156,19 +2200,21 @@ def bloque_progreso_reiniciar(request, bloque_id):
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
 
-    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso
+    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso
 
     bloque = get_object_or_404(BloqueContenido, id=bloque_id)
-    if bloque.tipo not in (BloqueContenido.PRACTICA_DIRIGIDA, BloqueContenido.RITMO_MATEMATICA):
+    tipos = _tipos_ejercicio()
+    if bloque.tipo not in tipos:
         return JsonResponse({'status': 'error', 'message': 'Este bloque no tiene progreso para reiniciar.'}, status=400)
 
-    EJERCICIO_TIPOS = (BloqueContenido.PRACTICA_DIRIGIDA, BloqueContenido.RITMO_MATEMATICA)
-    posteriores = bloque.tema.bloques.filter(tipo__in=EJERCICIO_TIPOS, orden__gte=bloque.orden)
+    posteriores = bloque.tema.bloques.filter(tipo__in=tipos, orden__gte=bloque.orden)
     for b in posteriores:
         if b.tipo == BloqueContenido.PRACTICA_DIRIGIDA:
             PracticaDirigidaProgreso.objects.filter(user=request.user, bloque=b).delete()
-        else:
+        elif b.tipo == BloqueContenido.RITMO_MATEMATICA:
             RitmoMatematicaProgreso.objects.filter(user=request.user, bloque=b).delete()
+        else:
+            CompletarCompasProgreso.objects.filter(user=request.user, bloque=b).delete()
 
     return JsonResponse({'status': 'success'})
 

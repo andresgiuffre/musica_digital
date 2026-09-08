@@ -139,6 +139,8 @@
                 {% include 'trainer/_bloque_practica_dirigida.html' %}
             {% elif bloque.tipo == 'RITMO_MATEMATICA' %}
                 {% include 'trainer/_bloque_ritmo_matematica.html' %}
+            {% elif bloque.tipo == 'COMPLETAR_COMPAS' %}
+                {% include 'trainer/_bloque_completar_compas.html' %}
             {% endif %}
         </div>
     {% empty %}
@@ -835,6 +837,128 @@
 })();
 
 (function () {
+    // Helpers COMPARTIDOS entre Ritmo matemático y Completar el compás (los
+    // dos ejercicios que trabajan con figuras/silencios rítmicos) -- viven acá,
+    // a nivel de módulo (fuera de ambas IIFEs), para no duplicar el mismo
+    // dibujo SVG/nombre de figura en dos lugares dentro del MISMO archivo. A
+    // diferencia de teoria.js/orquestador_render.js (archivos SEPARADOS, cada
+    // uno con su propia copia por diseño), acá ambos consumidores viven en
+    // este mismo <script>, así que compartir de verdad no tiene el costo de
+    // acoplar archivos independientes.
+    window.RitmoCompartido = (function () {
+        function fmt(str, vars) {
+            return str.replace(/\{(\w+)\}/g, function (_, k) {
+                return vars[k] !== undefined ? vars[k] : '';
+            });
+        }
+
+        function barajar(arr) {
+            const copia = arr.slice();
+            for (let i = copia.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const tmp = copia[i]; copia[i] = copia[j]; copia[j] = tmp;
+            }
+            return copia;
+        }
+
+        // Valores en dieciseisavos (semicorchea = 1) -- todo entero, así la
+        // suma se compara EXACTA sin errores de coma flotante. Mismos 5
+        // valores para figuras Y silencios -- un silencio dura exactamente lo
+        // mismo que su figura equivalente, solo cambia el dibujo.
+        const FIGURAS = [
+            { tipo: 'redonda', valor: 16 },
+            { tipo: 'blanca', valor: 8 },
+            { tipo: 'negra', valor: 4 },
+            { tipo: 'corchea', valor: 2 },
+            { tipo: 'semicorchea', valor: 1 },
+        ];
+        // Nombres reales -- SIEMPRE acompañan al ícono, nunca se muestra una
+        // fracción sola sin explicar qué representa (pedido explícito del
+        // usuario tras probar la primera versión de Ritmo matemático). Con
+        // traducción a inglés (mismo criterio ya aplicado a los nombres de
+        // nota Do/Re/Mi -> C/D/E en trainer_notas.html: un hablante de inglés
+        // no reconoce "Corchea" como figura musical, a diferencia del
+        // vocabulario de intervalos/acordes que se deja sin traducir).
+        const NOMBRE_FIGURA = {
+            es: { redonda: 'Redonda', blanca: 'Blanca', negra: 'Negra', corchea: 'Corchea', semicorchea: 'Semicorchea' },
+            en: { redonda: 'Whole note', blanca: 'Half note', negra: 'Quarter note', corchea: 'Eighth note', semicorchea: 'Sixteenth note' },
+        };
+        const NOMBRE_SILENCIO = {
+            es: { redonda: 'Silencio de redonda', blanca: 'Silencio de blanca', negra: 'Silencio de negra', corchea: 'Silencio de corchea', semicorchea: 'Silencio de semicorchea' },
+            en: { redonda: 'Whole rest', blanca: 'Half rest', negra: 'Quarter rest', corchea: 'Eighth rest', semicorchea: 'Sixteenth rest' },
+        };
+
+        function svgFigura(tipo) {
+            // Hecho a mano en vez de un glifo Unicode de música (𝅘𝅥𝅮/♩/etc.) --
+            // mismo motivo ya confirmado en este sitio para las banderas del
+            // selector de idioma: el renderizado de esos glifos no es
+            // confiable entre sistemas. Redonda Y Blanca son huecas
+            // (whole/half note) -- solo Negra/Corchea/Semicorchea tienen
+            // cabeza rellena. Un bug real de la primera versión dibujaba la
+            // Blanca con cabeza rellena (idéntica a la Negra, solo con la
+            // misma plica) -- confirmado por el usuario viendo la app real.
+            const hueca = tipo === 'redonda' || tipo === 'blanca';
+            const conPlica = tipo !== 'redonda';
+            let corchetes = '';
+            if (tipo === 'corchea') {
+                corchetes = '<path d="M21 8 C30 12, 30 22, 22 26" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>';
+            } else if (tipo === 'semicorchea') {
+                corchetes = '<path d="M21 8 C30 12, 30 22, 22 26" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'
+                          + '<path d="M21 16 C30 20, 30 30, 22 34" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>';
+            }
+            return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
+                + (conPlica ? '<line x1="21" y1="46" x2="21" y2="8" stroke="currentColor" stroke-width="2.5"/>' : '')
+                + '<ellipse cx="12" cy="48" rx="9" ry="6.5" transform="rotate(-18 12 48)" '
+                + (hueca ? 'fill="none" stroke="currentColor" stroke-width="2.5"' : 'fill="currentColor"')
+                + '/>'
+                + corchetes
+                + '</svg>';
+        }
+
+        function svgSilencio(tipo) {
+            // Silencios simplificados, pero visualmente distintos entre sí y
+            // de las figuras (sin óvalo de cabeza) -- redonda/blanca son un
+            // bloque relleno colgando/apoyado sobre una línea de referencia
+            // (la convención real: el de redonda cuelga DEBAJO de la línea,
+            // el de blanca se apoya ENCIMA); negra es un garabato en zigzag;
+            // corchea y semicorchea son un trazo diagonal con uno o dos
+            // "ganchos".
+            if (tipo === 'redonda' || tipo === 'blanca') {
+                const enredonda = tipo === 'redonda';
+                return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
+                    + '<line x1="7" y1="30" x2="27" y2="30" stroke="currentColor" stroke-width="2"/>'
+                    + '<rect x="10" y="' + (enredonda ? '30' : '23') + '" width="14" height="7" fill="currentColor"/>'
+                    + '</svg>';
+            }
+            if (tipo === 'negra') {
+                return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
+                    + '<path d="M15 8 L21 20 L13 27 L21 34 L11 44 L19 52" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '</svg>';
+            }
+            // corchea / semicorchea
+            let ganchos = '<circle cx="20" cy="16" r="3.2" fill="currentColor"/>';
+            if (tipo === 'semicorchea') {
+                ganchos += '<circle cx="15" cy="27" r="3.2" fill="currentColor"/>';
+            }
+            return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
+                + ganchos
+                + '<line x1="20" y1="16" x2="10" y2="50" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'
+                + '</svg>';
+        }
+
+        return {
+            fmt: fmt,
+            barajar: barajar,
+            FIGURAS: FIGURAS,
+            NOMBRE_FIGURA: NOMBRE_FIGURA,
+            NOMBRE_SILENCIO: NOMBRE_SILENCIO,
+            svgFigura: svgFigura,
+            svgSilencio: svgSilencio,
+        };
+    })();
+})();
+
+(function () {
     // "Calculadora de Equivalencias Rítmicas" -- el objetivo es un COMPÁS real
     // (ej. "Formá un compás de 6/8"), no una fracción abstracta -- el enunciado
     // completo se lee de una vez, en una sola oración. Algunos compases piden
@@ -854,37 +978,7 @@
     ];
     if (bloquesRitmo.length === 0) return;
 
-    function fmt(str, vars) {
-        return str.replace(/\{(\w+)\}/g, function (_, k) {
-            return vars[k] !== undefined ? vars[k] : '';
-        });
-    }
-
-    // Valores en dieciseisavos (semicorchea = 1) -- todo entero, así la suma
-    // se compara EXACTA sin errores de coma flotante. Mismos 5 valores para
-    // figuras Y silencios -- un silencio dura exactamente lo mismo que su
-    // figura equivalente, solo cambia el dibujo.
-    const FIGURAS = [
-        { tipo: 'redonda', valor: 16 },
-        { tipo: 'blanca', valor: 8 },
-        { tipo: 'negra', valor: 4 },
-        { tipo: 'corchea', valor: 2 },
-        { tipo: 'semicorchea', valor: 1 },
-    ];
-    // Nombres reales -- SIEMPRE acompañan al ícono, nunca se muestra una
-    // fracción sola sin explicar qué representa (pedido explícito del usuario
-    // tras probar la primera versión). Con traducción a inglés (mismo criterio
-    // ya aplicado a los nombres de nota Do/Re/Mi -> C/D/E en trainer_notas.html:
-    // un hablante de inglés no reconoce "Corchea" como figura musical, a
-    // diferencia del vocabulario de intervalos/acordes que se deja sin traducir).
-    const NOMBRE_FIGURA = {
-        es: { redonda: 'Redonda', blanca: 'Blanca', negra: 'Negra', corchea: 'Corchea', semicorchea: 'Semicorchea' },
-        en: { redonda: 'Whole note', blanca: 'Half note', negra: 'Quarter note', corchea: 'Eighth note', semicorchea: 'Sixteenth note' },
-    };
-    const NOMBRE_SILENCIO = {
-        es: { redonda: 'Silencio de redonda', blanca: 'Silencio de blanca', negra: 'Silencio de negra', corchea: 'Silencio de corchea', semicorchea: 'Silencio de semicorchea' },
-        en: { redonda: 'Whole rest', blanca: 'Half rest', negra: 'Quarter rest', corchea: 'Eighth rest', semicorchea: 'Sixteenth rest' },
-    };
+    const { fmt, barajar, FIGURAS, NOMBRE_FIGURA, NOMBRE_SILENCIO, svgFigura, svgSilencio } = window.RitmoCompartido;
 
     // Pool de compases: valor total en dieciseisavos + si exige al menos un
     // silencio entre las piezas colocadas. Cubre varias métricas reales, no
@@ -900,77 +994,12 @@
         { compas: '6/8', valor: 12, requiereSilencio: true },
     ];
 
-    function barajar(arr) {
-        const copia = arr.slice();
-        for (let i = copia.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            const tmp = copia[i]; copia[i] = copia[j]; copia[j] = tmp;
-        }
-        return copia;
-    }
-
     function objetivosParaTanda(cantidad) {
         let resultado = [];
         while (resultado.length < cantidad) {
             resultado = resultado.concat(barajar(COMPASES));
         }
         return resultado.slice(0, cantidad);
-    }
-
-    function svgFigura(tipo) {
-        // Hecho a mano en vez de un glifo Unicode de música (𝅘𝅥𝅮/♩/etc.) -- mismo
-        // motivo ya confirmado en este sitio para las banderas del selector de
-        // idioma: el renderizado de esos glifos no es confiable entre sistemas.
-        // Redonda Y Blanca son huecas (whole/half note) -- solo Negra/Corchea/
-        // Semicorchea tienen cabeza rellena. Un bug real de la primera versión
-        // dibujaba la Blanca con cabeza rellena (idéntica a la Negra, solo con
-        // la misma plica) -- confirmado por el usuario viendo la app real.
-        const hueca = tipo === 'redonda' || tipo === 'blanca';
-        const conPlica = tipo !== 'redonda';
-        let corchetes = '';
-        if (tipo === 'corchea') {
-            corchetes = '<path d="M21 8 C30 12, 30 22, 22 26" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>';
-        } else if (tipo === 'semicorchea') {
-            corchetes = '<path d="M21 8 C30 12, 30 22, 22 26" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'
-                      + '<path d="M21 16 C30 20, 30 30, 22 34" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>';
-        }
-        return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
-            + (conPlica ? '<line x1="21" y1="46" x2="21" y2="8" stroke="currentColor" stroke-width="2.5"/>' : '')
-            + '<ellipse cx="12" cy="48" rx="9" ry="6.5" transform="rotate(-18 12 48)" '
-            + (hueca ? 'fill="none" stroke="currentColor" stroke-width="2.5"' : 'fill="currentColor"')
-            + '/>'
-            + corchetes
-            + '</svg>';
-    }
-
-    function svgSilencio(tipo) {
-        // Silencios simplificados, pero visualmente distintos entre sí y de
-        // las figuras (sin óvalo de cabeza) -- redonda/blanca son un bloque
-        // relleno colgando/apoyado sobre una línea de referencia (la
-        // convención real: el de redonda cuelga DEBAJO de la línea, el de
-        // blanca se apoya ENCIMA); negra es un garabato en zigzag; corchea y
-        // semicorchea son un trazo diagonal con uno o dos "ganchos".
-        if (tipo === 'redonda' || tipo === 'blanca') {
-            const enredonda = tipo === 'redonda';
-            return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
-                + '<line x1="7" y1="30" x2="27" y2="30" stroke="currentColor" stroke-width="2"/>'
-                + '<rect x="10" y="' + (enredonda ? '30' : '23') + '" width="14" height="7" fill="currentColor"/>'
-                + '</svg>';
-        }
-        if (tipo === 'negra') {
-            return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
-                + '<path d="M15 8 L21 20 L13 27 L21 34 L11 44 L19 52" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/>'
-                + '</svg>';
-        }
-        // corchea / semicorchea
-        let ganchos = '<circle cx="20" cy="16" r="3.2" fill="currentColor"/>';
-        if (tipo === 'semicorchea') {
-            ganchos += '<circle cx="15" cy="27" r="3.2" fill="currentColor"/>';
-        }
-        return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
-            + ganchos
-            + '<line x1="20" y1="16" x2="10" y2="50" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'
-            + '</svg>';
     }
 
     function initRitmoMatematica(bloqueId) {
@@ -1248,6 +1277,322 @@
     }
 
     bloquesRitmo.forEach(function (info) { initRitmoMatematica(info.bloqueId); });
+})();
+
+(function () {
+    // "Completar el Compás" -- se genera un compás real (2/4, 3/4 o 4/4) con
+    // figuras/silencios al azar más UN HUECO (siempre el último evento del
+    // compás), renderizado con OSMD como notación de verdad -- no una
+    // aproximación. El hueco NO se dibuja con su forma real (eso regalaría la
+    // respuesta): se genera igual que cualquier otra figura/silencio para que
+    // el compás sea válido y OSMD lo renderice sin quejarse, y RECIÉN
+    // DESPUÉS del render se oculta su propio elemento SVG (opacity:0, mismo
+    // mecanismo de manipulación directa de .style ya probado en Práctica
+    // dirigida) y se marca esa posición con un recuadro resaltado -- calculado
+    // con getBoundingClientRect(), no con getBBox() del SVG: evita tener que
+    // razonar sobre transforms internos de VexFlow/OSMD, es la misma técnica
+    // de cualquier tooltip/overlay posicionado sobre contenido arbitrario.
+    const bloquesCompas = [
+        {% for bloque in bloques %}
+        {% if bloque.tipo == 'COMPLETAR_COMPAS' and not bloque.bloqueado %}
+        { bloqueId: {{ bloque.id }} },
+        {% endif %}
+        {% endfor %}
+    ];
+    if (bloquesCompas.length === 0) return;
+
+    const { fmt, FIGURAS, NOMBRE_FIGURA, NOMBRE_SILENCIO, svgFigura, svgSilencio } = window.RitmoCompartido;
+
+    const TIPO_XML = { redonda: 'whole', blanca: 'half', negra: 'quarter', corchea: 'eighth', semicorchea: '16th' };
+    const VALOR_A_TIPO = { 16: 'redonda', 8: 'blanca', 4: 'negra', 2: 'corchea', 1: 'semicorchea' };
+    // Solo 2/4, 3/4, 4/4 -- a diferencia de Ritmo matemático (que cubre más
+    // métricas), acá el pedido es específicamente estas tres.
+    const COMPASES_TS = [
+        { compas: '2/4', beats: 2, beatType: 4, total: 8 },
+        { compas: '3/4', beats: 3, beatType: 4, total: 12 },
+        { compas: '4/4', beats: 4, beatType: 4, total: 16 },
+    ];
+    // Notas de la línea del pentagrama (mnemónico clásico "Every Good Boy
+    // Does Fine") -- variedad visual entre compases, la altura no importa
+    // para este ejercicio (es puramente rítmico).
+    const PITCHES = [
+        { step: 'E', octave: 4 }, { step: 'G', octave: 4 }, { step: 'B', octave: 4 },
+        { step: 'D', octave: 5 }, { step: 'F', octave: 5 },
+    ];
+    const VALORES_DESC = [16, 8, 4, 2, 1];
+
+    // Descompone `subtotal` en una lista de valores (16, 8, 4, 2 o 1) sesgada
+    // hacia figuras GRANDES primero (60% de probabilidad de "tomar" la más
+    // grande que todavía entra) -- así el compás dado no queda saturado de
+    // semicorcheas sueltas, se ve como una partitura real.
+    function decomponerAleatorio(subtotal) {
+        let restante = subtotal;
+        const partes = [];
+        while (restante > 0) {
+            const candidatos = VALORES_DESC.filter(function (v) { return v <= restante; });
+            let elegido = candidatos[candidatos.length - 1];
+            for (let i = 0; i < candidatos.length; i++) {
+                if (Math.random() < 0.6 || i === candidatos.length - 1) { elegido = candidatos[i]; break; }
+            }
+            partes.push(elegido);
+            restante -= elegido;
+        }
+        return partes;
+    }
+
+    function elegirHueco(total) {
+        const candidatos = [1, 2, 4, 8, 16].filter(function (v) { return v < total; });
+        return candidatos[Math.floor(Math.random() * candidatos.length)];
+    }
+
+    function generarProblema() {
+        const ts = COMPASES_TS[Math.floor(Math.random() * COMPASES_TS.length)];
+        const hueco = elegirHueco(ts.total);
+        const partesDadas = decomponerAleatorio(ts.total - hueco);
+        const eventosDados = partesDadas.map(function (valor) {
+            const esSilencio = Math.random() < 0.25;
+            return {
+                tipo: VALOR_A_TIPO[valor],
+                valor: valor,
+                esSilencio: esSilencio,
+                pitch: esSilencio ? null : PITCHES[Math.floor(Math.random() * PITCHES.length)],
+            };
+        });
+        // El hueco SIEMPRE va al final -- así el frontend sabe, sin ambigüedad,
+        // cuál es "el último evento del compás" tras recorrer el cursor de OSMD.
+        const eventoHueco = { tipo: VALOR_A_TIPO[hueco], valor: hueco, esSilencio: true, pitch: null };
+        return { ts: ts, hueco: hueco, eventos: eventosDados.concat([eventoHueco]) };
+    }
+
+    function construirMusicXmlCompas(ts, eventos) {
+        const notasXml = eventos.map(function (ev) {
+            const tipoXml = TIPO_XML[ev.tipo];
+            if (ev.esSilencio) {
+                return '<note><rest/><duration>' + ev.valor + '</duration><type>' + tipoXml + '</type></note>';
+            }
+            return '<note><pitch><step>' + ev.pitch.step + '</step><octave>' + ev.pitch.octave + '</octave></pitch>'
+                + '<duration>' + ev.valor + '</duration><type>' + tipoXml + '</type></note>';
+        }).join('');
+        return '<?xml version="1.0" encoding="UTF-8"?>'
+            + '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">'
+            + '<score-partwise version="3.1">'
+            + '<part-list><score-part id="P1"><part-name print-object="no">Voz</part-name></score-part></part-list>'
+            + '<part id="P1"><measure number="1">'
+            + '<attributes><divisions>4</divisions><key><fifths>0</fifths></key>'
+            + '<time><beats>' + ts.beats + '</beats><beat-type>' + ts.beatType + '</beat-type></time>'
+            + '<clef><sign>G</sign><line>2</line></clef></attributes>'
+            + notasXml
+            + '</measure></part></score-partwise>';
+    }
+
+    function initCompletarCompas(bloqueId) {
+        const contenedor = document.getElementById('compas-bloque-' + bloqueId);
+        if (!contenedor || !contenedor.dataset.registrarUrl) return; // bloqueado -- nada que inicializar
+
+        const data = contenedor.dataset;
+        const totalProblemas = parseInt(data.problemasRequeridos, 10) || 5;
+
+        const divProgreso = document.getElementById('compas-progreso-' + bloqueId);
+        const divConsigna = document.getElementById('compas-consigna-' + bloqueId);
+        const divPartitura = document.getElementById('compas-partitura-' + bloqueId);
+        const divOsmd = document.getElementById('compas-osmd-' + bloqueId);
+        const divEstado = document.getElementById('compas-estado-' + bloqueId);
+        const divFeedback = document.getElementById('compas-feedback-' + bloqueId);
+        const divOpciones = document.getElementById('compas-opciones-' + bloqueId);
+        const divResumen = document.getElementById('compas-resumen-' + bloqueId);
+        const textoResumen = document.getElementById('compas-resumen-texto-' + bloqueId);
+        const btnReintentar = document.getElementById('compas-reintentar-' + bloqueId);
+        const divBadge = document.getElementById('compas-badge-' + bloqueId);
+
+        let yaEstabaCompletado = divBadge.classList.contains('compas-gab__badge--completado');
+        const idioma = data.lang === 'en' ? 'en' : 'es';
+
+        let indiceProblema = 0;
+        let problemaActual = null;
+        let overlayHueco = null;
+        let svgHueco = null;
+        let resolviendo = false;
+
+        function poblarOpciones() {
+            divOpciones.innerHTML = '';
+            FIGURAS.forEach(function (fig) {
+                [false, true].forEach(function (esSilencio) {
+                    const boton = document.createElement('button');
+                    boton.type = 'button';
+                    boton.className = 'compas-gab__opcion';
+                    boton.innerHTML = esSilencio ? svgSilencio(fig.tipo) : svgFigura(fig.tipo);
+                    const nombre = document.createElement('span');
+                    nombre.className = 'compas-gab__opcion-nombre';
+                    nombre.textContent = (esSilencio ? NOMBRE_SILENCIO : NOMBRE_FIGURA)[idioma][fig.tipo];
+                    boton.appendChild(nombre);
+                    boton.addEventListener('click', function () { responder(fig.valor); });
+                    divOpciones.appendChild(boton);
+                });
+            });
+        }
+
+        function limpiarHueco() {
+            if (overlayHueco) { overlayHueco.remove(); overlayHueco = null; }
+            if (svgHueco) { svgHueco.style.opacity = ''; svgHueco = null; }
+        }
+
+        async function cargarProblema() {
+            divEstado.textContent = data.txtCargando;
+            divEstado.style.display = '';
+            divOpciones.style.display = 'none';
+            divFeedback.style.display = 'none';
+            limpiarHueco();
+
+            problemaActual = generarProblema();
+            divProgreso.textContent = fmt(data.txtProgreso, { actual: indiceProblema + 1, total: totalProblemas });
+            divConsigna.textContent = fmt(data.txtConsigna, { compas: problemaActual.ts.compas });
+
+            try {
+                // Instancia NUEVA por problema (no se reutiliza) -- evita
+                // depender de que OSMD limpie bien su estado interno entre
+                // cargas sucesivas de un compás distinto.
+                divOsmd.innerHTML = '';
+                const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divOsmd, {
+                    autoResize: false,
+                    drawTitle: false, drawSubtitle: false, drawComposer: false, drawLyricist: false,
+                    drawPartNames: false, drawPartAbbreviations: false,
+                });
+                const xml = construirMusicXmlCompas(problemaActual.ts, problemaActual.eventos);
+                await osmd.load(xml);
+                // Mismo motivo ya documentado en Práctica dirigida/orquestación:
+                // renderizar antes de que el navegador asiente el layout del
+                // contenedor mide un ancho transitorio equivocado.
+                await new Promise(function (resolve) { requestAnimationFrame(resolve); });
+                osmd.render();
+
+                const recorrido = OsmdUtils.recorrerCursorOsmd(osmd);
+                OsmdUtils.etiquetarNotasConSvg(osmd, recorrido.notas);
+                // El hueco es SIEMPRE el último evento generado (ver generarProblema).
+                const entradaHueco = recorrido.notas[recorrido.notas.length - 1];
+
+                if (entradaHueco && entradaHueco.svgEl) {
+                    svgHueco = entradaHueco.svgEl;
+                    svgHueco.style.opacity = '0';
+                    const rectGlifo = svgHueco.getBoundingClientRect();
+                    const rectContenedor = divPartitura.getBoundingClientRect();
+                    overlayHueco = document.createElement('div');
+                    overlayHueco.className = 'compas-gab__hueco';
+                    overlayHueco.style.left = (rectGlifo.left - rectContenedor.left - 6) + 'px';
+                    overlayHueco.style.top = (rectGlifo.top - rectContenedor.top - 8) + 'px';
+                    overlayHueco.style.width = (rectGlifo.width + 12) + 'px';
+                    overlayHueco.style.height = (rectGlifo.height + 16) + 'px';
+                    divPartitura.appendChild(overlayHueco);
+                } else {
+                    // Peor caso: el hueco queda con su forma real visible --
+                    // no rompe el ejercicio, solo lo vuelve más fácil de lo
+                    // pensado para este compás puntual.
+                    console.error('[completar-compas] No se encontró el SVG del hueco -- queda visible.');
+                }
+
+                divEstado.style.display = 'none';
+                divOpciones.style.display = '';
+            } catch (err) {
+                console.error('[completar-compas] Error generando el compás:', err);
+                divEstado.textContent = data.txtError;
+            }
+        }
+
+        function responder(valorElegido) {
+            if (resolviendo || !problemaActual) return;
+            const esCorrecto = valorElegido === problemaActual.hueco;
+            divFeedback.style.display = '';
+            divFeedback.classList.remove('compas-gab__feedback--ok', 'compas-gab__feedback--error');
+
+            if (esCorrecto) {
+                resolviendo = true;
+                divFeedback.classList.add('compas-gab__feedback--ok');
+                divFeedback.textContent = data.txtCorrecto;
+                if (overlayHueco) overlayHueco.classList.add('compas-gab__hueco--ok');
+                if (svgHueco) svgHueco.style.opacity = ''; // revela la figura real, como premio
+                setTimeout(function () {
+                    resolviendo = false;
+                    indiceProblema++;
+                    if (indiceProblema >= totalProblemas) {
+                        terminarTanda();
+                    } else {
+                        cargarProblema();
+                    }
+                }, 900);
+            } else {
+                divFeedback.classList.add('compas-gab__feedback--error');
+                divFeedback.textContent = data.txtIncorrecto;
+                if (overlayHueco) {
+                    overlayHueco.classList.add('compas-gab__hueco--error');
+                    setTimeout(function () { if (overlayHueco) overlayHueco.classList.remove('compas-gab__hueco--error'); }, 500);
+                }
+            }
+        }
+
+        function terminarTanda() {
+            divPartitura.style.display = 'none';
+            divProgreso.style.display = 'none';
+            divConsigna.style.display = 'none';
+            divOpciones.style.display = 'none';
+            divFeedback.style.display = 'none';
+            divResumen.style.display = '';
+            textoResumen.textContent = fmt(data.txtResultado, { total: totalProblemas });
+
+            fetch(data.registrarUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': data.csrf },
+                body: JSON.stringify({}),
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (resultado) {
+                    if (resultado.status !== 'success') return;
+                    divBadge.classList.remove('compas-gab__badge--progreso', 'compas-gab__badge--completado');
+                    if (resultado.completado) {
+                        divBadge.classList.add('compas-gab__badge--completado');
+                        divBadge.textContent = fmt(data.txtCompletado, { racha: resultado.mejor_racha });
+                    } else {
+                        divBadge.classList.add('compas-gab__badge--progreso');
+                        divBadge.textContent = fmt(data.txtNoCompletado, { veces: resultado.veces_practicado });
+                    }
+                    divBadge.style.display = '';
+
+                    // Mismo criterio que Ritmo matemático/Práctica dirigida:
+                    // recién acá se completó por primera vez en esta sesión.
+                    if (resultado.completado && !yaEstabaCompletado) {
+                        textoResumen.textContent += ' ' + data.txtDesbloqueado;
+                        setTimeout(function () { location.reload(); }, 1500);
+                    }
+                    yaEstabaCompletado = resultado.completado;
+                })
+                .catch(function (err) { console.error('[completar-compas] Error registrando resultado:', err); });
+        }
+
+        function empezar() {
+            indiceProblema = 0;
+            divPartitura.style.display = '';
+            divProgreso.style.display = '';
+            divConsigna.style.display = '';
+            divResumen.style.display = 'none';
+            cargarProblema();
+        }
+
+        poblarOpciones();
+        btnReintentar.addEventListener('click', empezar);
+        // Si ya estaba completado de una sesión anterior, no arranca solo una
+        // tanda nueva -- mismo criterio que los otros dos ejercicios.
+        if (yaEstabaCompletado) {
+            divPartitura.style.display = 'none';
+            divProgreso.style.display = 'none';
+            divConsigna.style.display = 'none';
+            divEstado.style.display = 'none';
+            divOpciones.style.display = 'none';
+            divResumen.style.display = '';
+            textoResumen.textContent = data.txtYaCompletado;
+        } else {
+            empezar();
+        }
+    }
+
+    bloquesCompas.forEach(function (info) { initCompletarCompas(info.bloqueId); });
 })();
 </script>
 {% endblock %}

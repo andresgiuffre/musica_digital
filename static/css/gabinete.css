@@ -757,20 +757,20 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
 }
 
 /* ---------- Práctica dirigida (bloque de Cursos, tema_detail) ---------- */
-/* Compartida con Ritmo matemático (mismo layout badge + botón Reiniciar). */
-body.gabinete .pdir-gab__cabecera, body.gabinete .ritmo-gab__cabecera {
+/* Compartida con Ritmo matemático y Completar el compás (mismo layout badge + botón Reiniciar). */
+body.gabinete .pdir-gab__cabecera, body.gabinete .ritmo-gab__cabecera, body.gabinete .compas-gab__cabecera {
     display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
     flex-wrap: wrap; margin-bottom: 1rem;
 }
-body.gabinete .pdir-gab__badge, body.gabinete .ritmo-gab__badge {
+body.gabinete .pdir-gab__badge, body.gabinete .ritmo-gab__badge, body.gabinete .compas-gab__badge {
     display: inline-block;
     font-size: 0.8125rem;
     font-weight: 600;
     padding: 0.35rem 0.85rem;
     border-radius: 999px;
 }
-body.gabinete .pdir-gab__badge--completado, body.gabinete .ritmo-gab__badge--completado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
-body.gabinete .pdir-gab__badge--progreso, body.gabinete .ritmo-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
+body.gabinete .pdir-gab__badge--completado, body.gabinete .ritmo-gab__badge--completado, body.gabinete .compas-gab__badge--completado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+body.gabinete .pdir-gab__badge--progreso, body.gabinete .ritmo-gab__badge--progreso, body.gabinete .compas-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
 
 body.gabinete .pdir-gab__partitura {
     background-color: var(--score-paper); color: var(--score-ink); padding: 1.25rem 1.25rem 2.25rem;
@@ -864,3 +864,54 @@ body.gabinete .ritmo-gab__resumen { text-align: center; }
 body.gabinete .ritmo-gab__resumen-texto { font-weight: 600; margin-bottom: 0.75rem; }
 
 body.gabinete .ritmo-gab__estado { color: var(--ink-soft); text-align: center; padding: 1rem 0; }
+
+/* ---------- Completar el compás (bloque de Cursos, tema_detail) ---------- */
+body.gabinete .compas-gab__progreso { color: var(--ink-soft); font-size: 0.875rem; margin: 0 0 0.25rem; }
+body.gabinete .compas-gab__consigna { font-weight: 600; font-size: 1.0625rem; color: var(--ink); margin: 0 0 1rem; }
+
+/* position:relative -- el recuadro del hueco (.compas-gab__hueco) se
+   posiciona absoluto respecto de ESTE contenedor, calculado con
+   getBoundingClientRect() en JS (ver tema_detail.html). Mismos tokens
+   --score-paper/--score-ink que el resto del sitio para cualquier superficie
+   de partitura, independiente del tema. */
+body.gabinete .compas-gab__partitura {
+    position: relative; background-color: var(--score-paper); color: var(--score-ink);
+    padding: 1.25rem 1.25rem 2rem; border-radius: var(--radius-data); overflow-x: auto; margin-bottom: 1rem;
+}
+body.gabinete .compas-gab__osmd { position: relative; min-height: 100px; }
+
+/* El hueco vive SOBRE el papel de la partitura -- por eso usa tokens
+   relativos a --score-ink, no --surface/--primary directos (mismo gotcha ya
+   documentado para .ritmo-gab__zona-piezas .ritmo-gab__pieza: un panel
+   traslúcido con los tokens de tema oscuro del sitio se ve como un parche
+   gris sobre el papel blanco, no como algo a propósito). */
+body.gabinete .compas-gab__hueco {
+    position: absolute; box-sizing: border-box; border-radius: 4px;
+    border: 2px dashed color-mix(in srgb, var(--score-ink) 45%, transparent);
+    background: color-mix(in srgb, var(--score-ink) 6%, transparent);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+body.gabinete .compas-gab__hueco--ok { border-color: var(--green); border-style: solid; background: color-mix(in srgb, var(--green) 18%, transparent); }
+body.gabinete .compas-gab__hueco--error { border-color: var(--danger); animation: pdir-gab-shake 0.4s ease; }
+
+body.gabinete .compas-gab__estado { color: var(--ink-soft); text-align: center; padding: 1rem 0; }
+
+body.gabinete .compas-gab__feedback { text-align: center; font-weight: 600; min-height: 1.5em; margin: 0 0 1rem; }
+body.gabinete .compas-gab__feedback--ok { color: var(--green); }
+body.gabinete .compas-gab__feedback--error { color: var(--danger); }
+
+body.gabinete .compas-gab__opciones { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.6rem; }
+body.gabinete .compas-gab__opcion {
+    display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+    color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 0.5rem 0.35rem; cursor: pointer; transition: border-color 0.15s ease, transform 0.15s ease;
+}
+body.gabinete .compas-gab__opcion:hover { border-color: var(--primary); transform: translateY(-2px); }
+body.gabinete .compas-gab__opcion-nombre { font-size: 0.6875rem; font-weight: 600; text-align: center; }
+
+body.gabinete .compas-gab__resumen { text-align: center; }
+body.gabinete .compas-gab__resumen-texto { font-weight: 600; margin-bottom: 0.75rem; }
+
+@media (max-width: 640px) {
+    body.gabinete .compas-gab__opciones { grid-template-columns: repeat(2, 1fr); }
+}

@@ -667,6 +667,7 @@ class BloqueContenido(models.Model):
     VIDEO = 'VIDEO'
     PRACTICA_DIRIGIDA = 'PRACTICA_DIRIGIDA'
     RITMO_MATEMATICA = 'RITMO_MATEMATICA'
+    COMPLETAR_COMPAS = 'COMPLETAR_COMPAS'
     TIPO_CHOICES = (
         (TEXTO, 'Texto'),
         (EJEMPLO_PARTITURA, 'Ejemplo de partitura'),
@@ -675,6 +676,7 @@ class BloqueContenido(models.Model):
         (VIDEO, 'Video'),
         (PRACTICA_DIRIGIDA, 'Práctica dirigida'),
         (RITMO_MATEMATICA, 'Ritmo matemático'),
+        (COMPLETAR_COMPAS, 'Completar el compás'),
     )
 
     MODO_IDENTIFICAR_NOTAS = 'identificar_notas'
@@ -818,6 +820,16 @@ class BloqueContenido(models.Model):
     ritmo_problemas_requeridos = models.PositiveSmallIntegerField(
         default=5,
         help_text="Cantidad de problemas distintos a resolver correctamente, en una misma tanda, para marcar el ejercicio como completado."
+    )
+
+    # --- COMPLETAR_COMPAS ---
+    # Sin archivo ni _en, mismo criterio que RITMO_MATEMATICA: los compases se
+    # generan proceduralmente en JS (2/4, 3/4 o 4/4 con figuras/silencios al
+    # azar + un hueco), no hay contenido que el admin cargue ni texto propio
+    # que traducir.
+    compas_problemas_requeridos = models.PositiveSmallIntegerField(
+        default=5,
+        help_text="Cantidad de compases distintos a completar correctamente, en una misma tanda, para marcar el ejercicio como completado."
     )
 
     class Meta:
@@ -1029,6 +1041,20 @@ class BloqueContenido(models.Model):
             if self.musicxml_practica:
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Ritmo matemático."
 
+        elif self.tipo == self.COMPLETAR_COMPAS:
+            if self.texto_markdown:
+                errores['texto_markdown'] = "No debería llenarse en un bloque de Completar el compás."
+            if self.sheet_music_id or self.fragmento_orquestacion_id:
+                errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Completar el compás."
+            if self.practica_texto:
+                errores['practica_texto'] = "No debería llenarse en un bloque de Completar el compás."
+            if self.imagen or self.imagen_en:
+                errores['imagen'] = "No debería llenarse en un bloque de Completar el compás."
+            if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
+                errores['video_fuente'] = "No debería llenarse en un bloque de Completar el compás."
+            if self.musicxml_practica:
+                errores['musicxml_practica'] = "No debería llenarse en un bloque de Completar el compás."
+
         if errores:
             raise ValidationError(errores)
 
@@ -1075,6 +1101,26 @@ class RitmoMatematicaProgreso(models.Model):
         unique_together = ('user', 'bloque')
         verbose_name = "Progreso de Ritmo Matemático"
         verbose_name_plural = "Progresos de Ritmo Matemático"
+
+
+class CompletarCompasProgreso(models.Model):
+    """
+    Progreso AGREGADO por usuario y por bloque de Completar el compás -- mismo
+    espíritu que RitmoMatematicaProgreso: no hay noción de "parcialmente
+    correcto" por compás (se elige una figura/silencio o no), alcanza con la
+    mejor racha de compases seguidos completados en una misma tanda.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    bloque = models.ForeignKey(BloqueContenido, on_delete=models.CASCADE)
+    mejor_racha = models.PositiveSmallIntegerField(default=0)
+    veces_practicado = models.PositiveIntegerField(default=0)
+    completado = models.BooleanField(default=False)
+    ultima_vez = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'bloque')
+        verbose_name = "Progreso de Completar el Compás"
+        verbose_name_plural = "Progresos de Completar el Compás"
 
 
 # ---------------------------------------------------------------------------

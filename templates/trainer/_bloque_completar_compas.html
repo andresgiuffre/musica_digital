@@ -1,0 +1,68 @@
+{% load i18n %}
+{% comment %}
+Parcial incluido desde tema_detail.html donde ya despacha por bloque.tipo --
+no es una página con URL propia. `bloque` y `csrf_token` llegan del contexto
+del include (sin `only`), no se re-pasan a mano. Mismo patrón de bloqueo
+server-side que _bloque_ritmo_matematica.html: si bloque.bloqueado, no se
+renderiza ningún data-* ni la mecánica interactiva.
+{% endcomment %}
+<div class="compas-gab" id="compas-bloque-{{ bloque.id }}"
+    data-bloque-id="{{ bloque.id }}"
+    {% if not bloque.bloqueado %}
+    data-registrar-url="{% url 'bloque_completar_compas_registrar' bloque.id %}"
+    data-csrf="{{ csrf_token }}"
+    data-lang="{{ LANGUAGE_CODE }}"
+    data-problemas-requeridos="{{ bloque.compas_problemas_requeridos }}"
+    data-txt-cargando="{% trans 'Generando compás…' %}"
+    data-txt-error="{% trans 'No se pudo generar el compás.' %}"
+    data-txt-progreso="{% trans 'Compás {actual} de {total}' %}"
+    data-txt-consigna="{% trans 'Elegí la figura o el silencio que completa este compás de {compas}.' %}"
+    data-txt-correcto="{% trans '¡Correcto!' %}"
+    data-txt-incorrecto="{% trans 'Esa figura no completa el compás -- probá con otra.' %}"
+    data-txt-resultado="{% trans 'Completaste {total} compases distintos.' %}"
+    data-txt-completado="{% trans 'Completado — racha de {racha} compases' %}"
+    data-txt-no-completado="{% trans 'Practicado {veces} veces — todavía no completado' %}"
+    data-txt-desbloqueado="{% trans '¡Siguiente ejercicio desbloqueado! Actualizando la página…' %}"
+    data-txt-ya-completado="{% trans 'Ya completaste este ejercicio. Podés practicarlo de nuevo si querés.' %}"
+    {% endif %}>
+
+    {% if bloque.bloqueado %}
+        <div class="compas-gab__estado">{% trans "Completá el ejercicio anterior para desbloquear este." %}</div>
+    {% else %}
+        <div class="compas-gab__cabecera">
+            <div class="compas-gab__badge {% if bloque.progreso_usuario.completado %}compas-gab__badge--completado{% elif bloque.progreso_usuario %}compas-gab__badge--progreso{% endif %}"
+                id="compas-badge-{{ bloque.id }}" {% if not bloque.progreso_usuario %}style="display:none;"{% endif %}>
+                {% if bloque.progreso_usuario.completado %}
+                    {% blocktrans with racha=bloque.progreso_usuario.mejor_racha %}Completado — racha de {{ racha }} compases{% endblocktrans %}
+                {% elif bloque.progreso_usuario %}
+                    {% blocktrans count veces=bloque.progreso_usuario.veces_practicado %}Practicado {{ veces }} vez — todavía no completado{% plural %}Practicado {{ veces }} veces — todavía no completado{% endblocktrans %}
+                {% endif %}
+            </div>
+            {% if bloque.progreso_usuario %}
+            <button type="button" class="btn-gab btn-gab--secondary reiniciar-progreso-btn"
+                data-reiniciar-url="{% url 'bloque_progreso_reiniciar' bloque.id %}"
+                data-txt-confirmar="{% trans '¿Reiniciar el progreso de este ejercicio? Vas a tener que resolverlo de nuevo.' %}">
+                ↺ {% trans "Reiniciar" %}
+            </button>
+            {% endif %}
+        </div>
+
+        <p class="compas-gab__progreso" id="compas-progreso-{{ bloque.id }}"></p>
+        <p class="compas-gab__consigna" id="compas-consigna-{{ bloque.id }}"></p>
+
+        <div class="compas-gab__partitura" id="compas-partitura-{{ bloque.id }}">
+            <div id="compas-osmd-{{ bloque.id }}" class="compas-gab__osmd"></div>
+        </div>
+
+        <div class="compas-gab__estado" id="compas-estado-{{ bloque.id }}">{% trans "Generando compás…" %}</div>
+
+        <p class="compas-gab__feedback" id="compas-feedback-{{ bloque.id }}" style="display:none;"></p>
+
+        <div class="compas-gab__opciones" id="compas-opciones-{{ bloque.id }}" style="display:none;"></div>
+
+        <div class="compas-gab__resumen" id="compas-resumen-{{ bloque.id }}" style="display:none;">
+            <p class="compas-gab__resumen-texto" id="compas-resumen-texto-{{ bloque.id }}"></p>
+            <button type="button" class="btn-gab btn-gab--secondary" id="compas-reintentar-{{ bloque.id }}">{% trans "Practicar de nuevo" %}</button>
+        </div>
+    {% endif %}
+</div>
