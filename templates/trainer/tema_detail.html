@@ -1360,18 +1360,14 @@
         });
         // El hueco SIEMPRE va al final -- así el frontend sabe, sin ambigüedad,
         // cuál es "el último evento del compás" tras recorrer el cursor de OSMD.
-        // esSilencio al azar (NO siempre true) -- la respuesta correcta acepta
-        // tanto la figura como su silencio equivalente (ver responder(), que
-        // compara solo por duración), pero la notación REVELADA al acertar
-        // tiene que poder ser también una figura real, no siempre un silencio.
-        // Bug real confirmado por el usuario: con esSilencio hardcodeado en
-        // true, cualquier respuesta correcta revelaba siempre un silencio,
-        // sin importar si había elegido la figura o el silencio.
-        const esSilencioHueco = Math.random() < 0.5;
-        const eventoHueco = {
-            tipo: VALOR_A_TIPO[hueco], valor: hueco, esSilencio: esSilencioHueco,
-            pitch: esSilencioHueco ? null : PITCHES[Math.floor(Math.random() * PITCHES.length)],
-        };
+        // Su tipo real en el XML no importa (siempre queda tapado, nunca se
+        // revela el glifo que dibujó OSMD -- ver responder()/cargarProblema()):
+        // un silencio simplifica la generación (no necesita altura) y al
+        // acertar se dibuja la figura/silencio que el usuario ELIGIÓ, no el
+        // que había originalmente. Antes esto revelaba siempre el silencio
+        // real generado, sin importar qué había clickeado el usuario -- bug
+        // real confirmado por el usuario. Ver el fix en responder().
+        const eventoHueco = { tipo: VALOR_A_TIPO[hueco], valor: hueco, esSilencio: true, pitch: null };
         return { ts: ts, hueco: hueco, eventos: eventosDados.concat([eventoHueco]) };
     }
 
@@ -1441,7 +1437,7 @@
                     nombre.className = 'compas-gab__opcion-nombre';
                     nombre.textContent = (esSilencio ? NOMBRE_SILENCIO : NOMBRE_FIGURA)[idioma][fig.tipo];
                     boton.appendChild(nombre);
-                    boton.addEventListener('click', function () { responder(fig.valor); });
+                    boton.addEventListener('click', function () { responder(fig.valor, fig.tipo, esSilencio); });
                     divOpciones.appendChild(boton);
                 });
             });
@@ -1513,7 +1509,7 @@
             }
         }
 
-        function responder(valorElegido) {
+        function responder(valorElegido, tipoElegido, esSilencioElegido) {
             if (resolviendo || !problemaActual) return;
             const esCorrecto = valorElegido === problemaActual.hueco;
             divFeedback.style.display = '';
@@ -1523,8 +1519,19 @@
                 resolviendo = true;
                 divFeedback.classList.add('compas-gab__feedback--ok');
                 divFeedback.textContent = data.txtCorrecto;
-                if (overlayHueco) overlayHueco.classList.add('compas-gab__hueco--ok');
-                if (svgHueco) svgHueco.style.opacity = ''; // revela la figura real, como premio
+                // Se dibuja adentro del recuadro la figura/silencio que el
+                // usuario ELIGIÓ (mismos íconos svgFigura/svgSilencio que el
+                // panel de opciones) -- NUNCA se revela el glifo real que
+                // dibujó OSMD (que fue generado al azar y no tiene por qué
+                // coincidir con la elección del usuario). Bug real reportado:
+                // antes se hacía svgHueco.style.opacity='' para "revelar" la
+                // figura original, y como esa siempre se generaba como
+                // silencio, el usuario veía un silencio sin importar qué
+                // hubiera clickeado.
+                if (overlayHueco) {
+                    overlayHueco.classList.add('compas-gab__hueco--ok');
+                    overlayHueco.innerHTML = esSilencioElegido ? svgSilencio(tipoElegido) : svgFigura(tipoElegido);
+                }
                 setTimeout(function () {
                     resolviendo = false;
                     indiceProblema++;
