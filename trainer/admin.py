@@ -40,7 +40,7 @@ class CursoAdmin(admin.ModelAdmin):
 class TemaInline(admin.TabularInline):
     model = Tema
     extra = 1
-    fields = ('orden', 'titulo', 'titulo_en', 'slug', 'es_muestra_gratuita', 'activo')
+    fields = ('orden', 'titulo', 'titulo_en', 'slug', 'tipo', 'es_muestra_gratuita', 'activo')
 
 
 @admin.register(Grado)
@@ -96,11 +96,19 @@ class BloqueContenidoInline(admin.StackedInline):
         }),
     )
 
+    class Media:
+        # Filtra las opciones de "tipo" de cada bloque segun el "Tipo de Tema"
+        # (Lectura/Practica) elegido en el formulario del Tema -- ver el
+        # archivo para el detalle y por que esta duplicado a mano con
+        # BloqueContenido.TIPOS_LECTURA/TIPOS_PRACTICA.
+        js = ('admin/js/tema_bloques_tipo.js',)
+
 
 @admin.register(Tema)
 class TemaAdmin(admin.ModelAdmin):
-    list_display = ('titulo', 'grado', 'orden', 'es_muestra_gratuita', 'activo', 'ver_renderizado')
+    list_display = ('titulo', 'grado', 'orden', 'tipo', 'es_muestra_gratuita', 'activo', 'ver_renderizado')
     list_editable = ('orden', 'es_muestra_gratuita', 'activo')
+    list_filter = ('tipo',)
     inlines = [BloqueContenidoInline]
 
     def ver_renderizado(self, obj):
