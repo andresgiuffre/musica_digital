@@ -12,13 +12,34 @@ from .models import StudySession, SheetMusic, UserProfile
 
 logger = logging.getLogger(__name__)
 
-# h1 incluido a propósito: markdown.markdown("# Título") produce <h1>, y si no
-# estuviera en el allow-list nh3 lo saca -- probado empíricamente antes de asumir
-# que alcanzaba con h2-h4.
+# Extensiones bundleadas con el paquete Markdown (sin dependencias nuevas):
+# 'tables' (sintaxis GFM de tablas), 'fenced_code' (bloques ```), 'sane_lists'
+# (no mezcla números/viñetas en la misma lista por error de sangría). NO se
+# agregó 'nl2br' -- cambiaría el comportamiento de los bloques de texto ya
+# cargados (un salto de línea simple pasaría a ser <br>, hoy no lo es), fuera
+# del pedido puntual de "habilitar markdown", no algo que romper de paso.
+MARKDOWN_EXTENSIONES = ['tables', 'fenced_code', 'sane_lists']
+
+# Tags que Markdown puede llegar a producir con las extensiones de arriba, más
+# los básicos de siempre. h1 incluido a propósito: markdown.markdown("# Título")
+# produce <h1>, y si no estuviera en el allow-list nh3 lo saca -- probado
+# empíricamente antes de asumir que alcanzaba con h2-h4 (mismo criterio para
+# el resto de esta lista: cada tag se probó de punta a punta, generado por
+# Markdown y sobreviviendo nh3.clean(), antes de darlo por soportado).
 MARKDOWN_TAGS_PERMITIDOS = {
-    'p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'a', 'code', 'pre', 'blockquote',
+    'p', 'br', 'strong', 'em', 'ul', 'ol', 'li',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'a', 'code', 'pre', 'blockquote', 'hr', 'img',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
 }
-MARKDOWN_ATTRS_PERMITIDOS = {'a': {'href'}}
+# Deliberadamente SIN 'style' en ninguna tag (ni siquiera th/td): la extensión
+# 'tables' emite style="text-align: ..." para alinear columnas (sintaxis
+# ':---:'), pero permitir el atributo style abriría la puerta a inyectar CSS
+# arbitrario a través del contenido -- se prefiere perder la alineación de
+# columnas antes que abrir esa vía. 'src'/'alt'/'title' en img SÍ pasan por
+# nh3, que ya sanea el esquema de la URL (confirmado empíricamente: un
+# src="javascript:..." queda vacío, igual que hace con href en <a>).
+MARKDOWN_ATTRS_PERMITIDOS = {'a': {'href'}, 'img': {'src', 'alt', 'title'}}
 
 
 def render_markdown_seguro(texto_markdown):
@@ -28,15 +49,15 @@ def render_markdown_seguro(texto_markdown):
     que usa mark_safe(): el HTML que sale de nh3.clean() ya pasó por un allow-list
     explícito de tags/atributos -- se marca segura la SALIDA ya sanitizada, nunca
     el texto crudo del admin. Confirmado empíricamente (no asumido): nh3 saca
-    <script> por completo (tag y contenido) y vacía atributos href con esquemas
-    peligrosos como javascript: (además de agregar rel="noopener noreferrer" a los
-    links). No usar mark_safe/|safe/format_html en ningún otro lugar del flujo de
-    Cursos -- si hace falta otro campo de texto en el HTML, que lo maneje el
-    auto-escape normal de Django.
+    <script> por completo (tag y contenido) y vacía atributos href/src con
+    esquemas peligrosos como javascript: (además de agregar rel="noopener
+    noreferrer" a los links). No usar mark_safe/|safe/format_html en ningún otro
+    lugar del flujo de Cursos -- si hace falta otro campo de texto en el HTML,
+    que lo maneje el auto-escape normal de Django.
     """
     if not texto_markdown:
         return ''
-    html_crudo = markdown.markdown(texto_markdown)
+    html_crudo = markdown.markdown(texto_markdown, extensions=MARKDOWN_EXTENSIONES)
     html_limpio = nh3.clean(html_crudo, tags=MARKDOWN_TAGS_PERMITIDOS, attributes=MARKDOWN_ATTRS_PERMITIDOS)
     return mark_safe(html_limpio)
 

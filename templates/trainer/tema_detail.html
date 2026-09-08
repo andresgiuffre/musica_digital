@@ -53,10 +53,31 @@
     .tema-contenido-markdown ol { list-style: decimal; }
     .tema-contenido-markdown li { margin-bottom: 0.35rem; }
     .tema-contenido-markdown li > ul, .tema-contenido-markdown li > ol { margin-top: 0.35rem; margin-bottom: 0; }
-    .tema-contenido-markdown h1, .tema-contenido-markdown h2, .tema-contenido-markdown h3, .tema-contenido-markdown h4 { margin: 1.5rem 0 0.75rem; }
+    /* h1-h6 heredan font-family/font-weight de la regla global body.gabinete
+       h1,h2,h3,h4 (gabinete.css) -- esa regla nunca definió font-size (nada
+       más en el sitio usa una tag de heading "pelada" sin una clase propia
+       con su propio tamaño), así que sin esto un "# Título" se veía con la
+       tipografía serif pero al mismo tamaño que el párrafo. Escala acotada a
+       esta clase, no a la regla global, para no tocar ningún otro lugar. */
+    .tema-contenido-markdown h1 { margin: 1.5rem 0 0.75rem; font-size: 1.75rem; line-height: 1.25; }
+    .tema-contenido-markdown h2 { margin: 1.5rem 0 0.75rem; font-size: 1.5rem; line-height: 1.3; }
+    .tema-contenido-markdown h3 { margin: 1.5rem 0 0.75rem; font-size: 1.25rem; line-height: 1.35; }
+    .tema-contenido-markdown h4 { margin: 1.5rem 0 0.75rem; font-size: 1.125rem; line-height: 1.4; }
+    .tema-contenido-markdown h5 { margin: 1.5rem 0 0.75rem; font-size: 1rem; line-height: 1.4; }
+    .tema-contenido-markdown h6 { margin: 1.5rem 0 0.75rem; font-size: 0.9375rem; line-height: 1.4; color: var(--ink-soft); }
     .tema-contenido-markdown blockquote { margin: 0 0 1rem; padding: 0.4rem 1.1rem; border-left: 3px solid var(--line-input); color: var(--ink-soft); }
     .tema-contenido-markdown pre { margin: 0 0 1rem; padding: 1rem; background: var(--bg); border-radius: var(--radius-data); overflow-x: auto; }
     .tema-contenido-markdown code { font-family: 'IBM Plex Mono', ui-monospace, monospace; background: var(--bg); padding: 0.15rem 0.35rem; border-radius: 3px; font-size: 0.875em; }
+    .tema-contenido-markdown pre code { background: none; padding: 0; }
+    .tema-contenido-markdown hr { margin: 1.5rem 0; border: none; border-top: 1px solid var(--line); }
+    .tema-contenido-markdown img { max-width: 100%; height: auto; display: block; margin: 0 0 1rem; border-radius: var(--radius-data); }
+    /* Tablas de Markdown (extensión 'tables'): el style="text-align:..." que
+       genera la sintaxis ':---:' de alineación se saca en render_markdown_seguro()
+       (nh3 no permite el atributo style, ver el comentario ahí) -- las columnas
+       siempre quedan alineadas a la izquierda acá, es la contrapartida aceptada. */
+    .tema-contenido-markdown table { margin: 0 0 1rem; border-collapse: collapse; width: 100%; }
+    .tema-contenido-markdown th, .tema-contenido-markdown td { padding: 0.5rem 0.75rem; border: 1px solid var(--line); text-align: left; }
+    .tema-contenido-markdown th { background: var(--bg); font-family: var(--font-display); font-weight: 500; }
     .tema-contenido-markdown pre code { background: none; padding: 0; }
 </style>
 {% endblock %}
