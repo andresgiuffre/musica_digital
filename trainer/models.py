@@ -626,9 +626,29 @@ class Grado(models.Model):
 
 
 class Tema(models.Model):
+    # Puramente una ayuda de UX en el admin (ver BloqueContenidoInline.Media
+    # en admin.py): filtra qué opciones de BloqueContenido.tipo se muestran
+    # al agregar un bloque nuevo, según BloqueContenido.TIPOS_LECTURA/
+    # TIPOS_PRACTICA, para que el desplegable no crezca sin límite a medida
+    # que se suman más tipos de ejercicio. Deliberadamente NO se valida en
+    # clean() -- un Tema existente puede legítimamente mezclar bloques de
+    # ambos grupos (ej. contenido más antiguo que enseña y practica en el
+    # mismo Tema) y este campo no debe romper eso, solo ordenar la carga de
+    # contenido nueva hacia adelante.
+    TIPO_LECTURA = 'LECTURA'
+    TIPO_PRACTICA = 'PRACTICA'
+    TIPO_CHOICES = (
+        (TIPO_LECTURA, 'Lectura'),
+        (TIPO_PRACTICA, 'Práctica'),
+    )
+
     grado = models.ForeignKey(Grado, on_delete=models.CASCADE, related_name='temas')
     titulo = models.CharField(max_length=200)
     titulo_en = models.CharField(max_length=200, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el título en español también con idioma inglés activo.")
+    tipo = models.CharField(
+        max_length=10, choices=TIPO_CHOICES, default=TIPO_LECTURA,
+        help_text="Solo determina qué tipos de bloque de contenido se ofrecen al agregar uno nuevo en este Tema (ver BloqueContenido.TIPOS_LECTURA/TIPOS_PRACTICA) -- no restringe ni valida los bloques ya existentes."
+    )
     orden = models.PositiveIntegerField(default=0, help_text="Orden dentro del grado.")
     slug = models.SlugField(help_text="Se escribe a mano, no se autogenera (misma convención que Game.slug/Achievement.slug/Collection.slug). Único dentro del grado -- se usa en la URL del tema.")
     activo = models.BooleanField(default=True, help_text="Solo los temas activos son accesibles para los usuarios.")
@@ -658,7 +678,9 @@ class BloqueContenido(models.Model):
     solo el subconjunto que le corresponde a su tipo (ver clean()). Diseñado para
     poder sumar un tipo QUIZ más adelante sin reestructurar: alcanza con un valor
     más en TIPO_CHOICES y su propio grupo de campos nullable, igual que conviven
-    hoy EJEMPLO_PARTITURA y PRACTICA.
+    hoy EJEMPLO_PARTITURA y PRACTICA. Un tipo nuevo también se suma a
+    TIPOS_LECTURA o TIPOS_PRACTICA (ver Tema.tipo) y a su espejo en
+    static/admin/js/tema_bloques_tipo.js.
     """
     TEXTO = 'TEXTO'
     EJEMPLO_PARTITURA = 'EJEMPLO_PARTITURA'
@@ -675,11 +697,20 @@ class BloqueContenido(models.Model):
         (PRACTICA, 'Práctica'),
         (IMAGEN, 'Imagen'),
         (VIDEO, 'Video'),
-        (PRACTICA_DIRIGIDA, 'Práctica dirigida'),
-        (RITMO_MATEMATICA, 'Ritmo matemático'),
-        (COMPLETAR_COMPAS, 'Completar el compás'),
-        (LINEAS_ESPACIOS, 'Ubicación de líneas y espacios'),
+        (PRACTICA_DIRIGIDA, '[G0] Práctica dirigida'),
+        (RITMO_MATEMATICA, '[G0] Ritmo matemático'),
+        (COMPLETAR_COMPAS, '[G0] Completar el compás'),
+        (LINEAS_ESPACIOS, '[G0] Ubicación de líneas y espacios'),
     )
+    # Agrupa TIPO_CHOICES según Tema.tipo -- única fuente de verdad en Python,
+    # espejada a mano en static/admin/js/tema_bloques_tipo.js (el admin no
+    # puede leer esto directamente porque el filtrado ocurre en el navegador,
+    # antes de guardar el Tema -- mismo patrón que ZONAS_EJERCICIO_ORQUESTACION,
+    # que tampoco puede vivir en un solo lugar por la misma razón de raíz:
+    # Python y JS no comparten runtime). Agregar un tipo nuevo: sumarlo acá Y
+    # en el archivo JS.
+    TIPOS_LECTURA = (TEXTO, EJEMPLO_PARTITURA, IMAGEN, VIDEO)
+    TIPOS_PRACTICA = (PRACTICA, PRACTICA_DIRIGIDA, RITMO_MATEMATICA, COMPLETAR_COMPAS, LINEAS_ESPACIOS)
 
     MODO_IDENTIFICAR_NOTAS = 'identificar_notas'
     MODO_PRACTICA_CHOICES = (
