@@ -11,6 +11,7 @@ from .models import (
     MusicalProject, ProjectGoal, ProjectSection,
     MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis,
     Curso, Grado, Tema, BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso,
+    LineasEspaciosProgreso,
     InstrumentoHabilitadoOrquestacion, ProgresoOrquestacionLibre,
 )
 
@@ -89,6 +90,10 @@ class BloqueContenidoInline(admin.StackedInline):
             'fields': ('compas_problemas_requeridos',),
             'classes': ('collapse',),
         }),
+        ('Ubicación de líneas y espacios', {
+            'fields': ('lineas_problemas_requeridos',),
+            'classes': ('collapse',),
+        }),
     )
 
 
@@ -123,6 +128,14 @@ class RitmoMatematicaProgresoAdmin(admin.ModelAdmin):
 @admin.register(CompletarCompasProgreso)
 class CompletarCompasProgresoAdmin(admin.ModelAdmin):
     """Mismo criterio que RitmoMatematicaProgresoAdmin: dato operacional, solo
+    para inspeccionar, no se edita a mano."""
+    list_display = ('user', 'bloque', 'mejor_racha', 'veces_practicado', 'completado', 'ultima_vez')
+    list_filter = ('completado',)
+
+
+@admin.register(LineasEspaciosProgreso)
+class LineasEspaciosProgresoAdmin(admin.ModelAdmin):
+    """Mismo criterio que CompletarCompasProgresoAdmin: dato operacional, solo
     para inspeccionar, no se edita a mano."""
     list_display = ('user', 'bloque', 'mejor_racha', 'veces_practicado', 'completado', 'ultima_vez')
     list_filter = ('completado',)

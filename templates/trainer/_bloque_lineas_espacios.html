@@ -1,0 +1,66 @@
+{% load i18n %}
+{% comment %}
+Parcial incluido desde tema_detail.html donde ya despacha por bloque.tipo --
+no es una página con URL propia. `bloque` y `csrf_token` llegan del contexto
+del include (sin `only`), no se re-pasan a mano. Mismo patrón de bloqueo
+server-side que _bloque_completar_compas.html: si bloque.bloqueado, no se
+renderiza ningún data-* ni la mecánica interactiva.
+{% endcomment %}
+<div class="lineas-gab" id="lineas-bloque-{{ bloque.id }}"
+    data-bloque-id="{{ bloque.id }}"
+    {% if not bloque.bloqueado %}
+    data-registrar-url="{% url 'bloque_lineas_espacios_registrar' bloque.id %}"
+    data-csrf="{{ csrf_token }}"
+    data-lang="{{ LANGUAGE_CODE }}"
+    data-problemas-requeridos="{{ bloque.lineas_problemas_requeridos }}"
+    data-txt-progreso="{% trans 'Caso {actual} de {total}' %}"
+    data-txt-consigna="{% trans '¿Qué línea o espacio está marcado? Contá siempre de abajo hacia arriba.' %}"
+    data-txt-opcion-linea="{% trans 'Línea {n}' %}"
+    data-txt-opcion-espacio="{% trans 'Espacio {n}' %}"
+    data-txt-correcto="{% trans '¡Correcto!' %}"
+    data-txt-incorrecto="{% trans 'No es esa -- mirá los números: se cuenta siempre de abajo hacia arriba.' %}"
+    data-txt-resultado="{% trans 'Identificaste {total} casos distintos.' %}"
+    data-txt-completado="{% trans 'Completado — racha de {racha} casos' %}"
+    data-txt-no-completado="{% trans 'Practicado {veces} veces — todavía no completado' %}"
+    data-txt-desbloqueado="{% trans '¡Siguiente ejercicio desbloqueado! Actualizando la página…' %}"
+    data-txt-ya-completado="{% trans 'Ya completaste este ejercicio. Podés practicarlo de nuevo si querés.' %}"
+    data-txt-grupo-lineas="{% trans 'Líneas' %}"
+    data-txt-grupo-espacios="{% trans 'Espacios' %}"
+    {% endif %}>
+
+    {% if bloque.bloqueado %}
+        <div class="lineas-gab__estado">{% trans "Completá el ejercicio anterior para desbloquear este." %}</div>
+    {% else %}
+        <div class="lineas-gab__cabecera">
+            <div class="lineas-gab__badge {% if bloque.progreso_usuario.completado %}lineas-gab__badge--completado{% elif bloque.progreso_usuario %}lineas-gab__badge--progreso{% endif %}"
+                id="lineas-badge-{{ bloque.id }}" {% if not bloque.progreso_usuario %}style="display:none;"{% endif %}>
+                {% if bloque.progreso_usuario.completado %}
+                    {% blocktrans with racha=bloque.progreso_usuario.mejor_racha %}Completado — racha de {{ racha }} casos{% endblocktrans %}
+                {% elif bloque.progreso_usuario %}
+                    {% blocktrans count veces=bloque.progreso_usuario.veces_practicado %}Practicado {{ veces }} vez — todavía no completado{% plural %}Practicado {{ veces }} veces — todavía no completado{% endblocktrans %}
+                {% endif %}
+            </div>
+            {% if bloque.progreso_usuario %}
+            <button type="button" class="btn-gab btn-gab--secondary reiniciar-progreso-btn"
+                data-reiniciar-url="{% url 'bloque_progreso_reiniciar' bloque.id %}"
+                data-txt-confirmar="{% trans '¿Reiniciar el progreso de este ejercicio? Vas a tener que resolverlo de nuevo.' %}">
+                ↺ {% trans "Reiniciar" %}
+            </button>
+            {% endif %}
+        </div>
+
+        <p class="lineas-gab__progreso" id="lineas-progreso-{{ bloque.id }}"></p>
+        <p class="lineas-gab__consigna" id="lineas-consigna-{{ bloque.id }}"></p>
+
+        <div class="lineas-gab__pentagrama" id="lineas-pentagrama-{{ bloque.id }}"></div>
+
+        <p class="lineas-gab__feedback" id="lineas-feedback-{{ bloque.id }}" style="display:none;"></p>
+
+        <div class="lineas-gab__opciones" id="lineas-opciones-{{ bloque.id }}"></div>
+
+        <div class="lineas-gab__resumen" id="lineas-resumen-{{ bloque.id }}" style="display:none;">
+            <p class="lineas-gab__resumen-texto" id="lineas-resumen-texto-{{ bloque.id }}"></p>
+            <button type="button" class="btn-gab btn-gab--secondary" id="lineas-reintentar-{{ bloque.id }}">{% trans "Practicar de nuevo" %}</button>
+        </div>
+    {% endif %}
+</div>

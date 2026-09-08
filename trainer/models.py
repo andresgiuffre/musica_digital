@@ -668,6 +668,7 @@ class BloqueContenido(models.Model):
     PRACTICA_DIRIGIDA = 'PRACTICA_DIRIGIDA'
     RITMO_MATEMATICA = 'RITMO_MATEMATICA'
     COMPLETAR_COMPAS = 'COMPLETAR_COMPAS'
+    LINEAS_ESPACIOS = 'LINEAS_ESPACIOS'
     TIPO_CHOICES = (
         (TEXTO, 'Texto'),
         (EJEMPLO_PARTITURA, 'Ejemplo de partitura'),
@@ -677,6 +678,7 @@ class BloqueContenido(models.Model):
         (PRACTICA_DIRIGIDA, 'Práctica dirigida'),
         (RITMO_MATEMATICA, 'Ritmo matemático'),
         (COMPLETAR_COMPAS, 'Completar el compás'),
+        (LINEAS_ESPACIOS, 'Ubicación de líneas y espacios'),
     )
 
     MODO_IDENTIFICAR_NOTAS = 'identificar_notas'
@@ -830,6 +832,16 @@ class BloqueContenido(models.Model):
     compas_problemas_requeridos = models.PositiveSmallIntegerField(
         default=5,
         help_text="Cantidad de compases distintos a completar correctamente, en una misma tanda, para marcar el ejercicio como completado."
+    )
+
+    # --- LINEAS_ESPACIOS ---
+    # Sin archivo ni _en, mismo criterio que RITMO_MATEMATICA/COMPLETAR_COMPAS:
+    # el pentagrama y la marca se dibujan proceduralmente en JS (SVG propio,
+    # sin OSMD -- no hace falta notación real, solo la geometría de 5 líneas),
+    # no hay contenido que el admin cargue ni texto propio que traducir.
+    lineas_problemas_requeridos = models.PositiveSmallIntegerField(
+        default=5,
+        help_text="Cantidad de líneas/espacios distintos a identificar correctamente, en una misma tanda, para marcar el ejercicio como completado."
     )
 
     class Meta:
@@ -1055,6 +1067,20 @@ class BloqueContenido(models.Model):
             if self.musicxml_practica:
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Completar el compás."
 
+        elif self.tipo == self.LINEAS_ESPACIOS:
+            if self.texto_markdown:
+                errores['texto_markdown'] = "No debería llenarse en un bloque de Ubicación de líneas y espacios."
+            if self.sheet_music_id or self.fragmento_orquestacion_id:
+                errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Ubicación de líneas y espacios."
+            if self.practica_texto:
+                errores['practica_texto'] = "No debería llenarse en un bloque de Ubicación de líneas y espacios."
+            if self.imagen or self.imagen_en:
+                errores['imagen'] = "No debería llenarse en un bloque de Ubicación de líneas y espacios."
+            if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
+                errores['video_fuente'] = "No debería llenarse en un bloque de Ubicación de líneas y espacios."
+            if self.musicxml_practica:
+                errores['musicxml_practica'] = "No debería llenarse en un bloque de Ubicación de líneas y espacios."
+
         if errores:
             raise ValidationError(errores)
 
@@ -1121,6 +1147,26 @@ class CompletarCompasProgreso(models.Model):
         unique_together = ('user', 'bloque')
         verbose_name = "Progreso de Completar el Compás"
         verbose_name_plural = "Progresos de Completar el Compás"
+
+
+class LineasEspaciosProgreso(models.Model):
+    """
+    Progreso AGREGADO por usuario y por bloque de Ubicación de líneas y
+    espacios -- mismo espíritu que CompletarCompasProgreso: cada caso es de
+    elección única (una línea o un espacio), alcanza con la mejor racha de
+    casos seguidos identificados en una misma tanda.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    bloque = models.ForeignKey(BloqueContenido, on_delete=models.CASCADE)
+    mejor_racha = models.PositiveSmallIntegerField(default=0)
+    veces_practicado = models.PositiveIntegerField(default=0)
+    completado = models.BooleanField(default=False)
+    ultima_vez = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'bloque')
+        verbose_name = "Progreso de Líneas y Espacios"
+        verbose_name_plural = "Progresos de Líneas y Espacios"
 
 
 # ---------------------------------------------------------------------------
