@@ -835,17 +835,16 @@
 })();
 
 (function () {
-    // "Calculadora de Equivalencias Rítmicas" -- se muestra un objetivo como
-    // ícono(s) de figura CON SU NOMBRE (nunca una fracción cruda sin explicar),
-    // y hay que armar la MISMA duración con una combinación de figuras
-    // DISTINTA a la que ya se ve arriba -- no alcanza con repetir la misma
-    // figura que ya está mostrada, hay que demostrar una equivalencia real
-    // (ej: para "1 Negra" hay que encontrar que 2 Corcheas duran lo mismo).
-    // En tandas de bloque.ritmo_problemas_requeridos problemas distintos.
-    // Sin OSMD ni archivo externo que cargar -- a diferencia de Práctica
-    // dirigida, no hay ninguna razón técnica para escalonar la inicialización
-    // entre varios bloques de este tipo: cada uno ya desbloqueado arranca
-    // solo, apenas carga la página.
+    // "Calculadora de Equivalencias Rítmicas" -- el objetivo es un COMPÁS real
+    // (ej. "Formá un compás de 6/8"), no una fracción abstracta -- el enunciado
+    // completo se lee de una vez, en una sola oración. Algunos compases piden
+    // explícitamente usar al menos 1 silencio, para que el banco de silencios
+    // no quede como decoración nunca usada. En tandas de
+    // bloque.ritmo_problemas_requeridos problemas distintos. Sin OSMD ni
+    // archivo externo que cargar -- a diferencia de Práctica dirigida, no hay
+    // ninguna razón técnica para escalonar la inicialización entre varios
+    // bloques de este tipo: cada uno ya desbloqueado arranca solo, apenas
+    // carga la página.
     const bloquesRitmo = [
         {% for bloque in bloques %}
         {% if bloque.tipo == 'RITMO_MATEMATICA' and not bloque.bloqueado %}
@@ -862,7 +861,9 @@
     }
 
     // Valores en dieciseisavos (semicorchea = 1) -- todo entero, así la suma
-    // se compara EXACTA sin errores de coma flotante.
+    // se compara EXACTA sin errores de coma flotante. Mismos 5 valores para
+    // figuras Y silencios -- un silencio dura exactamente lo mismo que su
+    // figura equivalente, solo cambia el dibujo.
     const FIGURAS = [
         { tipo: 'redonda', valor: 16 },
         { tipo: 'blanca', valor: 8 },
@@ -870,50 +871,34 @@
         { tipo: 'corchea', valor: 2 },
         { tipo: 'semicorchea', valor: 1 },
     ];
-    // Nombres reales de cada figura -- SIEMPRE acompañan al ícono, nunca se
-    // muestra una fracción sola sin explicar qué representa (pedido explícito
-    // del usuario tras probar la primera versión). Con traducción a inglés
-    // (mismo criterio ya aplicado a los nombres de nota Do/Re/Mi -> C/D/E en
-    // trainer_notas.html: un hablante de inglés no reconoce "Corchea" como
-    // figura musical, a diferencia del vocabulario de intervalos/acordes que
-    // se deja sin traducir).
+    // Nombres reales -- SIEMPRE acompañan al ícono, nunca se muestra una
+    // fracción sola sin explicar qué representa (pedido explícito del usuario
+    // tras probar la primera versión). Con traducción a inglés (mismo criterio
+    // ya aplicado a los nombres de nota Do/Re/Mi -> C/D/E en trainer_notas.html:
+    // un hablante de inglés no reconoce "Corchea" como figura musical, a
+    // diferencia del vocabulario de intervalos/acordes que se deja sin traducir).
     const NOMBRE_FIGURA = {
         es: { redonda: 'Redonda', blanca: 'Blanca', negra: 'Negra', corchea: 'Corchea', semicorchea: 'Semicorchea' },
         en: { redonda: 'Whole note', blanca: 'Half note', negra: 'Quarter note', corchea: 'Eighth note', semicorchea: 'Sixteenth note' },
     };
+    const NOMBRE_SILENCIO = {
+        es: { redonda: 'Silencio de redonda', blanca: 'Silencio de blanca', negra: 'Silencio de negra', corchea: 'Silencio de corchea', semicorchea: 'Silencio de semicorchea' },
+        en: { redonda: 'Whole rest', blanca: 'Half rest', negra: 'Quarter rest', corchea: 'Eighth rest', semicorchea: 'Sixteenth rest' },
+    };
 
-    // Pool de objetivos: cada uno es una combinación de 1-2 figuras "de
-    // referencia" que se muestran como el objetivo (íconos + nombres). Siempre
-    // existe al menos una combinación DISTINTA que suma lo mismo -- ninguno
-    // usa semicorchea sola como única referencia porque no habría forma de
-    // armar su valor (1) con una figura distinta a ella misma.
-    const REFERENCE_POOL = [
-        { valor: 4, figuras: ['negra'] },
-        { valor: 8, figuras: ['blanca'] },
-        { valor: 16, figuras: ['redonda'] },
-        { valor: 2, figuras: ['corchea'] },
-        { valor: 6, figuras: ['negra', 'corchea'] },
-        { valor: 12, figuras: ['blanca', 'negra'] },
-        { valor: 10, figuras: ['blanca', 'corchea'] },
+    // Pool de compases: valor total en dieciseisavos + si exige al menos un
+    // silencio entre las piezas colocadas. Cubre varias métricas reales, no
+    // solo fracciones prolijas -- el compás es el ancla pedagógica, no un
+    // número inventado.
+    const COMPASES = [
+        { compas: '2/4', valor: 8, requiereSilencio: false },
+        { compas: '3/4', valor: 12, requiereSilencio: false },
+        { compas: '4/4', valor: 16, requiereSilencio: false },
+        { compas: '5/8', valor: 10, requiereSilencio: false },
+        { compas: '2/8', valor: 4, requiereSilencio: true },
+        { compas: '3/8', valor: 6, requiereSilencio: true },
+        { compas: '6/8', valor: 12, requiereSilencio: true },
     ];
-
-    function mcd(a, b) { return b === 0 ? a : mcd(b, a % b); }
-    function fraccionDe16(valor) {
-        const divisor = mcd(valor, 16);
-        return { num: valor / divisor, den: 16 / divisor };
-    }
-
-    function contarTipos(listaTipos) {
-        const conteo = {};
-        listaTipos.forEach(function (t) { conteo[t] = (conteo[t] || 0) + 1; });
-        return conteo;
-    }
-
-    function mismoConteo(a, b) {
-        const clavesA = Object.keys(a), clavesB = Object.keys(b);
-        if (clavesA.length !== clavesB.length) return false;
-        return clavesA.every(function (k) { return a[k] === b[k]; });
-    }
 
     function barajar(arr) {
         const copia = arr.slice();
@@ -927,7 +912,7 @@
     function objetivosParaTanda(cantidad) {
         let resultado = [];
         while (resultado.length < cantidad) {
-            resultado = resultado.concat(barajar(REFERENCE_POOL));
+            resultado = resultado.concat(barajar(COMPASES));
         }
         return resultado.slice(0, cantidad);
     }
@@ -936,7 +921,11 @@
         // Hecho a mano en vez de un glifo Unicode de música (𝅘𝅥𝅮/♩/etc.) -- mismo
         // motivo ya confirmado en este sitio para las banderas del selector de
         // idioma: el renderizado de esos glifos no es confiable entre sistemas.
-        const hueca = tipo === 'redonda';
+        // Redonda Y Blanca son huecas (whole/half note) -- solo Negra/Corchea/
+        // Semicorchea tienen cabeza rellena. Un bug real de la primera versión
+        // dibujaba la Blanca con cabeza rellena (idéntica a la Negra, solo con
+        // la misma plica) -- confirmado por el usuario viendo la app real.
+        const hueca = tipo === 'redonda' || tipo === 'blanca';
         const conPlica = tipo !== 'redonda';
         let corchetes = '';
         if (tipo === 'corchea') {
@@ -951,6 +940,36 @@
             + (hueca ? 'fill="none" stroke="currentColor" stroke-width="2.5"' : 'fill="currentColor"')
             + '/>'
             + corchetes
+            + '</svg>';
+    }
+
+    function svgSilencio(tipo) {
+        // Silencios simplificados, pero visualmente distintos entre sí y de
+        // las figuras (sin óvalo de cabeza) -- redonda/blanca son un bloque
+        // relleno colgando/apoyado sobre una línea de referencia (la
+        // convención real: el de redonda cuelga DEBAJO de la línea, el de
+        // blanca se apoya ENCIMA); negra es un garabato en zigzag; corchea y
+        // semicorchea son un trazo diagonal con uno o dos "ganchos".
+        if (tipo === 'redonda' || tipo === 'blanca') {
+            const enredonda = tipo === 'redonda';
+            return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
+                + '<line x1="7" y1="30" x2="27" y2="30" stroke="currentColor" stroke-width="2"/>'
+                + '<rect x="10" y="' + (enredonda ? '30' : '23') + '" width="14" height="7" fill="currentColor"/>'
+                + '</svg>';
+        }
+        if (tipo === 'negra') {
+            return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
+                + '<path d="M15 8 L21 20 L13 27 L21 34 L11 44 L19 52" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/>'
+                + '</svg>';
+        }
+        // corchea / semicorchea
+        let ganchos = '<circle cx="20" cy="16" r="3.2" fill="currentColor"/>';
+        if (tipo === 'semicorchea') {
+            ganchos += '<circle cx="15" cy="27" r="3.2" fill="currentColor"/>';
+        }
+        return '<svg viewBox="0 0 34 60" width="26" height="46" aria-hidden="true">'
+            + ganchos
+            + '<line x1="20" y1="16" x2="10" y2="50" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'
             + '</svg>';
     }
 
@@ -981,26 +1000,13 @@
 
         let objetivos = [];
         let indiceProblema = 0;
-        let objetivoActual = null; // { valor, figuras }
-        let piezasColocadas = []; // [{ tipo, valor, id }]
+        let objetivoActual = null; // { compas, valor, requiereSilencio }
+        let piezasColocadas = []; // [{ tipo, valor, silencio, id }]
         let contadorIds = 0;
         let resolviendo = false;
 
         function sumaActual() {
             return piezasColocadas.reduce(function (acc, p) { return acc + p.valor; }, 0);
-        }
-
-        function renderObjetivo(ref) {
-            let html = '<div class="ritmo-gab__objetivo-figuras">';
-            ref.figuras.forEach(function (tipo, i) {
-                if (i > 0) html += '<span class="ritmo-gab__objetivo-mas">+</span>';
-                html += '<span class="ritmo-gab__objetivo-figura">' + svgFigura(tipo)
-                    + '<span class="ritmo-gab__objetivo-figura-nombre">' + NOMBRE_FIGURA[idioma][tipo] + '</span></span>';
-            });
-            html += '</div>';
-            const f = fraccionDe16(ref.valor);
-            html += '<p class="ritmo-gab__objetivo-fraccion">' + (f.num === f.den ? data.txtEquivaleEntera : fmt(data.txtEquivaleFraccion, { num: f.num, den: f.den })) + '</p>';
-            divObjetivo.innerHTML = html;
         }
 
         function actualizarZona() {
@@ -1009,16 +1015,14 @@
             divBarra.style.width = porcentaje + '%';
             divSuma.textContent = suma === 0 ? '' : fmt(data.txtPorcentaje, { porcentaje: porcentaje });
 
-            divZona.classList.remove('ritmo-gab__zona--exacto', 'ritmo-gab__zona--pasado', 'ritmo-gab__zona--repetido');
+            divZona.classList.remove('ritmo-gab__zona--exacto', 'ritmo-gab__zona--pasado', 'ritmo-gab__zona--aviso');
             if (suma === objetivoActual.valor) {
-                // Sumar bien no alcanza -- tiene que ser una combinación de
-                // figuras DISTINTA a la que ya se ve arriba (si no, "resolver"
-                // el ejercicio era simplemente repetir la misma figura que ya
-                // estaba mostrada N veces, sin demostrar ninguna equivalencia).
-                const igual = mismoConteo(contarTipos(piezasColocadas.map(function (p) { return p.tipo; })), contarTipos(objetivoActual.figuras));
-                if (igual) {
-                    divZona.classList.add('ritmo-gab__zona--repetido');
-                    divSuma.textContent = data.txtRepetido;
+                // Sumar bien no alcanza si el compás pide silencio -- tiene que
+                // haber al menos una pieza de tipo silencio entre las colocadas.
+                const tieneSilencio = piezasColocadas.some(function (p) { return p.silencio; });
+                if (objetivoActual.requiereSilencio && !tieneSilencio) {
+                    divZona.classList.add('ritmo-gab__zona--aviso');
+                    divSuma.textContent = data.txtFaltaSilencio;
                 } else {
                     divZona.classList.add('ritmo-gab__zona--exacto');
                     resolverProblema();
@@ -1028,23 +1032,23 @@
             }
         }
 
-        function crearChip(tipo, enBanco) {
+        function crearChip(tipo, silencio, enBanco) {
             const chip = document.createElement('div');
-            chip.className = 'ritmo-gab__pieza' + (enBanco ? ' ritmo-gab__pieza--banco' : '');
-            chip.innerHTML = svgFigura(tipo);
+            chip.className = 'ritmo-gab__pieza' + (enBanco ? ' ritmo-gab__pieza--banco' : '') + (silencio ? ' ritmo-gab__pieza--silencio' : '');
+            chip.innerHTML = silencio ? svgSilencio(tipo) : svgFigura(tipo);
             const nombre = document.createElement('span');
             nombre.className = 'ritmo-gab__pieza-nombre';
-            nombre.textContent = NOMBRE_FIGURA[idioma][tipo];
+            nombre.textContent = (silencio ? NOMBRE_SILENCIO : NOMBRE_FIGURA)[idioma][tipo];
             chip.appendChild(nombre);
             return chip;
         }
 
-        function agregarPieza(tipo, valor) {
+        function agregarPieza(tipo, valor, silencio) {
             const id = ++contadorIds;
-            piezasColocadas.push({ tipo: tipo, valor: valor, id: id });
-            const chip = crearChip(tipo, false);
+            piezasColocadas.push({ tipo: tipo, valor: valor, silencio: silencio, id: id });
+            const chip = crearChip(tipo, silencio, false);
             chip.dataset.piezaId = id;
-            chip.addEventListener('pointerdown', function (ev) { empezarArrastre(ev, 'zona', tipo, valor, id); });
+            chip.addEventListener('pointerdown', function (ev) { empezarArrastre(ev, 'zona', tipo, valor, silencio, id); });
             divPiezasZona.appendChild(chip);
             actualizarZona();
         }
@@ -1065,12 +1069,12 @@
         let arrastrando = null;
         let arrastreConMovimiento = false;
 
-        function empezarArrastre(ev, origen, tipo, valor, piezaId) {
+        function empezarArrastre(ev, origen, tipo, valor, silencio, piezaId) {
             ev.preventDefault();
-            const fantasma = crearChip(tipo, false);
+            const fantasma = crearChip(tipo, silencio, false);
             fantasma.classList.add('ritmo-gab__pieza--fantasma');
             document.body.appendChild(fantasma);
-            arrastrando = { origen: origen, tipo: tipo, valor: valor, piezaId: piezaId, fantasma: fantasma };
+            arrastrando = { origen: origen, tipo: tipo, valor: valor, silencio: silencio, piezaId: piezaId, fantasma: fantasma };
             arrastreConMovimiento = false;
             moverFantasma(ev.clientX, ev.clientY);
         }
@@ -1092,12 +1096,12 @@
 
             if (!arrastreConMovimiento) {
                 if (info.origen === 'zona') quitarPieza(info.piezaId);
-                else if (info.origen === 'banco') agregarPieza(info.tipo, info.valor);
+                else if (info.origen === 'banco') agregarPieza(info.tipo, info.valor, info.silencio);
                 return;
             }
 
             if (info.origen === 'banco' && sobreZona) {
-                agregarPieza(info.tipo, info.valor);
+                agregarPieza(info.tipo, info.valor, info.silencio);
             } else if (info.origen === 'zona' && !sobreZona) {
                 quitarPieza(info.piezaId);
             }
@@ -1113,18 +1117,39 @@
             terminarArrastre(ev.clientX, ev.clientY);
         });
 
+        function poblarGrupoBanco(contenedor, silencio) {
+            FIGURAS.forEach(function (fig) {
+                const chip = crearChip(fig.tipo, silencio, true);
+                chip.addEventListener('pointerdown', function (ev) { empezarArrastre(ev, 'banco', fig.tipo, fig.valor, silencio, null); });
+                contenedor.appendChild(chip);
+            });
+        }
+
         function poblarBanco() {
             divBanco.innerHTML = '';
-            FIGURAS.forEach(function (fig) {
-                const chip = crearChip(fig.tipo, true);
-                const f = fraccionDe16(fig.valor);
-                const etiqueta = document.createElement('span');
-                etiqueta.className = 'ritmo-gab__pieza-etiqueta';
-                etiqueta.textContent = f.num === f.den ? '1' : (f.num + '/' + f.den);
-                chip.appendChild(etiqueta);
-                chip.addEventListener('pointerdown', function (ev) { empezarArrastre(ev, 'banco', fig.tipo, fig.valor, null); });
-                divBanco.appendChild(chip);
-            });
+            const grupoFiguras = document.createElement('div');
+            grupoFiguras.className = 'ritmo-gab__banco-grupo';
+            const tituloFiguras = document.createElement('p');
+            tituloFiguras.className = 'ritmo-gab__banco-titulo';
+            tituloFiguras.textContent = data.txtGrupoFiguras;
+            grupoFiguras.appendChild(tituloFiguras);
+            const filaFiguras = document.createElement('div');
+            filaFiguras.className = 'ritmo-gab__banco-fila';
+            poblarGrupoBanco(filaFiguras, false);
+            grupoFiguras.appendChild(filaFiguras);
+            divBanco.appendChild(grupoFiguras);
+
+            const grupoSilencios = document.createElement('div');
+            grupoSilencios.className = 'ritmo-gab__banco-grupo';
+            const tituloSilencios = document.createElement('p');
+            tituloSilencios.className = 'ritmo-gab__banco-titulo';
+            tituloSilencios.textContent = data.txtGrupoSilencios;
+            grupoSilencios.appendChild(tituloSilencios);
+            const filaSilencios = document.createElement('div');
+            filaSilencios.className = 'ritmo-gab__banco-fila';
+            poblarGrupoBanco(filaSilencios, true);
+            grupoSilencios.appendChild(filaSilencios);
+            divBanco.appendChild(grupoSilencios);
         }
 
         function siguienteProblema() {
@@ -1135,8 +1160,8 @@
             objetivoActual = objetivos[indiceProblema];
             piezasColocadas = [];
             divPiezasZona.innerHTML = '';
-            divZona.classList.remove('ritmo-gab__zona--exacto', 'ritmo-gab__zona--pasado', 'ritmo-gab__zona--repetido');
-            renderObjetivo(objetivoActual);
+            divZona.classList.remove('ritmo-gab__zona--exacto', 'ritmo-gab__zona--pasado', 'ritmo-gab__zona--aviso');
+            divObjetivo.textContent = fmt(objetivoActual.requiereSilencio ? data.txtFormarConSilencio : data.txtFormarLibre, { compas: objetivoActual.compas });
             divProgreso.textContent = fmt(data.txtProgreso, { actual: indiceProblema + 1, total: objetivos.length });
             actualizarZona();
         }

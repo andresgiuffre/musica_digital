@@ -818,13 +818,7 @@ body.gabinete .pdir-gab__resumen-texto { font-weight: 600; margin-bottom: 0.75re
 
 /* ---------- Ritmo matemático (bloque de Cursos, tema_detail) ---------- */
 body.gabinete .ritmo-gab__progreso { color: var(--ink-soft); font-size: 0.875rem; margin: 0 0 0.25rem; }
-
-body.gabinete .ritmo-gab__objetivo { margin: 0 0 1rem; text-align: center; }
-body.gabinete .ritmo-gab__objetivo-figuras { display: flex; align-items: center; justify-content: center; gap: 0.75rem; flex-wrap: wrap; }
-body.gabinete .ritmo-gab__objetivo-figura { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; color: var(--ink); }
-body.gabinete .ritmo-gab__objetivo-figura-nombre { font-weight: 600; font-size: 0.9375rem; }
-body.gabinete .ritmo-gab__objetivo-mas { font-size: 1.25rem; color: var(--ink-soft); font-weight: 600; }
-body.gabinete .ritmo-gab__objetivo-fraccion { font-size: 0.8125rem; color: var(--ink-soft); margin: 0.35rem 0 0; }
+body.gabinete .ritmo-gab__objetivo { font-weight: 600; font-size: 1.0625rem; color: var(--ink); margin: 0 0 1rem; }
 
 body.gabinete .ritmo-gab__zona {
     background: var(--bg); border: 2px dashed var(--line); border-radius: var(--radius-data);
@@ -832,16 +826,16 @@ body.gabinete .ritmo-gab__zona {
 }
 body.gabinete .ritmo-gab__zona--exacto { border-color: var(--green); border-style: solid; box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 30%, transparent); }
 body.gabinete .ritmo-gab__zona--pasado { border-color: var(--danger); }
-body.gabinete .ritmo-gab__zona--repetido { border-color: var(--ochre); }
+body.gabinete .ritmo-gab__zona--aviso { border-color: var(--ochre); }
 
 body.gabinete .ritmo-gab__zona-barra { height: 10px; border-radius: 999px; background: var(--surface); overflow: hidden; margin-bottom: 0.5rem; }
 body.gabinete .ritmo-gab__zona-barra-fill { height: 100%; width: 0; background: var(--primary); transition: width 0.2s ease; border-radius: 999px; }
 body.gabinete .ritmo-gab__zona--exacto .ritmo-gab__zona-barra-fill { background: var(--green); }
 body.gabinete .ritmo-gab__zona--pasado .ritmo-gab__zona-barra-fill { background: var(--danger); }
-body.gabinete .ritmo-gab__zona--repetido .ritmo-gab__zona-barra-fill { background: var(--ochre); }
+body.gabinete .ritmo-gab__zona--aviso .ritmo-gab__zona-barra-fill { background: var(--ochre); }
 
 body.gabinete .ritmo-gab__zona-suma { text-align: center; font-size: 0.875rem; color: var(--ink-soft); min-height: 1.25em; margin: 0 0 0.5rem; }
-body.gabinete .ritmo-gab__zona--repetido .ritmo-gab__zona-suma { color: var(--ochre); font-weight: 600; }
+body.gabinete .ritmo-gab__zona--aviso .ritmo-gab__zona-suma { color: var(--ochre); font-weight: 600; }
 
 body.gabinete .ritmo-gab__zona-piezas {
     display: flex; flex-wrap: wrap; gap: 0.5rem; min-height: 62px;
@@ -849,9 +843,11 @@ body.gabinete .ritmo-gab__zona-piezas {
 }
 
 body.gabinete .ritmo-gab__banco {
-    display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center;
+    display: flex; flex-direction: column; gap: 1rem;
     padding: 1rem; border-radius: var(--radius-data); background: var(--surface); border: 1px solid var(--line);
 }
+body.gabinete .ritmo-gab__banco-titulo { font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft); text-align: center; margin: 0 0 0.5rem; text-transform: uppercase; letter-spacing: 0.03em; }
+body.gabinete .ritmo-gab__banco-fila { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; }
 
 body.gabinete .ritmo-gab__pieza {
     color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
@@ -862,7 +858,6 @@ body.gabinete .ritmo-gab__zona-piezas .ritmo-gab__pieza { background: var(--scor
 body.gabinete .ritmo-gab__pieza--banco:active { cursor: grabbing; }
 body.gabinete .ritmo-gab__pieza--fantasma { position: fixed; top: 0; left: 0; z-index: 1000; pointer-events: none; opacity: 0.85; box-shadow: var(--shadow-lift); }
 body.gabinete .ritmo-gab__pieza-nombre { font-size: 0.75rem; font-weight: 600; }
-body.gabinete .ritmo-gab__pieza-etiqueta { font-size: 0.6875rem; color: var(--ink-soft); }
 body.gabinete .ritmo-gab__zona-piezas .ritmo-gab__pieza-nombre { font-size: 0.6875rem; }
 
 body.gabinete .ritmo-gab__resumen { text-align: center; }
