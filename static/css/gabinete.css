@@ -757,20 +757,20 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
 }
 
 /* ---------- Práctica dirigida (bloque de Cursos, tema_detail) ---------- */
-/* Compartida con Ritmo matemático y Completar el compás (mismo layout badge + botón Reiniciar). */
-body.gabinete .pdir-gab__cabecera, body.gabinete .ritmo-gab__cabecera, body.gabinete .compas-gab__cabecera {
+/* Compartida con Ritmo matemático, Completar el compás y Líneas y espacios (mismo layout badge + botón Reiniciar). */
+body.gabinete .pdir-gab__cabecera, body.gabinete .ritmo-gab__cabecera, body.gabinete .compas-gab__cabecera, body.gabinete .lineas-gab__cabecera {
     display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
     flex-wrap: wrap; margin-bottom: 1rem;
 }
-body.gabinete .pdir-gab__badge, body.gabinete .ritmo-gab__badge, body.gabinete .compas-gab__badge {
+body.gabinete .pdir-gab__badge, body.gabinete .ritmo-gab__badge, body.gabinete .compas-gab__badge, body.gabinete .lineas-gab__badge {
     display: inline-block;
     font-size: 0.8125rem;
     font-weight: 600;
     padding: 0.35rem 0.85rem;
     border-radius: 999px;
 }
-body.gabinete .pdir-gab__badge--completado, body.gabinete .ritmo-gab__badge--completado, body.gabinete .compas-gab__badge--completado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
-body.gabinete .pdir-gab__badge--progreso, body.gabinete .ritmo-gab__badge--progreso, body.gabinete .compas-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
+body.gabinete .pdir-gab__badge--completado, body.gabinete .ritmo-gab__badge--completado, body.gabinete .compas-gab__badge--completado, body.gabinete .lineas-gab__badge--completado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+body.gabinete .pdir-gab__badge--progreso, body.gabinete .ritmo-gab__badge--progreso, body.gabinete .compas-gab__badge--progreso, body.gabinete .lineas-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
 
 body.gabinete .pdir-gab__partitura {
     background-color: var(--score-paper); color: var(--score-ink); padding: 1.25rem 1.25rem 2.25rem;
@@ -920,4 +920,52 @@ body.gabinete .compas-gab__resumen-texto { font-weight: 600; margin-bottom: 0.75
 
 @media (max-width: 640px) {
     body.gabinete .compas-gab__opciones { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ---------- Ubicación de líneas y espacios (bloque de Cursos, tema_detail) ---------- */
+body.gabinete .lineas-gab__progreso { color: var(--ink-soft); font-size: 0.875rem; margin: 0 0 0.25rem; }
+body.gabinete .lineas-gab__consigna { font-weight: 600; font-size: 1.0625rem; color: var(--ink); margin: 0 0 1rem; }
+
+/* Mismos tokens --score-paper/--score-ink que cualquier otra superficie de
+   partitura del sitio, independiente del tema -- ver el mismo comentario en
+   .compas-gab__partitura. color:var(--score-ink) para que currentColor en el
+   SVG (líneas + números de conteo) herede el tinta correcta. */
+body.gabinete .lineas-gab__pentagrama {
+    background-color: var(--score-paper); color: var(--score-ink);
+    padding: 1rem 0.5rem; border-radius: var(--radius-data); margin-bottom: 1rem;
+}
+body.gabinete .lineas-gab__pentagrama svg { display: block; width: 100%; height: auto; max-width: 420px; margin: 0 auto; }
+/* El color de acento (verde/rojo/ochre) SÍ se usa directo acá, a diferencia
+   de --surface/--ink-soft -- son colores de acento saturados, no fondos
+   translúcidos pensados para tema oscuro, así que se leen bien también sobre
+   el papel blanco (mismo comentario que compas-gab__hueco). */
+body.gabinete .lineas-gab__marca { fill: var(--ochre); }
+body.gabinete .lineas-gab__pentagrama--ok .lineas-gab__marca { fill: var(--green); }
+body.gabinete .lineas-gab__pentagrama--error .lineas-gab__marca { fill: var(--danger); }
+
+body.gabinete .lineas-gab__estado { color: var(--ink-soft); text-align: center; padding: 1rem 0; }
+
+body.gabinete .lineas-gab__feedback { text-align: center; font-weight: 600; min-height: 1.5em; margin: 0 0 1rem; }
+body.gabinete .lineas-gab__feedback--ok { color: var(--green); }
+body.gabinete .lineas-gab__feedback--error { color: var(--danger); }
+
+/* Fila de arriba: 5 líneas. Fila de abajo: 4 espacios -- mismo criterio ya
+   aplicado en Completar el compás (figuras arriba, silencios abajo). Flexbox
+   (no grid de columnas fijas) para que la fila de 4 espacios no quede con un
+   hueco vacío al lado de la fila de 5 líneas. */
+body.gabinete .lineas-gab__opciones-fila { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.6rem; }
+body.gabinete .lineas-gab__opciones-fila:last-child { margin-bottom: 0; }
+body.gabinete .lineas-gab__opcion {
+    flex: 1 1 0;
+    color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 0.6rem 0.35rem; font-weight: 600; font-size: 0.875rem; cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+body.gabinete .lineas-gab__opcion:hover { border-color: var(--primary); transform: translateY(-2px); }
+
+body.gabinete .lineas-gab__resumen { text-align: center; }
+body.gabinete .lineas-gab__resumen-texto { font-weight: 600; margin-bottom: 0.75rem; }
+
+@media (max-width: 480px) {
+    body.gabinete .lineas-gab__opcion { flex: 1 1 40%; }
 }

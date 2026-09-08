@@ -1884,13 +1884,15 @@ def _bloque_completado(bloque, user):
     los endpoints de registrar/reiniciar. Devuelve True para cualquier tipo que
     no sea un ejercicio (nunca bloquea nada por sí solo).
     """
-    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso
+    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso, LineasEspaciosProgreso
     if bloque.tipo == BloqueContenido.PRACTICA_DIRIGIDA:
         progreso = PracticaDirigidaProgreso.objects.filter(user=user, bloque=bloque).first()
     elif bloque.tipo == BloqueContenido.RITMO_MATEMATICA:
         progreso = RitmoMatematicaProgreso.objects.filter(user=user, bloque=bloque).first()
     elif bloque.tipo == BloqueContenido.COMPLETAR_COMPAS:
         progreso = CompletarCompasProgreso.objects.filter(user=user, bloque=bloque).first()
+    elif bloque.tipo == BloqueContenido.LINEAS_ESPACIOS:
+        progreso = LineasEspaciosProgreso.objects.filter(user=user, bloque=bloque).first()
     else:
         return True
     return bool(progreso and progreso.completado)
@@ -1899,9 +1901,12 @@ def _bloque_completado(bloque, user):
 def _tipos_ejercicio():
     """Único lugar que enumera qué tipos de BloqueContenido participan del
     bloqueo secuencial -- agregar un ejercicio nuevo a la progresión (ver
-    RITMO_MATEMATICA y COMPLETAR_COMPAS) es sumarlo acá, nada más."""
+    RITMO_MATEMATICA, COMPLETAR_COMPAS y LINEAS_ESPACIOS) es sumarlo acá, nada más."""
     from .models import BloqueContenido
-    return (BloqueContenido.PRACTICA_DIRIGIDA, BloqueContenido.RITMO_MATEMATICA, BloqueContenido.COMPLETAR_COMPAS)
+    return (
+        BloqueContenido.PRACTICA_DIRIGIDA, BloqueContenido.RITMO_MATEMATICA,
+        BloqueContenido.COMPLETAR_COMPAS, BloqueContenido.LINEAS_ESPACIOS,
+    )
 
 
 def _bloque_desbloqueado(bloque, user):
@@ -1924,7 +1929,7 @@ def _bloque_desbloqueado(bloque, user):
 
 @login_required
 def tema_detail(request, curso_id, grado_numero, tema_slug):
-    from .models import Curso, Grado, Tema, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso
+    from .models import Curso, Grado, Tema, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso, LineasEspaciosProgreso
     from .services import render_markdown_seguro
 
     curso = get_object_or_404(Curso, id=curso_id, activo=True)
@@ -1965,6 +1970,9 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
         elif bloque.tipo == bloque.COMPLETAR_COMPAS:
             bloque.bloqueado = not _bloque_desbloqueado(bloque, request.user)
             bloque.progreso_usuario = CompletarCompasProgreso.objects.filter(user=request.user, bloque=bloque).first()
+        elif bloque.tipo == bloque.LINEAS_ESPACIOS:
+            bloque.bloqueado = not _bloque_desbloqueado(bloque, request.user)
+            bloque.progreso_usuario = LineasEspaciosProgreso.objects.filter(user=request.user, bloque=bloque).first()
 
     response = render(request, 'trainer/tema_detail.html', {
         'curso': curso, 'grado': grado, 'tema': tema, 'bloques': bloques,
@@ -2181,6 +2189,37 @@ def bloque_completar_compas_registrar(request, bloque_id):
 
 
 @login_required
+def bloque_lineas_espacios_registrar(request, bloque_id):
+    """
+    Registra la finalización de una tanda de Ubicación de líneas y espacios --
+    mismo espíritu/confianza que bloque_completar_compas_registrar: cada caso
+    es de elección única, así que llegar acá ya implica que resolvió los
+    bloque.lineas_problemas_requeridos casos de la tanda.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    from .models import BloqueContenido, LineasEspaciosProgreso
+
+    bloque = get_object_or_404(BloqueContenido, id=bloque_id, tipo=BloqueContenido.LINEAS_ESPACIOS)
+    if not _bloque_desbloqueado(bloque, request.user):
+        return JsonResponse({'status': 'error', 'message': 'Este ejercicio todavía está bloqueado.'}, status=403)
+
+    progreso, _ = LineasEspaciosProgreso.objects.get_or_create(user=request.user, bloque=bloque)
+    progreso.veces_practicado += 1
+    progreso.mejor_racha = max(progreso.mejor_racha, bloque.lineas_problemas_requeridos)
+    progreso.completado = True
+    progreso.save()
+
+    return JsonResponse({
+        'status': 'success',
+        'mejor_racha': progreso.mejor_racha,
+        'completado': progreso.completado,
+        'veces_practicado': progreso.veces_practicado,
+    })
+
+
+@login_required
 def bloque_progreso_reiniciar(request, bloque_id):
     """
     Reinicia el progreso propio de un bloque-ejercicio para "empezar de cero"
@@ -2200,7 +2239,7 @@ def bloque_progreso_reiniciar(request, bloque_id):
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
 
-    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso
+    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso, LineasEspaciosProgreso
 
     bloque = get_object_or_404(BloqueContenido, id=bloque_id)
     tipos = _tipos_ejercicio()
@@ -2213,8 +2252,10 @@ def bloque_progreso_reiniciar(request, bloque_id):
             PracticaDirigidaProgreso.objects.filter(user=request.user, bloque=b).delete()
         elif b.tipo == BloqueContenido.RITMO_MATEMATICA:
             RitmoMatematicaProgreso.objects.filter(user=request.user, bloque=b).delete()
-        else:
+        elif b.tipo == BloqueContenido.COMPLETAR_COMPAS:
             CompletarCompasProgreso.objects.filter(user=request.user, bloque=b).delete()
+        else:
+            LineasEspaciosProgreso.objects.filter(user=request.user, bloque=b).delete()
 
     return JsonResponse({'status': 'success'})
 

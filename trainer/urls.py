@@ -41,6 +41,7 @@ urlpatterns = [
     path('api/cursos/practica_dirigida/<int:bloque_id>/registrar/', views.practica_dirigida_registrar, name='practica_dirigida_registrar'),
     path('api/cursos/bloque/<int:bloque_id>/ritmo-matematica/registrar/', views.bloque_ritmo_matematica_registrar, name='bloque_ritmo_matematica_registrar'),
     path('api/cursos/bloque/<int:bloque_id>/completar-compas/registrar/', views.bloque_completar_compas_registrar, name='bloque_completar_compas_registrar'),
+    path('api/cursos/bloque/<int:bloque_id>/lineas-espacios/registrar/', views.bloque_lineas_espacios_registrar, name='bloque_lineas_espacios_registrar'),
     path('api/cursos/bloque/<int:bloque_id>/progreso/reiniciar/', views.bloque_progreso_reiniciar, name='bloque_progreso_reiniciar'),
     path('biblioteca/', views.biblioteca_list, name='biblioteca_list'),
     path('biblioteca/<int:score_id>/', views.biblioteca_play, name='biblioteca_play'),

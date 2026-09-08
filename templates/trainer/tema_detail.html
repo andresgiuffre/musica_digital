@@ -141,6 +141,8 @@
                 {% include 'trainer/_bloque_ritmo_matematica.html' %}
             {% elif bloque.tipo == 'COMPLETAR_COMPAS' %}
                 {% include 'trainer/_bloque_completar_compas.html' %}
+            {% elif bloque.tipo == 'LINEAS_ESPACIOS' %}
+                {% include 'trainer/_bloque_lineas_espacios.html' %}
             {% endif %}
         </div>
     {% empty %}
@@ -1616,6 +1618,245 @@
     }
 
     bloquesCompas.forEach(function (info) { initCompletarCompas(info.bloqueId); });
+})();
+
+(function () {
+    // "Ubicación de Líneas y Espacios" -- pentagrama neutro (5 líneas, SVG
+    // propio hecho a mano, sin OSMD -- no hace falta notación real, solo la
+    // geometría del pentagrama) con una marca (elipse, mismo estilo que una
+    // cabeza de nota) en una línea o un espacio al azar. Convención de conteo
+    // SIEMPRE de abajo hacia arriba: línea 1 es la más grave/baja, línea 5 la
+    // más aguda/alta; espacio 1 es el que está entre línea 1 y línea 2.
+    const bloquesLineas = [
+        {% for bloque in bloques %}
+        {% if bloque.tipo == 'LINEAS_ESPACIOS' and not bloque.bloqueado %}
+        { bloqueId: {{ bloque.id }} },
+        {% endif %}
+        {% endfor %}
+    ];
+    if (bloquesLineas.length === 0) return;
+
+    const { fmt } = window.RitmoCompartido;
+
+    // Coordenadas Y de cada línea/espacio dentro del viewBox del pentagrama
+    // (0 0 300 140) -- Y CRECE hacia abajo en SVG, así que línea 1 (la más
+    // grave/baja) tiene el Y más grande de todos.
+    const LINEA_Y = { 1: 110, 2: 90, 3: 70, 4: 50, 5: 30 };
+    const ESPACIO_Y = { 1: 100, 2: 80, 3: 60, 4: 40 };
+
+    // Los 9 casos posibles -- se arma cada tanda barajando y concatenando
+    // este pool las veces que hagan falta, mismo patrón que los ejercicios
+    // anteriores (objetivosParaTanda/casosParaTanda).
+    const CASOS = [
+        { tipo: 'linea', numero: 1 }, { tipo: 'linea', numero: 2 }, { tipo: 'linea', numero: 3 },
+        { tipo: 'linea', numero: 4 }, { tipo: 'linea', numero: 5 },
+        { tipo: 'espacio', numero: 1 }, { tipo: 'espacio', numero: 2 },
+        { tipo: 'espacio', numero: 3 }, { tipo: 'espacio', numero: 4 },
+    ];
+
+    function barajar(arr) {
+        const copia = arr.slice();
+        for (let i = copia.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = copia[i]; copia[i] = copia[j]; copia[j] = tmp;
+        }
+        return copia;
+    }
+
+    function casosParaTanda(cantidad) {
+        let resultado = [];
+        while (resultado.length < cantidad) {
+            resultado = resultado.concat(barajar(CASOS));
+        }
+        return resultado.slice(0, cantidad);
+    }
+
+    // mostrarConteo dibuja los números 1-5 (líneas, a la izquierda) y 1-4
+    // (espacios, a la derecha) -- la "forma correcta de contar" que se pide
+    // mostrar tras una respuesta incorrecta (ver responder()).
+    function construirSvgPentagrama(caso, mostrarConteo) {
+        let svg = '<svg viewBox="0 0 300 140" preserveAspectRatio="xMidYMid meet">';
+        [1, 2, 3, 4, 5].forEach(function (n) {
+            svg += '<line x1="40" y1="' + LINEA_Y[n] + '" x2="260" y2="' + LINEA_Y[n] + '" stroke="currentColor" stroke-width="1.5"/>';
+        });
+        if (mostrarConteo) {
+            [1, 2, 3, 4, 5].forEach(function (n) {
+                svg += '<text x="24" y="' + (LINEA_Y[n] + 4) + '" font-size="13" fill="currentColor" text-anchor="middle" font-weight="700">' + n + '</text>';
+            });
+            [1, 2, 3, 4].forEach(function (n) {
+                svg += '<text x="276" y="' + (ESPACIO_Y[n] + 4) + '" font-size="13" fill="currentColor" text-anchor="middle" font-weight="700" opacity="0.75">' + n + '</text>';
+            });
+        }
+        const y = caso.tipo === 'linea' ? LINEA_Y[caso.numero] : ESPACIO_Y[caso.numero];
+        svg += '<ellipse class="lineas-gab__marca" cx="150" cy="' + y + '" rx="15" ry="9" transform="rotate(-18 150 ' + y + ')"/>';
+        svg += '</svg>';
+        return svg;
+    }
+
+    function initLineasEspacios(bloqueId) {
+        const contenedor = document.getElementById('lineas-bloque-' + bloqueId);
+        if (!contenedor || !contenedor.dataset.registrarUrl) return; // bloqueado -- nada que inicializar
+
+        const data = contenedor.dataset;
+        const totalProblemas = parseInt(data.problemasRequeridos, 10) || 5;
+
+        const divProgreso = document.getElementById('lineas-progreso-' + bloqueId);
+        const divConsigna = document.getElementById('lineas-consigna-' + bloqueId);
+        const divPentagrama = document.getElementById('lineas-pentagrama-' + bloqueId);
+        const divFeedback = document.getElementById('lineas-feedback-' + bloqueId);
+        const divOpciones = document.getElementById('lineas-opciones-' + bloqueId);
+        const divResumen = document.getElementById('lineas-resumen-' + bloqueId);
+        const textoResumen = document.getElementById('lineas-resumen-texto-' + bloqueId);
+        const btnReintentar = document.getElementById('lineas-reintentar-' + bloqueId);
+        const divBadge = document.getElementById('lineas-badge-' + bloqueId);
+
+        let yaEstabaCompletado = divBadge.classList.contains('lineas-gab__badge--completado');
+
+        let casos = [];
+        let indiceProblema = 0;
+        let casoActual = null;
+        let resolviendo = false;
+
+        function poblarOpciones() {
+            divOpciones.innerHTML = '';
+            // Fila de arriba: las 5 líneas. Fila de abajo: los 4 espacios --
+            // mismo criterio ya aplicado en Completar el compás (figuras
+            // arriba, silencios abajo), agrupado y sin mezclar.
+            const grupoLineas = document.createElement('div');
+            grupoLineas.className = 'lineas-gab__opciones-fila';
+            [1, 2, 3, 4, 5].forEach(function (n) {
+                const boton = document.createElement('button');
+                boton.type = 'button';
+                boton.className = 'lineas-gab__opcion';
+                boton.textContent = fmt(data.txtOpcionLinea, { n: n });
+                boton.addEventListener('click', function () { responder('linea', n); });
+                grupoLineas.appendChild(boton);
+            });
+            divOpciones.appendChild(grupoLineas);
+
+            const grupoEspacios = document.createElement('div');
+            grupoEspacios.className = 'lineas-gab__opciones-fila';
+            [1, 2, 3, 4].forEach(function (n) {
+                const boton = document.createElement('button');
+                boton.type = 'button';
+                boton.className = 'lineas-gab__opcion';
+                boton.textContent = fmt(data.txtOpcionEspacio, { n: n });
+                boton.addEventListener('click', function () { responder('espacio', n); });
+                grupoEspacios.appendChild(boton);
+            });
+            divOpciones.appendChild(grupoEspacios);
+        }
+
+        function renderPentagrama(mostrarConteo) {
+            divPentagrama.innerHTML = construirSvgPentagrama(casoActual, mostrarConteo);
+            divPentagrama.classList.remove('lineas-gab__pentagrama--ok', 'lineas-gab__pentagrama--error');
+        }
+
+        function siguienteProblema() {
+            if (indiceProblema >= totalProblemas) {
+                terminarTanda();
+                return;
+            }
+            casoActual = casos[indiceProblema];
+            divProgreso.textContent = fmt(data.txtProgreso, { actual: indiceProblema + 1, total: totalProblemas });
+            divConsigna.textContent = data.txtConsigna;
+            divFeedback.style.display = 'none';
+            renderPentagrama(false);
+        }
+
+        function responder(tipoElegido, numeroElegido) {
+            if (resolviendo || !casoActual) return;
+            const esCorrecto = tipoElegido === casoActual.tipo && numeroElegido === casoActual.numero;
+            divFeedback.style.display = '';
+            divFeedback.classList.remove('lineas-gab__feedback--ok', 'lineas-gab__feedback--error');
+
+            if (esCorrecto) {
+                resolviendo = true;
+                divFeedback.classList.add('lineas-gab__feedback--ok');
+                divFeedback.textContent = data.txtCorrecto;
+                divPentagrama.classList.add('lineas-gab__pentagrama--ok');
+                setTimeout(function () {
+                    resolviendo = false;
+                    indiceProblema++;
+                    siguienteProblema();
+                }, 900);
+            } else {
+                divFeedback.classList.add('lineas-gab__feedback--error');
+                divFeedback.textContent = data.txtIncorrecto;
+                // Reconstruye el pentagrama con el conteo de ayuda visible --
+                // se mantiene mostrado hasta que acierte este mismo caso o
+                // pase al siguiente (siguienteProblema() vuelve a ocultarlo).
+                renderPentagrama(true);
+                divPentagrama.classList.add('lineas-gab__pentagrama--error');
+            }
+        }
+
+        function terminarTanda() {
+            divPentagrama.style.display = 'none';
+            divProgreso.style.display = 'none';
+            divConsigna.style.display = 'none';
+            divOpciones.style.display = 'none';
+            divFeedback.style.display = 'none';
+            divResumen.style.display = '';
+            textoResumen.textContent = fmt(data.txtResultado, { total: totalProblemas });
+
+            fetch(data.registrarUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': data.csrf },
+                body: JSON.stringify({}),
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (resultado) {
+                    if (resultado.status !== 'success') return;
+                    divBadge.classList.remove('lineas-gab__badge--progreso', 'lineas-gab__badge--completado');
+                    if (resultado.completado) {
+                        divBadge.classList.add('lineas-gab__badge--completado');
+                        divBadge.textContent = fmt(data.txtCompletado, { racha: resultado.mejor_racha });
+                    } else {
+                        divBadge.classList.add('lineas-gab__badge--progreso');
+                        divBadge.textContent = fmt(data.txtNoCompletado, { veces: resultado.veces_practicado });
+                    }
+                    divBadge.style.display = '';
+
+                    // Mismo criterio que los ejercicios anteriores: recién acá
+                    // se completó por primera vez en esta sesión.
+                    if (resultado.completado && !yaEstabaCompletado) {
+                        textoResumen.textContent += ' ' + data.txtDesbloqueado;
+                        setTimeout(function () { location.reload(); }, 1500);
+                    }
+                    yaEstabaCompletado = resultado.completado;
+                })
+                .catch(function (err) { console.error('[lineas-espacios] Error registrando resultado:', err); });
+        }
+
+        function empezar() {
+            casos = casosParaTanda(totalProblemas);
+            indiceProblema = 0;
+            divPentagrama.style.display = '';
+            divProgreso.style.display = '';
+            divConsigna.style.display = '';
+            divOpciones.style.display = '';
+            divResumen.style.display = 'none';
+            siguienteProblema();
+        }
+
+        poblarOpciones();
+        btnReintentar.addEventListener('click', empezar);
+        // Si ya estaba completado de una sesión anterior, no arranca solo una
+        // tanda nueva -- mismo criterio que los otros ejercicios.
+        if (yaEstabaCompletado) {
+            divPentagrama.style.display = 'none';
+            divProgreso.style.display = 'none';
+            divConsigna.style.display = 'none';
+            divOpciones.style.display = 'none';
+            divResumen.style.display = '';
+            textoResumen.textContent = data.txtYaCompletado;
+        } else {
+            empezar();
+        }
+    }
+
+    bloquesLineas.forEach(function (info) { initLineasEspacios(info.bloqueId); });
 })();
 </script>
 {% endblock %}
