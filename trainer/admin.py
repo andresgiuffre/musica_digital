@@ -69,7 +69,11 @@ class BloqueContenidoInline(admin.StackedInline):
             ),
             'classes': ('collapse',),
         }),
-        ('Práctica', {'fields': ('practica_texto', 'practica_texto_en', 'practica_url', 'practica_url_en'), 'classes': ('collapse',)}),
+        # Sin fieldset "Práctica" (practica_texto/practica_url) a propósito --
+        # confirmado con el usuario que ese tipo simple de link-a-otra-página
+        # no se usa. Se deja el campo/tipo en el modelo sin tocar (ver
+        # BloqueContenido.TIPOS_LECTURA) por si algún bloque viejo ya lo tiene
+        # cargado, pero ya no se ofrece para contenido nuevo.
         ('Imagen', {'fields': ('imagen', 'imagen_en', 'contexto_imagen', 'contexto_imagen_en'), 'classes': ('collapse',)}),
         ('Video', {
             'fields': (
@@ -78,29 +82,30 @@ class BloqueContenidoInline(admin.StackedInline):
             ),
             'classes': ('collapse',),
         }),
-        ('Práctica dirigida', {
+        ('[G0] Práctica dirigida', {
             'fields': ('musicxml_practica', 'modo_practica', 'precision_minima'),
             'classes': ('collapse',),
         }),
-        ('Ritmo matemático', {
+        ('[G0] Ritmo matemático', {
             'fields': ('ritmo_problemas_requeridos',),
             'classes': ('collapse',),
         }),
-        ('Completar el compás', {
+        ('[G0] Completar el compás', {
             'fields': ('compas_problemas_requeridos',),
             'classes': ('collapse',),
         }),
-        ('Ubicación de líneas y espacios', {
+        ('[G0] Ubicación de líneas y espacios', {
             'fields': ('lineas_problemas_requeridos',),
             'classes': ('collapse',),
         }),
     )
 
     class Media:
-        # Filtra las opciones de "tipo" de cada bloque segun el "Tipo de Tema"
-        # (Lectura/Practica) elegido en el formulario del Tema -- ver el
-        # archivo para el detalle y por que esta duplicado a mano con
-        # BloqueContenido.TIPOS_LECTURA/TIPOS_PRACTICA.
+        # Filtra tanto las opciones del <select> "tipo" de cada bloque como los
+        # fieldsets colapsables (Texto/Imagen/Video/... vs. [G0] Práctica
+        # dirigida/...) segun el "Tipo de Tema" (Lectura/Practica) elegido en
+        # el formulario del Tema -- ver el archivo para el detalle y por que
+        # esta duplicado a mano con BloqueContenido.TIPOS_LECTURA/TIPOS_PRACTICA.
         js = ('admin/js/tema_bloques_tipo.js',)
 
 
