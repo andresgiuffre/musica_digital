@@ -20,7 +20,11 @@
        (biblioteca_play, orquestacion_ejercicio). */
     .bloque-gab__partitura { background: var(--score-paper); color: var(--score-ink); padding: 1.25rem; border-radius: var(--radius-data); overflow-x: auto; }
     .bloque-gab__contexto { color: var(--ink-soft); font-size: 0.9375rem; margin: 0 0 1rem; }
-    .bloque-gab__imagen { max-width: 100%; height: auto; display: block; border-radius: var(--radius-data); }
+    /* cursor/hover de "clickeable" -- el gesto real (abrir en grande) lo maneja
+       el lightbox más abajo (ver CSS/JS de .lightbox-gab), acá solo la señal
+       visual de que la imagen responde al click. */
+    .bloque-gab__imagen { max-width: 100%; height: auto; display: block; border-radius: var(--radius-data); cursor: zoom-in; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .bloque-gab__imagen:hover { transform: scale(1.01); box-shadow: var(--shadow-hover); }
     .bloque-gab__video { width: 100%; display: block; border-radius: var(--radius-data); background: #000; }
     /* Caja 16:9 responsive para el iframe de YouTube/Vimeo -- el iframe no tiene
        tamaño intrínseco propio, así que se posiciona absoluto dentro de esta caja
@@ -70,7 +74,8 @@
     .tema-contenido-markdown code { font-family: 'IBM Plex Mono', ui-monospace, monospace; background: var(--bg); padding: 0.15rem 0.35rem; border-radius: 3px; font-size: 0.875em; }
     .tema-contenido-markdown pre code { background: none; padding: 0; }
     .tema-contenido-markdown hr { margin: 1.5rem 0; border: none; border-top: 1px solid var(--line); }
-    .tema-contenido-markdown img { max-width: 100%; height: auto; display: block; margin: 0 0 1rem; border-radius: var(--radius-data); }
+    .tema-contenido-markdown img { max-width: 100%; height: auto; display: block; margin: 0 0 1rem; border-radius: var(--radius-data); cursor: zoom-in; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .tema-contenido-markdown img:hover { transform: scale(1.01); box-shadow: var(--shadow-hover); }
     /* Tablas de Markdown (extensión 'tables'): el style="text-align:..." que
        genera la sintaxis ':---:' de alineación se saca en render_markdown_seguro()
        (nh3 no permite el atributo style, ver el comentario ahí) -- las columnas
@@ -78,7 +83,41 @@
     .tema-contenido-markdown table { margin: 0 0 1rem; border-collapse: collapse; width: 100%; }
     .tema-contenido-markdown th, .tema-contenido-markdown td { padding: 0.5rem 0.75rem; border: 1px solid var(--line); text-align: left; }
     .tema-contenido-markdown th { background: var(--bg); font-family: var(--font-display); font-weight: 500; }
-    .tema-contenido-markdown pre code { background: none; padding: 0; }
+
+    /* ---------- Lightbox de imágenes (Imagen + imágenes embebidas en Texto) ----------
+       Técnica FLIP (First-Last-Invert-Play): el JS clona la imagen clickeada, la
+       posiciona -- sin transición -- exactamente encima del original (mismo
+       rect, vía getBoundingClientRect), y recién ahí dispara la transición hacia
+       el tamaño/posición final centrados. Al cerrar se anima de vuelta al rect
+       ACTUAL del original (recalculado en ese momento, no el de la apertura --
+       cubre el caso de que la página se haya scrolleado mientras estaba
+       abierto). El fondo oscuro es una transición de opacidad aparte, en
+       paralelo -- no ata su duración a la del movimiento de la imagen. */
+    .lightbox-gab {
+        position: fixed;
+        inset: 0;
+        z-index: 3000;
+        background: rgba(2, 4, 12, 0.9);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+    }
+    .lightbox-gab--activo {
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.3s ease;
+    }
+    .lightbox-gab__img {
+        position: fixed;
+        border-radius: var(--radius-data);
+        box-shadow: var(--shadow-lift);
+        cursor: zoom-out;
+        object-fit: contain;
+        will-change: top, left, width, height;
+    }
+    /* Mientras el lightbox está abierto, el resto de la página no scrollea --
+       el usuario está mirando la imagen grande, no el contenido detrás. */
+    body.lightbox-gab-abierto { overflow: hidden; }
 </style>
 {% endblock %}
 
@@ -257,6 +296,107 @@
                 contenedor.textContent = document.querySelector('.envoltorio-gab').dataset.txtErrorPartitura;
                 console.error('[cursos] Error cargando ejemplo de partitura:', err);
             });
+    });
+})();
+
+(function () {
+    // Lightbox de imagenes -- cubre tanto los bloques tipo Imagen
+    // (.bloque-gab__imagen) como las imagenes embebidas en Markdown dentro de
+    // bloques Texto (.tema-contenido-markdown img), via un solo listener
+    // delegado a nivel document -- no hace falta agregar clases nuevas al
+    // Markdown renderizado ni tocar cada <img>.
+    //
+    // Tecnica FLIP (First-Last-Invert-Play), ver tambien el CSS de
+    // .lightbox-gab*: se clona la imagen clickeada, se la posiciona SIN
+    // transicion exactamente encima del rect real de la imagen original
+    // (getBoundingClientRect), se fuerza un reflow, y recien ahi se dispara
+    // la transicion hacia el tamaño/posicion final (centrado, lo mas grande
+    // posible respetando el viewport). Al cerrar se anima de vuelta al rect
+    // ACTUAL del origen (recalculado en ese momento, no el de la apertura --
+    // cubre el caso de que la pagina se haya scrolleado mientras el lightbox
+    // estaba abierto, para que "vuelva a su lugar" de verdad).
+    const SELECTOR_IMAGENES = '.bloque-gab__imagen, .tema-contenido-markdown img';
+    const DURACION_MS = 300; // debe coincidir con la transicion de .lightbox-gab__img en CSS
+
+    let overlay = null;
+    let imgClon = null;
+    let origenActual = null;
+
+    function crearOverlaySiHaceFalta() {
+        if (overlay) return;
+        overlay = document.createElement('div');
+        overlay.className = 'lightbox-gab';
+        imgClon = document.createElement('img');
+        imgClon.className = 'lightbox-gab__img';
+        overlay.appendChild(imgClon);
+        document.body.appendChild(overlay);
+        // Un solo listener en el overlay alcanza para "click en cualquier
+        // lado" -- clickear la imagen agrandada tambien burbujea hasta acá
+        // (no tiene su propio listener que corte la propagación).
+        overlay.addEventListener('click', cerrar);
+    }
+
+    function calcularRectDestino(imgOriginal) {
+        const maxW = window.innerWidth * 0.9;
+        const maxH = window.innerHeight * 0.85;
+        const anchoNatural = imgOriginal.naturalWidth || imgOriginal.width;
+        const altoNatural = imgOriginal.naturalHeight || imgOriginal.height;
+        const aspecto = anchoNatural / altoNatural;
+        let w = Math.min(maxW, anchoNatural);
+        let h = w / aspecto;
+        if (h > maxH) { h = maxH; w = h * aspecto; }
+        return { width: w, height: h, top: (window.innerHeight - h) / 2, left: (window.innerWidth - w) / 2 };
+    }
+
+    function posicionar(rect, conTransicion) {
+        imgClon.style.transition = conTransicion ? '' : 'none';
+        imgClon.style.top = rect.top + 'px';
+        imgClon.style.left = rect.left + 'px';
+        imgClon.style.width = rect.width + 'px';
+        imgClon.style.height = rect.height + 'px';
+    }
+
+    function abrir(imgOriginal) {
+        crearOverlaySiHaceFalta();
+        origenActual = imgOriginal;
+        imgClon.src = imgOriginal.currentSrc || imgOriginal.src;
+        imgClon.alt = imgOriginal.alt || '';
+
+        posicionar(imgOriginal.getBoundingClientRect(), false);
+        overlay.classList.add('lightbox-gab--activo');
+        document.body.classList.add('lightbox-gab-abierto');
+
+        // Fuerza al navegador a aplicar el rect inicial ya, antes de animar --
+        // sin este reflow forzado, el cambio al rect final se funde con el
+        // inicial en el mismo frame y no hay transicion visible.
+        void imgClon.offsetWidth;
+
+        posicionar(calcularRectDestino(imgOriginal), true);
+    }
+
+    function cerrar() {
+        if (!overlay || !overlay.classList.contains('lightbox-gab--activo')) return;
+        if (origenActual) {
+            posicionar(origenActual.getBoundingClientRect(), true);
+        }
+        overlay.classList.remove('lightbox-gab--activo');
+        document.body.classList.remove('lightbox-gab-abierto');
+        window.setTimeout(function () {
+            // Solo limpia si sigue cerrado -- si el usuario volvio a abrir
+            // otra imagen durante estos 300ms, no pisa esa apertura nueva.
+            if (!overlay.classList.contains('lightbox-gab--activo')) {
+                imgClon.removeAttribute('src');
+                origenActual = null;
+            }
+        }, DURACION_MS);
+    }
+
+    document.addEventListener('click', function (e) {
+        const img = e.target.closest && e.target.closest(SELECTOR_IMAGENES);
+        if (img) abrir(img);
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') cerrar();
     });
 })();
 
