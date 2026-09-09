@@ -445,16 +445,20 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
 }
 .navbar-gab__brand:hover { text-decoration: none; }
 
-/* Iluminación letra por letra de "Música Digital" al hacer hover -- CSS puro,
-   sin JS: la animación está atada a .navbar-gab__brand:hover, así que se
-   cancela sola al sacar el mouse y arranca de cero cada vez que se vuelve a
-   pasar (no hace falta reiniciarla a mano). --i (puesto inline en cada letra
-   en base.html) da el índice 0..12 continuo a través de las dos palabras
-   (M-ú-s-i-c-a = 0..5, D-i-g-i-t-a-l = 6..12) para que "Digital" continúe
-   el recorrido justo donde termina "Música", no que arranque en paralelo.
-   Antes "Digital" vivía en un <em> con color fijo (por eso no se notaba
-   ningún cambio ahí al pasar el mouse, y quedaba en itálica sin pedirlo) --
-   ahora las 13 letras son spans iguales, todas arrancan del mismo --ink. */
+/* Iluminación letra por letra de "Tecnología Musical" al hacer hover -- CSS
+   puro, sin JS: la animación está atada a .navbar-gab__brand:hover, así que
+   se cancela sola al sacar el mouse y arranca de cero cada vez que se vuelve
+   a pasar (no hace falta reiniciarla a mano). --i (puesto inline en cada
+   letra en base.html) da el índice 0..16 continuo a través de las dos
+   palabras (T-e-c-n-o-l-o-g-í-a = 0..9, M-u-s-i-c-a-l = 10..16) para que
+   "Musical" continúe el recorrido justo donde termina "Tecnología", no que
+   arranque en paralelo. Nombre anterior del sitio ("Música Digital", 13
+   letras, 0..12) -- si el nombre vuelve a cambiar, actualizar tanto los
+   índices --i en base.html como el "16" hardcodeado más abajo en
+   .navbar-gab__brand-chispas (el índice de la última letra). Antes "Digital"
+   vivía en un <em> con color fijo (por eso no se notaba ningún cambio ahí al
+   pasar el mouse, y quedaba en itálica sin pedirlo) -- ahora todas las letras
+   son spans iguales, todas arrancan del mismo --ink. */
 .navbar-gab__brand-texto { font-style: normal; }
 .navbar-gab__brand-letra {
     display: inline-block;
@@ -496,13 +500,13 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
     }
 }
 
-/* Chispas al llegar la iluminación a la "L" final de "Digital" (índice 12) --
+/* Chispas al llegar la iluminación a la "l" final de "Musical" (índice 16) --
    mismo truco de rotate(--angulo) + translateY que .chispas-gab en
    dashboard.html (las placas "Director de Estudio"/"Cursos"), copiado acá en
    vez de compartido porque esas viven escopeadas a esa plantilla y el navbar
    es chrome global (todas las páginas, migradas a Gabinete o no). El delay
-   está calculado para disparar justo cuando la L termina de iluminarse:
-   12 letras anteriores * 0.15s de paso + 0.2s (la L ya está casi en su pico
+   está calculado para disparar justo cuando la l termina de iluminarse:
+   16 letras anteriores * 0.15s de paso + 0.2s (la l ya está casi en su pico
    de brillo, ver el keyframe de arriba). */
 .navbar-gab__brand-chispas {
     position: absolute;
@@ -524,7 +528,7 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
 }
 .navbar-gab__brand:hover .navbar-gab__brand-chispas i {
     animation: navbar-gab-chispa-vuelo 0.5s ease-out forwards;
-    animation-delay: calc(12 * 0.15s + 0.2s);
+    animation-delay: calc(16 * 0.15s + 0.2s);
 }
 @keyframes navbar-gab-chispa-vuelo {
     0%   { opacity: 0; transform: rotate(var(--angulo)) translateY(0) scaleY(0.4); }
