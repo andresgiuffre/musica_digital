@@ -1884,7 +1884,7 @@ def _bloque_completado(bloque, user):
     los endpoints de registrar/reiniciar. Devuelve True para cualquier tipo que
     no sea un ejercicio (nunca bloquea nada por sí solo).
     """
-    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso, LineasEspaciosProgreso
+    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso, LineasEspaciosProgreso, LigadurasPuntilloProgreso
     if bloque.tipo == BloqueContenido.PRACTICA_DIRIGIDA:
         progreso = PracticaDirigidaProgreso.objects.filter(user=user, bloque=bloque).first()
     elif bloque.tipo == BloqueContenido.RITMO_MATEMATICA:
@@ -1893,6 +1893,8 @@ def _bloque_completado(bloque, user):
         progreso = CompletarCompasProgreso.objects.filter(user=user, bloque=bloque).first()
     elif bloque.tipo == BloqueContenido.LINEAS_ESPACIOS:
         progreso = LineasEspaciosProgreso.objects.filter(user=user, bloque=bloque).first()
+    elif bloque.tipo == BloqueContenido.LIGADURAS_PUNTILLO:
+        progreso = LigadurasPuntilloProgreso.objects.filter(user=user, bloque=bloque).first()
     else:
         return True
     return bool(progreso and progreso.completado)
@@ -1901,11 +1903,13 @@ def _bloque_completado(bloque, user):
 def _tipos_ejercicio():
     """Único lugar que enumera qué tipos de BloqueContenido participan del
     bloqueo secuencial -- agregar un ejercicio nuevo a la progresión (ver
-    RITMO_MATEMATICA, COMPLETAR_COMPAS y LINEAS_ESPACIOS) es sumarlo acá, nada más."""
+    RITMO_MATEMATICA, COMPLETAR_COMPAS, LINEAS_ESPACIOS y LIGADURAS_PUNTILLO)
+    es sumarlo acá, nada más."""
     from .models import BloqueContenido
     return (
         BloqueContenido.PRACTICA_DIRIGIDA, BloqueContenido.RITMO_MATEMATICA,
         BloqueContenido.COMPLETAR_COMPAS, BloqueContenido.LINEAS_ESPACIOS,
+        BloqueContenido.LIGADURAS_PUNTILLO,
     )
 
 
@@ -1927,9 +1931,27 @@ def _bloque_desbloqueado(bloque, user):
     return True if anterior is None else _bloque_completado(anterior, user)
 
 
+def _metrica_compases_ligaduras(archivo_field):
+    """
+    Total esperado en dieciseisavos por compás, según el <time> vigente en
+    cada uno (music21 resuelve la herencia si un archivo MuseScore no
+    redeclara <time> en todos los compases). Alimenta la validación
+    client-side de puntillo en LIGADURAS_PUNTILLO: el alumno agrega puntillos
+    a las notas dadas hasta que la suma de cada compás iguale este total.
+    Self-contained a propósito -- no reutiliza los helpers privados del
+    Analizador de orquestación (_tiempo_por_compas y compañía), que resuelven
+    un problema más amplio (corregir métrica declarada contra duración real)
+    para ESA feature; acá alcanza con leer el <time> tal cual lo declara el
+    archivo, que el admin sube a mano y controla.
+    """
+    score = music21.converter.parse(archivo_field.path)
+    compases = score.parts[0].getElementsByClass(music21.stream.Measure)
+    return [round(c.barDuration.quarterLength * 4) for c in compases]
+
+
 @login_required
 def tema_detail(request, curso_id, grado_numero, tema_slug):
-    from .models import Curso, Grado, Tema, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso, LineasEspaciosProgreso
+    from .models import Curso, Grado, Tema, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso, LineasEspaciosProgreso, LigadurasPuntilloProgreso
     from .services import render_markdown_seguro
 
     curso = get_object_or_404(Curso, id=curso_id, activo=True)
@@ -1973,6 +1995,12 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
         elif bloque.tipo == bloque.LINEAS_ESPACIOS:
             bloque.bloqueado = not _bloque_desbloqueado(bloque, request.user)
             bloque.progreso_usuario = LineasEspaciosProgreso.objects.filter(user=request.user, bloque=bloque).first()
+        elif bloque.tipo == bloque.LIGADURAS_PUNTILLO:
+            bloque.bloqueado = not _bloque_desbloqueado(bloque, request.user)
+            if not bloque.bloqueado:
+                bloque.es_mxl_ligaduras = pathlib.Path(bloque.musicxml_ligaduras.name).suffix.lower() == '.mxl'
+                bloque.metrica_compases_json = json.dumps(_metrica_compases_ligaduras(bloque.musicxml_ligaduras))
+            bloque.progreso_usuario = LigadurasPuntilloProgreso.objects.filter(user=request.user, bloque=bloque).first()
 
     response = render(request, 'trainer/tema_detail.html', {
         'curso': curso, 'grado': grado, 'tema': tema, 'bloques': bloques,
@@ -2122,6 +2150,71 @@ def practica_dirigida_registrar(request, bloque_id):
 
 
 @login_required
+def bloque_ligaduras_puntillo_archivo(request, bloque_id):
+    """
+    Sirve el musicxml_ligaduras de un bloque LIGADURAS_PUNTILLO -- mismo
+    patrón que bloque_practica_dirigida_archivo (no exponer vía MEDIA_URL
+    directo, sin distinción de idioma).
+    """
+    from .models import BloqueContenido
+    bloque = get_object_or_404(BloqueContenido, id=bloque_id, tipo=BloqueContenido.LIGADURAS_PUNTILLO)
+    if not _bloque_desbloqueado(bloque, request.user):
+        return HttpResponseForbidden("Este ejercicio todavía está bloqueado.")
+
+    extension = pathlib.Path(bloque.musicxml_ligaduras.name).suffix.lower()
+    content_type = 'application/vnd.recordare.musicxml' if extension == '.mxl' else 'application/vnd.recordare.musicxml+xml'
+
+    return FileResponse(
+        bloque.musicxml_ligaduras.open('rb'),
+        content_type=content_type,
+        filename=bloque.musicxml_ligaduras.name,
+    )
+
+
+@login_required
+def bloque_ligaduras_puntillo_registrar(request, bloque_id):
+    """
+    Registra el resultado AGREGADO de un intento de Ligaduras y Puntillo --
+    mismo contrato exacto que practica_dirigida_registrar ({correctas, total}
+    -> precisión), porque el criterio de completado es el mismo (umbral de
+    precisión, no racha). `total` acá cuenta solo clicks de ligadura
+    (correctos + incorrectos) -- el puntillo no suma a este conteo, se valida
+    aparte del lado del cliente (cierre exacto de la métrica de cada compás)
+    antes de que el front llegue a mandar este POST.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    from .models import BloqueContenido, LigadurasPuntilloProgreso
+
+    bloque = get_object_or_404(BloqueContenido, id=bloque_id, tipo=BloqueContenido.LIGADURAS_PUNTILLO)
+    if not _bloque_desbloqueado(bloque, request.user):
+        return JsonResponse({'status': 'error', 'message': 'Este ejercicio todavía está bloqueado.'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        correctas = int(data.get('correctas', 0))
+        total = int(data.get('total', 0))
+        precision = round(100 * correctas / total) if total > 0 else 0
+
+        progreso, _ = LigadurasPuntilloProgreso.objects.get_or_create(user=request.user, bloque=bloque)
+        progreso.acciones_totales = total
+        progreso.mejor_precision = max(progreso.mejor_precision, precision)
+        progreso.veces_practicado += 1
+        progreso.completado = progreso.mejor_precision >= bloque.ligaduras_precision_minima
+        progreso.save()
+
+        return JsonResponse({
+            'status': 'success',
+            'mejor_precision': progreso.mejor_precision,
+            'completado': progreso.completado,
+            'veces_practicado': progreso.veces_practicado,
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+
+@login_required
 def bloque_ritmo_matematica_registrar(request, bloque_id):
     """
     Registra la finalización de una tanda de Ritmo matemático -- mismo
@@ -2239,7 +2332,7 @@ def bloque_progreso_reiniciar(request, bloque_id):
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
 
-    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso, LineasEspaciosProgreso
+    from .models import BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso, LineasEspaciosProgreso, LigadurasPuntilloProgreso
 
     bloque = get_object_or_404(BloqueContenido, id=bloque_id)
     tipos = _tipos_ejercicio()
@@ -2254,8 +2347,10 @@ def bloque_progreso_reiniciar(request, bloque_id):
             RitmoMatematicaProgreso.objects.filter(user=request.user, bloque=b).delete()
         elif b.tipo == BloqueContenido.COMPLETAR_COMPAS:
             CompletarCompasProgreso.objects.filter(user=request.user, bloque=b).delete()
-        else:
+        elif b.tipo == BloqueContenido.LINEAS_ESPACIOS:
             LineasEspaciosProgreso.objects.filter(user=request.user, bloque=b).delete()
+        elif b.tipo == BloqueContenido.LIGADURAS_PUNTILLO:
+            LigadurasPuntilloProgreso.objects.filter(user=request.user, bloque=b).delete()
 
     return JsonResponse({'status': 'success'})
 

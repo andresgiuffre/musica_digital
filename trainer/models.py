@@ -691,6 +691,7 @@ class BloqueContenido(models.Model):
     RITMO_MATEMATICA = 'RITMO_MATEMATICA'
     COMPLETAR_COMPAS = 'COMPLETAR_COMPAS'
     LINEAS_ESPACIOS = 'LINEAS_ESPACIOS'
+    LIGADURAS_PUNTILLO = 'LIGADURAS_PUNTILLO'
     TIPO_CHOICES = (
         (TEXTO, 'Texto'),
         (EJEMPLO_PARTITURA, 'Ejemplo de partitura'),
@@ -701,6 +702,7 @@ class BloqueContenido(models.Model):
         (RITMO_MATEMATICA, '[G0] Ritmo matemático'),
         (COMPLETAR_COMPAS, '[G0] Completar el compás'),
         (LINEAS_ESPACIOS, '[G0] Ubicación de líneas y espacios'),
+        (LIGADURAS_PUNTILLO, '[G1] Ligaduras y Puntillo'),
     )
     # Agrupa TIPO_CHOICES según Tema.tipo -- única fuente de verdad en Python,
     # espejada a mano en static/admin/js/tema_bloques_tipo.js (el admin no
@@ -714,7 +716,7 @@ class BloqueContenido(models.Model):
     # en BloqueContenidoInline (ver admin.py); el valor del modelo se deja sin
     # tocar solo por si algún bloque viejo ya lo tiene cargado.
     TIPOS_LECTURA = (TEXTO, EJEMPLO_PARTITURA, IMAGEN, VIDEO)
-    TIPOS_PRACTICA = (PRACTICA_DIRIGIDA, RITMO_MATEMATICA, COMPLETAR_COMPAS, LINEAS_ESPACIOS)
+    TIPOS_PRACTICA = (PRACTICA_DIRIGIDA, RITMO_MATEMATICA, COMPLETAR_COMPAS, LINEAS_ESPACIOS, LIGADURAS_PUNTILLO)
 
     MODO_IDENTIFICAR_NOTAS = 'identificar_notas'
     MODO_PRACTICA_CHOICES = (
@@ -879,6 +881,22 @@ class BloqueContenido(models.Model):
         help_text="Cantidad de líneas/espacios distintos a identificar correctamente, en una misma tanda, para marcar el ejercicio como completado."
     )
 
+    # --- LIGADURAS_PUNTILLO ---
+    # Sin _en: mismo criterio que PRACTICA_DIRIGIDA -- el archivo es el mismo
+    # para cualquier idioma, no hay texto propio que traducir. A diferencia de
+    # RITMO_MATEMATICA/COMPLETAR_COMPAS/LINEAS_ESPACIOS (contenido procedural),
+    # este SÍ necesita un archivo subido por el admin, mismo motivo que
+    # PRACTICA_DIRIGIDA: son compases reales con notas concretas, no un pool
+    # de valores genéricos que JS pueda generar solo.
+    musicxml_ligaduras = models.FileField(
+        upload_to='cursos_ligaduras_puntillo/', null=True, blank=True,
+        help_text="MusicXML con compases incompletos, SIN ligaduras ni puntillos ya escritos (el ejercicio le pide al alumno agregarlos). Requerido cuando el tipo es Ligaduras y Puntillo."
+    )
+    ligaduras_precision_minima = models.PositiveSmallIntegerField(
+        default=80,
+        help_text="Porcentaje de aciertos en ligaduras (0-100) para completar -- además hace falta marcar al menos 1 ligadura de prolongación correcta, 1 de expresión correcta, y cerrar la métrica de todos los compases con puntillos."
+    )
+
     class Meta:
         ordering = ['orden']
         verbose_name = "Bloque de Contenido"
@@ -984,6 +1002,8 @@ class BloqueContenido(models.Model):
                 errores['video_fuente'] = "No debería llenarse en un bloque de Texto."
             if self.musicxml_practica:
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Texto."
+            if self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Texto."
 
         elif self.tipo == self.EJEMPLO_PARTITURA:
             if bool(self.sheet_music_id) == bool(self.fragmento_orquestacion_id):
@@ -999,6 +1019,8 @@ class BloqueContenido(models.Model):
                 errores['video_fuente'] = "No debería llenarse en un bloque de Ejemplo de partitura."
             if self.musicxml_practica:
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Ejemplo de partitura."
+            if self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Ejemplo de partitura."
 
         elif self.tipo == self.PRACTICA:
             if not self.practica_texto:
@@ -1013,6 +1035,8 @@ class BloqueContenido(models.Model):
                 errores['video_fuente'] = "No debería llenarse en un bloque de Práctica."
             if self.musicxml_practica:
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Práctica."
+            if self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Práctica."
 
         elif self.tipo == self.IMAGEN:
             if not self.imagen:
@@ -1027,6 +1051,8 @@ class BloqueContenido(models.Model):
                 errores['video_fuente'] = "No debería llenarse en un bloque de Imagen."
             if self.musicxml_practica:
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Imagen."
+            if self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Imagen."
 
         elif self.tipo == self.VIDEO:
             if not self.video_fuente:
@@ -1059,6 +1085,8 @@ class BloqueContenido(models.Model):
                 errores['imagen'] = "No debería llenarse en un bloque de Video."
             if self.musicxml_practica:
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Video."
+            if self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Video."
 
         elif self.tipo == self.PRACTICA_DIRIGIDA:
             if not self.musicxml_practica:
@@ -1073,6 +1101,8 @@ class BloqueContenido(models.Model):
                 errores['imagen'] = "No debería llenarse en un bloque de Práctica dirigida."
             if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
                 errores['video_fuente'] = "No debería llenarse en un bloque de Práctica dirigida."
+            if self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Práctica dirigida."
 
         elif self.tipo == self.RITMO_MATEMATICA:
             if self.texto_markdown:
@@ -1087,6 +1117,8 @@ class BloqueContenido(models.Model):
                 errores['video_fuente'] = "No debería llenarse en un bloque de Ritmo matemático."
             if self.musicxml_practica:
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Ritmo matemático."
+            if self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Ritmo matemático."
 
         elif self.tipo == self.COMPLETAR_COMPAS:
             if self.texto_markdown:
@@ -1101,6 +1133,8 @@ class BloqueContenido(models.Model):
                 errores['video_fuente'] = "No debería llenarse en un bloque de Completar el compás."
             if self.musicxml_practica:
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Completar el compás."
+            if self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Completar el compás."
 
         elif self.tipo == self.LINEAS_ESPACIOS:
             if self.texto_markdown:
@@ -1115,6 +1149,24 @@ class BloqueContenido(models.Model):
                 errores['video_fuente'] = "No debería llenarse en un bloque de Ubicación de líneas y espacios."
             if self.musicxml_practica:
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Ubicación de líneas y espacios."
+            if self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Ubicación de líneas y espacios."
+
+        elif self.tipo == self.LIGADURAS_PUNTILLO:
+            if not self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "Requerido cuando el tipo es Ligaduras y Puntillo."
+            if self.texto_markdown:
+                errores['texto_markdown'] = "No debería llenarse en un bloque de Ligaduras y Puntillo."
+            if self.sheet_music_id or self.fragmento_orquestacion_id:
+                errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Ligaduras y Puntillo."
+            if self.practica_texto:
+                errores['practica_texto'] = "No debería llenarse en un bloque de Ligaduras y Puntillo."
+            if self.imagen or self.imagen_en:
+                errores['imagen'] = "No debería llenarse en un bloque de Ligaduras y Puntillo."
+            if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
+                errores['video_fuente'] = "No debería llenarse en un bloque de Ligaduras y Puntillo."
+            if self.musicxml_practica:
+                errores['musicxml_practica'] = "No debería llenarse en un bloque de Ligaduras y Puntillo."
 
         if errores:
             raise ValidationError(errores)
@@ -1202,6 +1254,28 @@ class LineasEspaciosProgreso(models.Model):
         unique_together = ('user', 'bloque')
         verbose_name = "Progreso de Líneas y Espacios"
         verbose_name_plural = "Progresos de Líneas y Espacios"
+
+
+class LigadurasPuntilloProgreso(models.Model):
+    """
+    Progreso AGREGADO por usuario y por bloque de Ligaduras y Puntillo --
+    mismo espíritu que PracticaDirigidaProgreso (porcentaje, no racha): el
+    criterio de completado es un umbral de precisión sobre los clicks de
+    ligadura de la sesión (ver ligaduras_precision_minima en BloqueContenido),
+    no una cantidad de aciertos seguidos.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    bloque = models.ForeignKey(BloqueContenido, on_delete=models.CASCADE)
+    mejor_precision = models.FloatField(default=0)  # 0-100
+    acciones_totales = models.PositiveIntegerField(default=0, help_text="Cantidad de clicks de ligadura (correctos + incorrectos) del último intento.")
+    veces_practicado = models.PositiveIntegerField(default=0)
+    completado = models.BooleanField(default=False)
+    ultima_vez = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'bloque')
+        verbose_name = "Progreso de Ligaduras y Puntillo"
+        verbose_name_plural = "Progresos de Ligaduras y Puntillo"
 
 
 # ---------------------------------------------------------------------------

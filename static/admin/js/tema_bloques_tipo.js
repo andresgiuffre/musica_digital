@@ -2,9 +2,10 @@
 // de cada bloque de contenido como los fieldsets colapsables que muestran sus
 // campos especificos (Texto/Ejemplo de partitura/Imagen/Video vs. [G0]
 // Practica dirigida/Ritmo matematico/Completar el compas/Ubicacion de lineas
-// y espacios) -- segun el "Tipo de Tema" (Lectura/Practica) elegido en
-// #id_tipo. Objetivo: que la lista de tipos de actividad no siga creciendo
-// sin limite a medida que se suman ejercicios nuevos.
+// y espacios/[G1] Ligaduras y Puntillo) -- segun el "Tipo de Tema"
+// (Lectura/Practica) elegido en #id_tipo. Objetivo: que la lista de tipos de
+// actividad no siga creciendo sin limite a medida que se suman ejercicios
+// nuevos.
 //
 // Espejo a mano de BloqueContenido.TIPO_CHOICES/TIPOS_LECTURA/TIPOS_PRACTICA
 // en models.py -- no se puede leer eso directamente desde aca (Python no
@@ -25,9 +26,10 @@
         RITMO_MATEMATICA: '[G0] Ritmo matemático',
         COMPLETAR_COMPAS: '[G0] Completar el compás',
         LINEAS_ESPACIOS: '[G0] Ubicación de líneas y espacios',
+        LIGADURAS_PUNTILLO: '[G1] Ligaduras y Puntillo',
     };
     var TIPOS_LECTURA = ['TEXTO', 'EJEMPLO_PARTITURA', 'IMAGEN', 'VIDEO'];
-    var TIPOS_PRACTICA = ['PRACTICA_DIRIGIDA', 'RITMO_MATEMATICA', 'COMPLETAR_COMPAS', 'LINEAS_ESPACIOS'];
+    var TIPOS_PRACTICA = ['PRACTICA_DIRIGIDA', 'RITMO_MATEMATICA', 'COMPLETAR_COMPAS', 'LINEAS_ESPACIOS', 'LIGADURAS_PUNTILLO'];
 
     function tiposPermitidos(tipoTema) {
         return tipoTema === 'PRACTICA' ? TIPOS_PRACTICA : TIPOS_LECTURA;
