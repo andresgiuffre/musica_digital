@@ -2177,10 +2177,11 @@ def bloque_ligaduras_puntillo_registrar(request, bloque_id):
     Registra el resultado AGREGADO de un intento de Ligaduras y Puntillo --
     mismo contrato exacto que practica_dirigida_registrar ({correctas, total}
     -> precisión), porque el criterio de completado es el mismo (umbral de
-    precisión, no racha). `total` acá cuenta solo clicks de ligadura
-    (correctos + incorrectos) -- el puntillo no suma a este conteo, se valida
-    aparte del lado del cliente (cierre exacto de la métrica de cada compás)
-    antes de que el front llegue a mandar este POST.
+    precisión, no racha). `total` acá cuenta tanto los clicks de ligadura
+    (correctos + incorrectos) como los intentos de puntillo (correcto = había
+    un silencio inmediato para consumir; error = no lo había) -- deshacer un
+    puntillo ya aplicado NO cuenta como un intento nuevo, ver el comentario en
+    la IIFE de tema_detail.html.
     """
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)

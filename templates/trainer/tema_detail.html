@@ -2051,6 +2051,18 @@
         });
     }
 
+    // Línea central del pentagrama en clave de Sol (única usada en este
+    // ejercicio) -- B4. `ps` viene de OsmdUtils como Pitch.halfTone+12, que
+    // ya es un MIDI real (confirmado: C4=60, mismo comentario ya existente en
+    // trainer_lectura_musical.html), así que B4=71 acá también. Se usa para
+    // inferir la dirección de la plica: nota en la línea central o más grave
+    // -> plica hacia arriba (convención estándar); más aguda -> plica hacia
+    // abajo. Con eso se decide de qué lado va el arco de la ligadura (mismo
+    // criterio que cualquier editor de partituras: el arco va del lado
+    // OPUESTO a la plica, para no cruzarla) y de qué lado del pentagrama cae
+    // la cabeza real dentro del rect completo del glifo (ver posicionCabezaNota).
+    const LINEA_CENTRAL_PS = 71;
+
     function initLigadurasPuntillo(bloqueId, alListo) {
         const contenedor = document.getElementById('ligpu-bloque-' + bloqueId);
         if (!contenedor) return null;
@@ -2080,26 +2092,30 @@
         const colorSeleccion = estilosBody.getPropertyValue('--primary').trim() || '#6b3550';
 
         let osmd = null;
-        let notas = [];              // solo notas con pitch real (ps !== null)
-        let seleccion = [];          // 0-2 entradas de notas[]
-        let arcos = [];              // ligaduras correctas ya marcadas: {a, b, tipo}
-        let puntilladas = new Set(); // notas (referencias) con puntillo activo
+        let eventos = [];    // TODOS los pasos del cursor (notas Y silencios), en orden -- ver idxEventos
+        let notas = [];      // subconjunto de eventos con ps !== null -- lo único clickeable
+        let seleccion = [];  // 0-N entradas de notas[], orden de click (no necesariamente cronológico)
+        let arcos = [];      // ligaduras correctas ya marcadas: { notas: [ordenadas...], tipo }
+        let puntilladas = new Set();          // notas (referencias) con puntillo activo
+        let silencioConsumidoPor = new Map(); // nota punteada -> el evento-silencio que "se comió"
+        let eventosOcultos = new Set();       // silencios ya consumidos -- no cuentan en la aritmética del compás
         let correctas = 0;
-        let totalAcciones = 0;       // clicks de ligadura (correctos + incorrectos) -- puntillo no suma acá
+        let totalAcciones = 0;  // clicks de ligadura + intentos de puntillo (deshacer un puntillo NO cuenta)
         let huboProlongacion = false;
         let huboExpresion = false;
         let overlaySvg = null;
         let mapaElementoANotas = new Map();
 
-        function calcularDieciseisavos(nota) {
-            const base = Math.round(nota.durationRealValue * 16);
-            return puntilladas.has(nota) ? Math.round(base * 1.5) : base;
+        function calcularDieciseisavosEvento(ev) {
+            const base = Math.round(ev.durationRealValue * 16);
+            return puntilladas.has(ev) ? Math.round(base * 1.5) : base;
         }
 
         function totalesPorCompas() {
             const totales = {};
-            notas.forEach(function (n) {
-                totales[n.measureIndex] = (totales[n.measureIndex] || 0) + calcularDieciseisavos(n);
+            eventos.forEach(function (ev) {
+                if (eventosOcultos.has(ev)) return; // silencio ya consumido por un puntillo
+                totales[ev.measureIndex] = (totales[ev.measureIndex] || 0) + calcularDieciseisavosEvento(ev);
             });
             return totales;
         }
@@ -2137,7 +2153,10 @@
 
         function actualizarBotones() {
             btnProlongacion.disabled = seleccion.length !== 2;
-            btnExpresion.disabled = seleccion.length !== 2;
+            // Expresión NO tiene límite de notas -- puede abarcar varios
+            // compases, el único corte real es un silencio (se valida recién
+            // al aplicar, ver aplicarLigadura). Alcanza con 2 para habilitar.
+            btnExpresion.disabled = seleccion.length < 2;
             btnPuntillo.disabled = seleccion.length !== 1;
         }
 
@@ -2170,36 +2189,62 @@
             divPartitura.appendChild(overlaySvg);
         }
 
-        function dibujarArco(par, rectContenedor) {
-            if (!par.a.svgEl || !par.b.svgEl) return;
-            const ra = par.a.svgEl.getBoundingClientRect();
-            const rb = par.b.svgEl.getBoundingClientRect();
-            const x1 = ra.left + ra.width / 2 - rectContenedor.left;
-            const y1 = ra.top - rectContenedor.top;
-            const x2 = rb.left + rb.width / 2 - rectContenedor.left;
-            const y2 = rb.top - rectContenedor.top;
-            const midX = (x1 + x2) / 2;
-            // Arco curva hacia arriba de las cabezas de nota -- offset chico
-            // (14px) para no salirse del padding superior del contenedor
-            // (.ligpu-gab__partitura tiene overflow-x:auto, que en la
-            // práctica también recorta el eje Y si el contenido se pasa).
-            const alto = Math.min(y1, y2) - 14;
+        // No hay forma de aislar SOLO la cabeza dentro de svgEl (el grupo
+        // completo de OSMD/VexFlow incluye plica, corchete y alteración) sin
+        // inspeccionar el SVG real en un navegador -- esto es una
+        // aproximación geométrica a partir del rect completo del glifo + la
+        // dirección de plica ya inferida por altura (ver LINEA_CENTRAL_PS),
+        // no una lectura directa del glifo. Mejor que usar el centro del rect
+        // completo (que cae en medio de la plica, no de la cabeza) pero
+        // todavía aproximado -- confirmar visualmente en navegador real.
+        function posicionCabezaNota(nota, rectContenedor) {
+            if (!nota.svgEl) return null;
+            const r = nota.svgEl.getBoundingClientRect();
+            const plicaArriba = nota.ps <= LINEA_CENTRAL_PS;
+            const RADIO_CABEZA_APROX = 5;
+            const cyAbs = plicaArriba ? (r.bottom - RADIO_CABEZA_APROX) : (r.top + RADIO_CABEZA_APROX);
+            const cxAbs = Math.min(r.left + 10, r.right);
+            return {
+                cx: cxAbs - rectContenedor.left,
+                cy: cyAbs - rectContenedor.top,
+                plicaArriba: plicaArriba,
+            };
+        }
+
+        function dibujarArco(notasOrdenadas, rectContenedor) {
+            const puntos = notasOrdenadas.map(function (n) { return posicionCabezaNota(n, rectContenedor); }).filter(Boolean);
+            if (puntos.length < 2) return;
+            const primero = puntos[0];
+            const ultimo = puntos[puntos.length - 1];
+            const midX = (primero.cx + ultimo.cx) / 2;
+            // El arco va del lado OPUESTO a la plica -- mismo criterio que
+            // cualquier editor de partituras, para no cruzarla. Si hay varias
+            // notas de por medio (ligadura de expresión larga), el punto de
+            // control se calcula contra el extremo más lejano entre TODAS
+            // ellas, no solo las puntas, para que la curva las libre a todas.
+            const OFFSET = 14;
+            let altoControl;
+            if (primero.plicaArriba) {
+                const maxY = Math.max.apply(null, puntos.map(function (p) { return p.cy; }));
+                altoControl = maxY + OFFSET;
+            } else {
+                const minY = Math.min.apply(null, puntos.map(function (p) { return p.cy; }));
+                altoControl = minY - OFFSET;
+            }
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             path.setAttribute('class', 'ligpu-gab__arco');
-            path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' Q ' + midX + ' ' + alto + ' ' + x2 + ' ' + y2);
+            path.setAttribute('d', 'M ' + primero.cx + ' ' + primero.cy + ' Q ' + midX + ' ' + altoControl + ' ' + ultimo.cx + ' ' + ultimo.cy);
             overlaySvg.appendChild(path);
         }
 
         function dibujarPunto(nota, rectContenedor) {
-            if (!nota.svgEl) return;
-            const r = nota.svgEl.getBoundingClientRect();
-            const cx = r.right - rectContenedor.left + 6;
-            const cy = r.top + r.height / 2 - rectContenedor.top;
+            const pos = posicionCabezaNota(nota, rectContenedor);
+            if (!pos) return;
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             circle.setAttribute('class', 'ligpu-gab__punto');
-            circle.setAttribute('cx', cx);
-            circle.setAttribute('cy', cy);
-            circle.setAttribute('r', 3);
+            circle.setAttribute('cx', pos.cx + 4);
+            circle.setAttribute('cy', pos.cy);
+            circle.setAttribute('r', 2.5);
             overlaySvg.appendChild(circle);
         }
 
@@ -2207,7 +2252,7 @@
             if (!overlaySvg) return;
             while (overlaySvg.firstChild) overlaySvg.removeChild(overlaySvg.firstChild);
             const rectContenedor = divPartitura.getBoundingClientRect();
-            arcos.forEach(function (par) { dibujarArco(par, rectContenedor); });
+            arcos.forEach(function (entrada) { dibujarArco(entrada.notas, rectContenedor); });
             puntilladas.forEach(function (nota) { dibujarPunto(nota, rectContenedor); });
         }
 
@@ -2222,12 +2267,25 @@
             });
         }
 
-        function alternarSeleccion(nota, conModificador) {
-            const idxExistente = seleccion.indexOf(nota);
-            if (idxExistente !== -1) {
-                seleccion.splice(idxExistente, 1);
-            } else if (conModificador && seleccion.length === 1) {
-                seleccion.push(nota);
+        // Shift = rango desde la PRIMERA nota ya seleccionada hasta la
+        // clickeada, incluyendo las intermedias (mismo comportamiento
+        // estándar de cualquier lista/explorador de archivos). Ctrl/Cmd =
+        // agregar o sacar una nota puntual sin afectar el resto. Sin
+        // modificador = reinicia la selección a solo esa nota. Ya no hay
+        // límite de 2 -- lo impone actualizarBotones() según qué acción se
+        // esté por aplicar (Prolongación pide exactamente 2, Expresión 2+,
+        // Puntillo exactamente 1).
+        function alternarSeleccion(nota, shift, ctrl) {
+            if (shift && seleccion.length > 0) {
+                const iAncla = notas.indexOf(seleccion[0]);
+                const iClick = notas.indexOf(nota);
+                const desde = Math.min(iAncla, iClick);
+                const hasta = Math.max(iAncla, iClick);
+                seleccion = notas.slice(desde, hasta + 1);
+            } else if (ctrl) {
+                const idx = seleccion.indexOf(nota);
+                if (idx !== -1) seleccion.splice(idx, 1);
+                else seleccion.push(nota);
             } else {
                 seleccion = [nota];
             }
@@ -2243,20 +2301,48 @@
             // espacios) -- se toma la primera nota mapeada a este elemento.
             const candidatos = mapaElementoANotas.get(el);
             if (!candidatos || !candidatos.length) return;
-            alternarSeleccion(candidatos[0], ev.shiftKey || ev.ctrlKey || ev.metaKey);
+            alternarSeleccion(candidatos[0], ev.shiftKey, ev.ctrlKey || ev.metaKey);
+        }
+
+        // Recorre eventos (notas Y silencios) entre dos notas por posición
+        // real en la partitura (idxEventos, no el orden de selección) --
+        // hay un silencio "de por medio" si cualquier evento estrictamente
+        // entre ambas tiene ps === null.
+        function haySilencioEntre(notaA, notaB) {
+            const desde = Math.min(notaA.idxEventos, notaB.idxEventos);
+            const hasta = Math.max(notaA.idxEventos, notaB.idxEventos);
+            for (let i = desde + 1; i < hasta; i++) {
+                if (eventos[i].ps === null) return true;
+            }
+            return false;
         }
 
         function aplicarLigadura(tipo) {
-            if (seleccion.length !== 2) return;
-            const a = seleccion[0];
-            const b = seleccion[1];
-            const mismaAltura = a.ps === b.ps;
-            const esCorrecta = (tipo === 'prolongacion' && mismaAltura) || (tipo === 'expresion' && !mismaAltura);
+            if (tipo === 'prolongacion' && seleccion.length !== 2) return;
+            if (tipo === 'expresion' && seleccion.length < 2) return;
+
+            const ordenada = seleccion.slice().sort(function (a, b) { return a.idxEventos - b.idxEventos; });
+            let esCorrecta;
+            if (tipo === 'prolongacion') {
+                esCorrecta = ordenada[0].ps === ordenada[1].ps;
+            } else {
+                // Expresión: se corta en cualquier silencio entre notas
+                // consecutivas de la selección ("el límite es el silencio,
+                // no puede avanzar por ahí"), y no tiene sentido si TODAS las
+                // notas comparten la misma altura (eso sería una cadena de
+                // prolongaciones, no una frase con ligadura de expresión).
+                let cruzaSilencio = false;
+                for (let i = 1; i < ordenada.length; i++) {
+                    if (haySilencioEntre(ordenada[i - 1], ordenada[i])) { cruzaSilencio = true; break; }
+                }
+                const todasIgualAltura = ordenada.every(function (n) { return n.ps === ordenada[0].ps; });
+                esCorrecta = !cruzaSilencio && !todasIgualAltura;
+            }
 
             totalAcciones++;
             if (esCorrecta) {
                 correctas++;
-                arcos.push({ a: a, b: b, tipo: tipo });
+                arcos.push({ notas: ordenada, tipo: tipo });
                 if (tipo === 'prolongacion') huboProlongacion = true;
                 else huboExpresion = true;
                 redibujarOverlay();
@@ -2268,14 +2354,44 @@
             actualizarBotones();
         }
 
+        // El puntillo solo es válido si el evento INMEDIATO siguiente (mismo
+        // compás) es un silencio -- un puntillo extiende la nota hacia un
+        // silencio ya escrito, no puede "robarle" duración a otra nota.
+        function silencioSiguiente(nota) {
+            const siguiente = eventos[nota.idxEventos + 1];
+            if (!siguiente) return null;
+            if (siguiente.measureIndex !== nota.measureIndex) return null;
+            if (siguiente.ps !== null) return null;
+            return siguiente;
+        }
+
         function alternarPuntillo() {
             if (seleccion.length !== 1) return;
             const nota = seleccion[0];
-            if (puntilladas.has(nota)) puntilladas.delete(nota);
-            else puntilladas.add(nota);
+
+            if (puntilladas.has(nota)) {
+                // Deshacer -- no es un intento nuevo, solo revierte el
+                // estado y le devuelve al silencio consumido su lugar en la
+                // aritmética del compás.
+                const silencio = silencioConsumidoPor.get(nota);
+                if (silencio) eventosOcultos.delete(silencio);
+                silencioConsumidoPor.delete(nota);
+                puntilladas.delete(nota);
+            } else {
+                const silencio = silencioSiguiente(nota);
+                totalAcciones++;
+                if (silencio) {
+                    correctas++;
+                    puntilladas.add(nota);
+                    silencioConsumidoPor.set(nota, silencio);
+                    eventosOcultos.add(silencio);
+                } else {
+                    destellarPartitura(false);
+                }
+            }
+
             redibujarOverlay();
             actualizarCompases();
-
             seleccion = [];
             actualizarSeleccionVisual();
             actualizarBotones();
@@ -2327,6 +2443,8 @@
             seleccion = [];
             arcos = [];
             puntilladas = new Set();
+            silencioConsumidoPor = new Map();
+            eventosOcultos = new Set();
             correctas = 0;
             totalAcciones = 0;
             huboProlongacion = false;
@@ -2350,9 +2468,13 @@
                 osmd.render();
                 const recorrido = OsmdUtils.recorrerCursorOsmd(osmd);
                 OsmdUtils.etiquetarNotasConSvg(osmd, recorrido.notas);
-                const notasConPitch = recorrido.notas.filter(function (n) { return n.ps !== null; });
-                notas.forEach(function (n, i) {
-                    if (notasConPitch[i]) n.svgEl = notasConPitch[i].svgEl;
+                // El render reemplaza todo el árbol SVG -- reasigna los
+                // svgEl nuevos a los MISMOS objetos de evento que ya
+                // veníamos usando (por posición, misma pieza = mismo largo y
+                // orden), así selección/arcos/puntilladas (que guardan
+                // referencias a estos objetos) siguen apuntando bien.
+                eventos.forEach(function (ev, i) {
+                    if (recorrido.notas[i]) ev.svgEl = recorrido.notas[i].svgEl;
                 });
                 etiquetarNotasClickeables();
                 actualizarSeleccionVisual();
@@ -2385,7 +2507,9 @@
 
                 const recorrido = OsmdUtils.recorrerCursorOsmd(osmd);
                 OsmdUtils.etiquetarNotasConSvg(osmd, recorrido.notas);
-                notas = recorrido.notas.filter(function (n) { return n.ps !== null; });
+                eventos = recorrido.notas;
+                eventos.forEach(function (ev, i) { ev.idxEventos = i; });
+                notas = eventos.filter(function (n) { return n.ps !== null; });
 
                 if (notas.length === 0) throw new Error('El archivo no tiene notas con altura reconocible.');
 
