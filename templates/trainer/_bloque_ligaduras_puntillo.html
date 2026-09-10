@@ -65,14 +65,23 @@ A diferencia de Práctica dirigida, acá no hay un final natural de cursor
 
         <div class="ligpu-gab__estado" id="ligpu-estado-{{ bloque.id }}">{% trans "Cargando ejercicio…" %}</div>
 
+        {% comment %}
+        A propósito SIN disabled -- el alumno elige libremente qué acción
+        aplicar sobre lo que tenga seleccionado. Si la elección no
+        corresponde (cantidad de notas incorrecta, alturas incorrectas, cruza
+        un silencio, o no hay silencio siguiente para el puntillo), se marca
+        como error -- ver aplicarLigadura()/alternarPuntillo() en
+        tema_detail.html. No hay ningún estado en el que estos botones deban
+        quedar inertes.
+        {% endcomment %}
         <div class="ligpu-gab__acciones" id="ligpu-acciones-{{ bloque.id }}" style="display:none;">
-            <button type="button" class="btn-input ligpu-gab__accion-btn" id="ligpu-btn-prolongacion-{{ bloque.id }}" data-accion="prolongacion" disabled>
+            <button type="button" class="btn-input ligpu-gab__accion-btn" id="ligpu-btn-prolongacion-{{ bloque.id }}" data-accion="prolongacion">
                 {% trans "Ligadura de prolongación" %}
             </button>
-            <button type="button" class="btn-input ligpu-gab__accion-btn" id="ligpu-btn-expresion-{{ bloque.id }}" data-accion="expresion" disabled>
+            <button type="button" class="btn-input ligpu-gab__accion-btn" id="ligpu-btn-expresion-{{ bloque.id }}" data-accion="expresion">
                 {% trans "Ligadura de expresión" %}
             </button>
-            <button type="button" class="btn-input ligpu-gab__accion-btn" id="ligpu-btn-puntillo-{{ bloque.id }}" data-accion="puntillo" disabled>
+            <button type="button" class="btn-input ligpu-gab__accion-btn" id="ligpu-btn-puntillo-{{ bloque.id }}" data-accion="puntillo">
                 {% trans "Puntillo" %}
             </button>
         </div>
