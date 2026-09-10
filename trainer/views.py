@@ -1933,11 +1933,23 @@ def _bloque_desbloqueado(bloque, user):
 
 def _metrica_compases_ligaduras(archivo_field):
     """
-    Total esperado en dieciseisavos por compás, según el <time> vigente en
-    cada uno (music21 resuelve la herencia si un archivo MuseScore no
+    Total esperado en sesentaycuatroavos por compás, según el <time> vigente
+    en cada uno (music21 resuelve la herencia si un archivo MuseScore no
     redeclara <time> en todos los compases). Alimenta la validación
     client-side de puntillo en LIGADURAS_PUNTILLO: el alumno agrega puntillos
     a las notas dadas hasta que la suma de cada compás iguale este total.
+
+    Sesentaycuatroavos, no dieciseisavos (a diferencia de Ritmo matemático/
+    Completar el compás, que sí redondean a dieciseisavos) -- ahí el
+    contenido es procedural, generado en JS, siempre múltiplo exacto de un
+    dieciseisavo. Acá el archivo lo sube el admin y puede legítimamente tener
+    fusas (32avos) u otra subdivisión más fina; redondear a dieciseisavos
+    perdía precisión y acumulaba un error real (confirmado con un compás real
+    con varias fusas, que mostraba más tiempo total del que efectivamente
+    había). 64avos alcanza para cualquier subdivisión binaria común (hasta
+    fusa) sin perder precisión -- tresillos y subdivisiones no binarias
+    todavía pueden arrastrar un error mínimo de redondeo, aceptado por ahora.
+
     Self-contained a propósito -- no reutiliza los helpers privados del
     Analizador de orquestación (_tiempo_por_compas y compañía), que resuelven
     un problema más amplio (corregir métrica declarada contra duración real)
@@ -1946,7 +1958,7 @@ def _metrica_compases_ligaduras(archivo_field):
     """
     score = music21.converter.parse(archivo_field.path)
     compases = score.parts[0].getElementsByClass(music21.stream.Measure)
-    return [round(c.barDuration.quarterLength * 4) for c in compases]
+    return [round(c.barDuration.quarterLength * 16) for c in compases]
 
 
 @login_required
