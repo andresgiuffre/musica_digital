@@ -187,6 +187,10 @@
         </div>
     </div>
 
+    <div class="status-bar" style="align-items: center;">
+        <div>🔥 {% trans "Racha:" %} <span id="streak-counter">{{ score.current_streak }}</span></div>
+    </div>
+
     <div class="toolbar" style="margin-bottom: -1rem;">
         <div class="controls-group">
             <h2 style="margin: 0; color: var(--primary);">{% trans "Nivel:" %}</h2>
@@ -481,7 +485,7 @@
                 Tone.Transport.schedule((time) => {
                     Tone.Draw.schedule(() => {
                         stopPlayback();
-                        fetch('/api/record_attempt/lectura-musical/', {
+                        fetch('{% url "record_attempt" game.slug %}', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
                             body: JSON.stringify({
@@ -493,11 +497,14 @@
                         })
                         .then(res => res.json())
                         .then(data => {
-                            if (data.status === 'success' && data.level_info) {
-                                document.getElementById('ui-level').innerText = data.level_info.level;
-                                document.getElementById('ui-xp').innerText = data.level_info.xp_in_level;
-                                document.getElementById('ui-xp-needed').innerText = data.level_info.xp_needed;
-                                document.getElementById('ui-progress-bar').style.width = data.level_info.progress_percentage + "%";
+                            if (data.status === 'success') {
+                                document.getElementById('streak-counter').innerText = data.current_streak;
+                                if (data.level_info) {
+                                    document.getElementById('ui-level').innerText = data.level_info.level;
+                                    document.getElementById('ui-xp').innerText = data.level_info.xp_in_level;
+                                    document.getElementById('ui-xp-needed').innerText = data.level_info.xp_needed;
+                                    document.getElementById('ui-progress-bar').style.width = data.level_info.progress_percentage + "%";
+                                }
                             }
                         });
 

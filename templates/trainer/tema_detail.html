@@ -239,6 +239,7 @@
 {% block extra_js %}
 <script src="https://unpkg.com/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
 <script src="{% static 'js/osmd_utils.js' %}"></script>
+<script src="{% static 'js/ejercicio_interaccion.js' %}"></script>
 <script>
 (function () {
     // Mismo patrón fetch -> load -> render ya probado en orquestacion_ejercicio.html,
@@ -766,23 +767,15 @@
             divResumen.style.display = '';
             textoResumen.textContent = fmt(data.txtResultado, { correctas: correctas, total: total });
 
-            fetch(data.registrarUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': data.csrf },
-                body: JSON.stringify({ correctas: correctas, total: total }),
+            EjercicioUI.registrarResultadoBloque(data.registrarUrl, { correctas: correctas, total: total }, data.csrf, {
+                divBadge: divBadge,
+                claseBadgeCompletado: 'pdir-gab__badge--completado',
+                claseBadgeProgreso: 'pdir-gab__badge--progreso',
+                txtCompletado: function (resultado) { return fmt(data.txtCompletado, { precision: Math.round(resultado.mejor_precision) }); },
+                txtNoCompletado: function (resultado) { return fmt(data.txtNoCompletado, { veces: resultado.veces_practicado }); },
             })
-                .then(function (res) { return res.json(); })
                 .then(function (resultado) {
                     if (resultado.status !== 'success') return;
-                    divBadge.classList.remove('pdir-gab__badge--progreso', 'pdir-gab__badge--completado');
-                    if (resultado.completado) {
-                        divBadge.classList.add('pdir-gab__badge--completado');
-                        divBadge.textContent = fmt(data.txtCompletado, { precision: Math.round(resultado.mejor_precision) });
-                    } else {
-                        divBadge.classList.add('pdir-gab__badge--progreso');
-                        divBadge.textContent = fmt(data.txtNoCompletado, { veces: resultado.veces_practicado });
-                    }
-                    divBadge.style.display = '';
 
                     // Recién ACÁ se completó por primera vez en esta sesión -- el
                     // servidor ya desbloqueó el siguiente ejercicio, pero esta página
@@ -2088,14 +2081,13 @@
         let yaEstabaCompletado = divBadge.classList.contains('ligpu-gab__badge--completado');
 
         const estilosBody = getComputedStyle(document.body);
-        const colorAcierto = estilosBody.getPropertyValue('--green').trim() || '#2e7d32';
-        const colorError = estilosBody.getPropertyValue('--danger').trim() || '#c0392b';
         const colorSeleccion = estilosBody.getPropertyValue('--primary').trim() || '#6b3550';
 
         let osmd = null;
         let eventos = [];    // TODOS los pasos del cursor (notas Y silencios), en orden -- ver idxEventos
         let notas = [];      // subconjunto de eventos con ps !== null -- lo único clickeable
         let seleccion = [];  // 0-N entradas de notas[], orden de click (no necesariamente cronológico)
+        let notaAncla = null; // ancla del rango de Shift -- ver EjercicioUI.alternarSeleccion
         let arcos = [];      // ligaduras correctas ya marcadas: { notas: [ordenadas...], tipo }
         let puntilladas = new Set();          // notas (referencias) con puntillo activo
         let silencioConsumidoPor = new Map(); // nota punteada -> el evento-silencio que "se comió"
@@ -2148,16 +2140,9 @@
             });
         }
 
-        function marcarSeleccionVisual(svgEl, activo) {
-            if (!svgEl) return;
-            svgEl.style.filter = activo
-                ? ('drop-shadow(0 0 3px ' + colorSeleccion + ') drop-shadow(0 0 7px ' + colorSeleccion + ')')
-                : '';
-        }
-
         function actualizarSeleccionVisual() {
-            notas.forEach(function (n) { marcarSeleccionVisual(n.svgEl, false); });
-            seleccion.forEach(function (n) { marcarSeleccionVisual(n.svgEl, true); });
+            notas.forEach(function (n) { EjercicioUI.limpiarNotaSvg(n.svgEl); });
+            seleccion.forEach(function (n) { EjercicioUI.pintarNotaSvg(n.svgEl, colorSeleccion); });
         }
 
         function mostrarMensaje(texto) {
@@ -2168,17 +2153,19 @@
             divMensaje.style.display = 'none';
         }
 
-        function destellarPartitura(esCorrecta) {
-            if (!divPartitura) return;
-            const color = esCorrecta ? colorAcierto : colorError;
-            divPartitura.style.transition = 'box-shadow 0.15s ease';
-            divPartitura.style.boxShadow = '0 0 0 2px ' + color + ', 0 0 14px 2px ' + color;
-            if (!esCorrecta) {
-                divPartitura.style.animation = 'pdir-gab-shake 0.4s ease';
-            }
+        // La selección se deja limpiar un momento DESPUÉS del destello (no en
+        // el mismo tick) para que el alumno vea qué notas estaba evaluando a
+        // la vez que ve el resultado -- antes desaparecía instantáneamente.
+        // Guardia por referencia (===): si el alumno ya hizo un click nuevo
+        // antes de que venza el timeout, `seleccion` ya es un array distinto
+        // y este callback no debe pisarlo.
+        function limpiarSeleccionDiferida() {
+            const seleccionAlMomento = seleccion;
             setTimeout(function () {
-                divPartitura.style.boxShadow = '';
-                divPartitura.style.animation = '';
+                if (seleccion === seleccionAlMomento) {
+                    seleccion = [];
+                    actualizarSeleccionVisual();
+                }
             }, 500);
         }
 
@@ -2271,17 +2258,6 @@
             puntilladas.forEach(function (nota) { dibujarPunto(nota, rectContenedor); });
         }
 
-        function etiquetarNotasClickeables() {
-            mapaElementoANotas = new Map();
-            notas.forEach(function (n) {
-                if (!n.svgEl) return;
-                n.svgEl.setAttribute('data-osmd-nota', '1');
-                n.svgEl.classList.add('nota-clickeable');
-                if (!mapaElementoANotas.has(n.svgEl)) mapaElementoANotas.set(n.svgEl, []);
-                mapaElementoANotas.get(n.svgEl).push(n);
-            });
-        }
-
         // Recorrido propio (no toca osmd_utils.js, compartido con otras
         // páginas) calcado de OsmdUtils.etiquetarNotasConSvg, pero además
         // intenta leer la dirección REAL de la plica desde el StaveNote de
@@ -2328,33 +2304,11 @@
             }
         }
 
-        // Shift = rango desde la PRIMERA nota ya seleccionada hasta la
-        // clickeada, incluyendo las intermedias (mismo comportamiento
-        // estándar de cualquier lista/explorador de archivos). Ctrl/Cmd =
-        // agregar o sacar una nota puntual sin afectar el resto. Sin
-        // modificador = reinicia la selección a solo esa nota. Sin límite de
-        // cantidad -- los 3 botones de acción quedan SIEMPRE habilitados
-        // (pedido explícito: el alumno decide qué aplicar, no se le bloquea
-        // la decisión) y es aplicarLigadura()/alternarPuntillo() quien
-        // marca error si la cantidad/relación no corresponde a la acción
-        // elegida.
-        function alternarSeleccion(nota, shift, ctrl) {
-            if (shift && seleccion.length > 0) {
-                const iAncla = notas.indexOf(seleccion[0]);
-                const iClick = notas.indexOf(nota);
-                const desde = Math.min(iAncla, iClick);
-                const hasta = Math.max(iAncla, iClick);
-                seleccion = notas.slice(desde, hasta + 1);
-            } else if (ctrl) {
-                const idx = seleccion.indexOf(nota);
-                if (idx !== -1) seleccion.splice(idx, 1);
-                else seleccion.push(nota);
-            } else {
-                seleccion = [nota];
-            }
-            actualizarSeleccionVisual();
-        }
-
+        // Sin límite de cantidad de notas seleccionadas -- los 3 botones de
+        // acción quedan SIEMPRE habilitados (pedido explícito: el alumno
+        // decide qué aplicar, no se le bloquea la decisión) y es
+        // aplicarLigadura()/alternarPuntillo() quien marca error si la
+        // cantidad/relación no corresponde a la acción elegida.
         function onClickPartitura(ev) {
             const el = ev.target.closest && ev.target.closest('[data-osmd-nota]');
             if (!el) return;
@@ -2363,7 +2317,17 @@
             // espacios) -- se toma la primera nota mapeada a este elemento.
             const candidatos = mapaElementoANotas.get(el);
             if (!candidatos || !candidatos.length) return;
-            alternarSeleccion(candidatos[0], ev.shiftKey, ev.ctrlKey || ev.metaKey);
+            const resultado = EjercicioUI.alternarSeleccion({
+                seleccionActual: seleccion,
+                notaAncla: notaAncla,
+                notasOrdenadas: notas,
+                notaClickeada: candidatos[0],
+                shiftKey: ev.shiftKey,
+                ctrlKey: ev.ctrlKey || ev.metaKey,
+            });
+            seleccion = resultado.seleccion;
+            notaAncla = resultado.ancla;
+            actualizarSeleccionVisual();
         }
 
         // Recorre eventos (notas Y silencios) entre dos notas por posición
@@ -2414,20 +2378,28 @@
                 else huboExpresion = true;
                 redibujarOverlay();
             }
-            destellarPartitura(esCorrecta);
-
-            seleccion = [];
-            actualizarSeleccionVisual();
+            EjercicioUI.destellar(divPartitura, esCorrecta);
+            limpiarSeleccionDiferida();
         }
 
         // El puntillo solo es válido si el evento INMEDIATO siguiente (mismo
         // compás) es un silencio -- un puntillo extiende la nota hacia un
-        // silencio ya escrito, no puede "robarle" duración a otra nota.
+        // silencio ya escrito, no puede "robarle" duración a otra nota -- Y
+        // si ese silencio vale EXACTAMENTE la mitad de la duración base de la
+        // nota. No alcanza con "cualquier silencio inmediato": un silencio de
+        // otro tamaño se aceptaba antes igual, sumando a `correctas` aunque
+        // el compás terminara sin cerrar y el alumno tuviera que deshacerlo
+        // -- deshacer no resta el acierto ya contado, así que el % de
+        // precisión reportado quedaba inflado. calcularUnidadesEvento(nota)
+        // acá da la base SIN puntillo todavía (se llama antes de aplicarlo).
         function silencioSiguiente(nota) {
             const siguiente = eventos[nota.idxEventos + 1];
             if (!siguiente) return null;
             if (siguiente.measureIndex !== nota.measureIndex) return null;
             if (siguiente.ps !== null) return null;
+            const baseNota = calcularUnidadesEvento(nota);
+            const baseSilencio = calcularUnidadesEvento(siguiente);
+            if (baseSilencio !== baseNota / 2) return null;
             return siguiente;
         }
 
@@ -2464,12 +2436,11 @@
                 }
             }
             // seleccion.length !== 1 (0 o 2+) -> esCorrecta queda false.
-            destellarPartitura(esCorrecta);
+            EjercicioUI.destellar(divPartitura, esCorrecta);
 
             redibujarOverlay();
             actualizarCompases();
-            seleccion = [];
-            actualizarSeleccionVisual();
+            limpiarSeleccionDiferida();
         }
 
         function verificar() {
@@ -2481,23 +2452,15 @@
         }
 
         function terminar() {
-            fetch(data.registrarUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': data.csrf },
-                body: JSON.stringify({ correctas: correctas, total: totalAcciones }),
+            EjercicioUI.registrarResultadoBloque(data.registrarUrl, { correctas: correctas, total: totalAcciones }, data.csrf, {
+                divBadge: divBadge,
+                claseBadgeCompletado: 'ligpu-gab__badge--completado',
+                claseBadgeProgreso: 'ligpu-gab__badge--progreso',
+                txtCompletado: function (resultado) { return fmt(data.txtCompletado, { precision: Math.round(resultado.mejor_precision) }); },
+                txtNoCompletado: function (resultado) { return fmt(data.txtNoCompletado, { veces: resultado.veces_practicado }); },
             })
-                .then(function (res) { return res.json(); })
                 .then(function (resultado) {
                     if (resultado.status !== 'success') return;
-                    divBadge.classList.remove('ligpu-gab__badge--progreso', 'ligpu-gab__badge--completado');
-                    if (resultado.completado) {
-                        divBadge.classList.add('ligpu-gab__badge--completado');
-                        divBadge.textContent = fmt(data.txtCompletado, { precision: Math.round(resultado.mejor_precision) });
-                    } else {
-                        divBadge.classList.add('ligpu-gab__badge--progreso');
-                        divBadge.textContent = fmt(data.txtNoCompletado, { veces: resultado.veces_practicado });
-                    }
-                    divBadge.style.display = '';
 
                     divAcciones.style.display = 'none';
                     divVerificarWrap.style.display = 'none';
@@ -2516,6 +2479,7 @@
 
         function empezar() {
             seleccion = [];
+            notaAncla = null;
             arcos = [];
             puntilladas = new Set();
             silencioConsumidoPor = new Map();
@@ -2554,7 +2518,7 @@
                         if (recorrido.notas[i].plicaArribaReal !== undefined) ev.plicaArribaReal = recorrido.notas[i].plicaArribaReal;
                     }
                 });
-                etiquetarNotasClickeables();
+                mapaElementoANotas = EjercicioUI.etiquetarNotasClickeables(notas);
                 actualizarSeleccionVisual();
                 redibujarOverlay();
             }, 250);
@@ -2592,7 +2556,7 @@
 
                 if (notas.length === 0) throw new Error('El archivo no tiene notas con altura reconocible.');
 
-                etiquetarNotasClickeables();
+                mapaElementoANotas = EjercicioUI.etiquetarNotasClickeables(notas);
                 crearOverlaySiHaceFalta();
                 divOsmd.addEventListener('click', onClickPartitura);
 

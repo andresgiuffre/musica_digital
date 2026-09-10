@@ -831,6 +831,17 @@ body.gabinete .ligpu-gab__partitura {
     background-color: var(--score-paper); color: var(--score-ink); padding: 1.25rem 1.25rem 2.25rem;
     border-radius: var(--radius-data); overflow-x: auto; margin-bottom: 1rem; position: relative;
 }
+/* EjercicioUI.destellar() aplica flash-correct/flash-incorrect (base.html),
+   que además de border-color cambia background-color a un color-mix con
+   transparencia -- sin este override, el flash REEMPLAZA el papel blanco
+   opaco por ese tinte semitransparente contra el fondo oscuro del sitio
+   (nada detrás de este div lo tapa), rompiendo la regla de "el papel de
+   partitura nunca sigue el tema" (ver esa sección en CLAUDE.md) durante los
+   500ms del destello. El borde sí debe verse -- solo se fija el fondo. */
+body.gabinete .ligpu-gab__partitura.flash-correct,
+body.gabinete .ligpu-gab__partitura.flash-incorrect {
+    background-color: var(--score-paper) !important;
+}
 body.gabinete .ligpu-gab__osmd { position: relative; min-height: 120px; }
 /* Mismo nombre de clase que orquestacion_ejercicio.html usa para señalar que
    una nota responde al click -- acá solo el cursor, el glow de "seleccionada"
