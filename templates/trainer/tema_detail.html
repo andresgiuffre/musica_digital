@@ -2107,8 +2107,16 @@
         let overlaySvg = null;
         let mapaElementoANotas = new Map();
 
-        function calcularDieciseisavosEvento(ev) {
-            const base = Math.round(ev.durationRealValue * 16);
+        // Sesentaycuatroavos, no dieciseisavos -- mismo motivo que
+        // _metrica_compases_ligaduras() en views.py: el archivo lo sube el
+        // admin y puede tener fusas (32avos) u otra subdivisión más fina.
+        // Redondear a dieciseisavos perdía precisión ahí (confirmado: un
+        // compás real con varias fusas mostraba más tiempo del que
+        // realmente había, cada fusa de 0.5 dieciseisavos redondeaba hacia
+        // arriba a 1 y el error se acumulaba). 64avos alcanza sin perder
+        // precisión para cualquier subdivisión binaria común.
+        function calcularUnidadesEvento(ev) {
+            const base = Math.round(ev.durationRealValue * 64);
             return puntilladas.has(ev) ? Math.round(base * 1.5) : base;
         }
 
@@ -2116,7 +2124,7 @@
             const totales = {};
             eventos.forEach(function (ev) {
                 if (eventosOcultos.has(ev)) return; // silencio ya consumido por un puntillo
-                totales[ev.measureIndex] = (totales[ev.measureIndex] || 0) + calcularDieciseisavosEvento(ev);
+                totales[ev.measureIndex] = (totales[ev.measureIndex] || 0) + calcularUnidadesEvento(ev);
             });
             return totales;
         }
@@ -2187,14 +2195,17 @@
         // aproximación geométrica a partir del rect completo del glifo + la
         // dirección de plica (real si se pudo leer de VexFlow, ver
         // etiquetarNotasConDireccionPlica; si no, el respaldo por altura),
-        // no una lectura directa del glifo. Mejor que usar el centro del rect
-        // completo (que cae en medio de la plica, no de la cabeza) pero
-        // todavía aproximado -- confirmar visualmente en navegador real.
+        // no una lectura directa del glifo. RADIO_CABEZA_APROX apunta al
+        // CENTRO de la cabeza (no a su borde) -- confirmado que un offset
+        // chico dejaba el punto de anclaje demasiado cerca del borde, y el
+        // arco terminaba uniendo "puntas" en vez de curvar desde el medio de
+        // cada cabeza. Sigue siendo una aproximación -- confirmar visualmente
+        // en navegador real.
         function posicionCabezaNota(nota, rectContenedor) {
             if (!nota.svgEl) return null;
             const r = nota.svgEl.getBoundingClientRect();
             const plicaArriba = nota.plicaArribaReal !== undefined ? nota.plicaArribaReal : (nota.ps <= LINEA_CENTRAL_PS);
-            const RADIO_CABEZA_APROX = 5;
+            const RADIO_CABEZA_APROX = 7;
             const cyAbs = plicaArriba ? (r.bottom - RADIO_CABEZA_APROX) : (r.top + RADIO_CABEZA_APROX);
             const cxAbs = Math.min(r.left + 10, r.right);
             return {
@@ -2214,14 +2225,15 @@
             // hacia arriba, el arco pasa POR DEBAJO de las cabezas (curva
             // hacia abajo); si la plica apunta hacia abajo, el arco pasa POR
             // ARRIBA (curva hacia arriba) -- mismo criterio que cualquier
-            // editor de partituras, para no cruzarla. Offset generoso (20px)
-            // a propósito: con un offset chico la curva queda pegada a la
-            // zona de la plica en vez de leerse como un arco limpio por
-            // encima/debajo de las notas. Si hay varias notas de por medio
-            // (ligadura de expresión larga), el punto de control se calcula
-            // contra el extremo más lejano entre TODAS ellas, no solo las
-            // puntas, para que la curva las libre a todas.
-            const OFFSET = 20;
+            // editor de partituras, para no cruzarla. Offset generoso (28px)
+            // a propósito: pedido explícito de que se vea prolijo -- con un
+            // offset chico la curva se leía apretada/encimada contra las
+            // cabezas en vez de un arco limpio y separado por encima/debajo.
+            // Si hay varias notas de por medio (ligadura de expresión larga),
+            // el punto de control se calcula contra el extremo más lejano
+            // entre TODAS ellas, no solo las puntas, para que la curva las
+            // libre a todas.
+            const OFFSET = 28;
             let altoControl;
             if (primero.plicaArriba) {
                 const maxY = Math.max.apply(null, puntos.map(function (p) { return p.cy; }));
