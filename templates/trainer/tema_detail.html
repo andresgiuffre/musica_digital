@@ -2176,22 +2176,62 @@
             divPartitura.appendChild(overlaySvg);
         }
 
-        // No hay forma de aislar SOLO la cabeza dentro de svgEl (el grupo
-        // completo de OSMD/VexFlow incluye plica, corchete y alteración) sin
-        // inspeccionar el SVG real en un navegador -- esto es una
-        // aproximación geométrica a partir del rect completo del glifo + la
-        // dirección de plica (real si se pudo leer de VexFlow, ver
-        // etiquetarNotasConDireccionPlica; si no, el respaldo por altura),
-        // no una lectura directa del glifo. RADIO_CABEZA_APROX apunta al
-        // CENTRO de la cabeza (no a su borde) -- confirmado que un offset
-        // chico dejaba el punto de anclaje demasiado cerca del borde, y el
-        // arco terminaba uniendo "puntas" en vez de curvar desde el medio de
-        // cada cabeza. Sigue siendo una aproximación -- confirmar visualmente
-        // en navegador real.
+        // Intento PRECISO: VexFlow (vexflow@1.2.93, la versión real que usa
+        // opensheetmusicdisplay@1.8.8 -- confirmado leyendo su código fuente,
+        // no supuesto) dibuja cada cabeza de nota en coordenadas EXACTAS,
+        // `NoteHead.getAbsoluteX()`/`NoteHead.getY()`, que según el propio
+        // código son "posición absoluta en píxeles sobre el canvas/SVG" --
+        // NO el bounding box del grupo completo (que además de la cabeza
+        // incluye plica, corchete y alteración, y es lo que el respaldo de
+        // abajo usa). `nota.vfnote` es el StaveNote real, etiquetado por
+        // etiquetarDatosVexFlow(); `vfnote.note_heads[0]` es su NoteHead.
+        // Esas coordenadas son locales al <svg> que dibuja OSMD, no de
+        // página -- se convierten sumando el propio getBoundingClientRect()
+        // del <svg> (asume que OSMD no aplica una escala/viewBox extra sobre
+        // esas coordenadas; no hay forma de confirmar esto sin un navegador
+        // real). Por eso el resultado se valida con una prueba de cordura
+        // geométrica antes de confiar en él: el punto tiene que caer DENTRO
+        // del bounding box del grupo completo (r) -- si el supuesto de
+        // escala estuviera mal, lo más probable es que caiga bien afuera, y
+        // ahí se descarta en vez de usar un resultado imposible.
+        function centroCabezaVexFlowAbs(nota) {
+            try {
+                if (!nota.vfnote || !nota.vfnote.note_heads || !nota.vfnote.note_heads[0]) return null;
+                const svgRoot = divOsmd.querySelector && divOsmd.querySelector('svg');
+                if (!svgRoot) return null;
+                const head = nota.vfnote.note_heads[0];
+                const localX = typeof head.getAbsoluteX === 'function' ? head.getAbsoluteX() : null;
+                const localY = typeof head.getY === 'function' ? head.getY() : null;
+                if (typeof localX !== 'number' || typeof localY !== 'number') return null;
+                const rectSvg = svgRoot.getBoundingClientRect();
+                return { xAbs: rectSvg.left + localX, yAbs: rectSvg.top + localY };
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Respaldo aproximado (el único método hasta esta ronda, afinado a
+        // ciegas en 3 rondas anteriores sin resolver el problema de fondo --
+        // ver centroCabezaVexFlowAbs arriba para la razón real). Se mantiene
+        // solo como red de seguridad si lo de arriba no está disponible o no
+        // pasa la prueba de cordura.
         function posicionCabezaNota(nota, rectContenedor) {
             if (!nota.svgEl) return null;
             const r = nota.svgEl.getBoundingClientRect();
             const plicaArriba = nota.plicaArribaReal !== undefined ? nota.plicaArribaReal : (nota.ps <= LINEA_CENTRAL_PS);
+
+            const exacto = centroCabezaVexFlowAbs(nota);
+            const MARGEN = 1; // tolerancia por redondeo de sub-píxel
+            if (exacto &&
+                exacto.xAbs >= r.left - MARGEN && exacto.xAbs <= r.right + MARGEN &&
+                exacto.yAbs >= r.top - MARGEN && exacto.yAbs <= r.bottom + MARGEN) {
+                return {
+                    cx: exacto.xAbs - rectContenedor.left,
+                    cy: exacto.yAbs - rectContenedor.top,
+                    plicaArriba: plicaArriba,
+                };
+            }
+
             const RADIO_CABEZA_APROX = 7;
             const cyAbs = plicaArriba ? (r.bottom - RADIO_CABEZA_APROX) : (r.top + RADIO_CABEZA_APROX);
             const cxAbs = Math.min(r.left + 10, r.right);
@@ -2260,16 +2300,18 @@
 
         // Recorrido propio (no toca osmd_utils.js, compartido con otras
         // páginas) calcado de OsmdUtils.etiquetarNotasConSvg, pero además
-        // intenta leer la dirección REAL de la plica desde el StaveNote de
-        // VexFlow (gNota.vfnote[0].getStemDirection(): 1 arriba, -1 abajo,
-        // API estándar de VexFlow) en vez de inferirla solo por altura --
+        // lee dos cosas directo del StaveNote de VexFlow en vez de
+        // aproximarlas: (1) la dirección REAL de la plica
+        // (gNota.vfnote[0].getStemDirection(): 1 arriba, -1 abajo, API
+        // estándar de VexFlow) en vez de inferirla solo por altura --
         // confirmado necesario en la práctica: la altura sola no siempre
-        // coincide con lo que VexFlow termina dibujando. Si no está
+        // coincide con lo que VexFlow termina dibujando; y (2) la referencia
+        // al StaveNote mismo (entrada.vfnote), que posicionCabezaNota() usa
+        // para ubicar la cabeza con las coordenadas EXACTAS que VexFlow usó
+        // para dibujarla (ver ahí el porqué). Si nada de esto está
         // disponible (versión distinta, nota sin vfnote), no toca nada y
-        // posicionCabezaNota() cae solo al respaldo por altura
-        // (LINEA_CENTRAL_PS) -- nunca rompe, en el peor caso queda tan
-        // aproximado como antes.
-        function etiquetarDireccionPlica(osmdInst, eventosArr) {
+        // posicionCabezaNota() cae a su respaldo aproximado -- nunca rompe.
+        function etiquetarDatosVexFlow(osmdInst, eventosArr) {
             const porLogicalNote = new Map();
             eventosArr.forEach(function (ev) {
                 if (!ev.logicalNote) return;
@@ -2285,22 +2327,24 @@
                                 (gve.notes || []).forEach(function (gNota) {
                                     const entradas = porLogicalNote.get(gNota.sourceNote);
                                     if (!entradas) return;
+                                    const vfnote = gNota.vfnote && gNota.vfnote[0];
                                     let direccion = null;
                                     try {
-                                        if (gNota.vfnote && gNota.vfnote[0] && typeof gNota.vfnote[0].getStemDirection === 'function') {
-                                            direccion = gNota.vfnote[0].getStemDirection();
+                                        if (vfnote && typeof vfnote.getStemDirection === 'function') {
+                                            direccion = vfnote.getStemDirection();
                                         }
                                     } catch (e) { direccion = null; }
-                                    if (direccion !== null) {
-                                        entradas.forEach(function (entrada) { entrada.plicaArribaReal = direccion === 1; });
-                                    }
+                                    entradas.forEach(function (entrada) {
+                                        if (direccion !== null) entrada.plicaArribaReal = direccion === 1;
+                                        entrada.vfnote = vfnote || null;
+                                    });
                                 });
                             });
                         });
                     });
                 });
             } catch (e) {
-                console.warn('[ligaduras-puntillo] No se pudo leer la dirección real de las plicas, se usa el respaldo por altura:', e);
+                console.warn('[ligaduras-puntillo] No se pudo leer datos de VexFlow (plica/cabeza), se usa el respaldo aproximado:', e);
             }
         }
 
@@ -2412,7 +2456,17 @@
             if (seleccion.length === 1 && puntilladas.has(seleccion[0])) {
                 const nota = seleccion[0];
                 const silencio = silencioConsumidoPor.get(nota);
-                if (silencio) eventosOcultos.delete(silencio);
+                if (silencio) {
+                    eventosOcultos.delete(silencio);
+                    // Revierte el ocultamiento visual del silencio (ver más abajo) --
+                    // mismo mecanismo que svgHueco.style.opacity en Completar el
+                    // compás. Antes de este fix, `eventosOcultos` SOLO afectaba la
+                    // aritmética de totalesPorCompas() -- el silencio seguía
+                    // dibujado en el pentagrama, sin tocar, aunque ya no contara para
+                    // la métrica. Bug real reportado por el usuario: "el silencio se
+                    // queda ahí sin tocar" -- tenían razón, nunca se ocultaba.
+                    if (silencio.svgEl) silencio.svgEl.style.opacity = '';
+                }
                 silencioConsumidoPor.delete(nota);
                 puntilladas.delete(nota);
                 redibujarOverlay();
@@ -2433,6 +2487,11 @@
                     puntilladas.add(nota);
                     silencioConsumidoPor.set(nota, silencio);
                     eventosOcultos.add(silencio);
+                    // El puntillo "ocupa" el tiempo del silencio -- tiene que
+                    // desaparecer del pentagrama, no solo dejar de contar en la
+                    // aritmética. opacity (no display:none) para no alterar el
+                    // layout ya renderizado por OSMD.
+                    if (silencio.svgEl) silencio.svgEl.style.opacity = '0';
                 }
             }
             // seleccion.length !== 1 (0 o 2+) -> esCorrecta queda false.
@@ -2478,6 +2537,12 @@
         }
 
         function empezar() {
+            // Revierte el ocultamiento visual de cualquier silencio que hubiera
+            // quedado consumido por un puntillo antes de resetear el estado --
+            // si no, "Practicar de nuevo" deja silencios invisibles de un
+            // intento anterior sin ninguna forma de recuperarlos.
+            eventosOcultos.forEach(function (ev) { if (ev.svgEl) ev.svgEl.style.opacity = ''; });
+
             seleccion = [];
             notaAncla = null;
             arcos = [];
@@ -2506,7 +2571,7 @@
                 osmd.render();
                 const recorrido = OsmdUtils.recorrerCursorOsmd(osmd);
                 OsmdUtils.etiquetarNotasConSvg(osmd, recorrido.notas);
-                etiquetarDireccionPlica(osmd, recorrido.notas);
+                etiquetarDatosVexFlow(osmd, recorrido.notas);
                 // El render reemplaza todo el árbol SVG -- reasigna los
                 // svgEl nuevos a los MISMOS objetos de evento que ya
                 // veníamos usando (por posición, misma pieza = mismo largo y
@@ -2516,8 +2581,13 @@
                     if (recorrido.notas[i]) {
                         ev.svgEl = recorrido.notas[i].svgEl;
                         if (recorrido.notas[i].plicaArribaReal !== undefined) ev.plicaArribaReal = recorrido.notas[i].plicaArribaReal;
+                        ev.vfnote = recorrido.notas[i].vfnote || null;
                     }
                 });
+                // El render recién hecho dibujó TODO de nuevo, visible -- un
+                // silencio ya consumido por un puntillo tiene que volver a
+                // ocultarse en su svgEl nuevo, o reaparece al primer resize.
+                eventosOcultos.forEach(function (ev) { if (ev.svgEl) ev.svgEl.style.opacity = '0'; });
                 mapaElementoANotas = EjercicioUI.etiquetarNotasClickeables(notas);
                 actualizarSeleccionVisual();
                 redibujarOverlay();
@@ -2549,7 +2619,7 @@
 
                 const recorrido = OsmdUtils.recorrerCursorOsmd(osmd);
                 OsmdUtils.etiquetarNotasConSvg(osmd, recorrido.notas);
-                etiquetarDireccionPlica(osmd, recorrido.notas);
+                etiquetarDatosVexFlow(osmd, recorrido.notas);
                 eventos = recorrido.notas;
                 eventos.forEach(function (ev, i) { ev.idxEventos = i; });
                 notas = eventos.filter(function (n) { return n.ps !== null; });
