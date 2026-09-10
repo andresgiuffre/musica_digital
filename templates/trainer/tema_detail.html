@@ -2215,7 +2215,22 @@
                 const localY = typeof head.getY === 'function' ? head.getY() : null;
                 if (typeof localX !== 'number' || typeof localY !== 'number') return null;
                 const rectSvg = svgRoot.getBoundingClientRect();
-                return { xAbs: rectSvg.left + localX, yAbs: rectSvg.top + localY };
+                // getAbsoluteX() da el borde IZQUIERDO de la cabeza (donde arranca
+                // el glifo), no su centro -- confirmado con el resultado real:
+                // sin este +6 el arco anclaba sistemáticamente de un costado, y
+                // justo del lado opuesto al que erraba el método aproximado viejo
+                // (ese sumaba r.left+10 sobre un rect ya corrido a la izquierda
+                // por una posible alteración, así que por casualidad quedaba más
+                // cerca del centro o incluso pasado; éste no suma nada y se queda
+                // clavado en el borde real). +6px es el mismo ajuste que ya usan
+                // trainer_sincopas.html/trainer_tiempos_fuertes.html para lo
+                // mismo ("+6 // approximate center of standard notehead") sobre
+                // VexFlow dibujado directo -- no es un valor inventado para este
+                // archivo. getY() sí es el centro vertical real (el punto entero
+                // de cómo se posiciona una nota en el pentagrama es quedar
+                // centrada en su línea/espacio), no necesita ajuste.
+                const CENTRO_CABEZA_X = 6;
+                return { xAbs: rectSvg.left + localX + CENTRO_CABEZA_X, yAbs: rectSvg.top + localY };
             } catch (e) {
                 return null;
             }
@@ -2288,7 +2303,13 @@
 
         function dibujarPunto(nota, rectContenedor) {
             const pos = posicionCabezaNota(nota, rectContenedor);
-            if (!pos) return;
+            if (!pos) {
+                // Solo puede pasar si nota.svgEl es falso -- diagnóstico real en
+                // vez de fallar en silencio, para no volver a adivinar a ciegas
+                // si esto vuelve a pasar.
+                console.warn('[ligaduras-puntillo] No se pudo calcular la posición del puntillo -- nota.svgEl:', nota.svgEl, 'nota.vfnote:', nota.vfnote);
+                return;
+            }
             // Siempre a la derecha de la cabeza, sin importar la dirección de
             // la plica -- a diferencia del arco, el puntillo no se invierte.
             // Espacio chico pero real (7px) para que no quede pegado.
