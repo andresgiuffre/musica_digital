@@ -11,7 +11,7 @@ from .models import (
     MusicalProject, ProjectGoal, ProjectSection,
     MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis,
     Curso, Grado, Tema, BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso,
-    LineasEspaciosProgreso,
+    LineasEspaciosProgreso, LigadurasPuntilloProgreso,
     InstrumentoHabilitadoOrquestacion, ProgresoOrquestacionLibre,
 )
 
@@ -98,6 +98,10 @@ class BloqueContenidoInline(admin.StackedInline):
             'fields': ('lineas_problemas_requeridos',),
             'classes': ('collapse',),
         }),
+        ('[G1] Ligaduras y Puntillo', {
+            'fields': ('musicxml_ligaduras', 'ligaduras_precision_minima'),
+            'classes': ('collapse',),
+        }),
     )
 
     class Media:
@@ -151,6 +155,14 @@ class LineasEspaciosProgresoAdmin(admin.ModelAdmin):
     """Mismo criterio que CompletarCompasProgresoAdmin: dato operacional, solo
     para inspeccionar, no se edita a mano."""
     list_display = ('user', 'bloque', 'mejor_racha', 'veces_practicado', 'completado', 'ultima_vez')
+    list_filter = ('completado',)
+
+
+@admin.register(LigadurasPuntilloProgreso)
+class LigadurasPuntilloProgresoAdmin(admin.ModelAdmin):
+    """Mismo criterio que PracticaDirigidaProgresoAdmin: dato operacional, solo
+    para inspeccionar, no se edita a mano (porcentaje, no racha)."""
+    list_display = ('user', 'bloque', 'mejor_precision', 'veces_practicado', 'completado', 'ultima_vez')
     list_filter = ('completado',)
 
 

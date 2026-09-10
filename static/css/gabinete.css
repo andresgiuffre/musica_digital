@@ -761,20 +761,20 @@ body.gabinete .card { border-color: var(--line); box-shadow: none; }
 }
 
 /* ---------- Práctica dirigida (bloque de Cursos, tema_detail) ---------- */
-/* Compartida con Ritmo matemático, Completar el compás y Líneas y espacios (mismo layout badge + botón Reiniciar). */
-body.gabinete .pdir-gab__cabecera, body.gabinete .ritmo-gab__cabecera, body.gabinete .compas-gab__cabecera, body.gabinete .lineas-gab__cabecera {
+/* Compartida con Ritmo matemático, Completar el compás, Líneas y espacios y Ligaduras y Puntillo (mismo layout badge + botón Reiniciar). */
+body.gabinete .pdir-gab__cabecera, body.gabinete .ritmo-gab__cabecera, body.gabinete .compas-gab__cabecera, body.gabinete .lineas-gab__cabecera, body.gabinete .ligpu-gab__cabecera {
     display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
     flex-wrap: wrap; margin-bottom: 1rem;
 }
-body.gabinete .pdir-gab__badge, body.gabinete .ritmo-gab__badge, body.gabinete .compas-gab__badge, body.gabinete .lineas-gab__badge {
+body.gabinete .pdir-gab__badge, body.gabinete .ritmo-gab__badge, body.gabinete .compas-gab__badge, body.gabinete .lineas-gab__badge, body.gabinete .ligpu-gab__badge {
     display: inline-block;
     font-size: 0.8125rem;
     font-weight: 600;
     padding: 0.35rem 0.85rem;
     border-radius: 999px;
 }
-body.gabinete .pdir-gab__badge--completado, body.gabinete .ritmo-gab__badge--completado, body.gabinete .compas-gab__badge--completado, body.gabinete .lineas-gab__badge--completado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
-body.gabinete .pdir-gab__badge--progreso, body.gabinete .ritmo-gab__badge--progreso, body.gabinete .compas-gab__badge--progreso, body.gabinete .lineas-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
+body.gabinete .pdir-gab__badge--completado, body.gabinete .ritmo-gab__badge--completado, body.gabinete .compas-gab__badge--completado, body.gabinete .lineas-gab__badge--completado, body.gabinete .ligpu-gab__badge--completado { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+body.gabinete .pdir-gab__badge--progreso, body.gabinete .ritmo-gab__badge--progreso, body.gabinete .compas-gab__badge--progreso, body.gabinete .lineas-gab__badge--progreso, body.gabinete .ligpu-gab__badge--progreso { background: color-mix(in srgb, var(--ochre) 18%, transparent); color: var(--ochre); }
 
 body.gabinete .pdir-gab__partitura {
     background-color: var(--score-paper); color: var(--score-ink); padding: 1.25rem 1.25rem 2.25rem;
@@ -819,6 +819,47 @@ body.gabinete .pdir-gab__resumen-texto { font-weight: 600; margin-bottom: 0.75re
 @media (max-width: 560px) {
     body.gabinete .pdir-gab__notas-grid { grid-template-columns: repeat(4, 1fr); }
 }
+
+/* ---------- Ligaduras y Puntillo ([G1], bloque de Cursos, tema_detail) ---------- */
+body.gabinete .ligpu-gab__instrucciones { color: var(--ink-soft); font-size: 0.9375rem; margin-bottom: 1rem; }
+
+/* Mismo criterio que .pdir-gab__partitura: position:relative para el cursor
+   de OSMD Y para el <svg> overlay de arcos/puntillos que dibuja el JS encima
+   (posicionado con getBoundingClientRect() relativo a este contenedor, mismo
+   cálculo que .compas-gab__hueco). */
+body.gabinete .ligpu-gab__partitura {
+    background-color: var(--score-paper); color: var(--score-ink); padding: 1.25rem 1.25rem 2.25rem;
+    border-radius: var(--radius-data); overflow-x: auto; margin-bottom: 1rem; position: relative;
+}
+body.gabinete .ligpu-gab__osmd { position: relative; min-height: 120px; }
+/* Mismo nombre de clase que orquestacion_ejercicio.html usa para señalar que
+   una nota responde al click -- acá solo el cursor, el glow de "seleccionada"
+   se aplica inline vía JS (mismo mecanismo que pintarNota en Práctica
+   dirigida) porque necesita prender/apagar dinámicamente por nota. */
+body.gabinete .ligpu-gab__osmd .nota-clickeable { cursor: pointer; }
+
+/* El <svg> overlay en sí lo crea el JS (no vive en el HTML del parcial) --
+   estas reglas solo fijan cómo se ve una vez insertado. */
+body.gabinete .ligpu-gab__overlay { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+body.gabinete .ligpu-gab__arco { fill: none; stroke: var(--green); stroke-width: 2; }
+body.gabinete .ligpu-gab__punto { fill: var(--score-ink); }
+
+body.gabinete .ligpu-gab__compases { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem; }
+body.gabinete .ligpu-gab__compas { padding: 0.3rem 0.7rem; border-radius: 999px; background: var(--bg); color: var(--ink-soft); border: 1px solid var(--line); }
+body.gabinete .ligpu-gab__compas--completo { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); border-color: transparent; }
+
+body.gabinete .ligpu-gab__estado { color: var(--ink-soft); text-align: center; padding: 1rem 0; }
+
+body.gabinete .ligpu-gab__acciones { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.75rem; }
+body.gabinete .ligpu-gab__accion-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+body.gabinete .ligpu-gab__accion-btn--activo { background: color-mix(in srgb, var(--primary) 16%, transparent); border-color: var(--primary); }
+
+body.gabinete .ligpu-gab__mensaje { color: var(--danger); font-weight: 600; text-align: center; margin-bottom: 0.75rem; }
+
+body.gabinete .ligpu-gab__verificar { text-align: center; margin-bottom: 0.75rem; }
+
+body.gabinete .ligpu-gab__resumen { text-align: center; }
+body.gabinete .ligpu-gab__resumen-texto { font-weight: 600; margin-bottom: 0.75rem; }
 
 /* ---------- Ritmo matemático (bloque de Cursos, tema_detail) ---------- */
 body.gabinete .ritmo-gab__progreso { color: var(--ink-soft); font-size: 0.875rem; margin: 0 0 0.25rem; }

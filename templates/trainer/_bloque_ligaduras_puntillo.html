@@ -1,0 +1,91 @@
+{% load i18n %}
+{% comment %}
+Parcial incluido desde tema_detail.html donde ya despacha por bloque.tipo --
+no es una página con URL propia. `bloque` y `csrf_token` llegan del contexto
+del include (sin `only`), no se re-pasan a mano.
+
+bloque.bloqueado viene calculado server-side (_bloque_desbloqueado en
+views.py) -- si está bloqueado, NO se renderiza ningún data-* ni la marcación
+interactiva, mismo criterio que el resto de los ejercicios de esta cadena.
+
+A diferencia de Práctica dirigida, acá no hay un final natural de cursor
+(el alumno elige libremente qué pares marcar) -- por eso hace falta un botón
+"Verificar" explícito en vez de auto-terminar al llegar al final de la pieza.
+{% endcomment %}
+<div class="ligpu-gab" id="ligpu-bloque-{{ bloque.id }}"
+    data-bloque-id="{{ bloque.id }}"
+    {% if not bloque.bloqueado %}
+    data-archivo-url="{% url 'bloque_ligaduras_puntillo_archivo' bloque.id %}"
+    data-es-mxl="{{ bloque.es_mxl_ligaduras|yesno:'true,false' }}"
+    data-registrar-url="{% url 'bloque_ligaduras_puntillo_registrar' bloque.id %}"
+    data-metrica-compases="{{ bloque.metrica_compases_json }}"
+    data-csrf="{{ csrf_token }}"
+    data-lang="{{ LANGUAGE_CODE }}"
+    data-txt-cargando="{% trans 'Cargando ejercicio…' %}"
+    data-txt-error="{% trans 'No se pudo cargar el ejercicio.' %}"
+    data-txt-ya-completado="{% trans 'Ya completaste este ejercicio. Podés practicarlo de nuevo si querés.' %}"
+    data-txt-completado="{% trans 'Completado — mejor puntaje: {precision}%' %}"
+    data-txt-no-completado="{% trans 'Practicado {veces} veces — todavía no completado' %}"
+    data-txt-desbloqueado="{% trans '¡Siguiente ejercicio desbloqueado! Actualizando la página…' %}"
+    data-txt-resultado="{% trans 'Acertaste {correctas} de {total} ligaduras.' %}"
+    data-txt-compas="{% trans 'Compás {n}: {actual}/{total}' %}"
+    data-txt-falta-prolongacion="{% trans 'Todavía falta marcar al menos una ligadura de prolongación correcta.' %}"
+    data-txt-falta-expresion="{% trans 'Todavía falta marcar al menos una ligadura de expresión correcta.' %}"
+    data-txt-falta-puntillo="{% trans 'Todavía hay compases sin cerrar su métrica con puntillos.' %}"
+    {% endif %}>
+
+    {% if bloque.bloqueado %}
+        <div class="ligpu-gab__estado">{% trans "Completá el ejercicio anterior para desbloquear este." %}</div>
+    {% else %}
+        <div class="ligpu-gab__cabecera">
+            <div class="ligpu-gab__badge {% if bloque.progreso_usuario.completado %}ligpu-gab__badge--completado{% elif bloque.progreso_usuario %}ligpu-gab__badge--progreso{% endif %}"
+                id="ligpu-badge-{{ bloque.id }}" {% if not bloque.progreso_usuario %}style="display:none;"{% endif %}>
+                {% if bloque.progreso_usuario.completado %}
+                    {% blocktrans with precision=bloque.progreso_usuario.mejor_precision|floatformat:0 %}Completado — mejor puntaje: {{ precision }}%{% endblocktrans %}
+                {% elif bloque.progreso_usuario %}
+                    {% blocktrans count veces=bloque.progreso_usuario.veces_practicado %}Practicado {{ veces }} vez — todavía no completado{% plural %}Practicado {{ veces }} veces — todavía no completado{% endblocktrans %}
+                {% endif %}
+            </div>
+            {% if bloque.progreso_usuario %}
+            <button type="button" class="btn-gab btn-gab--secondary reiniciar-progreso-btn"
+                data-reiniciar-url="{% url 'bloque_progreso_reiniciar' bloque.id %}"
+                data-txt-confirmar="{% trans '¿Reiniciar el progreso de este ejercicio? Vas a tener que resolverlo de nuevo.' %}">
+                ↺ {% trans "Reiniciar" %}
+            </button>
+            {% endif %}
+        </div>
+
+        <p class="ligpu-gab__instrucciones">{% trans "Seleccioná dos notas (Shift o Ctrl + click para la segunda) y marcá el tipo de ligadura que corresponda, o seleccioná una sola nota y usá Puntillo para completar la métrica del compás." %}</p>
+
+        <div class="ligpu-gab__partitura" id="ligpu-partitura-{{ bloque.id }}">
+            <div id="ligpu-osmd-{{ bloque.id }}" class="ligpu-gab__osmd"></div>
+        </div>
+
+        <div class="ligpu-gab__compases" id="ligpu-compases-{{ bloque.id }}"></div>
+
+        <div class="ligpu-gab__estado" id="ligpu-estado-{{ bloque.id }}">{% trans "Cargando ejercicio…" %}</div>
+
+        <div class="ligpu-gab__acciones" id="ligpu-acciones-{{ bloque.id }}" style="display:none;">
+            <button type="button" class="btn-input ligpu-gab__accion-btn" id="ligpu-btn-prolongacion-{{ bloque.id }}" data-accion="prolongacion" disabled>
+                {% trans "Ligadura de prolongación" %}
+            </button>
+            <button type="button" class="btn-input ligpu-gab__accion-btn" id="ligpu-btn-expresion-{{ bloque.id }}" data-accion="expresion" disabled>
+                {% trans "Ligadura de expresión" %}
+            </button>
+            <button type="button" class="btn-input ligpu-gab__accion-btn" id="ligpu-btn-puntillo-{{ bloque.id }}" data-accion="puntillo" disabled>
+                {% trans "Puntillo" %}
+            </button>
+        </div>
+
+        <p class="ligpu-gab__mensaje" id="ligpu-mensaje-{{ bloque.id }}" style="display:none;"></p>
+
+        <div class="ligpu-gab__verificar" id="ligpu-verificar-wrap-{{ bloque.id }}" style="display:none;">
+            <button type="button" class="btn-gab btn-gab--primary" id="ligpu-verificar-{{ bloque.id }}">{% trans "Verificar" %}</button>
+        </div>
+
+        <div class="ligpu-gab__resumen" id="ligpu-resumen-{{ bloque.id }}" style="display:none;">
+            <p class="ligpu-gab__resumen-texto" id="ligpu-resumen-texto-{{ bloque.id }}"></p>
+            <button type="button" class="btn-gab btn-gab--secondary" id="ligpu-reintentar-{{ bloque.id }}">{% trans "Practicar de nuevo" %}</button>
+        </div>
+    {% endif %}
+</div>
