@@ -2197,7 +2197,18 @@
         function centroCabezaVexFlowAbs(nota) {
             try {
                 if (!nota.vfnote || !nota.vfnote.note_heads || !nota.vfnote.note_heads[0]) return null;
-                const svgRoot = divOsmd.querySelector && divOsmd.querySelector('svg');
+                // OSMD puede partir la pieza en varios SISTEMAS (líneas) cuando no
+                // entra en una sola -- y cada sistema es su propio <svg> dentro de
+                // divOsmd. `divOsmd.querySelector('svg')` agarraba SIEMPRE el
+                // primero (el del primer sistema), así que para una nota de
+                // cualquier sistema POSTERIOR la cuenta quedaba mal (sumaba el
+                // rect del sistema equivocado) -- bug real confirmado: el puntillo
+                // dejaba de dibujarse (quedaba en cualquier lugar, probablemente
+                // fuera del área visible) apenas la nota no estaba en el primer
+                // sistema. `nota.svgEl.closest('svg')` siempre encuentra el <svg>
+                // que realmente contiene a ESTA nota, sin importar en qué sistema
+                // esté.
+                const svgRoot = nota.svgEl && typeof nota.svgEl.closest === 'function' ? nota.svgEl.closest('svg') : null;
                 if (!svgRoot) return null;
                 const head = nota.vfnote.note_heads[0];
                 const localX = typeof head.getAbsoluteX === 'function' ? head.getAbsoluteX() : null;
