@@ -2057,6 +2057,18 @@
     // de qué lado del glifo cae la cabeza real (ver posicionCabezaNota).
     const LINEA_CENTRAL_PS = 71;
 
+    // Radio aproximado (px) de una cabeza de nota estándar, medido desde su
+    // centro real -- mismo valor que ya usan trainer_sincopas.html/
+    // trainer_tiempos_fuertes.html para centrarla (`getAbsoluteX() + 6`).
+    // Antes de tener el centro exacto (antes de esta ronda), el arco y el
+    // puntillo anclaban desde un punto ya corrido hacia afuera del glifo, así
+    // que quedaban "despegados" de pura casualidad. Ahora que anclan del
+    // centro real (ver posicionCabezaNota), hay que restar/sumar este radio a
+    // mano para volver a salir del glifo antes de agregar aire de verdad --
+    // si no, el arco arranca literalmente adentro de la cabeza y el punto de
+    // puntillo queda pegado o superpuesto.
+    const RADIO_CABEZA_VISUAL = 6;
+
     function initLigadurasPuntillo(bloqueId, alListo) {
         const contenedor = document.getElementById('ligpu-bloque-' + bloqueId);
         if (!contenedor) return null;
@@ -2278,26 +2290,40 @@
             // hacia arriba, el arco pasa POR DEBAJO de las cabezas (curva
             // hacia abajo); si la plica apunta hacia abajo, el arco pasa POR
             // ARRIBA (curva hacia arriba) -- mismo criterio que cualquier
-            // editor de partituras, para no cruzarla. Offset generoso (28px)
-            // a propósito: pedido explícito de que se vea prolijo -- con un
-            // offset chico la curva se leía apretada/encimada contra las
-            // cabezas en vez de un arco limpio y separado por encima/debajo.
-            // Si hay varias notas de por medio (ligadura de expresión larga),
-            // el punto de control se calcula contra el extremo más lejano
-            // entre TODAS ellas, no solo las puntas, para que la curva las
-            // libre a todas.
+            // editor de partituras, para no cruzarla.
+            //
+            // Los EXTREMOS de la curva (M .../el punto final) ya NO son
+            // pos.cx/pos.cy tal cual -- eso es el CENTRO real de la cabeza
+            // (ver posicionCabezaNota), y una curva que arranca ahí atraviesa
+            // el glifo en vez de tocarlo apenas y despegarse. Se desplazan
+            // RADIO_CABEZA_VISUAL en la misma dirección en la que curva el
+            // arco, para que el anclaje quede sobre el borde del glifo, no
+            // en su centro -- recién desde ahí tiene sentido agregar el aire
+            // real (OFFSET) hasta el punto de control.
+            const direccionArco = primero.plicaArriba ? 1 : -1; // 1 = hacia abajo, -1 = hacia arriba
+            const y1 = primero.cy + direccionArco * RADIO_CABEZA_VISUAL;
+            const y2 = ultimo.cy + direccionArco * RADIO_CABEZA_VISUAL;
+
+            // Offset generoso (28px) a propósito: pedido explícito de que se
+            // vea prolijo -- con un offset chico la curva se leía apretada/
+            // encimada contra las cabezas en vez de un arco limpio y
+            // separado por encima/debajo. Si hay varias notas de por medio
+            // (ligadura de expresión larga), el punto de control se calcula
+            // contra el extremo más lejano entre TODAS ellas (ya con su
+            // propio radio sumado), no solo las puntas, para que la curva
+            // las libre a todas.
             const OFFSET = 28;
             let altoControl;
             if (primero.plicaArriba) {
                 const maxY = Math.max.apply(null, puntos.map(function (p) { return p.cy; }));
-                altoControl = maxY + OFFSET;
+                altoControl = maxY + RADIO_CABEZA_VISUAL + OFFSET;
             } else {
                 const minY = Math.min.apply(null, puntos.map(function (p) { return p.cy; }));
-                altoControl = minY - OFFSET;
+                altoControl = minY - RADIO_CABEZA_VISUAL - OFFSET;
             }
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             path.setAttribute('class', 'ligpu-gab__arco');
-            path.setAttribute('d', 'M ' + primero.cx + ' ' + primero.cy + ' Q ' + midX + ' ' + altoControl + ' ' + ultimo.cx + ' ' + ultimo.cy);
+            path.setAttribute('d', 'M ' + primero.cx + ' ' + y1 + ' Q ' + midX + ' ' + altoControl + ' ' + ultimo.cx + ' ' + y2);
             overlaySvg.appendChild(path);
         }
 
@@ -2312,13 +2338,19 @@
             }
             // Siempre a la derecha de la cabeza, sin importar la dirección de
             // la plica -- a diferencia del arco, el puntillo no se invierte.
-            // Espacio chico pero real (7px) para que no quede pegado.
-            const GAP_PUNTILLO = 7;
+            // pos.cx ya es el CENTRO real de la cabeza (ver posicionCabezaNota) --
+            // hay que salir del glifo (RADIO_CABEZA_VISUAL) antes de agregar
+            // aire de verdad (GAP_PUNTILLO), y encima sumar el radio del propio
+            // punto (RADIO_PUNTO) para que sea su BORDE, no su centro, el que
+            // quede a GAP_PUNTILLO del borde de la cabeza -- si no, un punto
+            // "centrado" a solo unos px del centro de la cabeza todavía la toca.
+            const GAP_PUNTILLO = 4;
+            const RADIO_PUNTO = 2.5;
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             circle.setAttribute('class', 'ligpu-gab__punto');
-            circle.setAttribute('cx', pos.cx + GAP_PUNTILLO);
+            circle.setAttribute('cx', pos.cx + RADIO_CABEZA_VISUAL + GAP_PUNTILLO + RADIO_PUNTO);
             circle.setAttribute('cy', pos.cy);
-            circle.setAttribute('r', 2.5);
+            circle.setAttribute('r', RADIO_PUNTO);
             overlaySvg.appendChild(circle);
         }
 
