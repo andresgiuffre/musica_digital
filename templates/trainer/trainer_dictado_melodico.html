@@ -264,7 +264,7 @@
         }
 
         // Registrar intento en el backend
-        fetch('/api/record_attempt/dictado-melodico/', {
+        fetch('{% url "record_attempt" game.slug %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
