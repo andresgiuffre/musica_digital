@@ -55,7 +55,7 @@ A diferencia de Práctica dirigida, acá no hay un final natural de cursor
             {% endif %}
         </div>
 
-        <p class="ligpu-gab__instrucciones">{% trans "Seleccioná dos notas (Shift o Ctrl + click para la segunda) y marcá el tipo de ligadura que corresponda, o seleccioná una sola nota y usá Puntillo para completar la métrica del compás." %}</p>
+        <p class="ligpu-gab__instrucciones">{% trans "Ligadura de prolongación: seleccioná exactamente 2 notas de la misma altura (Ctrl/Cmd + click para elegir la segunda). Ligadura de expresión: seleccioná 2 o más notas de distinta altura -- Shift + click abarca todo el rango desde la primera nota hasta la clickeada; se corta si hay un silencio en el medio. Puntillo: seleccioná una sola nota que tenga un silencio inmediatamente después -- el puntillo lo reemplaza." %}</p>
 
         <div class="ligpu-gab__partitura" id="ligpu-partitura-{{ bloque.id }}">
             <div id="ligpu-osmd-{{ bloque.id }}" class="ligpu-gab__osmd"></div>
