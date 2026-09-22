@@ -773,6 +773,12 @@ class BloqueContenido(models.Model):
     # solo silencio con un número arriba -- tildar esto lo desactiva para ESTE
     # bloque puntual, sin tocar el resto del sitio.
     mostrar_compases_vacios_literal = models.BooleanField(default=False, help_text="Si está tildado, NO compacta compases vacíos consecutivos en un silencio grande -- los renderiza uno por uno, literal.")
+    # Igual criterio que los de arriba -- default True para no cambiar el
+    # renderizado de bloques ya creados. Caso de uso real: compases de
+    # fantasía (ej. 15/1) usados a propósito para que el compás no se
+    # subdivida/junte de forma rara, donde mostrar ese time signature
+    # confunde más de lo que aclara.
+    mostrar_time_signature = models.BooleanField(default=True, help_text="Si está destildado, oculta la indicación de compás (ej. 4/4) -- útil si se usa un compás de fantasía (ej. 15/1) solo para controlar el renderizado y no tiene sentido mostrarlo.")
 
     # --- PRACTICA ---
     practica_texto = models.CharField(max_length=300, blank=True, help_text='Ej: "Practicá esto en Identificación de Notas". Requerido cuando el tipo es Práctica.')
