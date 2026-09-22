@@ -260,6 +260,7 @@
             mostrarCompositor: {{ bloque.mostrar_compositor|yesno:"true,false" }},
             mostrarLetra: {{ bloque.mostrar_letra|yesno:"true,false" }},
             mostrarCompasesVaciosLiteral: {{ bloque.mostrar_compases_vacios_literal|yesno:"true,false" }},
+            mostrarTimeSignature: {{ bloque.mostrar_time_signature|yesno:"true,false" }},
         },
         {% endif %}
         {% endfor %}
@@ -287,6 +288,12 @@
             // curso necesita mostrar compases vacíos literales (ej. para completar
             // un ejercicio entre ellos) en vez de la notación compactada.
             autoGenerateMultipleRestMeasuresFromRestMeasures: !info.mostrarCompasesVaciosLiteral,
+            // Confirmado en el código fuente de OSMD 1.8.8 (drawTimeSignatures,
+            // "Whether to draw time signatures", default true), no asumido.
+            // Caso de uso real: compases de fantasía (ej. 15/1) usados solo para
+            // controlar cómo renderiza OSMD, donde mostrar ese compás confunde
+            // más de lo que aclara.
+            drawTimeSignatures: info.mostrarTimeSignature,
         });
         fetch(info.archivoUrl)
             .then(res => {
