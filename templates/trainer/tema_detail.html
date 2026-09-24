@@ -261,6 +261,7 @@
             mostrarLetra: {{ bloque.mostrar_letra|yesno:"true,false" }},
             mostrarCompasesVaciosLiteral: {{ bloque.mostrar_compases_vacios_literal|yesno:"true,false" }},
             mostrarTimeSignature: {{ bloque.mostrar_time_signature|yesno:"true,false" }},
+            mostrarNumeroCompas: {{ bloque.mostrar_numero_compas|yesno:"true,false" }},
         },
         {% endif %}
         {% endfor %}
@@ -294,6 +295,9 @@
             // controlar cómo renderiza OSMD, donde mostrar ese compás confunde
             // más de lo que aclara.
             drawTimeSignatures: info.mostrarTimeSignature,
+            // Confirmado en el código fuente de OSMD 1.8.8 (drawMeasureNumbers,
+            // "Whether to draw measure numbers (labels)", default true).
+            drawMeasureNumbers: info.mostrarNumeroCompas,
         });
         fetch(info.archivoUrl)
             .then(res => {

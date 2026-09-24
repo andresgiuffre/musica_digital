@@ -779,6 +779,7 @@ class BloqueContenido(models.Model):
     # subdivida/junte de forma rara, donde mostrar ese time signature
     # confunde más de lo que aclara.
     mostrar_time_signature = models.BooleanField(default=True, help_text="Si está destildado, oculta la indicación de compás (ej. 4/4) -- útil si se usa un compás de fantasía (ej. 15/1) solo para controlar el renderizado y no tiene sentido mostrarlo.")
+    mostrar_numero_compas = models.BooleanField(default=True, help_text="Si está destildado, oculta los números de compás sobre el pentagrama.")
 
     # --- PRACTICA ---
     practica_texto = models.CharField(max_length=300, blank=True, help_text='Ej: "Practicá esto en Identificación de Notas". Requerido cuando el tipo es Práctica.')
