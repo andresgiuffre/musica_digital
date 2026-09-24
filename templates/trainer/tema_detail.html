@@ -353,7 +353,14 @@
                             if (idx < rango[0] || idx > rango[1]) parteClon.removeChild(medida);
                         });
                 });
-                return serializer.serializeToString(docSeccion);
+                // XMLSerializer.serializeToString() nunca agrega la declaración
+                // <?xml ...?> al principio (así es el estándar DOM, no algo que
+                // se le olvidó a esta serialización puntual) -- pero
+                // osmd.load(string) la exige explícitamente para reconocer el
+                // string como XML ("Did not find <?xml at beginning", error
+                // real confirmado probando contra la librería real de OSMD, no
+                // supuesto). Sin esto, TODAS las secciones fallan al cargar.
+                return '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(docSeccion);
             });
         } catch (e) {
             console.warn('[cursos] No se pudo evaluar cortes de sección, se renderiza el archivo entero:', e);
