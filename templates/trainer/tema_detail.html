@@ -19,6 +19,12 @@
        sitio -- mismos tokens --score-paper/--score-ink que usa el resto del sitio
        (biblioteca_play, orquestacion_ejercicio). */
     .bloque-gab__partitura { background: var(--score-paper); color: var(--score-ink); padding: 1.25rem; border-radius: var(--radius-data); overflow-x: auto; }
+    /* Un archivo con cortes de sección (ver partirEnSeccionesIndependientes en
+       el IIFE de bloquesPartitura) renderiza varias instancias de OSMD
+       apiladas adentro del mismo .bloque-gab__partitura, cada una en su
+       propio .bloque-gab__seccion -- separación visual entre secciones
+       independientes. Sin cortes de sección hay una sola, sin efecto. */
+    .bloque-gab__seccion + .bloque-gab__seccion { margin-top: 1.5rem; }
     .bloque-gab__contexto { color: var(--ink-soft); font-size: 0.9375rem; margin: 0 0 1rem; }
     /* cursor/hover de "clickeable" -- el gesto real (abrir en grande) lo maneja
        el lightbox más abajo (ver CSS/JS de .lightbox-gab), acá solo la señal
@@ -267,9 +273,97 @@
         {% endfor %}
     ];
 
+    // MuseScore no deja ningún marcador explícito de "Section Break" en el
+    // MusicXML que exporta -- degrada a 3 señales combinadas (barra final +
+    // sistema nuevo + numeración de compás que no sigue la secuencia). OSMD
+    // 1.8.8 no tiene ningún concepto de "sección" (confirmado leyendo su
+    // código fuente entero: EngravingRules/MusicSheetReader/el pipeline de
+    // renderizado), así que trata un corte de sección igual que un simple
+    // salto de sistema dentro de la MISMA pieza -- de ahí que muestre
+    // alteraciones/compás de "cortesía" al final de cada línea (correcto
+    // para una modulación real, no para secciones independientes) y que la
+    // barra final se vea afectada por un bug real y documentado de OSMD
+    // (comentario propio en VexFlowMeasure.ts: "fix for vexflow ignoring
+    // ending barline style after new stave, apparently" -- parcheado solo
+    // para un caso puntual, no para la barra final). La solución no es un
+    // flag -- es que cada sección sea, para OSMD, una partitura CORTA e
+    // independiente: nunca hay "sistema siguiente" del cual mostrar
+    // cortesía, y la barra final deja de estar justo antes de un cambio de
+    // sistema (el escenario que dispara el bug de VexFlow).
+    function estiloFinalDe(medida) {
+        const barlines = Array.from(medida.querySelectorAll('barline'));
+        const derecha = barlines.find(function (b) { return (b.getAttribute('location') || 'right') === 'right'; });
+        if (!derecha) return null;
+        const estilo = derecha.querySelector('bar-style');
+        return estilo ? estilo.textContent.trim() : null;
+    }
+    function empiezaSistemaNuevo(medida) {
+        return !!medida.querySelector('print[new-system="yes"]');
+    }
+
+    // Devuelve un array de strings XML independientes -- normalmente uno
+    // solo (el archivo entero, sin tocar: la inmensa mayoría de bloques ya
+    // existentes no tiene ningún corte de sección y debe seguir
+    // renderizando exactamente igual que antes). Nunca rompe -- cualquier
+    // fallo de parseo/estructura cae al archivo entero sin partir.
+    function partirEnSeccionesIndependientes(xmlString) {
+        try {
+            const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
+            if (doc.querySelector('parsererror')) return [xmlString];
+
+            const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
+            if (partesXml.length === 0) return [xmlString];
+            const medidasRef = Array.from(partesXml[0].children).filter(function (n) { return n.tagName === 'measure'; });
+            if (medidasRef.length < 2) return [xmlString];
+
+            // indicesDeCorte[i] = índice de la ÚLTIMA medida de una sección
+            // (0-based, sobre medidasRef) -- la sección siguiente arranca en i+1.
+            const indicesDeCorte = [];
+            for (let i = 0; i < medidasRef.length - 1; i++) {
+                const actual = medidasRef[i];
+                const siguiente = medidasRef[i + 1];
+                const estilo = estiloFinalDe(actual);
+                const esBarraFinal = estilo === 'light-heavy' || estilo === 'heavy-heavy';
+                if (!esBarraFinal || !empiezaSistemaNuevo(siguiente)) continue;
+
+                // Una pieza continua real NUNCA reinicia/retrocede su
+                // numeración de compás -- si sigue la secuencia normal
+                // (+1), esto es un salto de sistema común, no un corte de
+                // sección, aunque coincida con una barra final legítima
+                // (ej. el último compás de la pieza entera).
+                const numActual = parseInt(actual.getAttribute('number'), 10);
+                const numSiguiente = parseInt(siguiente.getAttribute('number'), 10);
+                if (isNaN(numActual) || isNaN(numSiguiente) || numSiguiente === numActual + 1) continue;
+
+                indicesDeCorte.push(i);
+            }
+            if (indicesDeCorte.length === 0) return [xmlString];
+
+            const grupos = [];
+            let desde = 0;
+            indicesDeCorte.forEach(function (i) { grupos.push([desde, i]); desde = i + 1; });
+            grupos.push([desde, medidasRef.length - 1]);
+
+            const serializer = new XMLSerializer();
+            return grupos.map(function (rango) {
+                const docSeccion = doc.cloneNode(true);
+                Array.from(docSeccion.querySelectorAll('score-partwise > part')).forEach(function (parteClon) {
+                    Array.from(parteClon.children).filter(function (n) { return n.tagName === 'measure'; })
+                        .forEach(function (medida, idx) {
+                            if (idx < rango[0] || idx > rango[1]) parteClon.removeChild(medida);
+                        });
+                });
+                return serializer.serializeToString(docSeccion);
+            });
+        } catch (e) {
+            console.warn('[cursos] No se pudo evaluar cortes de sección, se renderiza el archivo entero:', e);
+            return [xmlString];
+        }
+    }
+
     bloquesPartitura.forEach(function (info) {
         const contenedor = document.getElementById(info.containerId);
-        const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(contenedor, {
+        const opciones = {
             drawTitle: false,
             autoResize: false,
             // El nombre de instrumento y el compositor/arreglador vienen del
@@ -298,14 +392,32 @@
             // Confirmado en el código fuente de OSMD 1.8.8 (drawMeasureNumbers,
             // "Whether to draw measure numbers (labels)", default true).
             drawMeasureNumbers: info.mostrarNumeroCompas,
-        });
+        };
         fetch(info.archivoUrl)
             .then(res => {
                 if (!res.ok) throw new Error('No se pudo descargar el archivo (' + res.status + ')');
                 return res.arrayBuffer();
             })
-            .then(buffer => info.esMxl ? osmd.load(buffer) : osmd.load(new TextDecoder('utf-8').decode(buffer)))
-            .then(() => osmd.render())
+            // Hace falta el XML como texto plano SIEMPRE (para poder evaluar
+            // cortes de sección), incluso si viene comprimido en .mxl --
+            // MXLHelper es la misma utilidad que OSMD usa internamente para
+            // descomprimir .mxl (confirmado en su código fuente, está
+            // exportada públicamente desde el paquete).
+            .then(buffer => info.esMxl
+                ? opensheetmusicdisplay.MXLHelper.MXLtoXMLstring(buffer)
+                : new TextDecoder('utf-8').decode(buffer))
+            .then(xmlString => {
+                const secciones = partirEnSeccionesIndependientes(xmlString);
+                return secciones.reduce(function (cadena, seccionXml) {
+                    return cadena.then(function () {
+                        const divSeccion = document.createElement('div');
+                        divSeccion.className = 'bloque-gab__seccion';
+                        contenedor.appendChild(divSeccion);
+                        const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divSeccion, opciones);
+                        return osmd.load(seccionXml).then(function () { return osmd.render(); });
+                    });
+                }, Promise.resolve());
+            })
             .catch(err => {
                 contenedor.textContent = document.querySelector('.envoltorio-gab').dataset.txtErrorPartitura;
                 console.error('[cursos] Error cargando ejemplo de partitura:', err);
