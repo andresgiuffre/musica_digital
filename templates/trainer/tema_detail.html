@@ -300,28 +300,22 @@
     // libre). No hay ningún flag en OSMD 1.8.8 para ocultar esto -- ni
     // siquiera respeta print-object="no" en este camino de lectura -- así
     // que si hay que ocultarlo, hay que sacarlo del XML antes de que OSMD lo
-    // vea, mismo enfoque que ya se usa para los cortes de sección de arriba.
-    function quitarTextoStaffSiHaceFalta(xmlString, mostrarTextoStaff) {
-        if (mostrarTextoStaff) return xmlString;
-        try {
-            const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
-            if (doc.querySelector('parsererror')) return xmlString;
-            let huboCambios = false;
-            Array.from(doc.querySelectorAll('direction')).forEach(function (direccion) {
-                const tipo = direccion.querySelector('direction-type');
-                if (!tipo || !tipo.querySelector('words')) return; // no es "words" -- dynamics/wedge/rehearsal/etc, se deja
-                const sonido = direccion.querySelector('sound');
-                const esMarcaRealDeTempoODinamica = sonido && (sonido.hasAttribute('tempo') || sonido.hasAttribute('dynamics'));
-                if (esMarcaRealDeTempoODinamica) return;
-                direccion.parentNode.removeChild(direccion);
-                huboCambios = true;
-            });
-            if (!huboCambios) return xmlString;
-            return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(doc);
-        } catch (e) {
-            console.warn('[cursos] No se pudo evaluar el Staff Text a ocultar, se muestra tal cual:', e);
-            return xmlString;
-        }
+    // vea. Trabaja sobre un CLON de la medida (nunca modifica el doc
+    // original, que se sigue usando para leer las demás medidas) y solo
+    // clona cuando mostrarTextoStaff es false -- si es true, devuelve la
+    // medida original tal cual, sin ningún clon de por medio.
+    function medidaSinTextoStaffSiHaceFalta(medida, mostrarTextoStaff) {
+        if (mostrarTextoStaff) return medida;
+        const clon = medida.cloneNode(true);
+        Array.from(clon.querySelectorAll('direction')).forEach(function (direccion) {
+            const tipo = direccion.querySelector('direction-type');
+            if (!tipo || !tipo.querySelector('words')) return; // no es "words" -- dynamics/wedge/rehearsal/etc, se deja
+            const sonido = direccion.querySelector('sound');
+            const esMarcaRealDeTempoODinamica = sonido && (sonido.hasAttribute('tempo') || sonido.hasAttribute('dynamics'));
+            if (esMarcaRealDeTempoODinamica) return;
+            direccion.parentNode.removeChild(direccion);
+        });
+        return clon;
     }
 
     function estiloFinalDe(medida) {
@@ -335,20 +329,47 @@
         return !!medida.querySelector('print[new-system="yes"]');
     }
 
-    // Devuelve un array de strings XML independientes -- normalmente uno
-    // solo (el archivo entero, sin tocar: la inmensa mayoría de bloques ya
-    // existentes no tiene ningún corte de sección y debe seguir
+    // MuseScore no deja ningún marcador explícito de "Section Break" en el
+    // MusicXML que exporta -- degrada a 3 señales combinadas (barra final +
+    // sistema nuevo + numeración de compás que no sigue la secuencia). OSMD
+    // 1.8.8 no tiene ningún concepto de "sección" (confirmado leyendo su
+    // código fuente entero: EngravingRules/MusicSheetReader/el pipeline de
+    // renderizado), así que trata un corte de sección igual que un simple
+    // salto de sistema dentro de la MISMA pieza -- de ahí que muestre
+    // alteraciones/compás de "cortesía" al final de cada línea (correcto
+    // para una modulación real, no para secciones independientes) y que la
+    // barra final se vea afectada por un bug real y documentado de OSMD
+    // (comentario propio en VexFlowMeasure.ts: "fix for vexflow ignoring
+    // ending barline style after new stave, apparently" -- parcheado solo
+    // para un caso puntual, no para la barra final). La solución no es un
+    // flag -- es que cada sección sea, para OSMD, una partitura CORTA e
+    // independiente: nunca hay "sistema siguiente" del cual mostrar
+    // cortesía, y la barra final deja de estar justo antes de un cambio de
+    // sistema (el escenario que dispara el bug de VexFlow).
+    //
+    // Arma cada sección serializando ELEMENTOS sueltos (<part-list>, cada
+    // <measure>) y concatenando strings a mano -- a propósito, NO clona ni
+    // serializa el <score-partwise> (el Document) entero. Clonar/serializar
+    // el documento completo es una combinación de APIs mucho menos común
+    // (y peor sostenida de forma consistente entre navegadores reales) que
+    // serializar elementos individuales -- confirmado como causa real de
+    // "Document is not a valid 'partwise' MusicXML" en un navegador real
+    // después de haber pasado todas las pruebas contra jsdom, que sí la
+    // tolera. Devuelve un array de strings XML independientes -- normalmente
+    // uno solo (el archivo entero, sin tocar: la inmensa mayoría de bloques
+    // ya existentes no tiene ningún corte de sección y debe seguir
     // renderizando exactamente igual que antes). Nunca rompe -- cualquier
     // fallo de parseo/estructura cae al archivo entero sin partir.
-    function partirEnSeccionesIndependientes(xmlString) {
+    function construirSeccionesXml(xmlString, mostrarTextoStaff) {
         try {
             const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
             if (doc.querySelector('parsererror')) return [xmlString];
 
+            const raiz = doc.querySelector('score-partwise');
             const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
-            if (partesXml.length === 0) return [xmlString];
+            if (!raiz || partesXml.length === 0) return [xmlString];
             const medidasRef = Array.from(partesXml[0].children).filter(function (n) { return n.tagName === 'measure'; });
-            if (medidasRef.length < 2) return [xmlString];
+            if (medidasRef.length === 0) return [xmlString];
 
             // indicesDeCorte[i] = índice de la ÚLTIMA medida de una sección
             // (0-based, sobre medidasRef) -- la sección siguiente arranca en i+1.
@@ -371,33 +392,41 @@
 
                 indicesDeCorte.push(i);
             }
-            if (indicesDeCorte.length === 0) return [xmlString];
 
             const grupos = [];
             let desde = 0;
             indicesDeCorte.forEach(function (i) { grupos.push([desde, i]); desde = i + 1; });
             grupos.push([desde, medidasRef.length - 1]);
 
+            // Si no hace falta partir Y tampoco hay que tocar texto de staff,
+            // devolvemos el archivo tal cual llegó -- ni una sola operación
+            // de clonado/serializado de por medio, cero riesgo de regresión
+            // para el caso (mayoritario) de un bloque sin cortes de sección.
+            if (grupos.length === 1 && mostrarTextoStaff) return [xmlString];
+
             const serializer = new XMLSerializer();
+            const partListXml = doc.querySelector('score-partwise > part-list');
+            const partListStr = partListXml ? serializer.serializeToString(partListXml) : '';
+            const version = raiz.getAttribute('version') || '3.1';
+
+            // Serializo cada medida de cada parte UNA sola vez (ya con el
+            // texto de staff sacado si corresponde), la reutilizo para
+            // armar todas las secciones.
+            const medidasPorParte = partesXml.map(function (parte) {
+                return Array.from(parte.children).filter(function (n) { return n.tagName === 'measure'; })
+                    .map(function (m) { return serializer.serializeToString(medidaSinTextoStaffSiHaceFalta(m, mostrarTextoStaff)); });
+            });
+
             return grupos.map(function (rango) {
-                const docSeccion = doc.cloneNode(true);
-                Array.from(docSeccion.querySelectorAll('score-partwise > part')).forEach(function (parteClon) {
-                    Array.from(parteClon.children).filter(function (n) { return n.tagName === 'measure'; })
-                        .forEach(function (medida, idx) {
-                            if (idx < rango[0] || idx > rango[1]) parteClon.removeChild(medida);
-                        });
-                });
-                // XMLSerializer.serializeToString() nunca agrega la declaración
-                // <?xml ...?> al principio (así es el estándar DOM, no algo que
-                // se le olvidó a esta serialización puntual) -- pero
-                // osmd.load(string) la exige explícitamente para reconocer el
-                // string como XML ("Did not find <?xml at beginning", error
-                // real confirmado probando contra la librería real de OSMD, no
-                // supuesto). Sin esto, TODAS las secciones fallan al cargar.
-                return '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(docSeccion);
+                const partesStr = medidasPorParte.map(function (medidasStr, idxParte) {
+                    const idParte = partesXml[idxParte].getAttribute('id') || ('P' + (idxParte + 1));
+                    return '<part id="' + idParte + '">' + medidasStr.slice(rango[0], rango[1] + 1).join('') + '</part>';
+                }).join('');
+                return '<?xml version="1.0" encoding="UTF-8"?>\n<score-partwise version="' + version + '">'
+                    + partListStr + partesStr + '</score-partwise>';
             });
         } catch (e) {
-            console.warn('[cursos] No se pudo evaluar cortes de sección, se renderiza el archivo entero:', e);
+            console.warn('[cursos] No se pudo procesar el archivo (cortes de sección / texto de staff), se muestra tal cual:', e);
             return [xmlString];
         }
     }
@@ -448,8 +477,7 @@
                 ? opensheetmusicdisplay.MXLHelper.MXLtoXMLstring(buffer)
                 : new TextDecoder('utf-8').decode(buffer))
             .then(xmlString => {
-                const xmlSinTextoStaff = quitarTextoStaffSiHaceFalta(xmlString, info.mostrarTextoStaff);
-                const secciones = partirEnSeccionesIndependientes(xmlSinTextoStaff);
+                const secciones = construirSeccionesXml(xmlString, info.mostrarTextoStaff);
                 return secciones.reduce(function (cadena, seccionXml) {
                     return cadena.then(function () {
                         const divSeccion = document.createElement('div');
