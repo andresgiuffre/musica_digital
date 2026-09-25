@@ -780,6 +780,17 @@ class BloqueContenido(models.Model):
     # confunde más de lo que aclara.
     mostrar_time_signature = models.BooleanField(default=True, help_text="Si está destildado, oculta la indicación de compás (ej. 4/4) -- útil si se usa un compás de fantasía (ej. 15/1) solo para controlar el renderizado y no tiene sentido mostrarlo.")
     mostrar_numero_compas = models.BooleanField(default=True, help_text="Si está destildado, oculta los números de compás sobre el pentagrama.")
+    # A diferencia de los anteriores, esto NO es una opción de OSMD -- OSMD
+    # 1.8.8 no tiene ningún flag para ocultar específicamente el "Staff Text"
+    # de MuseScore (confirmado leyendo ExpressionReader.ts: un <direction>
+    # con <words> se renderiza siempre como texto libre encima del
+    # pentagrama, salvo que también traiga <sound tempo="..."> o
+    # <sound dynamics="...">, en cuyo caso OSMD lo trata como una marca de
+    # tempo/dinámica real, no como texto libre -- eso SIGUE mostrándose
+    # aunque esto esté destildado). Con esto destildado, tema_detail.html
+    # quita esos <direction> del MusicXML del lado del cliente antes de
+    # pasárselo a OSMD.
+    mostrar_texto_staff = models.BooleanField(default=True, help_text="Si está destildado, oculta el \"Staff Text\" de MuseScore (Ctrl+T) -- el texto libre que se agrega arriba del pentagrama, sin ser una marca de tempo/dinámica real.")
 
     # --- PRACTICA ---
     practica_texto = models.CharField(max_length=300, blank=True, help_text='Ej: "Practicá esto en Identificación de Notas". Requerido cuando el tipo es Práctica.')

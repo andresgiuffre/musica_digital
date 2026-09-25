@@ -66,7 +66,7 @@ class BloqueContenidoInline(admin.StackedInline):
             'fields': (
                 'sheet_music', 'fragmento_orquestacion', 'contexto_ejemplo', 'contexto_ejemplo_en',
                 'mostrar_nombre_instrumento', 'mostrar_compositor', 'mostrar_letra', 'mostrar_compases_vacios_literal',
-                'mostrar_time_signature', 'mostrar_numero_compas',
+                'mostrar_time_signature', 'mostrar_numero_compas', 'mostrar_texto_staff',
             ),
             'classes': ('collapse',),
         }),

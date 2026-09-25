@@ -268,6 +268,7 @@
             mostrarCompasesVaciosLiteral: {{ bloque.mostrar_compases_vacios_literal|yesno:"true,false" }},
             mostrarTimeSignature: {{ bloque.mostrar_time_signature|yesno:"true,false" }},
             mostrarNumeroCompas: {{ bloque.mostrar_numero_compas|yesno:"true,false" }},
+            mostrarTextoStaff: {{ bloque.mostrar_texto_staff|yesno:"true,false" }},
         },
         {% endif %}
         {% endfor %}
@@ -290,6 +291,39 @@
     // independiente: nunca hay "sistema siguiente" del cual mostrar
     // cortesía, y la barra final deja de estar justo antes de un cambio de
     // sistema (el escenario que dispara el bug de VexFlow).
+    // El "Staff Text" de MuseScore (Ctrl+T) exporta como <direction><direction-
+    // type><words>texto</words></direction-type></direction> -- lo mismo que
+    // usa una marca de tempo escrita a mano, PERO una marca de tempo/dinámica
+    // real SIEMPRE trae un <sound tempo="..."> o <sound dynamics="..."> como
+    // hermano (confirmado leyendo ExpressionReader.ts: así es exactamente
+    // como OSMD decide si un <words> es una marca de tempo real o texto
+    // libre). No hay ningún flag en OSMD 1.8.8 para ocultar esto -- ni
+    // siquiera respeta print-object="no" en este camino de lectura -- así
+    // que si hay que ocultarlo, hay que sacarlo del XML antes de que OSMD lo
+    // vea, mismo enfoque que ya se usa para los cortes de sección de arriba.
+    function quitarTextoStaffSiHaceFalta(xmlString, mostrarTextoStaff) {
+        if (mostrarTextoStaff) return xmlString;
+        try {
+            const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
+            if (doc.querySelector('parsererror')) return xmlString;
+            let huboCambios = false;
+            Array.from(doc.querySelectorAll('direction')).forEach(function (direccion) {
+                const tipo = direccion.querySelector('direction-type');
+                if (!tipo || !tipo.querySelector('words')) return; // no es "words" -- dynamics/wedge/rehearsal/etc, se deja
+                const sonido = direccion.querySelector('sound');
+                const esMarcaRealDeTempoODinamica = sonido && (sonido.hasAttribute('tempo') || sonido.hasAttribute('dynamics'));
+                if (esMarcaRealDeTempoODinamica) return;
+                direccion.parentNode.removeChild(direccion);
+                huboCambios = true;
+            });
+            if (!huboCambios) return xmlString;
+            return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(doc);
+        } catch (e) {
+            console.warn('[cursos] No se pudo evaluar el Staff Text a ocultar, se muestra tal cual:', e);
+            return xmlString;
+        }
+    }
+
     function estiloFinalDe(medida) {
         const barlines = Array.from(medida.querySelectorAll('barline'));
         const derecha = barlines.find(function (b) { return (b.getAttribute('location') || 'right') === 'right'; });
@@ -414,7 +448,8 @@
                 ? opensheetmusicdisplay.MXLHelper.MXLtoXMLstring(buffer)
                 : new TextDecoder('utf-8').decode(buffer))
             .then(xmlString => {
-                const secciones = partirEnSeccionesIndependientes(xmlString);
+                const xmlSinTextoStaff = quitarTextoStaffSiHaceFalta(xmlString, info.mostrarTextoStaff);
+                const secciones = partirEnSeccionesIndependientes(xmlSinTextoStaff);
                 return secciones.reduce(function (cadena, seccionXml) {
                     return cadena.then(function () {
                         const divSeccion = document.createElement('div');
