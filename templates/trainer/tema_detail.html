@@ -338,6 +338,186 @@
         return !!medida.querySelector('print[new-system="yes"], print[new-page="yes"]');
     }
 
+    // MuseScore permite armar armaduras de clave "no tradicionales" (mezclando
+    // bemoles/sostenidos simples y dobles en una misma armadura, ej. para
+    // escalas homónimas duples) exportando <key-step>/<key-alter>/<key-
+    // accidental> en vez de un <fifths> simple. OSMD 1.8.8 sólo lee <fifths>
+    // (confirmado en InstrumentReader.ts) y ante su ausencia arma en silencio
+    // una KeyInstruction de 0 alteraciones -- no existe forma de que OSMD
+    // dibuje esa armadura compacta tal cual viene. Las notas sí dibujan bien
+    // su propio accidental (incluido doble bemol/doble sostenido), pero
+    // sueltas, nota por nota, sin ninguna armadura agrupada -- confirmado
+    // empíricamente contra la librería real antes de escribir esto.
+    //
+    // VexFlow (la librería de bajo nivel que usa OSMD) sí soporta mezclar
+    // tipos de accidental dentro de una misma armadura vía
+    // KeySignature.alterKey() -- pero sólo reemplaza tipos ya existentes en
+    // el accList, nunca agrega alteraciones desde una armadura vacía. Por
+    // eso el arreglo es en dos pasos: acá se sustituye el <key> no
+    // tradicional por su equivalente ESTÁNDAR más cercano (misma cantidad de
+    // alteraciones, misma dirección, ej. 7 bemoles) antes de que OSMD vea el
+    // XML -- esto ya deja limpias, solas, todas las notas que coinciden con
+    // el bemol/sostenido simple de esa armadura, sin código extra (lo hace
+    // el propio cálculo de accidentales de OSMD). corregirArmadurasNoTradicionales
+    // (más abajo) hace el segundo paso: sube el tipo exacto de cada
+    // alteración que se desvía del estándar (ej. Si de bemol a doble bemol)
+    // en el glifo de armadura ya creado por OSMD, y saca el accidental
+    // redundante de las notas que caen en esas letras -- todo ANTES del
+    // primer dibujo real (parchando el drawer, ver más abajo), nunca
+    // reescribiendo el SVG ya pintado.
+    //
+    // Sólo se aplica si TODAS las alteraciones van en la misma dirección
+    // (todo bemol o todo sostenido) y cubren exactamente las primeras N
+    // letras del orden canónico de VexFlow -- si no calzan (signos
+    // mixtos, orden raro, alteración triple), se deja el <key> no
+    // tradicional tal cual está, cae al comportamiento actual (sin armadura
+    // agrupada, cada nota con su propio accidental).
+    const ORDEN_BEMOLES_ARMADURA = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+    const ORDEN_SOSTENIDOS_ARMADURA = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+    const LETRA_POR_FUNDAMENTAL = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
+
+    function parsearArmaduraNoTradicional(keyEl) {
+        const hijos = Array.from(keyEl.children);
+        const items = [];
+        for (let i = 0; i < hijos.length; i++) {
+            if (hijos[i].tagName !== 'key-step') continue;
+            const alterEl = hijos[i + 1];
+            if (!alterEl || alterEl.tagName !== 'key-alter') return null; // XML mal formado -- no seguimos
+            items.push({ step: hijos[i].textContent.trim(), alter: parseFloat(alterEl.textContent) });
+        }
+        return items.length ? items : null;
+    }
+
+    function calcularSustitutoArmadura(items) {
+        if (!items.length) return null;
+        const esBemol = items[0].alter < 0;
+        if (!items.every(function (it) { return esBemol ? it.alter < 0 : it.alter > 0; })) return null; // signos mixtos: no representable como fifths
+        const orden = esBemol ? ORDEN_BEMOLES_ARMADURA : ORDEN_SOSTENIDOS_ARMADURA;
+        const cantidad = items.length;
+        if (cantidad > orden.length) return null;
+        const letrasEsperadas = orden.slice(0, cantidad).slice().sort().join('');
+        const letrasReales = items.map(function (it) { return it.step; }).slice().sort().join('');
+        if (letrasEsperadas !== letrasReales) return null; // no calzan con el orden canónico de VexFlow
+
+        const tipos = new Array(cantidad).fill(undefined);
+        const letras = [];
+        for (let i = 0; i < items.length; i++) {
+            const abs = Math.abs(items[i].alter);
+            if (abs === 1) continue; // coincide con la armadura estándar de base, no hace falta override
+            if (abs !== 2) return null; // alteración triple u otro caso no soportado
+            tipos[orden.indexOf(items[i].step)] = esBemol ? 'bb' : '##';
+            letras.push(items[i].step);
+        }
+        return {
+            fifths: esBemol ? -cantidad : cantidad,
+            tipos: letras.length ? tipos : null,
+            letras: letras,
+        };
+    }
+
+    // Muta `doc` in-place reemplazando cada <key> no tradicional por su
+    // <fifths> equivalente. Devuelve, por parte (mismo orden que <part-list>),
+    // un array indexado por posición de medida (0-based, orden del
+    // documento) con el override activo en ese punto (null si no hay
+    // ninguno) -- un override sigue "activo" en las medidas siguientes de
+    // esa parte hasta que aparezca una armadura nueva (tradicional o no).
+    // Devuelve null si no hubo ningún <key> no tradicional que tocar.
+    function normalizarArmadurasNoTradicionales(doc) {
+        const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
+        const overridesPorParte = partesXml.map(function () { return []; });
+        let huboAlgunCambio = false;
+        partesXml.forEach(function (parte, idxParte) {
+            const medidas = Array.from(parte.children).filter(function (n) { return n.tagName === 'measure'; });
+            let activo = null;
+            medidas.forEach(function (medida, idxMedida) {
+                const keyEl = medida.querySelector('attributes > key');
+                if (keyEl && !keyEl.querySelector('fifths')) {
+                    const items = parsearArmaduraNoTradicional(keyEl);
+                    const sustituto = items && calcularSustitutoArmadura(items);
+                    if (sustituto) {
+                        const nuevoKey = doc.createElement('key');
+                        const fifthsEl = doc.createElement('fifths');
+                        fifthsEl.textContent = String(sustituto.fifths);
+                        nuevoKey.appendChild(fifthsEl);
+                        keyEl.parentNode.replaceChild(nuevoKey, keyEl);
+                        huboAlgunCambio = true;
+                        activo = sustituto.tipos ? { tipos: sustituto.tipos, letras: sustituto.letras } : null;
+                    } else {
+                        activo = null; // no se pudo mapear -- se deja tal cual, no hay nada que arrastrar
+                    }
+                } else if (keyEl) {
+                    activo = null; // <fifths> tradicional real: corta cualquier override previo
+                }
+                if (activo) overridesPorParte[idxParte][idxMedida] = activo;
+            });
+        });
+        return huboAlgunCambio ? overridesPorParte : null;
+    }
+
+    // Parcha (una sola vez, a nivel de página) el drawer interno de OSMD para
+    // aplicar la corrección justo antes del primer dibujo real de cada
+    // partitura -- nunca después: así nunca hace falta tocar/reemplazar SVG
+    // ya pintado. `contextoArmaduraActiva` es una variable de módulo que cada
+    // sección setea antes de renderizar y limpia después -- seguro porque
+    // las secciones se cargan/renderizan de a una (nunca en paralelo, ver
+    // más abajo el .reduce()).
+    let contextoArmaduraActiva = null;
+    function asegurarParcheArmaduras() {
+        const Drawer = window.opensheetmusicdisplay && opensheetmusicdisplay.VexFlowMusicSheetDrawer;
+        if (!Drawer || Drawer.prototype.__cursosArmaduraParcheada) return;
+        Drawer.prototype.__cursosArmaduraParcheada = true;
+        const dibujarOriginal = Drawer.prototype.drawSheet;
+        Drawer.prototype.drawSheet = function (graphic) {
+            if (contextoArmaduraActiva) {
+                try {
+                    corregirArmadurasNoTradicionales(graphic, contextoArmaduraActiva);
+                } catch (e) {
+                    console.error('[cursos] No se pudo corregir una armadura no tradicional:', e);
+                }
+            }
+            return dibujarOriginal.call(this, graphic);
+        };
+    }
+
+    function corregirArmadurasNoTradicionales(graphic, contexto) {
+        const columnas = graphic.MeasureList || [];
+        for (let k = 0; k < columnas.length; k++) {
+            const columna = columnas[k];
+            if (!columna) continue;
+            for (let staffIdx = 0; staffIdx < columna.length; staffIdx++) {
+                const medida = columna[staffIdx];
+                if (!medida || typeof medida.getVFStave !== 'function') continue;
+                const instrumento = medida.ParentStaff && medida.ParentStaff.parentInstrument;
+                const idxParte = instrumento && typeof instrumento.id === 'number' ? instrumento.id : staffIdx;
+                const tablaParte = contexto.overridesPorParte[idxParte];
+                if (!tablaParte) continue;
+                const override = tablaParte[contexto.offset + k];
+                if (!override) continue;
+
+                const stave = medida.getVFStave();
+                const modificadores = stave.getModifiers(undefined, 'keysignatures');
+                if (override.tipos && modificadores.length && modificadores[0].accList && modificadores[0].accList.length) {
+                    try { modificadores[0].alterKey(override.tipos); } catch (e) { /* no bloqueamos el render por esto */ }
+                }
+
+                (medida.staffEntries || []).forEach(function (entrada) {
+                    (entrada.graphicalVoiceEntries || []).forEach(function (voz) {
+                        (voz.notes || []).forEach(function (gNota) {
+                            const vf = gNota.vfnote && gNota.vfnote[0];
+                            const pitch = gNota.sourceNote && gNota.sourceNote.Pitch;
+                            if (!vf || !pitch || !Array.isArray(vf.modifiers)) return;
+                            const letra = LETRA_POR_FUNDAMENTAL[pitch.FundamentalNote];
+                            if (!letra || override.letras.indexOf(letra) === -1) return;
+                            vf.modifiers = vf.modifiers.filter(function (m) {
+                                return !(m.getCategory && m.getCategory() === 'accidentals');
+                            });
+                        });
+                    });
+                });
+            }
+        }
+    }
+
     // MuseScore no deja ningún marcador explícito de "Section Break" en el
     // MusicXML que exporta -- degrada a 3 señales combinadas (barra final +
     // sistema nuevo + numeración de compás que no sigue la secuencia). OSMD
@@ -372,13 +552,20 @@
     function construirSeccionesXml(xmlString, mostrarTextoStaff) {
         try {
             const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
-            if (doc.querySelector('parsererror')) return [xmlString];
+            if (doc.querySelector('parsererror')) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null };
 
             const raiz = doc.querySelector('score-partwise');
             const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
-            if (!raiz || partesXml.length === 0) return [xmlString];
+            if (!raiz || partesXml.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null };
             const medidasRef = Array.from(partesXml[0].children).filter(function (n) { return n.tagName === 'measure'; });
-            if (medidasRef.length === 0) return [xmlString];
+            if (medidasRef.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null };
+
+            // Muta `doc` in-place (reemplaza cada <key> no tradicional por su
+            // <fifths> equivalente) ANTES de calcular cortes de sección o
+            // serializar nada -- la detección de cortes sólo mira barras/
+            // <print>/número de compás, nunca <key>, así que es seguro
+            // normalizar primero sin afectarla.
+            const overridesPorParte = normalizarArmadurasNoTradicionales(doc);
 
             // indicesDeCorte[i] = índice de la ÚLTIMA medida de una sección
             // (0-based, sobre medidasRef) -- la sección siguiente arranca en i+1.
@@ -407,11 +594,14 @@
             indicesDeCorte.forEach(function (i) { grupos.push([desde, i]); desde = i + 1; });
             grupos.push([desde, medidasRef.length - 1]);
 
-            // Si no hace falta partir Y tampoco hay que tocar texto de staff,
-            // devolvemos el archivo tal cual llegó -- ni una sola operación
-            // de clonado/serializado de por medio, cero riesgo de regresión
-            // para el caso (mayoritario) de un bloque sin cortes de sección.
-            if (grupos.length === 1 && mostrarTextoStaff) return [xmlString];
+            // Si no hace falta partir, tampoco hay que tocar texto de staff,
+            // Y no se normalizó ninguna armadura no tradicional, devolvemos
+            // el archivo tal cual llegó -- ni una sola operación de
+            // clonado/serializado de por medio, cero riesgo de regresión
+            // para el caso (mayoritario) de un bloque sin nada de esto.
+            if (grupos.length === 1 && mostrarTextoStaff && !overridesPorParte) {
+                return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null };
+            }
 
             const serializer = new XMLSerializer();
             const partListXml = doc.querySelector('score-partwise > part-list');
@@ -426,19 +616,23 @@
                     .map(function (m) { return serializer.serializeToString(medidaSinTextoStaffSiHaceFalta(m, mostrarTextoStaff)); });
             });
 
-            return grupos.map(function (rango) {
+            const secciones = grupos.map(function (rango) {
                 const partesStr = medidasPorParte.map(function (medidasStr, idxParte) {
                     const idParte = partesXml[idxParte].getAttribute('id') || ('P' + (idxParte + 1));
                     return '<part id="' + idParte + '">' + medidasStr.slice(rango[0], rango[1] + 1).join('') + '</part>';
                 }).join('');
-                return '<?xml version="1.0" encoding="UTF-8"?>\n<score-partwise version="' + version + '">'
+                const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<score-partwise version="' + version + '">'
                     + partListStr + partesStr + '</score-partwise>';
+                return { xml: xml, offset: rango[0] };
             });
+            return { secciones: secciones, overridesPorParte: overridesPorParte };
         } catch (e) {
-            console.warn('[cursos] No se pudo procesar el archivo (cortes de sección / texto de staff), se muestra tal cual:', e);
-            return [xmlString];
+            console.warn('[cursos] No se pudo procesar el archivo (cortes de sección / texto de staff / armadura), se muestra tal cual:', e);
+            return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null };
         }
     }
+
+    asegurarParcheArmaduras();
 
     bloquesPartitura.forEach(function (info) {
         const contenedor = document.getElementById(info.containerId);
@@ -486,14 +680,27 @@
                 ? opensheetmusicdisplay.MXLHelper.MXLtoXMLstring(buffer)
                 : new TextDecoder('utf-8').decode(buffer))
             .then(xmlString => {
-                const secciones = construirSeccionesXml(xmlString, info.mostrarTextoStaff);
-                return secciones.reduce(function (cadena, seccionXml) {
+                const resultado = construirSeccionesXml(xmlString, info.mostrarTextoStaff);
+                return resultado.secciones.reduce(function (cadena, seccion) {
                     return cadena.then(function () {
                         const divSeccion = document.createElement('div');
                         divSeccion.className = 'bloque-gab__seccion';
                         contenedor.appendChild(divSeccion);
                         const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divSeccion, opciones);
-                        return osmd.load(seccionXml).then(function () { return osmd.render(); });
+                        return osmd.load(seccion.xml).then(function () {
+                            // Ver asegurarParcheArmaduras/corregirArmadurasNoTradicionales
+                            // más arriba: sólo hace falta durante ESTE render puntual --
+                            // seguro porque las secciones se renderizan de a una (nunca en
+                            // paralelo, este mismo .reduce() ya lo garantiza).
+                            contextoArmaduraActiva = resultado.overridesPorParte
+                                ? { overridesPorParte: resultado.overridesPorParte, offset: seccion.offset }
+                                : null;
+                            try {
+                                osmd.render();
+                            } finally {
+                                contextoArmaduraActiva = null;
+                            }
+                        });
                     });
                 }, Promise.resolve());
             })
