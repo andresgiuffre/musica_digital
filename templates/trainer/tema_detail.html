@@ -325,8 +325,17 @@
         const estilo = derecha.querySelector('bar-style');
         return estilo ? estilo.textContent.trim() : null;
     }
+    // Un salto de PÁGINA siempre implica sistema nuevo también (no se puede
+    // continuar un sistema a través de un salto de página) -- y MuseScore,
+    // cuando un compás es a la vez corte de sección y salto de página,
+    // probablemente solo declara <print new-page="yes"> sin new-system="yes"
+    // (sería redundante). Si solo se mirara new-system, ese corte de sección
+    // puntual pasaba desapercibido -- caso real reportado por el usuario:
+    // SiM/BM no cerraba con barra final porque coincidía con un salto de
+    // página en MuseScore, mientras que los demás cortes (todos dentro de la
+    // misma página) sí se detectaban bien.
     function empiezaSistemaNuevo(medida) {
-        return !!medida.querySelector('print[new-system="yes"]');
+        return !!medida.querySelector('print[new-system="yes"], print[new-page="yes"]');
     }
 
     // MuseScore no deja ningún marcador explícito de "Section Break" en el
