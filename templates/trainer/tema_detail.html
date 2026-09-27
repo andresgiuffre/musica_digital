@@ -522,13 +522,41 @@
         return tablaParte[contextoArmaduraActiva.offset + idxMedida] || null;
     }
 
+    // Descubierto con datos reales del usuario: OSMD vuelve a llamar
+    // addKeyAtBegin (y por lo tanto stave.setKeySignature(...)) más de una
+    // vez para la MISMA medida durante su propio proceso de formato/re-
+    // justificación -- y setKeySignature, al recrear el KeySignature, pisa
+    // alterKeySpec con undefined otra vez (VexFlowConverter llama
+    // stave.setKeySignature(..., undefined) siempre). Corregir una sola vez
+    // con alterKey() no sobrevive a esa segunda pasada -- por eso el doble
+    // bemol "dejaba de renderizarse" en casos donde antes sí se veía. La
+    // solución robusta: en vez de corregir una vez, ETIQUETAR el stave (que
+    // sí persiste igual entre pasadas) y parchar UNA sola vez, a nivel de
+    // toda la página, el format() real de VexFlow (KeySignature.prototype,
+    // no VexFlowMeasure) para que se autoaplique la etiqueta cada vez que
+    // se llama -- sin importar cuántas veces se reconstruya el modificador.
+    let formatDeArmaduraParcheado = false;
+    function asegurarParcheFormatDeArmadura(instanciaKeySignature) {
+        if (formatDeArmaduraParcheado) return;
+        const proto = Object.getPrototypeOf(instanciaKeySignature);
+        if (!proto || typeof proto.format !== 'function') return;
+        formatDeArmaduraParcheado = true;
+        const formatOriginal = proto.format;
+        proto.format = function () {
+            if (this.stave && this.stave.__cursosArmaduraOverride) {
+                this.alterKeySpec = this.stave.__cursosArmaduraOverride;
+            }
+            return formatOriginal.call(this);
+        };
+    }
+
     function corregirArmaduraDeMedida(medida) {
         const override = overrideDeMedida(medida);
         if (!override || !override.tipos || typeof medida.getVFStave !== 'function') return;
         const stave = medida.getVFStave();
+        stave.__cursosArmaduraOverride = override.tipos;
         const modificadores = stave.getModifiers(undefined, 'keysignatures');
-        if (!modificadores.length || !modificadores[0].accList || !modificadores[0].accList.length) return;
-        try { modificadores[0].alterKey(override.tipos); } catch (e) { /* no bloqueamos el render por esto */ }
+        if (modificadores.length) asegurarParcheFormatDeArmadura(modificadores[0]);
     }
 
     function suprimirAccidentalesDeMedida(medida) {
