@@ -454,68 +454,100 @@
         return huboAlgunCambio ? overridesPorParte : null;
     }
 
-    // Parcha (una sola vez, a nivel de página) el drawer interno de OSMD para
-    // aplicar la corrección justo antes del primer dibujo real de cada
-    // partitura -- nunca después: así nunca hace falta tocar/reemplazar SVG
-    // ya pintado. `contextoArmaduraActiva` es una variable de módulo que cada
-    // sección setea antes de renderizar y limpia después -- seguro porque
-    // las secciones se cargan/renderizan de a una (nunca en paralelo, ver
-    // más abajo el .reduce()).
+    // Parcha (una sola vez, a nivel de página) dos métodos de VexFlowMeasure
+    // -- NO el drawer (ver bug real encontrado y corregido: aplicar la
+    // corrección recién antes de dibujar es TARDE, el ancho de cada medida ya
+    // quedó reservado con los datos viejos). updateInstructionWidth() es,
+    // confirmado leyendo VexFlowMeasure.ts, el método que mide el ancho de
+    // clave/armadura/compás llamando keySignature.getWidth() -- eso dispara
+    // el primer format() interno de VexFlow, y ESE es el que hay que
+    // adelantarse a corregir, o el ancho reservado queda calculado con la
+    // armadura vieja (más angosta) y el resto de la medida se corre/se sale
+    // del pentagrama. format() es, confirmado en el mismo archivo, el que le
+    // pasa el ancho disponible al Formatter de VexFlow para acomodar las
+    // notas -- ahí hay que haber sacado ya el accidental redundante de la
+    // nota, o su ancho queda reservado igual aunque ya no se dibuje (hueco
+    // disparejo entre notas). Parchando estos dos métodos (ambos públicos en
+    // VexFlowMeasure, confirmado que sobreviven la minificación) en vez del
+    // drawer, la corrección ocurre en el mismo momento en que OSMD arma cada
+    // medida, nunca después -- ni retoque de SVG ni desajuste de ancho.
     let contextoArmaduraActiva = null;
+    let mapaIndiceMedidaArmadura = null; // WeakMap<SourceMeasure, number>, reseteado por sección
+    let contadorMedidaArmadura = 0;
+
     function asegurarParcheArmaduras() {
-        const Drawer = window.opensheetmusicdisplay && opensheetmusicdisplay.VexFlowMusicSheetDrawer;
-        if (!Drawer || Drawer.prototype.__cursosArmaduraParcheada) return;
-        Drawer.prototype.__cursosArmaduraParcheada = true;
-        const dibujarOriginal = Drawer.prototype.drawSheet;
-        Drawer.prototype.drawSheet = function (graphic) {
-            if (contextoArmaduraActiva) {
-                try {
-                    corregirArmadurasNoTradicionales(graphic, contextoArmaduraActiva);
-                } catch (e) {
-                    console.error('[cursos] No se pudo corregir una armadura no tradicional:', e);
-                }
-            }
-            return dibujarOriginal.call(this, graphic);
+        const Medida = window.opensheetmusicdisplay && opensheetmusicdisplay.VexFlowMeasure;
+        if (!Medida || Medida.prototype.__cursosArmaduraParcheada) return;
+        Medida.prototype.__cursosArmaduraParcheada = true;
+
+        const anchoInstruccionesOriginal = Medida.prototype.updateInstructionWidth;
+        Medida.prototype.updateInstructionWidth = function () {
+            try { corregirArmaduraDeMedida(this); } catch (e) { console.error('[cursos] No se pudo corregir una armadura no tradicional:', e); }
+            return anchoInstruccionesOriginal.call(this);
+        };
+
+        const formatOriginal = Medida.prototype.format;
+        Medida.prototype.format = function () {
+            try { suprimirAccidentalesDeMedida(this); } catch (e) { console.error('[cursos] No se pudo suprimir un accidental redundante:', e); }
+            return formatOriginal.call(this);
         };
     }
 
-    function corregirArmadurasNoTradicionales(graphic, contexto) {
-        const columnas = graphic.MeasureList || [];
-        for (let k = 0; k < columnas.length; k++) {
-            const columna = columnas[k];
-            if (!columna) continue;
-            for (let staffIdx = 0; staffIdx < columna.length; staffIdx++) {
-                const medida = columna[staffIdx];
-                if (!medida || typeof medida.getVFStave !== 'function') continue;
-                const instrumento = medida.ParentStaff && medida.ParentStaff.parentInstrument;
-                const idxParte = instrumento && typeof instrumento.id === 'number' ? instrumento.id : staffIdx;
-                const tablaParte = contexto.overridesPorParte[idxParte];
-                if (!tablaParte) continue;
-                const override = tablaParte[contexto.offset + k];
-                if (!override) continue;
+    // Da, para una medida gráfica (this de los métodos parchados arriba), un
+    // índice 0-based estable dentro de SU parte -- NO se puede usar
+    // stave.MeasureNumber (confirmado en MusicSheetReader.ts: es un contador
+    // interno que se salta los compases "implícitos", y los compases de
+    // fantasía de estos ejercicios casi siempre caen ahí). En cambio,
+    // parentSourceMeasure es el mismo objeto para todas las partes de una
+    // misma "rebanada" vertical -- alcanza con numerarlo la primera vez que
+    // se lo ve, en el orden en que OSMD arma las medidas.
+    function idxMedidaDe(medida) {
+        const sm = medida.parentSourceMeasure;
+        if (!sm || !mapaIndiceMedidaArmadura) return null;
+        if (mapaIndiceMedidaArmadura.has(sm)) return mapaIndiceMedidaArmadura.get(sm);
+        const idx = contadorMedidaArmadura++;
+        mapaIndiceMedidaArmadura.set(sm, idx);
+        return idx;
+    }
 
-                const stave = medida.getVFStave();
-                const modificadores = stave.getModifiers(undefined, 'keysignatures');
-                if (override.tipos && modificadores.length && modificadores[0].accList && modificadores[0].accList.length) {
-                    try { modificadores[0].alterKey(override.tipos); } catch (e) { /* no bloqueamos el render por esto */ }
-                }
+    function overrideDeMedida(medida) {
+        if (!contextoArmaduraActiva) return null;
+        const instrumento = medida.ParentStaff && medida.ParentStaff.parentInstrument;
+        const idxParte = instrumento && typeof instrumento.id === 'number' ? instrumento.id : null;
+        if (idxParte === null) return null;
+        const tablaParte = contextoArmaduraActiva.overridesPorParte[idxParte];
+        if (!tablaParte) return null;
+        const idxMedida = idxMedidaDe(medida);
+        if (idxMedida === null) return null;
+        return tablaParte[contextoArmaduraActiva.offset + idxMedida] || null;
+    }
 
-                (medida.staffEntries || []).forEach(function (entrada) {
-                    (entrada.graphicalVoiceEntries || []).forEach(function (voz) {
-                        (voz.notes || []).forEach(function (gNota) {
-                            const vf = gNota.vfnote && gNota.vfnote[0];
-                            const pitch = gNota.sourceNote && gNota.sourceNote.Pitch;
-                            if (!vf || !pitch || !Array.isArray(vf.modifiers)) return;
-                            const letra = LETRA_POR_FUNDAMENTAL[pitch.FundamentalNote];
-                            if (!letra || override.letras.indexOf(letra) === -1) return;
-                            vf.modifiers = vf.modifiers.filter(function (m) {
-                                return !(m.getCategory && m.getCategory() === 'accidentals');
-                            });
-                        });
+    function corregirArmaduraDeMedida(medida) {
+        const override = overrideDeMedida(medida);
+        if (!override || !override.tipos || typeof medida.getVFStave !== 'function') return;
+        const stave = medida.getVFStave();
+        const modificadores = stave.getModifiers(undefined, 'keysignatures');
+        if (!modificadores.length || !modificadores[0].accList || !modificadores[0].accList.length) return;
+        try { modificadores[0].alterKey(override.tipos); } catch (e) { /* no bloqueamos el render por esto */ }
+    }
+
+    function suprimirAccidentalesDeMedida(medida) {
+        const override = overrideDeMedida(medida);
+        if (!override) return;
+        (medida.staffEntries || []).forEach(function (entrada) {
+            (entrada.graphicalVoiceEntries || []).forEach(function (voz) {
+                (voz.notes || []).forEach(function (gNota) {
+                    const vf = gNota.vfnote && gNota.vfnote[0];
+                    const pitch = gNota.sourceNote && gNota.sourceNote.Pitch;
+                    if (!vf || !pitch || !Array.isArray(vf.modifiers)) return;
+                    const letra = LETRA_POR_FUNDAMENTAL[pitch.FundamentalNote];
+                    if (!letra || override.letras.indexOf(letra) === -1) return;
+                    vf.modifiers = vf.modifiers.filter(function (m) {
+                        return !(m.getCategory && m.getCategory() === 'accidentals');
                     });
                 });
-            }
-        }
+            });
+        });
     }
 
     // MuseScore no deja ningún marcador explícito de "Section Break" en el
@@ -688,13 +720,19 @@
                         contenedor.appendChild(divSeccion);
                         const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divSeccion, opciones);
                         return osmd.load(seccion.xml).then(function () {
-                            // Ver asegurarParcheArmaduras/corregirArmadurasNoTradicionales
-                            // más arriba: sólo hace falta durante ESTE render puntual --
-                            // seguro porque las secciones se renderizan de a una (nunca en
-                            // paralelo, este mismo .reduce() ya lo garantiza).
+                            // Ver asegurarParcheArmaduras/corregirArmaduraDeMedida/
+                            // suprimirAccidentalesDeMedida más arriba: sólo hace falta
+                            // durante ESTE render puntual -- seguro porque las secciones
+                            // se renderizan de a una (nunca en paralelo, este mismo
+                            // .reduce() ya lo garantiza). mapaIndiceMedidaArmadura se
+                            // resetea también acá -- la numeración de medidas por parte
+                            // es propia de CADA sección (cada una es, para OSMD, una
+                            // partitura corta independiente).
                             contextoArmaduraActiva = resultado.overridesPorParte
                                 ? { overridesPorParte: resultado.overridesPorParte, offset: seccion.offset }
                                 : null;
+                            mapaIndiceMedidaArmadura = new WeakMap();
+                            contadorMedidaArmadura = 0;
                             try {
                                 osmd.render();
                             } finally {
