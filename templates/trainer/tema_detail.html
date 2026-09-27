@@ -376,15 +376,27 @@
     const ORDEN_SOSTENIDOS_ARMADURA = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
     const LETRA_POR_FUNDAMENTAL = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
 
+    // Caso real encontrado en un archivo del usuario: el editor de armaduras
+    // personalizadas de MuseScore puede exportar la MISMA letra dos veces en
+    // un <key> no tradicional (ej. "G" con -2 y más abajo "G" de nuevo con
+    // -1, faltando "F" por completo) -- un glitch del editor, no un formato
+    // válido a propósito. Comparado contra las notas reales del compás, la
+    // ÚLTIMA aparición de cada letra es la que coincide -- por eso acá se
+    // arma un mapa letra->alter en vez de un array, dejando que la última
+    // ocurrencia de cada letra gane. Sin este dedupe, `calcularSustitutoArmadura`
+    // rechaza el <key> entero (letra repetida + letra faltante nunca calzan
+    // con el orden canónico de 7 letras), que es justo el síntoma real
+    // reportado: "no arma la armadura de clave" para ese compás puntual.
     function parsearArmaduraNoTradicional(keyEl) {
         const hijos = Array.from(keyEl.children);
-        const items = [];
+        const porLetra = new Map();
         for (let i = 0; i < hijos.length; i++) {
             if (hijos[i].tagName !== 'key-step') continue;
             const alterEl = hijos[i + 1];
             if (!alterEl || alterEl.tagName !== 'key-alter') return null; // XML mal formado -- no seguimos
-            items.push({ step: hijos[i].textContent.trim(), alter: parseFloat(alterEl.textContent) });
+            porLetra.set(hijos[i].textContent.trim(), parseFloat(alterEl.textContent));
         }
+        const items = Array.from(porLetra, function (par) { return { step: par[0], alter: par[1] }; });
         return items.length ? items : null;
     }
 
