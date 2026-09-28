@@ -25,6 +25,18 @@
        propio .bloque-gab__seccion -- separación visual entre secciones
        independientes. Sin cortes de sección hay una sola, sin efecto. */
     .bloque-gab__seccion + .bloque-gab__seccion { margin-top: 1.5rem; }
+    /* Partitura pantalla dividida: mismo .bloque-gab__partitura de siempre,
+       uno por panel, lado a lado -- min-width:0 es necesario para que cada
+       panel pueda encogerse por debajo de su contenido intrínseco (el ancho
+       real de la partitura), si no un flex item nunca se achica más que eso
+       y el layout se rompe en pantallas angostas. Apila los paneles en
+       vertical antes de que se vuelvan angostos al punto de ilegibles. */
+    .bloque-gab__dividida { display: flex; gap: 1.25rem; align-items: flex-start; }
+    .bloque-gab__dividida-panel { flex: 1 1 0; min-width: 0; }
+    .bloque-gab__dividida-panel .bloque-gab__partitura { height: 100%; }
+    @media (max-width: 700px) {
+        .bloque-gab__dividida { flex-direction: column; }
+    }
     .bloque-gab__contexto { color: var(--ink-soft); font-size: 0.9375rem; margin: 0 0 1rem; }
     /* cursor/hover de "clickeable" -- el gesto real (abrir en grande) lo maneja
        el lightbox más abajo (ver CSS/JS de .lightbox-gab), acá solo la señal
@@ -181,6 +193,20 @@
                 <div class="bloque-gab__partitura">
                     <div id="osmd-bloque-{{ bloque.id }}"></div>
                 </div>
+            {% elif bloque.tipo == 'PARTITURA_DIVIDIDA' %}
+                {% if bloque.contexto_dividida_mostrado %}<p class="bloque-gab__contexto tts-texto">{{ bloque.contexto_dividida_mostrado }}</p>{% endif %}
+                <div class="bloque-gab__dividida">
+                    <div class="bloque-gab__dividida-panel">
+                        <div class="bloque-gab__partitura">
+                            <div id="osmd-bloque-{{ bloque.id }}-izquierda"></div>
+                        </div>
+                    </div>
+                    <div class="bloque-gab__dividida-panel">
+                        <div class="bloque-gab__partitura">
+                            <div id="osmd-bloque-{{ bloque.id }}-derecha"></div>
+                        </div>
+                    </div>
+                </div>
             {% elif bloque.tipo == 'PRACTICA' %}
                 {% if bloque.practica_url_mostrado %}
                     <a class="btn-gab btn-gab--primary tts-texto" href="{{ bloque.practica_url_mostrado }}">{{ bloque.practica_texto_mostrado }}</a>
@@ -269,6 +295,45 @@
             mostrarTimeSignature: {{ bloque.mostrar_time_signature|yesno:"true,false" }},
             mostrarNumeroCompas: {{ bloque.mostrar_numero_compas|yesno:"true,false" }},
             mostrarTextoStaff: {{ bloque.mostrar_texto_staff|yesno:"true,false" }},
+        },
+        {% elif bloque.tipo == 'PARTITURA_DIVIDIDA' %}
+        // Mismo bloque de datos que EJEMPLO_PARTITURA, dos veces (izquierda/
+        // derecha) -- el resto del pipeline (construirSeccionesXml, corte de
+        // secciones, normalización de armaduras no tradicionales, etc.) no
+        // necesita saber nada de "pantalla dividida": cada entrada de este
+        // array ya es, para él, un bloque de partitura independiente con su
+        // propio contenedor.
+        {
+            containerId: 'osmd-bloque-{{ bloque.id }}-izquierda',
+            {% if bloque.sheet_music_izquierda %}
+            archivoUrl: '{% url "biblioteca_archivo" bloque.sheet_music_izquierda.id %}',
+            {% else %}
+            archivoUrl: '{% url "orquestacion_ejercicio_archivo" bloque.fragmento_orquestacion_izquierda.id %}',
+            {% endif %}
+            esMxl: {{ bloque.es_mxl_izquierda|yesno:"true,false" }},
+            mostrarNombreInstrumento: {{ bloque.mostrar_nombre_instrumento_dividida|yesno:"true,false" }},
+            mostrarCompositor: {{ bloque.mostrar_compositor_dividida|yesno:"true,false" }},
+            mostrarLetra: {{ bloque.mostrar_letra_dividida|yesno:"true,false" }},
+            mostrarCompasesVaciosLiteral: {{ bloque.mostrar_compases_vacios_literal_dividida|yesno:"true,false" }},
+            mostrarTimeSignature: {{ bloque.mostrar_time_signature_dividida|yesno:"true,false" }},
+            mostrarNumeroCompas: {{ bloque.mostrar_numero_compas_dividida|yesno:"true,false" }},
+            mostrarTextoStaff: {{ bloque.mostrar_texto_staff_dividida|yesno:"true,false" }},
+        },
+        {
+            containerId: 'osmd-bloque-{{ bloque.id }}-derecha',
+            {% if bloque.sheet_music_derecha %}
+            archivoUrl: '{% url "biblioteca_archivo" bloque.sheet_music_derecha.id %}',
+            {% else %}
+            archivoUrl: '{% url "orquestacion_ejercicio_archivo" bloque.fragmento_orquestacion_derecha.id %}',
+            {% endif %}
+            esMxl: {{ bloque.es_mxl_derecha|yesno:"true,false" }},
+            mostrarNombreInstrumento: {{ bloque.mostrar_nombre_instrumento_dividida|yesno:"true,false" }},
+            mostrarCompositor: {{ bloque.mostrar_compositor_dividida|yesno:"true,false" }},
+            mostrarLetra: {{ bloque.mostrar_letra_dividida|yesno:"true,false" }},
+            mostrarCompasesVaciosLiteral: {{ bloque.mostrar_compases_vacios_literal_dividida|yesno:"true,false" }},
+            mostrarTimeSignature: {{ bloque.mostrar_time_signature_dividida|yesno:"true,false" }},
+            mostrarNumeroCompas: {{ bloque.mostrar_numero_compas_dividida|yesno:"true,false" }},
+            mostrarTextoStaff: {{ bloque.mostrar_texto_staff_dividida|yesno:"true,false" }},
         },
         {% endif %}
         {% endfor %}

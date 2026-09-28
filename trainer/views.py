@@ -1993,6 +1993,12 @@ def tema_detail(request, curso_id, grado_numero, tema_slug):
             # orquestacion_ejercicio_archivo) -- nada de adivinar la extensión en JS.
             archivo_name = bloque.sheet_music.xml_file.name if bloque.sheet_music else bloque.fragmento_orquestacion.archivo.name
             bloque.es_mxl = pathlib.Path(archivo_name).suffix.lower() == '.mxl'
+        elif bloque.tipo == bloque.PARTITURA_DIVIDIDA:
+            # Mismo cálculo que EJEMPLO_PARTITURA, una vez por panel.
+            archivo_izquierda = bloque.sheet_music_izquierda.xml_file.name if bloque.sheet_music_izquierda else bloque.fragmento_orquestacion_izquierda.archivo.name
+            bloque.es_mxl_izquierda = pathlib.Path(archivo_izquierda).suffix.lower() == '.mxl'
+            archivo_derecha = bloque.sheet_music_derecha.xml_file.name if bloque.sheet_music_derecha else bloque.fragmento_orquestacion_derecha.archivo.name
+            bloque.es_mxl_derecha = pathlib.Path(archivo_derecha).suffix.lower() == '.mxl'
         elif bloque.tipo == bloque.PRACTICA_DIRIGIDA:
             bloque.bloqueado = not _bloque_desbloqueado(bloque, request.user)
             if not bloque.bloqueado:

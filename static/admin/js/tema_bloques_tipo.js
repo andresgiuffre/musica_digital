@@ -20,6 +20,7 @@
     var FIELDSET_DE_TIPO = {
         TEXTO: 'Texto',
         EJEMPLO_PARTITURA: 'Ejemplo de partitura',
+        PARTITURA_DIVIDIDA: 'Partitura pantalla dividida',
         IMAGEN: 'Imagen',
         VIDEO: 'Video',
         PRACTICA_DIRIGIDA: '[G0] Práctica dirigida',
@@ -28,7 +29,7 @@
         LINEAS_ESPACIOS: '[G0] Ubicación de líneas y espacios',
         LIGADURAS_PUNTILLO: '[G1] Ligaduras y Puntillo',
     };
-    var TIPOS_LECTURA = ['TEXTO', 'EJEMPLO_PARTITURA', 'IMAGEN', 'VIDEO'];
+    var TIPOS_LECTURA = ['TEXTO', 'EJEMPLO_PARTITURA', 'PARTITURA_DIVIDIDA', 'IMAGEN', 'VIDEO'];
     var TIPOS_PRACTICA = ['PRACTICA_DIRIGIDA', 'RITMO_MATEMATICA', 'COMPLETAR_COMPAS', 'LINEAS_ESPACIOS', 'LIGADURAS_PUNTILLO'];
 
     function tiposPermitidos(tipoTema) {
