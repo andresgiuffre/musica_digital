@@ -684,6 +684,7 @@ class BloqueContenido(models.Model):
     """
     TEXTO = 'TEXTO'
     EJEMPLO_PARTITURA = 'EJEMPLO_PARTITURA'
+    PARTITURA_DIVIDIDA = 'PARTITURA_DIVIDIDA'
     PRACTICA = 'PRACTICA'
     IMAGEN = 'IMAGEN'
     VIDEO = 'VIDEO'
@@ -695,6 +696,7 @@ class BloqueContenido(models.Model):
     TIPO_CHOICES = (
         (TEXTO, 'Texto'),
         (EJEMPLO_PARTITURA, 'Ejemplo de partitura'),
+        (PARTITURA_DIVIDIDA, 'Partitura pantalla dividida'),
         (PRACTICA, 'Práctica'),
         (IMAGEN, 'Imagen'),
         (VIDEO, 'Video'),
@@ -715,7 +717,7 @@ class BloqueContenido(models.Model):
     # grupos -- confirmado con el usuario que no se usa, ya no tiene fieldset
     # en BloqueContenidoInline (ver admin.py); el valor del modelo se deja sin
     # tocar solo por si algún bloque viejo ya lo tiene cargado.
-    TIPOS_LECTURA = (TEXTO, EJEMPLO_PARTITURA, IMAGEN, VIDEO)
+    TIPOS_LECTURA = (TEXTO, EJEMPLO_PARTITURA, PARTITURA_DIVIDIDA, IMAGEN, VIDEO)
     TIPOS_PRACTICA = (PRACTICA_DIRIGIDA, RITMO_MATEMATICA, COMPLETAR_COMPAS, LINEAS_ESPACIOS, LIGADURAS_PUNTILLO)
 
     MODO_IDENTIFICAR_NOTAS = 'identificar_notas'
@@ -791,6 +793,44 @@ class BloqueContenido(models.Model):
     # quita esos <direction> del MusicXML del lado del cliente antes de
     # pasárselo a OSMD.
     mostrar_texto_staff = models.BooleanField(default=True, help_text="Si está destildado, oculta el \"Staff Text\" de MuseScore (Ctrl+T) -- el texto libre que se agrega arriba del pentagrama, sin ser una marca de tempo/dinámica real.")
+
+    # --- PARTITURA_DIVIDIDA (misma idea que EJEMPLO_PARTITURA, mostrando 2
+    # partituras lado a lado para comparar una con otra -- cada panel elige,
+    # de forma independiente, exactamente una fuente entre biblioteca y
+    # fragmento de orquestación, igual que el bloque de Ejemplo de
+    # partitura). Los checkboxes mostrar_*_dividida son a propósito
+    # CAMPOS PROPIOS (no los mismos que usa Ejemplo de partitura) -- confirmado
+    # con el usuario que aplican por igual a los DOS paneles de este bloque
+    # (no hay un juego de checkboxes por panel), pero reutilizar los campos
+    # de EJEMPLO_PARTITURA habría obligado a listarlos en dos fieldsets del
+    # admin a la vez (el JS de tema_bloques_tipo.js los muestra a los dos
+    # simultáneamente dentro del mismo grupo "Lectura"), duplicando el mismo
+    # campo de formulario visualmente -- confuso y frágil.
+    sheet_music_izquierda = models.ForeignKey(
+        SheetMusic, on_delete=models.SET_NULL, null=True, blank=True, related_name='bloques_curso_dividida_izquierda',
+        help_text="Partitura de la Biblioteca para el panel IZQUIERDO. Exactamente una entre esto y 'fragmento orquestación (izquierda)' cuando el tipo es Partitura pantalla dividida."
+    )
+    fragmento_orquestacion_izquierda = models.ForeignKey(
+        FragmentoOrquestacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='bloques_curso_dividida_izquierda',
+        help_text="Fragmento del Ejercicio de Orquestación para el panel IZQUIERDO. Exactamente uno entre esto y 'sheet music (izquierda)' cuando el tipo es Partitura pantalla dividida."
+    )
+    sheet_music_derecha = models.ForeignKey(
+        SheetMusic, on_delete=models.SET_NULL, null=True, blank=True, related_name='bloques_curso_dividida_derecha',
+        help_text="Partitura de la Biblioteca para el panel DERECHO. Exactamente una entre esto y 'fragmento orquestación (derecha)' cuando el tipo es Partitura pantalla dividida."
+    )
+    fragmento_orquestacion_derecha = models.ForeignKey(
+        FragmentoOrquestacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='bloques_curso_dividida_derecha',
+        help_text="Fragmento del Ejercicio de Orquestación para el panel DERECHO. Exactamente uno entre esto y 'sheet music (derecha)' cuando el tipo es Partitura pantalla dividida."
+    )
+    contexto_dividida = models.CharField(max_length=300, blank=True, help_text='Texto corto opcional arriba de las dos partituras, ej: "Compará estas dos versiones del mismo fragmento".')
+    contexto_dividida_en = models.CharField(max_length=300, blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el texto en español también con idioma inglés activo.")
+    mostrar_nombre_instrumento_dividida = models.BooleanField(default=True, help_text="Igual que en Ejemplo de partitura, pero aplicado a los DOS paneles de este bloque por igual.")
+    mostrar_compositor_dividida = models.BooleanField(default=True, help_text="Igual que en Ejemplo de partitura, aplicado a los dos paneles.")
+    mostrar_letra_dividida = models.BooleanField(default=True, help_text="Igual que en Ejemplo de partitura, aplicado a los dos paneles.")
+    mostrar_compases_vacios_literal_dividida = models.BooleanField(default=False, help_text="Igual que en Ejemplo de partitura, aplicado a los dos paneles.")
+    mostrar_time_signature_dividida = models.BooleanField(default=True, help_text="Igual que en Ejemplo de partitura, aplicado a los dos paneles.")
+    mostrar_numero_compas_dividida = models.BooleanField(default=True, help_text="Igual que en Ejemplo de partitura, aplicado a los dos paneles.")
+    mostrar_texto_staff_dividida = models.BooleanField(default=True, help_text="Igual que en Ejemplo de partitura, aplicado a los dos paneles.")
 
     # --- PRACTICA ---
     practica_texto = models.CharField(max_length=300, blank=True, help_text='Ej: "Practicá esto en Identificación de Notas". Requerido cuando el tipo es Práctica.')
@@ -940,6 +980,13 @@ class BloqueContenido(models.Model):
         return self.contexto_ejemplo
 
     @property
+    def contexto_dividida_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.contexto_dividida_en:
+            return self.contexto_dividida_en
+        return self.contexto_dividida
+
+    @property
     def practica_texto_mostrado(self):
         from django.utils.translation import get_language
         if get_language() == 'en' and self.practica_texto_en:
@@ -1010,7 +1057,7 @@ class BloqueContenido(models.Model):
         if self.tipo == self.TEXTO:
             if not self.texto_markdown:
                 errores['texto_markdown'] = "Requerido cuando el tipo es Texto."
-            if self.sheet_music_id or self.fragmento_orquestacion_id:
+            if self.sheet_music_id or self.fragmento_orquestacion_id or self.sheet_music_izquierda_id or self.fragmento_orquestacion_izquierda_id or self.sheet_music_derecha_id or self.fragmento_orquestacion_derecha_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Texto."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Texto."
@@ -1039,13 +1086,36 @@ class BloqueContenido(models.Model):
                 errores['musicxml_practica'] = "No debería llenarse en un bloque de Ejemplo de partitura."
             if self.musicxml_ligaduras:
                 errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Ejemplo de partitura."
+            if self.sheet_music_izquierda_id or self.fragmento_orquestacion_izquierda_id or self.sheet_music_derecha_id or self.fragmento_orquestacion_derecha_id:
+                errores['tipo'] = "No debería haber partitura/fragmento de pantalla dividida asignado en un bloque de Ejemplo de partitura -- usá 'sheet music'/'fragmento orquestación' (sin sufijo)."
+
+        elif self.tipo == self.PARTITURA_DIVIDIDA:
+            if bool(self.sheet_music_izquierda_id) == bool(self.fragmento_orquestacion_izquierda_id):
+                # cubre "ninguno de los dos" y "los dos a la vez"
+                errores['sheet_music_izquierda'] = "Elegí exactamente una para el panel izquierdo: partitura de biblioteca O fragmento de orquestación, no ninguna ni las dos."
+            if bool(self.sheet_music_derecha_id) == bool(self.fragmento_orquestacion_derecha_id):
+                errores['sheet_music_derecha'] = "Elegí exactamente una para el panel derecho: partitura de biblioteca O fragmento de orquestación, no ninguna ni las dos."
+            if self.texto_markdown:
+                errores['texto_markdown'] = "No debería llenarse acá (usá 'contexto_dividida' para texto corto)."
+            if self.sheet_music_id or self.fragmento_orquestacion_id:
+                errores['tipo'] = "No debería haber partitura/fragmento asignado en el campo de Ejemplo de partitura -- usá los campos izquierda/derecha de Partitura pantalla dividida."
+            if self.practica_texto:
+                errores['practica_texto'] = "No debería llenarse en un bloque de Partitura pantalla dividida."
+            if self.imagen or self.imagen_en:
+                errores['imagen'] = "No debería llenarse en un bloque de Partitura pantalla dividida."
+            if self.video_archivo or self.video_archivo_en or self.video_embed_url or self.video_embed_url_en:
+                errores['video_fuente'] = "No debería llenarse en un bloque de Partitura pantalla dividida."
+            if self.musicxml_practica:
+                errores['musicxml_practica'] = "No debería llenarse en un bloque de Partitura pantalla dividida."
+            if self.musicxml_ligaduras:
+                errores['musicxml_ligaduras'] = "No debería llenarse en un bloque de Partitura pantalla dividida."
 
         elif self.tipo == self.PRACTICA:
             if not self.practica_texto:
                 errores['practica_texto'] = "Requerido cuando el tipo es Práctica."
             if self.texto_markdown:
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Práctica."
-            if self.sheet_music_id or self.fragmento_orquestacion_id:
+            if self.sheet_music_id or self.fragmento_orquestacion_id or self.sheet_music_izquierda_id or self.fragmento_orquestacion_izquierda_id or self.sheet_music_derecha_id or self.fragmento_orquestacion_derecha_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Práctica."
             if self.imagen or self.imagen_en:
                 errores['imagen'] = "No debería llenarse en un bloque de Práctica."
@@ -1061,7 +1131,7 @@ class BloqueContenido(models.Model):
                 errores['imagen'] = "Requerido cuando el tipo es Imagen (la versión en inglés es opcional)."
             if self.texto_markdown:
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Imagen."
-            if self.sheet_music_id or self.fragmento_orquestacion_id:
+            if self.sheet_music_id or self.fragmento_orquestacion_id or self.sheet_music_izquierda_id or self.fragmento_orquestacion_izquierda_id or self.sheet_music_derecha_id or self.fragmento_orquestacion_derecha_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Imagen."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Imagen."
@@ -1095,7 +1165,7 @@ class BloqueContenido(models.Model):
                         errores['video_embed_url_en'] = "No reconozco un link de YouTube o Vimeo válido en esta URL."
             if self.texto_markdown:
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Video."
-            if self.sheet_music_id or self.fragmento_orquestacion_id:
+            if self.sheet_music_id or self.fragmento_orquestacion_id or self.sheet_music_izquierda_id or self.fragmento_orquestacion_izquierda_id or self.sheet_music_derecha_id or self.fragmento_orquestacion_derecha_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Video."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Video."
@@ -1111,7 +1181,7 @@ class BloqueContenido(models.Model):
                 errores['musicxml_practica'] = "Requerido cuando el tipo es Práctica dirigida."
             if self.texto_markdown:
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Práctica dirigida."
-            if self.sheet_music_id or self.fragmento_orquestacion_id:
+            if self.sheet_music_id or self.fragmento_orquestacion_id or self.sheet_music_izquierda_id or self.fragmento_orquestacion_izquierda_id or self.sheet_music_derecha_id or self.fragmento_orquestacion_derecha_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Práctica dirigida."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Práctica dirigida."
@@ -1125,7 +1195,7 @@ class BloqueContenido(models.Model):
         elif self.tipo == self.RITMO_MATEMATICA:
             if self.texto_markdown:
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Ritmo matemático."
-            if self.sheet_music_id or self.fragmento_orquestacion_id:
+            if self.sheet_music_id or self.fragmento_orquestacion_id or self.sheet_music_izquierda_id or self.fragmento_orquestacion_izquierda_id or self.sheet_music_derecha_id or self.fragmento_orquestacion_derecha_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Ritmo matemático."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Ritmo matemático."
@@ -1141,7 +1211,7 @@ class BloqueContenido(models.Model):
         elif self.tipo == self.COMPLETAR_COMPAS:
             if self.texto_markdown:
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Completar el compás."
-            if self.sheet_music_id or self.fragmento_orquestacion_id:
+            if self.sheet_music_id or self.fragmento_orquestacion_id or self.sheet_music_izquierda_id or self.fragmento_orquestacion_izquierda_id or self.sheet_music_derecha_id or self.fragmento_orquestacion_derecha_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Completar el compás."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Completar el compás."
@@ -1157,7 +1227,7 @@ class BloqueContenido(models.Model):
         elif self.tipo == self.LINEAS_ESPACIOS:
             if self.texto_markdown:
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Ubicación de líneas y espacios."
-            if self.sheet_music_id or self.fragmento_orquestacion_id:
+            if self.sheet_music_id or self.fragmento_orquestacion_id or self.sheet_music_izquierda_id or self.fragmento_orquestacion_izquierda_id or self.sheet_music_derecha_id or self.fragmento_orquestacion_derecha_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Ubicación de líneas y espacios."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Ubicación de líneas y espacios."
@@ -1175,7 +1245,7 @@ class BloqueContenido(models.Model):
                 errores['musicxml_ligaduras'] = "Requerido cuando el tipo es Ligaduras y Puntillo."
             if self.texto_markdown:
                 errores['texto_markdown'] = "No debería llenarse en un bloque de Ligaduras y Puntillo."
-            if self.sheet_music_id or self.fragmento_orquestacion_id:
+            if self.sheet_music_id or self.fragmento_orquestacion_id or self.sheet_music_izquierda_id or self.fragmento_orquestacion_izquierda_id or self.sheet_music_derecha_id or self.fragmento_orquestacion_derecha_id:
                 errores['tipo'] = "No debería haber partitura/fragmento asignado en un bloque de Ligaduras y Puntillo."
             if self.practica_texto:
                 errores['practica_texto'] = "No debería llenarse en un bloque de Ligaduras y Puntillo."

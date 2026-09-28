@@ -70,6 +70,17 @@ class BloqueContenidoInline(admin.StackedInline):
             ),
             'classes': ('collapse',),
         }),
+        ('Partitura pantalla dividida', {
+            'fields': (
+                'sheet_music_izquierda', 'fragmento_orquestacion_izquierda',
+                'sheet_music_derecha', 'fragmento_orquestacion_derecha',
+                'contexto_dividida', 'contexto_dividida_en',
+                'mostrar_nombre_instrumento_dividida', 'mostrar_compositor_dividida', 'mostrar_letra_dividida',
+                'mostrar_compases_vacios_literal_dividida', 'mostrar_time_signature_dividida',
+                'mostrar_numero_compas_dividida', 'mostrar_texto_staff_dividida',
+            ),
+            'classes': ('collapse',),
+        }),
         # Sin fieldset "Práctica" (practica_texto/practica_url) a propósito --
         # confirmado con el usuario que ese tipo simple de link-a-otra-página
         # no se usa. Se deja el campo/tipo en el modelo sin tocar (ver
