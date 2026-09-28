@@ -376,28 +376,54 @@
     const ORDEN_SOSTENIDOS_ARMADURA = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
     const LETRA_POR_FUNDAMENTAL = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
 
-    // Caso real encontrado en un archivo del usuario: el editor de armaduras
-    // personalizadas de MuseScore puede exportar la MISMA letra dos veces en
-    // un <key> no tradicional (ej. "G" con -2 y más abajo "G" de nuevo con
-    // -1, faltando "F" por completo) -- un glitch del editor, no un formato
-    // válido a propósito. Comparado contra las notas reales del compás, la
-    // ÚLTIMA aparición de cada letra es la que coincide -- por eso acá se
-    // arma un mapa letra->alter en vez de un array, dejando que la última
-    // ocurrencia de cada letra gane. Sin este dedupe, `calcularSustitutoArmadura`
-    // rechaza el <key> entero (letra repetida + letra faltante nunca calzan
-    // con el orden canónico de 7 letras), que es justo el síntoma real
-    // reportado: "no arma la armadura de clave" para ese compás puntual.
     function parsearArmaduraNoTradicional(keyEl) {
         const hijos = Array.from(keyEl.children);
-        const porLetra = new Map();
+        const items = [];
         for (let i = 0; i < hijos.length; i++) {
             if (hijos[i].tagName !== 'key-step') continue;
             const alterEl = hijos[i + 1];
             if (!alterEl || alterEl.tagName !== 'key-alter') return null; // XML mal formado -- no seguimos
-            porLetra.set(hijos[i].textContent.trim(), parseFloat(alterEl.textContent));
+            items.push({ step: hijos[i].textContent.trim(), alter: parseFloat(alterEl.textContent) });
         }
-        const items = Array.from(porLetra, function (par) { return { step: par[0], alter: par[1] }; });
         return items.length ? items : null;
+    }
+
+    // Caso real encontrado en un archivo del usuario: el editor de armaduras
+    // personalizadas de MuseScore exportó la letra "G" dos veces en un mismo
+    // <key> no tradicional (una vez con -2, correcta, y de nuevo más abajo
+    // con -1) mientras que "F" no aparecía en absoluto -- confirmado con el
+    // usuario que esa segunda aparición de "G" es en realidad un "F" mal
+    // etiquetado (el valor de alteración, bemol simple, sí era el correcto
+    // para Fa; sólo el nombre de la letra estaba mal). Reparable sólo en
+    // este patrón puntual y acotado: exactamente 1 letra del orden canónico
+    // falta, exactamente 1 letra se repite dos veces, y ninguna letra
+    // "sobra" fuera de las esperadas -- en ese caso, la SEGUNDA aparición de
+    // la letra repetida se reasigna a la letra faltante (se conserva su
+    // alteración tal cual). Cualquier otro desajuste (más de una letra
+    // repetida/faltante, una letra totalmente ajena al orden canónico) NO
+    // se repara -- cae al comportamiento actual (sin armadura agrupada).
+    function repararLetrasNoTradicional(items, letrasEsperadas) {
+        const conteo = {};
+        items.forEach(function (it) { conteo[it.step] = (conteo[it.step] || 0) + 1; });
+        const letrasReales = Object.keys(conteo);
+        const yaCalzan = letrasEsperadas.length === letrasReales.length
+            && letrasEsperadas.every(function (l) { return conteo[l] === 1; });
+        if (yaCalzan) return items;
+
+        const letrasFaltantes = letrasEsperadas.filter(function (l) { return !conteo[l]; });
+        const letrasAjenas = letrasReales.filter(function (l) { return letrasEsperadas.indexOf(l) === -1; });
+        const letrasDuplicadas = letrasReales.filter(function (l) { return conteo[l] > 1; });
+        if (letrasFaltantes.length !== 1 || letrasDuplicadas.length !== 1 || letrasAjenas.length !== 0) return null;
+        if (conteo[letrasDuplicadas[0]] !== 2) return null; // sólo se repara una repetición simple, no más
+
+        const letraDuplicada = letrasDuplicadas[0];
+        const letraFaltante = letrasFaltantes[0];
+        let primeraVezVista = false;
+        return items.map(function (it) {
+            if (it.step !== letraDuplicada) return it;
+            if (!primeraVezVista) { primeraVezVista = true; return it; }
+            return { step: letraFaltante, alter: it.alter };
+        });
     }
 
     function calcularSustitutoArmadura(items) {
@@ -407,18 +433,19 @@
         const orden = esBemol ? ORDEN_BEMOLES_ARMADURA : ORDEN_SOSTENIDOS_ARMADURA;
         const cantidad = items.length;
         if (cantidad > orden.length) return null;
-        const letrasEsperadas = orden.slice(0, cantidad).slice().sort().join('');
-        const letrasReales = items.map(function (it) { return it.step; }).slice().sort().join('');
-        if (letrasEsperadas !== letrasReales) return null; // no calzan con el orden canónico de VexFlow
+        const letrasEsperadas = orden.slice(0, cantidad);
+
+        const itemsReparados = repararLetrasNoTradicional(items, letrasEsperadas);
+        if (!itemsReparados) return null; // no calzan con el orden canónico de VexFlow, ni siquiera reparando
 
         const tipos = new Array(cantidad).fill(undefined);
         const letras = [];
-        for (let i = 0; i < items.length; i++) {
-            const abs = Math.abs(items[i].alter);
+        for (let i = 0; i < itemsReparados.length; i++) {
+            const abs = Math.abs(itemsReparados[i].alter);
             if (abs === 1) continue; // coincide con la armadura estándar de base, no hace falta override
             if (abs !== 2) return null; // alteración triple u otro caso no soportado
-            tipos[orden.indexOf(items[i].step)] = esBemol ? 'bb' : '##';
-            letras.push(items[i].step);
+            tipos[orden.indexOf(itemsReparados[i].step)] = esBemol ? 'bb' : '##';
+            letras.push(itemsReparados[i].step);
         }
         return {
             fifths: esBemol ? -cantidad : cantidad,
