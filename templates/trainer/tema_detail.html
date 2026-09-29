@@ -439,7 +439,6 @@
     // agrupada, cada nota con su propio accidental).
     const ORDEN_BEMOLES_ARMADURA = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
     const ORDEN_SOSTENIDOS_ARMADURA = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
-    const LETRA_POR_FUNDAMENTAL = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
 
     function parsearArmaduraNoTradicional(keyEl) {
         const hijos = Array.from(keyEl.children);
@@ -592,7 +591,7 @@
 
         const formatOriginal = Medida.prototype.format;
         Medida.prototype.format = function () {
-            try { suprimirAccidentalesDeMedida(this); } catch (e) { console.error('[cursos] No se pudo suprimir un accidental redundante:', e); }
+            try { corregirAccidentalesDeMedida(this); } catch (e) { console.error('[cursos] No se pudo corregir un accidental:', e); }
             return formatOriginal.call(this);
         };
     }
@@ -615,7 +614,7 @@
     }
 
     function overrideDeMedida(medida) {
-        if (!contextoArmaduraActiva) return null;
+        if (!contextoArmaduraActiva || !contextoArmaduraActiva.overridesPorParte) return null;
         const instrumento = medida.ParentStaff && medida.ParentStaff.parentInstrument;
         const idxParte = instrumento && typeof instrumento.id === 'number' ? instrumento.id : null;
         if (idxParte === null) return null;
@@ -663,20 +662,113 @@
         if (modificadores.length) asegurarParcheFormatDeArmadura(modificadores[0]);
     }
 
-    function suprimirAccidentalesDeMedida(medida) {
-        const override = overrideDeMedida(medida);
-        if (!override) return;
+    // MuseScore decide, nota por nota, si dibuja un accidental -- incluido
+    // uno "de cortesía" (cautionary) aunque sea redundante con la nota
+    // anterior -- y OSMD 1.8.8 IGNORA por completo esa decisión para
+    // sostenido/bemol/becuadro/doble sostenido/doble bemol: siempre
+    // recalcula desde cero, comparando contra su propia memoria interna de
+    // "qué alteración vio antes en este compás para esta letra+octava".
+    // Confirmado empíricamente contra la librería real, nota por nota, con
+    // un archivo real del usuario: no es solo el caso de la cortesía
+    // (que MuseScore SÍ quiere mostrar y OSMD no dibuja) -- también pasa al
+    // revés (una nota que ya coincide con la memoria de OSMD, así que él no
+    // le pone nada, pero el archivo real trae un caso donde igual dibuja un
+    // accidental que MuseScore no puso). Por eso la única fuente de verdad
+    // confiable es el propio <accidental> del XML: si está presente (sea
+    // cual sea el tipo/cautionary/parentheses), esa nota debe mostrar un
+    // accidental; si no está, no debe mostrar ninguno -- sin importar lo
+    // que decida el cálculo propio de OSMD. Esto reemplaza (y generaliza)
+    // la supresión que antes solo cubría las letras corregidas por una
+    // armadura no tradicional -- ese caso queda cubierto acá también, ya
+    // que MuseScore tampoco pone <accidental> en las notas que coinciden
+    // con una armadura personalizada bien armada.
+    const TIPO_ACCIDENTAL_POR_ALTER = { '0': 'n', '1': '#', '-1': 'b', '2': '##', '-2': 'bb' };
+    // Constructor de VexFlow.Accidental -- no está expuesto directo en
+    // window.opensheetmusicdisplay (solo las clases con prefijo VexFlow*
+    // propias de OSMD lo están), así que se "toma prestado" la primera vez
+    // que se encuentra un accidental ya dibujado en CUALQUIER nota de
+    // CUALQUIER medida de la página (alcanza con una sola vez, se cachea a
+    // nivel de módulo). Confirmado empíricamente que un Accidental armado
+    // así, agregado ANTES de VexFlowMeasure.format() (mismo momento ya
+    // usado para el resto de estas correcciones), participa del layout
+    // exactamente igual que uno que vino del XML -- mismas posiciones
+    // finales de nota, sin superposiciones ni huecos.
+    let ctorAccidentalCache = null;
+
+    // Da, para una medida XML (el <measure> tal cual viene del documento),
+    // un array con un booleano por cada nota con altura real (silencios y
+    // notas sin <pitch> no cuentan) -- true si esa nota trae <accidental>
+    // en el XML fuente. El orden coincide con el orden en que OSMD arma
+    // gve.notes dentro de staffEntries/graphicalVoiceEntries (documento,
+    // de izquierda a derecha) siempre que sea una sola voz por compás --
+    // el único caso que manejan estos ejercicios de escalas.
+    function accidentalesEsperadosDeMedida(medidaXml) {
+        const notasXml = Array.from(medidaXml.children).filter(function (n) { return n.tagName === 'note'; });
+        const resultado = [];
+        notasXml.forEach(function (notaEl) {
+            if (notaEl.querySelector('rest')) return;
+            if (!notaEl.querySelector('pitch')) return;
+            resultado.push(!!notaEl.querySelector('accidental'));
+        });
+        return resultado;
+    }
+
+    // Recorre TODO el documento (todas las partes, todas las medidas) y
+    // arma la tabla completa -- a diferencia de normalizarArmadurasNoTradicionales,
+    // esto corre SIEMPRE (no hay "no hizo falta nada"), porque cualquier
+    // compás puede tener una nota con accidental explícito/cortesía que
+    // OSMD decida ignorar.
+    function calcularAccidentalesEsperados(doc) {
+        const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
+        return partesXml.map(function (parte) {
+            return Array.from(parte.children).filter(function (n) { return n.tagName === 'measure'; })
+                .map(function (medidaXml) { return accidentalesEsperadosDeMedida(medidaXml); });
+        });
+    }
+
+    function corregirAccidentalesDeMedida(medida) {
+        if (!contextoArmaduraActiva || !contextoArmaduraActiva.accidentalesEsperadosPorParte) return;
+        const instrumento = medida.ParentStaff && medida.ParentStaff.parentInstrument;
+        const idxParte = instrumento && typeof instrumento.id === 'number' ? instrumento.id : null;
+        if (idxParte === null) return;
+        const tablaParte = contextoArmaduraActiva.accidentalesEsperadosPorParte[idxParte];
+        if (!tablaParte) return;
+        const idxMedida = idxMedidaDe(medida);
+        if (idxMedida === null) return;
+        const esperados = tablaParte[contextoArmaduraActiva.offset + idxMedida];
+        if (!esperados) return;
+
+        let i = 0;
         (medida.staffEntries || []).forEach(function (entrada) {
             (entrada.graphicalVoiceEntries || []).forEach(function (voz) {
                 (voz.notes || []).forEach(function (gNota) {
                     const vf = gNota.vfnote && gNota.vfnote[0];
                     const pitch = gNota.sourceNote && gNota.sourceNote.Pitch;
                     if (!vf || !pitch || !Array.isArray(vf.modifiers)) return;
-                    const letra = LETRA_POR_FUNDAMENTAL[pitch.FundamentalNote];
-                    if (!letra || override.letras.indexOf(letra) === -1) return;
-                    vf.modifiers = vf.modifiers.filter(function (m) {
-                        return !(m.getCategory && m.getCategory() === 'accidentals');
-                    });
+                    const debeTenerAccidental = esperados[i];
+                    i++;
+                    if (debeTenerAccidental === undefined) return; // conteo desalineado -- no tocamos nada, mejor eso que corregir mal
+
+                    const modsAccidental = vf.modifiers.filter(function (m) { return m.getCategory && m.getCategory() === 'accidentals'; });
+                    if (modsAccidental.length && !ctorAccidentalCache) {
+                        ctorAccidentalCache = modsAccidental[0].constructor;
+                    }
+
+                    if (debeTenerAccidental && !modsAccidental.length) {
+                        if (!ctorAccidentalCache) return; // todavía no encontramos ningún accidental real del que "copiar" el constructor -- no forzamos nada esta vez
+                        const tipo = TIPO_ACCIDENTAL_POR_ALTER[String(pitch.AccidentalHalfTones)];
+                        if (!tipo) return; // alteración no soportada (ej. cuarto de tono) -- no tocamos
+                        try {
+                            const nuevo = new ctorAccidentalCache(tipo);
+                            vf.addAccidental(0, nuevo);
+                        } catch (e) {
+                            console.error('[cursos] No se pudo forzar un accidental esperado por el XML:', e);
+                        }
+                    } else if (!debeTenerAccidental && modsAccidental.length) {
+                        vf.modifiers = vf.modifiers.filter(function (m) {
+                            return !(m.getCategory && m.getCategory() === 'accidentals');
+                        });
+                    }
                 });
             });
         });
@@ -716,13 +808,13 @@
     function construirSeccionesXml(xmlString, mostrarTextoStaff) {
         try {
             const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
-            if (doc.querySelector('parsererror')) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null };
+            if (doc.querySelector('parsererror')) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null };
 
             const raiz = doc.querySelector('score-partwise');
             const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
-            if (!raiz || partesXml.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null };
+            if (!raiz || partesXml.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null };
             const medidasRef = Array.from(partesXml[0].children).filter(function (n) { return n.tagName === 'measure'; });
-            if (medidasRef.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null };
+            if (medidasRef.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null };
 
             // Muta `doc` in-place (reemplaza cada <key> no tradicional por su
             // <fifths> equivalente) ANTES de calcular cortes de sección o
@@ -730,6 +822,11 @@
             // <print>/número de compás, nunca <key>, así que es seguro
             // normalizar primero sin afectarla.
             const overridesPorParte = normalizarArmadurasNoTradicionales(doc);
+            // Se calcula SIEMPRE (a diferencia de overridesPorParte, que sólo
+            // existe si hubo una armadura no tradicional) -- cualquier compás
+            // puede tener una nota con <accidental> explícito/de cortesía que
+            // OSMD decida ignorar por su cuenta.
+            const accidentalesEsperadosPorParte = calcularAccidentalesEsperados(doc);
 
             // indicesDeCorte[i] = índice de la ÚLTIMA medida de una sección
             // (0-based, sobre medidasRef) -- la sección siguiente arranca en i+1.
@@ -760,11 +857,13 @@
 
             // Si no hace falta partir, tampoco hay que tocar texto de staff,
             // Y no se normalizó ninguna armadura no tradicional, devolvemos
-            // el archivo tal cual llegó -- ni una sola operación de
+            // el archivo XML tal cual llegó -- ni una sola operación de
             // clonado/serializado de por medio, cero riesgo de regresión
-            // para el caso (mayoritario) de un bloque sin nada de esto.
+            // para el caso (mayoritario) de un bloque sin nada de eso. La
+            // corrección de accidentales SÍ sigue activa igual (no reescribe
+            // el XML, corre aparte a la hora de renderizar).
             if (grupos.length === 1 && mostrarTextoStaff && !overridesPorParte) {
-                return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null };
+                return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte };
             }
 
             const serializer = new XMLSerializer();
@@ -789,10 +888,10 @@
                     + partListStr + partesStr + '</score-partwise>';
                 return { xml: xml, offset: rango[0] };
             });
-            return { secciones: secciones, overridesPorParte: overridesPorParte };
+            return { secciones: secciones, overridesPorParte: overridesPorParte, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte };
         } catch (e) {
-            console.warn('[cursos] No se pudo procesar el archivo (cortes de sección / texto de staff / armadura), se muestra tal cual:', e);
-            return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null };
+            console.warn('[cursos] No se pudo procesar el archivo (cortes de sección / texto de staff / armadura / accidentales), se muestra tal cual:', e);
+            return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null };
         }
     }
 
@@ -853,15 +952,21 @@
                         const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divSeccion, opciones);
                         return osmd.load(seccion.xml).then(function () {
                             // Ver asegurarParcheArmaduras/corregirArmaduraDeMedida/
-                            // suprimirAccidentalesDeMedida más arriba: sólo hace falta
+                            // corregirAccidentalesDeMedida más arriba: sólo hace falta
                             // durante ESTE render puntual -- seguro porque las secciones
                             // se renderizan de a una (nunca en paralelo, este mismo
                             // .reduce() ya lo garantiza). mapaIndiceMedidaArmadura se
                             // resetea también acá -- la numeración de medidas por parte
                             // es propia de CADA sección (cada una es, para OSMD, una
-                            // partitura corta independiente).
-                            contextoArmaduraActiva = resultado.overridesPorParte
-                                ? { overridesPorParte: resultado.overridesPorParte, offset: seccion.offset }
+                            // partitura corta independiente). accidentalesEsperadosPorParte
+                            // está presente casi siempre (se calcula sin condición alguna),
+                            // así que en la práctica este contexto casi nunca queda null.
+                            contextoArmaduraActiva = (resultado.overridesPorParte || resultado.accidentalesEsperadosPorParte)
+                                ? {
+                                    overridesPorParte: resultado.overridesPorParte,
+                                    accidentalesEsperadosPorParte: resultado.accidentalesEsperadosPorParte,
+                                    offset: seccion.offset,
+                                }
                                 : null;
                             mapaIndiceMedidaArmadura = new WeakMap();
                             contadorMedidaArmadura = 0;
