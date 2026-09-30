@@ -897,7 +897,16 @@
 
     asegurarParcheArmaduras();
 
-    bloquesPartitura.forEach(function (info) {
+    // Señales para curso_exportar_pdf (ver curso_detail.html): ese flujo carga
+    // esta misma página en un iframe oculto para pre-renderizar cada partitura
+    // a PNG antes de armar el PDF del curso, y necesita saber cuándo terminaron
+    // TODAS las de esta página (puede haber más de un bloque, y cada uno puede
+    // tener más de una sección). Sin bloques de partitura, ya queda "lista" de
+    // entrada -- no hay nada que esperar.
+    window.__cursosTieneBloquesPartitura = bloquesPartitura.length > 0;
+    window.__cursosPartiturasListas = bloquesPartitura.length === 0;
+
+    const promesasBloquesPartitura = bloquesPartitura.map(function (info) {
         const contenedor = document.getElementById(info.containerId);
         const opciones = {
             drawTitle: false,
@@ -929,7 +938,7 @@
             // "Whether to draw measure numbers (labels)", default true).
             drawMeasureNumbers: info.mostrarNumeroCompas,
         };
-        fetch(info.archivoUrl)
+        return fetch(info.archivoUrl)
             .then(res => {
                 if (!res.ok) throw new Error('No se pudo descargar el archivo (' + res.status + ')');
                 return res.arrayBuffer();
@@ -983,6 +992,14 @@
                 contenedor.textContent = document.querySelector('.envoltorio-gab').dataset.txtErrorPartitura;
                 console.error('[cursos] Error cargando ejemplo de partitura:', err);
             });
+    });
+
+    // .catch acá arriba ya se come cualquier error de UN bloque puntual (para
+    // no romper el resto de la página) -- Promise.all sobre promesas que ya
+    // nunca rechazan, así que esto siempre termina en .then, nunca hace falta
+    // un .catch acá también.
+    Promise.all(promesasBloquesPartitura).then(function () {
+        window.__cursosPartiturasListas = true;
     });
 })();
 
