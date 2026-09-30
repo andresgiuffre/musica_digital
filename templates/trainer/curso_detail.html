@@ -231,6 +231,17 @@ se muestra en el idioma de sesión real -- base.html ya cae a LANGUAGE_CODE.
             iframe.addEventListener('load', function () {
                 const win = iframe.contentWindow;
                 if (!win) { finalizar(); return; }
+                // Un <iframe> recién creado, al insertarse en el documento, dispara
+                // su propio 'load' para el documento "about:blank" inicial -- si
+                // ese evento llega ANTES de que la navegación real a `url` termine,
+                // acá adentro `win` todavía es la página en blanco (sin
+                // __cursosTieneBloquesPartitura ni nada) y se interpretaba como
+                // "este Tema no tiene partituras", cerrando el capturador sin
+                // esperar nunca la carga real. Se ignora ese primer 'load' bogus;
+                // sólo importa el/los que lleguen con una URL real cargada.
+                try {
+                    if (!win.location || win.location.href === 'about:blank') return;
+                } catch (e) { return; }
                 (function chequear() {
                     if (resuelto) return;
                     if (!win.__cursosTieneBloquesPartitura) { finalizar(); return; }
@@ -243,8 +254,13 @@ se muestra en el idioma de sesión real -- base.html ya cae a LANGUAGE_CODE.
             });
             iframe.addEventListener('error', finalizar);
 
-            document.body.appendChild(iframe);
+            // Asignar `src` ANTES de insertar el <iframe> en el documento (no
+            // después) es la otra mitad de la corrección de arriba: así el
+            // navegador arranca la navegación real directamente al insertarlo,
+            // en vez de crear primero un documento about:blank vacío (con su
+            // propio 'load') y recién después navegar a `url`.
             iframe.src = url;
+            document.body.appendChild(iframe);
         });
     }
 
