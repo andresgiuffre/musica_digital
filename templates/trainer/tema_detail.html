@@ -934,6 +934,21 @@
                         if (typeof reemplazo.setPosition === 'function' && original.position !== undefined) {
                             reemplazo.setPosition(original.position);
                         }
+                        // El #/b/becuadro de un <accidental-mark> (ej. "grupeto con
+                        // sostenido") lo arma OSMD ANTES de este parche, llamando
+                        // setUpperAccidental()/setLowerAccidental() sobre el Ornament
+                        // ORIGINAL -- eso deja armado un Glyph propio en
+                        // accidentalUpper/accidentalLower, independiente del glifo
+                        // principal. Si no se copia acá, el reemplazo sale sin ningún
+                        // accidental -- confirmado como bug real con una captura del
+                        // usuario (el sostenido/bemol desaparecía por completo). Estos
+                        // dos Glyph se dibujan aparte del glifo principal (ver
+                        // Ornament.draw() de VexFlow: son un render() propio, no pasan
+                        // por nuestro parche de abajo), así que alcanza con copiar la
+                        // referencia tal cual -- no necesitan espejarse, sólo el glifo
+                        // del grupeto en sí.
+                        reemplazo.accidentalUpper = original.accidentalUpper;
+                        reemplazo.accidentalLower = original.accidentalLower;
                         const renderOriginalDelGlifo = reemplazo.glyph.render.bind(reemplazo.glyph);
                         reemplazo.glyph.render = function (ctx, x, y) {
                             const g = typeof ctx.openGroup === 'function' ? ctx.openGroup() : null;
