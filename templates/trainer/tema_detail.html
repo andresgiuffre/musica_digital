@@ -605,6 +605,7 @@
         const formatOriginal = Medida.prototype.format;
         Medida.prototype.format = function () {
             try { corregirAccidentalesDeMedida(this); } catch (e) { console.error('[cursos] No se pudo corregir un accidental:', e); }
+            try { corregirOrnamentosDeMedida(this); } catch (e) { console.error('[cursos] No se pudo corregir un mordente largo:', e); }
             return formatOriginal.call(this);
         };
     }
@@ -739,6 +740,36 @@
         });
     }
 
+    // MuseScore exporta el "doble mordente"/Tremblement (el ícono del editor
+    // de ornamentos con el zigzag más largo) como un <mordent>/<inverted-
+    // mordent> NORMAL con el atributo long="yes" agregado -- MusicXML no
+    // tiene un elemento propio para "mordente largo". OSMD 1.8.8 ni
+    // siquiera LEE el atributo `long` (confirmado leyendo ArticulationReader.ts:
+    // sólo revisa `placement`) y su propio modelo de datos (OrnamentEnum)
+    // no tiene ningún valor para distinguir un mordente largo de uno corto
+    // -- se dibuja siempre el glifo corto, sin importar `long`. Misma
+    // técnica que accidentalesEsperadosDeMedida: la única fuente de verdad
+    // es releer el XML fuente directamente, porque OSMD descarta el dato.
+    function mordentesLargosDeMedida(medidaXml) {
+        const notasXml = Array.from(medidaXml.children).filter(function (n) { return n.tagName === 'note'; });
+        const resultado = [];
+        notasXml.forEach(function (notaEl) {
+            if (notaEl.querySelector('rest')) return;
+            if (!notaEl.querySelector('pitch')) return;
+            const mordente = notaEl.querySelector('mordent, inverted-mordent');
+            resultado.push(!!(mordente && mordente.getAttribute('long') === 'yes'));
+        });
+        return resultado;
+    }
+
+    function calcularMordentesLargosEsperados(doc) {
+        const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
+        return partesXml.map(function (parte) {
+            return Array.from(parte.children).filter(function (n) { return n.tagName === 'measure'; })
+                .map(function (medidaXml) { return mordentesLargosDeMedida(medidaXml); });
+        });
+    }
+
     function corregirAccidentalesDeMedida(medida) {
         if (!contextoArmaduraActiva || !contextoArmaduraActiva.accidentalesEsperadosPorParte) return;
         const instrumento = medida.ParentStaff && medida.ParentStaff.parentInstrument;
@@ -787,6 +818,73 @@
         });
     }
 
+    // Dibuja el "doble mordente" (Tremblement) como DOS glifos de mordente
+    // superpuestos con un pequeño corrimiento horizontal entre sí, en vez
+    // del glifo corto único que OSMD dibuja siempre (ver mordentesLargosDeMedida
+    // más arriba -- la librería ni siquiera lee `long="yes"`, así que sin
+    // esto es indistinguible de un mordente común). No existe, en el VexFlow
+    // ~1.2.93 que trae OSMD 1.8.8, un glifo propio de mordente largo (la
+    // tabla completa de glifos de ornamento del bundle no tiene ninguno) --
+    // confirmado leyendo el código fuente de VexFlow (Ornament.CATEGORY/
+    // Flow.ornamentCodes) y el bundle minificado de este proyecto. Probado
+    // empíricamente (no asumido): agregar un SEGUNDO modifier Ornament vía
+    // vf.addModifier (misma técnica que un accidental "prestado" arriba) lo
+    // dibuja exactamente superpuesto al primero -- Ornament.format() de
+    // VexFlow sólo apila ornamentos distintos verticalmente (arriba/abajo
+    // del pentagrama), nunca horizontalmente, así que hace falta forzar el
+    // corrimiento a mano parchando el render() del Glyph interno de la
+    // copia (no el original) para que pinte desplazado -- confirmado
+    // visualmente (captura real) que el resultado es indistinguible del
+    // símbolo real de Tremblement (zigzag continuo del doble de largo).
+    let ctorOrnamentCache = null;
+    function corregirOrnamentosDeMedida(medida) {
+        if (!contextoArmaduraActiva || !contextoArmaduraActiva.mordentesLargosPorParte) return;
+        const instrumento = medida.ParentStaff && medida.ParentStaff.parentInstrument;
+        const idxParte = instrumento && typeof instrumento.id === 'number' ? instrumento.id : null;
+        if (idxParte === null) return;
+        const tablaParte = contextoArmaduraActiva.mordentesLargosPorParte[idxParte];
+        if (!tablaParte) return;
+        const idxMedida = idxMedidaDe(medida);
+        if (idxMedida === null) return;
+        const esperados = tablaParte[contextoArmaduraActiva.offset + idxMedida];
+        if (!esperados) return;
+
+        let i = 0;
+        (medida.staffEntries || []).forEach(function (entrada) {
+            (entrada.graphicalVoiceEntries || []).forEach(function (voz) {
+                (voz.notes || []).forEach(function (gNota) {
+                    const vf = gNota.vfnote && gNota.vfnote[0];
+                    if (!vf || !Array.isArray(vf.modifiers)) return;
+                    const esLargo = esperados[i];
+                    i++;
+                    if (!esLargo) return;
+
+                    const ornamentos = vf.modifiers.filter(function (m) { return m.getCategory && m.getCategory() === 'ornaments'; });
+                    // === 1: exactamente el original, sin nuestra copia todavía --
+                    // si ya hay 2 (una corrida previa ya la agregó) no hacemos nada
+                    // más, misma idempotencia que el resto de estas correcciones.
+                    if (ornamentos.length !== 1) return;
+                    const original = ornamentos[0];
+                    if (!ctorOrnamentCache) ctorOrnamentCache = original.constructor;
+                    try {
+                        const copia = new ctorOrnamentCache(original.type);
+                        if (original.delayed) copia.setDelayed(true);
+                        if (typeof copia.setPosition === 'function' && original.position !== undefined) {
+                            copia.setPosition(original.position);
+                        }
+                        const anchoGlifo = copia.glyph.getMetrics().width;
+                        const DESPLAZAMIENTO = anchoGlifo * 0.75; // ver captura de referencia -- une los dos zigzags sin que se vean separados
+                        const renderOriginalDelGlifo = copia.glyph.render.bind(copia.glyph);
+                        copia.glyph.render = function (ctx, x, y) { return renderOriginalDelGlifo(ctx, x + DESPLAZAMIENTO, y); };
+                        vf.addModifier(0, copia);
+                    } catch (e) {
+                        console.error('[cursos] No se pudo dibujar el doble mordente:', e);
+                    }
+                });
+            });
+        });
+    }
+
     // MuseScore no deja ningún marcador explícito de "Section Break" en el
     // MusicXML que exporta -- degrada a 3 señales combinadas (barra final +
     // sistema nuevo + numeración de compás que no sigue la secuencia). OSMD
@@ -821,13 +919,13 @@
     function construirSeccionesXml(xmlString, mostrarTextoStaff) {
         try {
             const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
-            if (doc.querySelector('parsererror')) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null };
+            if (doc.querySelector('parsererror')) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null };
 
             const raiz = doc.querySelector('score-partwise');
             const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
-            if (!raiz || partesXml.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null };
+            if (!raiz || partesXml.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null };
             const medidasRef = Array.from(partesXml[0].children).filter(function (n) { return n.tagName === 'measure'; });
-            if (medidasRef.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null };
+            if (medidasRef.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null };
 
             // Muta `doc` in-place (reemplaza cada <key> no tradicional por su
             // <fifths> equivalente) ANTES de calcular cortes de sección o
@@ -840,6 +938,9 @@
             // puede tener una nota con <accidental> explícito/de cortesía que
             // OSMD decida ignorar por su cuenta.
             const accidentalesEsperadosPorParte = calcularAccidentalesEsperados(doc);
+            // Mismo motivo/momento que la línea de arriba: siempre se calcula,
+            // nunca depende de si hubo o no una armadura no tradicional.
+            const mordentesLargosPorParte = calcularMordentesLargosEsperados(doc);
 
             // indicesDeCorte[i] = índice de la ÚLTIMA medida de una sección
             // (0-based, sobre medidasRef) -- la sección siguiente arranca en i+1.
@@ -876,7 +977,7 @@
             // corrección de accidentales SÍ sigue activa igual (no reescribe
             // el XML, corre aparte a la hora de renderizar).
             if (grupos.length === 1 && mostrarTextoStaff && !overridesPorParte) {
-                return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte };
+                return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte, mordentesLargosPorParte: mordentesLargosPorParte };
             }
 
             const serializer = new XMLSerializer();
@@ -901,10 +1002,10 @@
                     + partListStr + partesStr + '</score-partwise>';
                 return { xml: xml, offset: rango[0] };
             });
-            return { secciones: secciones, overridesPorParte: overridesPorParte, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte };
+            return { secciones: secciones, overridesPorParte: overridesPorParte, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte, mordentesLargosPorParte: mordentesLargosPorParte };
         } catch (e) {
             console.warn('[cursos] No se pudo procesar el archivo (cortes de sección / texto de staff / armadura / accidentales), se muestra tal cual:', e);
-            return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null };
+            return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null };
         }
     }
 
@@ -983,10 +1084,11 @@
                             // partitura corta independiente). accidentalesEsperadosPorParte
                             // está presente casi siempre (se calcula sin condición alguna),
                             // así que en la práctica este contexto casi nunca queda null.
-                            contextoArmaduraActiva = (resultado.overridesPorParte || resultado.accidentalesEsperadosPorParte)
+                            contextoArmaduraActiva = (resultado.overridesPorParte || resultado.accidentalesEsperadosPorParte || resultado.mordentesLargosPorParte)
                                 ? {
                                     overridesPorParte: resultado.overridesPorParte,
                                     accidentalesEsperadosPorParte: resultado.accidentalesEsperadosPorParte,
+                                    mordentesLargosPorParte: resultado.mordentesLargosPorParte,
                                     offset: seccion.offset,
                                 }
                                 : null;
