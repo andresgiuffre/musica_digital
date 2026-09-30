@@ -99,7 +99,20 @@
        (nh3 no permite el atributo style, ver el comentario ahí) -- las columnas
        siempre quedan alineadas a la izquierda acá, es la contrapartida aceptada. */
     .tema-contenido-markdown table { margin: 0 0 1rem; border-collapse: collapse; width: 100%; }
-    .tema-contenido-markdown th, .tema-contenido-markdown td { padding: 0.5rem 0.75rem; border: 1px solid var(--line); text-align: left; }
+    /* overflow-wrap -- sin esto, una celda angosta con una sola palabra larga
+       (ej. "Sostenidos"/"Bemoles" en una tabla con muchas columnas numéricas)
+       no tiene dónde cortar la línea (el navegador nunca parte una palabra a
+       la mitad por default) y el texto se derrama por encima de la celda
+       vecina en vez de bajar de línea -- confirmado con un caso real. table-
+       layout se deja en 'auto' (default) a propósito: fuerza a todas las
+       columnas al mismo ancho, dejando una etiqueta de una sola palabra tan
+       angosta que corta letra por letra -- 'auto' le da a esa columna el
+       ancho que necesita y comprime las columnas numéricas angostas, que sí
+       tienen de sobra. min-width en la primera columna evita que aun así
+       termine demasiado angosta en tablas con muchísimas columnas (ver
+       nth-child abajo, sólo aplica a la primera celda de cada fila). */
+    .tema-contenido-markdown th, .tema-contenido-markdown td { padding: 0.5rem 0.75rem; border: 1px solid var(--line); text-align: left; overflow-wrap: break-word; }
+    .tema-contenido-markdown th:first-child, .tema-contenido-markdown td:first-child { min-width: 6rem; }
     .tema-contenido-markdown th { background: var(--bg); font-family: var(--font-display); font-weight: 500; }
 
     /* ---------- Lightbox de imágenes (Imagen + imágenes embebidas en Texto) ----------
