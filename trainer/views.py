@@ -21,6 +21,7 @@ from django.contrib.auth import login
 from django.contrib.auth.forms import UserCreationForm
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse, FileResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.core.paginator import Paginator
 from django.template.loader import render_to_string
 from django.db.models import Avg
@@ -2081,7 +2082,15 @@ def _metrica_compases_ligaduras(archivo_field):
 
 
 @login_required
+@xframe_options_sameorigin
 def tema_detail(request, curso_id, grado_numero, tema_slug):
+    # SAMEORIGIN (no el DENY por defecto del sitio) porque curso_exportar_pdf
+    # (ver curso_detail.html) carga esta misma página en un <iframe> oculto,
+    # mismo origen, para pre-renderizar cada partitura a PNG antes de armar
+    # el PDF del curso -- sin esto el navegador bloquea el iframe en
+    # silencio (ni error ni evento distinto), __cursosTieneBloquesPartitura
+    # queda undefined del lado del padre, y el capturador lo interpreta como
+    # "este Tema no tiene partituras" -- el bug real que motivó este fix.
     from .models import Curso, Grado, Tema, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso, LineasEspaciosProgreso, LigadurasPuntilloProgreso
     from .services import render_markdown_seguro
 
