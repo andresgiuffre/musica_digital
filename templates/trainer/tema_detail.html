@@ -606,6 +606,7 @@
         Medida.prototype.format = function () {
             try { corregirAccidentalesDeMedida(this); } catch (e) { console.error('[cursos] No se pudo corregir un accidental:', e); }
             try { corregirOrnamentosDeMedida(this); } catch (e) { console.error('[cursos] No se pudo corregir un mordente largo:', e); }
+            try { corregirGrupetosInvertidos(this); } catch (e) { console.error('[cursos] No se pudo corregir un grupeto invertido:', e); }
             return formatOriginal.call(this);
         };
     }
@@ -836,6 +837,10 @@
     // copia (no el original) para que pinte desplazado -- confirmado
     // visualmente (captura real) que el resultado es indistinguible del
     // símbolo real de Tremblement (zigzag continuo del doble de largo).
+    // Compartido por corregirOrnamentosDeMedida (doble mordente) Y
+    // corregirGrupetosInvertidos (grupeto invertido) -- ambas correcciones
+    // "toman prestado" el mismo constructor VexFlow.Ornament, que es uno
+    // solo para cualquier tipo de ornamento.
     let ctorOrnamentCache = null;
     function corregirOrnamentosDeMedida(medida) {
         if (!contextoArmaduraActiva || !contextoArmaduraActiva.mordentesLargosPorParte) return;
@@ -879,6 +884,76 @@
                         vf.addModifier(0, copia);
                     } catch (e) {
                         console.error('[cursos] No se pudo dibujar el doble mordente:', e);
+                    }
+                });
+            });
+        });
+    }
+
+    // MuseScore distingue "Grupeto superior"/"Grupeto inferior" (los <turn>/
+    // <inverted-turn> de MusicXML) con dos glifos ESPEJADOS entre sí, sin
+    // ninguna raya -- confirmado con una captura real del usuario de la
+    // paleta de MuseScore. El VexFlow ~1.2.93 que trae OSMD 1.8.8 en cambio
+    // dibuja ambos con la MISMA orientación de base y distingue el invertido
+    // agregándole una raya vertical (glifo "turn_inverted", confirmado
+    // renderizando ambos con la librería real y comparando de cerca: mismo
+    // trazo, una sola raya de diferencia) -- una convención visual real pero
+    // distinta a la de MuseScore, y la que el usuario pidió respetar es la
+    // de MuseScore. No hace falta releer el XML para esto (a diferencia del
+    // doble mordente/accidentales): OSMD ya arma el Ornament con el tipo
+    // correcto según lo que dice el XML (confirmado leyendo ArticulationReader.ts/
+    // el bundle: <inverted-turn> y <delayed-inverted-turn> son los ÚNICOS
+    // casos que producen un Ornament con .type === "turn_inverted", se
+    // diferencian entre sí sólo por .delayed) -- alcanza con mirar ese tipo
+    // ya calculado en cada nota.
+    //
+    // El glifo de grupeto de este VexFlow tiene simetría de 180° (confirmado
+    // visualmente: espejarlo en horizontal y en vertical da el MISMO
+    // resultado para esta forma puntual), así que un solo espejo horizontal
+    // alcanza -- no hace falta elegir eje. Se logra reemplazando el Ornament
+    // "turn_inverted" (con raya) por uno nuevo tipo "turn" (sin raya, mismo
+    // glifo que un grupeto normal) cuyo glyph.render() se envuelve en su
+    // propio <g> (ctx.openGroup()/closeGroup(), pensado por VexFlow para
+    // esto) con un transform SVG real aplicado después de cerrarlo --
+    // confirmado que ctx.scale()/ctx.translate() NO sirven para un espejo
+    // local acá: ese scale() reescala el viewBox de TODO el SVG (es un hack
+    // de zoom global, no un transform anidado tipo canvas), rompe el resto
+    // del renderizado.
+    function corregirGrupetosInvertidos(medida) {
+        (medida.staffEntries || []).forEach(function (entrada) {
+            (entrada.graphicalVoiceEntries || []).forEach(function (voz) {
+                (voz.notes || []).forEach(function (gNota) {
+                    const vf = gNota.vfnote && gNota.vfnote[0];
+                    if (!vf || !Array.isArray(vf.modifiers)) return;
+                    const original = vf.modifiers.find(function (m) { return m.getCategory && m.getCategory() === 'ornaments' && m.type === 'turn_inverted'; });
+                    if (!original) return; // no hay ninguno, o ya se corrigió antes (el reemplazo queda tipo "turn", no vuelve a matchear -- misma idempotencia que el resto)
+                    if (!ctorOrnamentCache) ctorOrnamentCache = original.constructor;
+                    try {
+                        const reemplazo = new ctorOrnamentCache('turn');
+                        if (original.delayed) reemplazo.setDelayed(true);
+                        if (typeof reemplazo.setPosition === 'function' && original.position !== undefined) {
+                            reemplazo.setPosition(original.position);
+                        }
+                        const renderOriginalDelGlifo = reemplazo.glyph.render.bind(reemplazo.glyph);
+                        reemplazo.glyph.render = function (ctx, x, y) {
+                            const g = typeof ctx.openGroup === 'function' ? ctx.openGroup() : null;
+                            renderOriginalDelGlifo(ctx, x, y);
+                            if (typeof ctx.closeGroup === 'function') ctx.closeGroup();
+                            // Sin <g> real (pasada de medición geométrica de OSMD, no de
+                            // dibujo -- ver SkyBottomLineCalculator) no hay nada que
+                            // transformar, no es una pasada visible de todos modos.
+                            if (g && g.setAttribute) g.setAttribute('transform', 'translate(' + (2 * x) + ',0) scale(-1,1)');
+                        };
+                        // Se saca el original vía filter (mismo patrón ya usado para
+                        // accidentales) y se agrega el reemplazo vía addModifier() --
+                        // NUNCA asignando directo dentro del array por índice: eso
+                        // saltea lo que addModifier() deja armado internamente
+                        // (confirmado con un error real -- "reading getStyle of
+                        // undefined" al dibujar -- con la asignación directa).
+                        vf.modifiers = vf.modifiers.filter(function (m) { return m !== original; });
+                        vf.addModifier(0, reemplazo);
+                    } catch (e) {
+                        console.error('[cursos] No se pudo corregir un grupeto invertido:', e);
                     }
                 });
             });
