@@ -20,6 +20,34 @@ se muestra en el idioma de sesión real -- base.html ya cae a LANGUAGE_CODE.
     }
     .grado-gab__item:hover { background: var(--primary-tint); color: var(--primary); text-decoration: none; }
     .grado-gab__vacio { color: var(--ink-soft); font-size: 0.875rem; margin: 0; }
+
+    /* Modal de espera mientras se arma el PDF -- mismo patrón ya probado en
+       orquestador_analizar.html (visualizador de barritas + reloj +
+       beforeunload), copiado acá en vez de compartido: primera vez que se
+       reutiliza este patrón entre DOS templates distintos (no dentro del
+       mismo archivo), así que duplicar es más seguro que acoplar dos
+       páginas que no tienen otra relación entre sí. */
+    .pdf-loading-modal {
+        position: fixed; inset: 0; background: rgba(20, 17, 14, 0.82); backdrop-filter: blur(4px);
+        display: none; align-items: center; justify-content: center; z-index: 1000; padding: 1rem;
+    }
+    .pdf-loading-modal.visible { display: flex; }
+    .pdf-loading-modal-content {
+        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+        padding: 2.5rem 3rem; text-align: center; max-width: 420px; box-shadow: var(--shadow-window);
+    }
+    .pdf-loading-visualizer { display: flex; align-items: flex-end; justify-content: center; gap: 0.4rem; height: 60px; margin-bottom: 1.5rem; }
+    .pdf-loading-visualizer span { width: 8px; border-radius: 4px; background: linear-gradient(180deg, var(--primary), var(--green)); animation: pdf-loading-bounce 1.1s ease-in-out infinite; }
+    .pdf-loading-visualizer span:nth-child(1) { animation-delay: 0s; }
+    .pdf-loading-visualizer span:nth-child(2) { animation-delay: 0.15s; }
+    .pdf-loading-visualizer span:nth-child(3) { animation-delay: 0.3s; }
+    .pdf-loading-visualizer span:nth-child(4) { animation-delay: 0.15s; }
+    .pdf-loading-visualizer span:nth-child(5) { animation-delay: 0s; }
+    @keyframes pdf-loading-bounce { 0%, 100% { height: 15%; } 50% { height: 100%; } }
+    .pdf-loading-modal h2 { margin-bottom: 0.5rem; color: var(--ink); font-size: 1.5rem; }
+    .pdf-loading-modal p { color: var(--ink-soft); font-size: 0.9rem; line-height: 1.6; margin-bottom: 1.5rem; }
+    .pdf-loading-modal p strong { color: var(--ochre); }
+    .pdf-loading-clock { font-size: 2.4rem; font-weight: 700; color: var(--primary); letter-spacing: 0.05em; font-variant-numeric: tabular-nums; }
 </style>
 {% endblock %}
 
@@ -35,12 +63,16 @@ se muestra en el idioma de sesión real -- base.html ya cae a LANGUAGE_CODE.
     <h1 style="font-size: clamp(2rem, 4vw, 2.5rem); margin-bottom: 0.5rem;">{{ curso.nombre_mostrado }}</h1>
     <p style="color: var(--ink-soft); max-width: 55ch; margin-bottom: 1rem;">{{ curso.descripcion_corta_mostrado }}</p>
 
-    <a class="btn-gab btn-gab--secondary" href="{% url 'curso_exportar_pdf' curso.id %}" style="margin-bottom: 1.75rem;">
+    <button type="button" id="btn-exportar-pdf" class="btn-gab btn-gab--secondary" style="margin-bottom: 1.75rem;"
+        data-exportar-pdf-url="{% url 'curso_exportar_pdf' curso.id %}"
+        data-exportar-pdf-temas-url="{% url 'curso_exportar_pdf_temas' curso.id %}"
+        data-nombre-archivo="{{ curso.nombre_mostrado }}"
+        data-txt-error="{% trans 'No se pudo generar el PDF. Probá de nuevo en un momento.' %}">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
             <path fill-rule="evenodd" d="M3 3.5A1.5 1.5 0 014.5 2h6.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0116 6.622V16.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 014 16.5v-13zM10 6a1 1 0 011 1v3.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.414L9 10.586V7a1 1 0 011-1z" clip-rule="evenodd" />
         </svg>
         {% trans "Descargar PDF del curso" %}
-    </a>
+    </button>
 
     {% for grado in grados %}
         <div class="grado-gab">
@@ -60,4 +92,215 @@ se muestra en el idioma de sesión real -- base.html ya cae a LANGUAGE_CODE.
         <p class="grado-gab__vacio">{% trans "Este curso todavía no tiene grados." %}</p>
     {% endfor %}
 </div>
+
+<div id="pdf-loading-modal" class="pdf-loading-modal">
+    <div class="pdf-loading-modal-content">
+        <div class="pdf-loading-visualizer">
+            <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <h2>{% trans "Preparando tu PDF…" %}</h2>
+        <p>{% trans "Estamos renderizando las partituras del curso una por una para incluirlas en el libro. Puede tardar uno o dos minutos según cuánto contenido tenga." %}<br><strong>{% trans "No refresques ni cierres esta página" %}</strong> — {% trans "vas a tener que empezar de nuevo." %}</p>
+        <div class="pdf-loading-clock" id="pdf-loading-clock">00:00</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+    const boton = document.getElementById('btn-exportar-pdf');
+    if (!boton) return;
+
+    const loadingModal = document.getElementById('pdf-loading-modal');
+    const loadingClock = document.getElementById('pdf-loading-clock');
+    let loadingInterval = null;
+    let loadingSeconds = 0;
+
+    // El armado puede tardar 1-2 minutos (una carga de página por Tema, en un
+    // iframe oculto) -- mismo patrón ya probado en orquestador_analizar.html:
+    // avisar al navegador para que muestre su propio diálogo si el usuario
+    // intenta refrescar/cerrar la pestaña mientras está en curso.
+    function avisarAntesDeSalir(e) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+    function mostrarModalCarga() {
+        loadingSeconds = 0;
+        loadingClock.textContent = '00:00';
+        loadingModal.classList.add('visible');
+        loadingInterval = setInterval(function () {
+            loadingSeconds += 1;
+            const m = String(Math.floor(loadingSeconds / 60)).padStart(2, '0');
+            const s = String(loadingSeconds % 60).padStart(2, '0');
+            loadingClock.textContent = m + ':' + s;
+        }, 1000);
+        window.addEventListener('beforeunload', avisarAntesDeSalir);
+    }
+    function ocultarModalCarga() {
+        loadingModal.classList.remove('visible');
+        clearInterval(loadingInterval);
+        window.removeEventListener('beforeunload', avisarAntesDeSalir);
+    }
+
+    // Convierte un <svg> (ya renderizado por OSMD dentro del iframe oculto) a
+    // PNG vía canvas -- técnica estándar de navegador, sin librerías: se
+    // serializa el SVG a un Blob, se carga como <img>, y se dibuja sobre un
+    // canvas del tamaño real (a 2x resolución, para que no se vea pixelado
+    // al imprimir el PDF -- ver el porqué del ancho fijo en curso_pdf.html).
+    // Todo se construye con los objetos del propio iframe (`ventana`), nunca
+    // los de esta página -- mismo realm que el <svg> de origen, evita
+    // cualquier problema de referencia cruzada entre documentos.
+    function svgAPng(svgEl, ventana) {
+        return new Promise(function (resolve) {
+            try {
+                const clon = svgEl.cloneNode(true);
+                const ancho = parseFloat(svgEl.getAttribute('width')) || svgEl.clientWidth || 800;
+                const alto = parseFloat(svgEl.getAttribute('height')) || svgEl.clientHeight || 200;
+                if (!ancho || !alto) { resolve(null); return; }
+                clon.setAttribute('width', ancho);
+                clon.setAttribute('height', alto);
+                const svgStr = new ventana.XMLSerializer().serializeToString(clon);
+                const svgBlob = new ventana.Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+                const url = ventana.URL.createObjectURL(svgBlob);
+                const img = new ventana.Image();
+                const ESCALA = 2;
+                img.onload = function () {
+                    const canvas = ventana.document.createElement('canvas');
+                    canvas.width = ancho * ESCALA;
+                    canvas.height = alto * ESCALA;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    ventana.URL.revokeObjectURL(url);
+                    resolve(canvas.toDataURL('image/png'));
+                };
+                img.onerror = function () { ventana.URL.revokeObjectURL(url); resolve(null); };
+                img.src = url;
+            } catch (e) {
+                console.error('[cursos] No se pudo convertir una partitura a imagen para el PDF:', e);
+                resolve(null);
+            }
+        });
+    }
+
+    // Recorre los contenedores de partitura de la página del Tema (ya cargada
+    // en el iframe) -- el id de cada uno YA es la clave que espera el backend
+    // ("<bloqueId>" para Ejemplo de partitura, "<bloqueId>-izquierda"/
+    // "-derecha" para Partitura pantalla dividida, ver tema_detail.html). Un
+    // archivo con cortes de sección deja varios <svg> dentro del MISMO
+    // contenedor (uno por sección, ver .bloque-gab__seccion) -- se capturan
+    // todos, en orden.
+    async function extraerImagenesDeVentana(win, imagenes) {
+        const doc = win.document;
+        const contenedores = Array.from(doc.querySelectorAll('[id^="osmd-bloque-"]'));
+        for (const contenedor of contenedores) {
+            const clave = contenedor.id.replace(/^osmd-bloque-/, '');
+            const svgs = Array.from(contenedor.querySelectorAll('svg'));
+            if (!svgs.length) continue;
+            const pngs = [];
+            for (const svg of svgs) {
+                const png = await svgAPng(svg, win);
+                if (png) pngs.push(png);
+            }
+            if (pngs.length) imagenes[clave] = pngs;
+        }
+    }
+
+    // Carga la página de UN Tema en un iframe oculto y espera a que su propia
+    // lógica de renderizado (tema_detail.html) termine de dibujar todas sus
+    // partituras -- reutiliza ese pipeline entero (cortes de sección,
+    // normalización de armaduras, corrección de accidentales, todo) tal
+    // cual, sin duplicar nada acá. Un watchdog evita que un Tema roto (un
+    // archivo que nunca resuelve, por lo que sea) cuelgue el export entero.
+    function capturarPartiturasDeTema(url, imagenes) {
+        return new Promise(function (resolve) {
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:1400px; height:900px; border:0; visibility:hidden;';
+            let resuelto = false;
+            const finalizar = function () {
+                if (resuelto) return;
+                resuelto = true;
+                clearTimeout(watchdog);
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                resolve();
+            };
+            const watchdog = setTimeout(finalizar, 25000);
+
+            iframe.addEventListener('load', function () {
+                const win = iframe.contentWindow;
+                if (!win) { finalizar(); return; }
+                (function chequear() {
+                    if (resuelto) return;
+                    if (!win.__cursosTieneBloquesPartitura) { finalizar(); return; }
+                    if (win.__cursosPartiturasListas) {
+                        extraerImagenesDeVentana(win, imagenes).then(finalizar).catch(finalizar);
+                        return;
+                    }
+                    setTimeout(chequear, 200);
+                })();
+            });
+            iframe.addEventListener('error', finalizar);
+
+            document.body.appendChild(iframe);
+            iframe.src = url;
+        });
+    }
+
+    // Visita los Temas de a UNO (nunca en paralelo -- mismo criterio ya
+    // establecido en todo el sitio para OSMD: varias instancias a la vez
+    // rompen el renderizado) y junta todas las imágenes capturadas en un
+    // solo objeto, listo para mandar al backend.
+    async function capturarPartiturasDeCurso(temaUrls) {
+        const imagenes = {};
+        for (const url of temaUrls) {
+            await capturarPartiturasDeTema(url, imagenes);
+        }
+        return imagenes;
+    }
+
+    boton.addEventListener('click', function () {
+        boton.disabled = true;
+        mostrarModalCarga();
+
+        fetch(boton.dataset.exportarPdfTemasUrl)
+            .then(function (res) {
+                if (!res.ok) throw new Error('No se pudo obtener la lista de temas (' + res.status + ')');
+                return res.json();
+            })
+            .then(function (data) { return capturarPartiturasDeCurso(data.urls || []); })
+            .then(function (imagenes) {
+                return fetch(boton.dataset.exportarPdfUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                    body: JSON.stringify({ imagenes: imagenes }),
+                });
+            })
+            .then(function (res) {
+                if (!res.ok) throw new Error('El servidor no pudo generar el PDF (' + res.status + ')');
+                return res.blob();
+            })
+            .then(function (blob) {
+                const nombreArchivo = (boton.dataset.nombreArchivo || 'curso').replace(/[^\w .-]/g, '').trim() || 'curso';
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = nombreArchivo + '.pdf';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            })
+            .catch(function (err) {
+                console.error('[cursos] Error generando el PDF del curso:', err);
+                alert(boton.dataset.txtError);
+            })
+            .finally(function () {
+                boton.disabled = false;
+                ocultarModalCarga();
+            });
+    });
+})();
+</script>
 {% endblock %}

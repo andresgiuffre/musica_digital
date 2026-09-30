@@ -209,6 +209,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# curso_exportar_pdf recibe, en un solo POST, todas las partituras del curso ya
+# renderizadas a PNG en el navegador (ver curso_detail.html) -- un curso real con
+# varias decenas de bloques de Ejemplo de partitura/Partitura pantalla dividida
+# puede superar sin problema el default de Django (2.5 MB) para el body de un
+# POST. Subido acá específicamente por eso, no es un cambio general de política.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 30 * 1024 * 1024  # 30 MB
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

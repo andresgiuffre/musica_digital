@@ -5,20 +5,66 @@
 <meta charset="utf-8">
 <style>
     @page { size: A4; margin: 2.2cm 1.8cm; }
-    body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; color: #1a1a1a; }
+    /* DejaVu Sans es la única fuente a mano confirmada que cubre ♭/♯/♮
+       (U+266D/E/F) -- Helvetica (el default de xhtml2pdf/reportlab) sólo
+       cubre Latin-1/WinAnsi y los dibuja como cuadro negro. Registrada del
+       lado de Python (ver curso_exportar_pdf en views.py) -- NO vía
+       @font-face acá: confirmado que el mecanismo de @font-face de
+       xhtml2pdf pasa el archivo por un NamedTemporaryFile que abre y
+       vuelve a abrir por nombre, algo que Windows no permite (funcionaría
+       en el servidor real, Linux, pero no se pudo verificar en desarrollo
+       por eso) -- registrar directo con reportlab.pdfmetrics evita ese
+       camino por completo y además es portable a cualquier SO. Va primero
+       en la lista (no como fallback) porque xhtml2pdf no hace fallback de
+       glifo por glifo dentro de un mismo font-family -- si Helvetica fuera
+       la primera y "estuviera disponible" (siempre lo está, es una de las
+       14 fuentes base), nunca probaría con la siguiente aunque le falte un
+       glifo puntual. DejaVu Sans ya cubre de sobra el resto del alfabeto
+       latino, así que no hace falta el fallback para el texto normal --
+       Helvetica/Arial quedan solo por si el registro de la fuente falló
+       (ver el try/except en la vista). */
+    body { font-family: "DejaVuSans", Helvetica, Arial, sans-serif; font-size: 10pt; color: #1a1a1a; }
 
     h1 { font-size: 22pt; margin-bottom: 0.2cm; }
     .subtitulo { color: #666; font-size: 10pt; margin-bottom: 0.4cm; }
     .nota-navegacion { color: #888; font-size: 8.5pt; font-style: italic; margin-bottom: 1cm; }
 
     /* Grado/Tema son los niveles del índice -- ver el porqué de -pdf-outline en
-       el bloque .contenido-md más abajo. */
+       el bloque .contenido-md más abajo. Cada Grado (salvo el primero, que ya
+       arranca en la primera página junto con el título del curso) empieza en
+       una página nueva -- mismo criterio "capítulo" de un libro real. Cada
+       Tema entero (h3 + todos sus bloques) evita partirse a la mitad si entra
+       en lo que queda de la página actual -- si no entra ni en una página
+       completa, igual se parte donde haga falta, no hay forma de evitar eso. */
     h2.grado-titulo { font-size: 15pt; margin-top: 1.2cm; margin-bottom: 0.3cm; padding-bottom: 0.15cm; border-bottom: 1pt solid #999; }
+    h2.grado-titulo--salto { page-break-before: always; }
     h3.tema-titulo { font-size: 12.5pt; margin-top: 0.7cm; margin-bottom: 0.35cm; color: #333; }
+    .tema-pdf-bloque { page-break-inside: avoid; }
 
     .bloque-imagen { margin: 0.3cm 0 0.5cm; text-align: center; }
     .bloque-imagen img { max-width: 100%; }
     .bloque-imagen .pie { font-size: 8.5pt; color: #666; margin-top: 0.15cm; }
+
+    /* Cada <img> es un PNG capturado del <svg> que ya renderiza OSMD en la
+       página normal (ver curso_detail.html) -- un archivo con cortes de
+       sección da varias imágenes, una por sección, apiladas igual que en la
+       web (ver .bloque-gab__seccion en tema_detail.html). Ancho FIJO en cm
+       (no width/max-width:100% -- confirmado que xhtml2pdf ignora un ancho
+       porcentual en <img>, "Not a float '100%'", y cae al tamaño de píxel
+       real de la imagen) calculado contra el área imprimible real: A4
+       (21cm) menos los márgenes de @page (1.8cm de cada lado) = 17.4cm. Se
+       capturan a 2x resolución a propósito (mismo motivo que cualquier
+       imagen @2x: que no se vea pixelada al imprimir), así que achicarlas
+       SIEMPRE a este ancho fijo es necesario, nunca hay que mostrarlas a su
+       tamaño de píxel real. */
+    .bloque-partitura { margin: 0.3cm 0 0.5cm; }
+    .bloque-partitura img { width: 17cm; display: block; }
+    .bloque-partitura img + img { margin-top: 0.25cm; }
+    .bloque-partitura-dividida { margin: 0.3cm 0 0.5cm; }
+    .bloque-partitura-dividida table { width: 100%; border-collapse: collapse; }
+    .bloque-partitura-dividida td { width: 50%; vertical-align: top; padding: 0 0.15cm; }
+    .bloque-partitura-dividida img { width: 8.2cm; display: block; }
+    .bloque-partitura-dividida img + img { margin-top: 0.25cm; }
 
     /* El HTML de texto_markdown_mostrado ya viene sanitizado (render_markdown_seguro,
        ver services.py) pero SU allow-list permite h1-h4 -- si no se los desactiva acá,
@@ -72,19 +118,34 @@
     nota explica haber evitado. {% endcomment %}
 
     {% for grado in grados %}
-        <h2 class="grado-titulo">{% blocktrans with n=grado.numero titulo=grado.titulo_mostrado %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</h2>
+        <h2 class="grado-titulo{% if not forloop.first %} grado-titulo--salto{% endif %}">{% blocktrans with n=grado.numero titulo=grado.titulo_mostrado %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</h2>
         {% for tema in grado.temas_activos %}
-            <h3 class="tema-titulo">{{ tema.titulo_mostrado }}</h3>
-            {% for bloque in tema.bloques_pdf %}
-                {% if bloque.tipo == 'TEXTO' %}
-                    <div class="contenido-md">{{ bloque.html_renderizado }}</div>
-                {% elif bloque.tipo == 'IMAGEN' %}
-                    <div class="bloque-imagen">
-                        <img src="{{ bloque.imagen_pdf_path }}">
-                        {% if bloque.contexto_imagen_mostrado %}<div class="pie">{{ bloque.contexto_imagen_mostrado }}</div>{% endif %}
-                    </div>
-                {% endif %}
-            {% endfor %}
+            <div class="tema-pdf-bloque">
+                <h3 class="tema-titulo">{{ tema.titulo_mostrado }}</h3>
+                {% for bloque in tema.bloques_pdf %}
+                    {% if bloque.tipo == 'TEXTO' %}
+                        <div class="contenido-md">{{ bloque.html_renderizado }}</div>
+                    {% elif bloque.tipo == 'IMAGEN' %}
+                        <div class="bloque-imagen">
+                            <img src="{{ bloque.imagen_pdf_path }}">
+                            {% if bloque.contexto_imagen_mostrado %}<div class="pie">{{ bloque.contexto_imagen_mostrado }}</div>{% endif %}
+                        </div>
+                    {% elif bloque.tipo == 'EJEMPLO_PARTITURA' %}
+                        {% if bloque.contexto_ejemplo_mostrado %}<p class="pie" style="margin-bottom:0.15cm;">{{ bloque.contexto_ejemplo_mostrado }}</p>{% endif %}
+                        <div class="bloque-partitura">
+                            {% for imagen in bloque.imagenes_partitura_pdf %}<img src="{{ imagen }}">{% endfor %}
+                        </div>
+                    {% elif bloque.tipo == 'PARTITURA_DIVIDIDA' %}
+                        {% if bloque.contexto_dividida_mostrado %}<p class="pie" style="margin-bottom:0.15cm;">{{ bloque.contexto_dividida_mostrado }}</p>{% endif %}
+                        <div class="bloque-partitura-dividida">
+                            <table><tr>
+                                <td>{% for imagen in bloque.imagenes_partitura_izquierda_pdf %}<img src="{{ imagen }}">{% endfor %}</td>
+                                <td>{% for imagen in bloque.imagenes_partitura_derecha_pdf %}<img src="{{ imagen }}">{% endfor %}</td>
+                            </tr></table>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
         {% endfor %}
     {% endfor %}
 </body>

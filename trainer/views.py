@@ -1824,29 +1824,131 @@ def curso_detail(request, curso_id):
     return render(request, 'trainer/curso_detail.html', {'curso': curso, 'grados': grados})
 
 
+_FUENTE_UNICODE_PDF_REGISTRADA = False
+
+
+def _asegurar_fuente_unicode_pdf():
+    """
+    Registra DejaVu Sans (bundlada con matplotlib, ya instalado por music21 --
+    copia propia en static/fonts/, ver la licencia ahí al lado) para que
+    curso_pdf.html pueda usarla por nombre -- es la única fuente a mano que
+    confirmamos que cubre ♭/♯/♮ (U+266D/E/F); Helvetica (la fuente default de
+    xhtml2pdf/reportlab) sólo cubre Latin-1/WinAnsi y los dibuja como cuadro
+    negro.
+
+    A propósito NO vía @font-face en el CSS: confirmado (probando contra la
+    librería real) que ese mecanismo de xhtml2pdf pasa el archivo por un
+    NamedTemporaryFile que abre una vez para escribir los bytes y vuelve a
+    abrir por nombre para que reportlab lo lea -- Windows no permite reabrir
+    así un archivo que ya está abierto (PermissionError), aunque en el
+    servidor real (Linux) sí funcionaría. Registrar la fuente acá, directo
+    con reportlab.pdfmetrics, nunca pasa por esa ruta -- portable a
+    cualquier SO, y ya verificado visualmente que los glifos salen bien.
+
+    xhtml2pdf resuelve `font-family` contra SU PROPIO diccionario interno
+    (pisaContext.fontList, una copia de las 14 fuentes base), no contra el
+    registro global de reportlab -- por eso además de registrar la fuente
+    hay que parchar pisaContext.__init__ para que la sepa reconocer por
+    nombre. Parche a nivel de módulo, aplicado una sola vez por proceso
+    (idempotente) -- mismo espíritu que los parches de prototype ya usados
+    del lado del cliente (ver tema_detail.html) para casos donde una
+    librería de terceros no expone un flag para algo que sí soporta
+    internamente.
+    """
+    global _FUENTE_UNICODE_PDF_REGISTRADA
+    if _FUENTE_UNICODE_PDF_REGISTRADA:
+        return
+    _FUENTE_UNICODE_PDF_REGISTRADA = True
+
+    from django.contrib.staticfiles import finders
+    ruta_fuente = finders.find('fonts/DejaVuSans.ttf')
+    if not ruta_fuente:
+        logger.warning('[cursos] No se encontró static/fonts/DejaVuSans.ttf -- el PDF va a caer a Helvetica (♭/♯/♮ salen como cuadro negro).')
+        return
+
+    try:
+        from reportlab.pdfbase.pdfmetrics import registerFont, registerFontFamily
+        from reportlab.pdfbase.ttfonts import TTFont
+        import xhtml2pdf.context as xhtml2pdf_context
+
+        registerFont(TTFont('DejaVuSans', ruta_fuente))
+        registerFontFamily('DejaVuSans', normal='DejaVuSans', bold='DejaVuSans', italic='DejaVuSans', boldItalic='DejaVuSans')
+
+        init_original = xhtml2pdf_context.pisaContext.__init__
+
+        def init_con_fuente_unicode(self, *args, **kwargs):
+            init_original(self, *args, **kwargs)
+            self.fontList['dejavusans'] = 'DejaVuSans'
+
+        xhtml2pdf_context.pisaContext.__init__ = init_con_fuente_unicode
+    except Exception:
+        logger.exception('[cursos] No se pudo registrar la fuente Unicode para el PDF del curso -- va a caer a Helvetica.')
+
+
+def curso_exportar_pdf_temas(request, curso_id):
+    """
+    Lista de URLs de Tema (JSON, GET) que curso_detail.html visita en un
+    iframe oculto para pre-renderizar cada partitura antes de pedir el PDF
+    (ver curso_exportar_pdf) -- mismo filtro de Temas de tipo Lectura que
+    ese endpoint (ver ahí el porqué de excluir Práctica), calculado acá una
+    sola vez para que el frontend no tenga que reimplementar la regla.
+    """
+    from .models import Curso, Tema
+    curso = get_object_or_404(Curso, id=curso_id, activo=True)
+    temas = (
+        Tema.objects.filter(grado__curso=curso, grado__activo=True, activo=True, tipo=Tema.TIPO_LECTURA)
+        .select_related('grado')
+    )
+    urls = [reverse('tema_detail', args=[curso.id, tema.grado.numero, tema.slug]) for tema in temas]
+    return JsonResponse({'urls': urls})
+
+
 @login_required
 def curso_exportar_pdf(request, curso_id):
     """
-    PDF con el contenido de Texto e Imagen de todo el curso, en el idioma
-    activo (mismas properties _mostrado/_mostrada que tema_detail -- cero
-    lógica de idioma nueva). Generado en el momento en cada pedido, mismo
-    patrón que orquestador_exportar_pdf -- sin cachear nada, así que siempre
-    refleja el contenido actual (decisión explícita: no hay hoy sistema de
-    compra/versionado en el sitio que justifique guardar una versión fija).
+    PDF con el contenido de Texto, Imagen y Ejemplo de partitura/Partitura
+    pantalla dividida de todo el curso, en el idioma activo (mismas
+    properties _mostrado/_mostrada que tema_detail -- cero lógica de idioma
+    nueva). Generado en el momento en cada pedido, mismo patrón que
+    orquestador_exportar_pdf -- sin cachear nada, así que siempre refleja el
+    contenido actual (decisión explícita: no hay hoy sistema de compra/
+    versionado en el sitio que justifique guardar una versión fija).
 
-    Ejemplo de partitura, Práctica y Video quedan afuera a propósito (v1):
-    Ejemplo de partitura necesitaría renderizar MusicXML a imagen estática del
-    lado del servidor (no hay motor de notación instalado hoy -- planeado para
-    una v2); Práctica es un link a un ejercicio interactivo, no tiene sentido
-    en un PDF; Video tampoco se puede incrustar reproducible en un PDF.
+    Las partituras NO se renderizan del lado del servidor -- no hay motor de
+    notación instalado (music21 no dibuja notación, sólo la analiza). En
+    cambio, curso_detail.html hace un pase previo: carga cada Tema del curso
+    en un iframe oculto (reutilizando tal cual el mismo OSMD/construirSeccionesXml
+    que ya renderiza esas partituras en la página normal), convierte cada
+    <svg> resultante a PNG vía canvas, y manda todo junto acá por POST antes
+    de pedir el PDF -- por eso esta vista acepta POST con un body
+    {"imagenes": {"<bloqueId>": ["data:image/png;base64,...", ...], "<bloqueId>-izquierda": [...], "<bloqueId>-derecha": [...]}}.
+    Sigue aceptando GET (sin imágenes) como resguardo si el JS falla o está
+    desactivado -- un PDF sin las partituras es mejor que ningún PDF.
+
+    Temas de tipo Práctica quedan afuera a propósito: son ejercicios
+    interactivos server-locked, no tiene sentido "leerlos" en un libro.
+    Práctica (el bloque, no el Tema) y Video siguen afuera por el mismo
+    motivo que siempre: un link a un ejercicio o un video no tiene sentido
+    incrustado en un PDF.
     """
-    from .models import Curso, BloqueContenido
+    from .models import Curso, Tema, BloqueContenido
     from .services import render_markdown_seguro
+
+    _asegurar_fuente_unicode_pdf()
+
+    imagenes_partitura = {}
+    if request.method == 'POST':
+        try:
+            cuerpo = json.loads(request.body or b'{}')
+            imagenes_partitura = cuerpo.get('imagenes') or {}
+        except (ValueError, TypeError):
+            imagenes_partitura = {}
 
     curso = get_object_or_404(Curso, id=curso_id, activo=True)
     grados = list(curso.grados.filter(activo=True))
     for grado in grados:
-        temas_activos = list(grado.temas.filter(activo=True))
+        # Temas de Práctica excluidos -- ver docstring.
+        temas_activos = list(grado.temas.filter(activo=True, tipo=Tema.TIPO_LECTURA))
         for tema in temas_activos:
             bloques_pdf = []
             for bloque in tema.bloques.all():
@@ -1860,6 +1962,23 @@ def curso_exportar_pdf(request, curso_id):
                         # mismo proceso con acceso directo al filesystem, no hace
                         # falta pasar por HTTP ni por bloque_imagen_archivo acá.
                         bloque.imagen_pdf_path = archivo.path
+                        bloques_pdf.append(bloque)
+                elif bloque.tipo == BloqueContenido.EJEMPLO_PARTITURA:
+                    # Cada entrada ya es un data URI completo (data:image/png;base64,...)
+                    # -- xhtml2pdf lo puede usar directo como src de <img>, confirmado
+                    # antes de escribir esto. Si el frontend no mandó nada para este
+                    # bloque (ej. JS desactivado, o el archivo no cargó), se lo salta
+                    # -- mejor que mostrar un hueco roto en el PDF.
+                    imagenes = imagenes_partitura.get(str(bloque.id))
+                    if imagenes:
+                        bloque.imagenes_partitura_pdf = imagenes
+                        bloques_pdf.append(bloque)
+                elif bloque.tipo == BloqueContenido.PARTITURA_DIVIDIDA:
+                    izquierda = imagenes_partitura.get(f'{bloque.id}-izquierda')
+                    derecha = imagenes_partitura.get(f'{bloque.id}-derecha')
+                    if izquierda or derecha:
+                        bloque.imagenes_partitura_izquierda_pdf = izquierda or []
+                        bloque.imagenes_partitura_derecha_pdf = derecha or []
                         bloques_pdf.append(bloque)
             tema.bloques_pdf = bloques_pdf
         grado.temas_activos = temas_activos
