@@ -607,6 +607,7 @@
             try { corregirAccidentalesDeMedida(this); } catch (e) { console.error('[cursos] No se pudo corregir un accidental:', e); }
             try { corregirOrnamentosDeMedida(this); } catch (e) { console.error('[cursos] No se pudo corregir un mordente largo:', e); }
             try { corregirGrupetosInvertidos(this); } catch (e) { console.error('[cursos] No se pudo corregir un grupeto invertido:', e); }
+            try { corregirPortatoDeMedida(this); } catch (e) { console.error('[cursos] No se pudo corregir un portato:', e); }
             return formatOriginal.call(this);
         };
     }
@@ -768,6 +769,36 @@
         return partesXml.map(function (parte) {
             return Array.from(parte.children).filter(function (n) { return n.tagName === 'measure'; })
                 .map(function (medidaXml) { return mordentesLargosDeMedida(medidaXml); });
+        });
+    }
+
+    // El Portato -- <detached-legato> en MusicXML, renombrado "Louré" en
+    // versiones recientes de MuseScore -- ni siquiera aparece en la lista de
+    // articulaciones que OSMD 1.8.8 sabe dibujar (confirmado leyendo
+    // VoiceEntry.ts: el enum ArticulationEnum.detachedlegato existe, pero
+    // isSupportedArticulation() lo excluye a propósito de los casos
+    // soportados -- a diferencia del mordente largo, acá ArticulationReader
+    // directamente NO crea ningún modifier, no es un glifo equivocado, es
+    // ninguno). El propio estándar MusicXML lo define como "the combination
+    // of a tenuto line and staccato dot symbol" -- la reconstrucción agrega
+    // esos dos modifiers (que OSMD sí soporta por separado, ver
+    // corregirPortatoDeMedida) a mano.
+    function portatoDeMedida(medidaXml) {
+        const notasXml = Array.from(medidaXml.children).filter(function (n) { return n.tagName === 'note'; });
+        const resultado = [];
+        notasXml.forEach(function (notaEl) {
+            if (notaEl.querySelector('rest')) return;
+            if (!notaEl.querySelector('pitch')) return;
+            resultado.push(!!notaEl.querySelector('detached-legato'));
+        });
+        return resultado;
+    }
+
+    function calcularPortatoEsperado(doc) {
+        const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
+        return partesXml.map(function (parte) {
+            return Array.from(parte.children).filter(function (n) { return n.tagName === 'measure'; })
+                .map(function (medidaXml) { return portatoDeMedida(medidaXml); });
         });
     }
 
@@ -975,6 +1006,76 @@
         });
     }
 
+    // VF.Articulation("a-") = tenuto, VF.Articulation("a.") = staccato --
+    // códigos propios de VexFlow (confirmado leyendo el bundle: son los
+    // mismos que usa el propio OSMD para esas dos articulaciones cuando SÍ
+    // las soporta, ver <tenuto>/<staccato> normales). El constructor se
+    // "toma prestado" de cualquier articulación real ya dibujada en
+    // CUALQUIER nota de la página (misma técnica que accidentales/
+    // ornamentos) -- si la página no tiene NINGUNA articulación soportada en
+    // ningún lado todavía, no hay de dónde copiarlo y esta corrección no
+    // hace nada esa vez (igual que el resto de estas correcciones en ese
+    // caso límite). Bandera __cursosPortato en cada modifier agregado --
+    // necesaria para la idempotencia: a diferencia del grupeto invertido
+    // (que cambia de tipo y deja de matchear solo), acá no hay ningún tipo
+    // nuevo que lo distinga de una articulación real, así que sin la
+    // bandera cada pasada de format() agregaría otro par de más.
+    let ctorArticulationCache = null;
+    function corregirPortatoDeMedida(medida) {
+        if (!contextoArmaduraActiva || !contextoArmaduraActiva.portatoPorParte) return;
+        const instrumento = medida.ParentStaff && medida.ParentStaff.parentInstrument;
+        const idxParte = instrumento && typeof instrumento.id === 'number' ? instrumento.id : null;
+        if (idxParte === null) return;
+        const tablaParte = contextoArmaduraActiva.portatoPorParte[idxParte];
+        if (!tablaParte) return;
+        const idxMedida = idxMedidaDe(medida);
+        if (idxMedida === null) return;
+        const esperados = tablaParte[contextoArmaduraActiva.offset + idxMedida];
+        if (!esperados) return;
+
+        let i = 0;
+        (medida.staffEntries || []).forEach(function (entrada) {
+            (entrada.graphicalVoiceEntries || []).forEach(function (voz) {
+                (voz.notes || []).forEach(function (gNota) {
+                    const vf = gNota.vfnote && gNota.vfnote[0];
+                    if (!vf || !Array.isArray(vf.modifiers)) return;
+                    // A diferencia del mordente largo/grupeto invertido (donde la
+                    // nota a corregir YA tiene algo del tipo correspondiente, aunque
+                    // equivocado, de donde copiar el constructor), acá OSMD no
+                    // arma NINGÚN modifier para la nota con portato -- el "préstamo"
+                    // tiene que salir de OTRA nota de la página que sí tenga una
+                    // articulación real soportada (staccato/tenuto/acento/etc. --
+                    // ver el bloque de arriba en este mismo apunte). Por eso esta
+                    // búsqueda corre para TODAS las notas, no sólo las que
+                    // necesitan portato (mismo criterio ya usado en
+                    // corregirAccidentalesDeMedida).
+                    if (!ctorArticulationCache) {
+                        const existente = vf.modifiers.find(function (m) { return m.getCategory && m.getCategory() === 'articulations'; });
+                        if (existente) ctorArticulationCache = existente.constructor;
+                    }
+                    const esPortato = esperados[i];
+                    i++;
+                    if (!esPortato) return;
+
+                    const yaAgregado = vf.modifiers.some(function (m) { return m.__cursosPortato; });
+                    if (yaAgregado) return;
+                    if (!ctorArticulationCache) return; // todavía no encontramos ninguna articulación real de la que "copiar" el constructor -- no forzamos nada esta vez
+
+                    try {
+                        const tenutoNuevo = new ctorArticulationCache('a-');
+                        const staccatoNuevo = new ctorArticulationCache('a.');
+                        tenutoNuevo.__cursosPortato = true;
+                        staccatoNuevo.__cursosPortato = true;
+                        vf.addModifier(0, tenutoNuevo);
+                        vf.addModifier(0, staccatoNuevo);
+                    } catch (e) {
+                        console.error('[cursos] No se pudo dibujar un portato (detached-legato):', e);
+                    }
+                });
+            });
+        });
+    }
+
     // MuseScore no deja ningún marcador explícito de "Section Break" en el
     // MusicXML que exporta -- degrada a 3 señales combinadas (barra final +
     // sistema nuevo + numeración de compás que no sigue la secuencia). OSMD
@@ -1009,13 +1110,13 @@
     function construirSeccionesXml(xmlString, mostrarTextoStaff) {
         try {
             const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
-            if (doc.querySelector('parsererror')) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null };
+            if (doc.querySelector('parsererror')) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null };
 
             const raiz = doc.querySelector('score-partwise');
             const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
-            if (!raiz || partesXml.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null };
+            if (!raiz || partesXml.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null };
             const medidasRef = Array.from(partesXml[0].children).filter(function (n) { return n.tagName === 'measure'; });
-            if (medidasRef.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null };
+            if (medidasRef.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null };
 
             // Muta `doc` in-place (reemplaza cada <key> no tradicional por su
             // <fifths> equivalente) ANTES de calcular cortes de sección o
@@ -1031,6 +1132,7 @@
             // Mismo motivo/momento que la línea de arriba: siempre se calcula,
             // nunca depende de si hubo o no una armadura no tradicional.
             const mordentesLargosPorParte = calcularMordentesLargosEsperados(doc);
+            const portatoPorParte = calcularPortatoEsperado(doc);
 
             // indicesDeCorte[i] = índice de la ÚLTIMA medida de una sección
             // (0-based, sobre medidasRef) -- la sección siguiente arranca en i+1.
@@ -1067,7 +1169,7 @@
             // corrección de accidentales SÍ sigue activa igual (no reescribe
             // el XML, corre aparte a la hora de renderizar).
             if (grupos.length === 1 && mostrarTextoStaff && !overridesPorParte) {
-                return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte, mordentesLargosPorParte: mordentesLargosPorParte };
+                return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte, mordentesLargosPorParte: mordentesLargosPorParte, portatoPorParte: portatoPorParte };
             }
 
             const serializer = new XMLSerializer();
@@ -1092,10 +1194,10 @@
                     + partListStr + partesStr + '</score-partwise>';
                 return { xml: xml, offset: rango[0] };
             });
-            return { secciones: secciones, overridesPorParte: overridesPorParte, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte, mordentesLargosPorParte: mordentesLargosPorParte };
+            return { secciones: secciones, overridesPorParte: overridesPorParte, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte, mordentesLargosPorParte: mordentesLargosPorParte, portatoPorParte: portatoPorParte };
         } catch (e) {
             console.warn('[cursos] No se pudo procesar el archivo (cortes de sección / texto de staff / armadura / accidentales), se muestra tal cual:', e);
-            return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null };
+            return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null };
         }
     }
 
@@ -1174,11 +1276,12 @@
                             // partitura corta independiente). accidentalesEsperadosPorParte
                             // está presente casi siempre (se calcula sin condición alguna),
                             // así que en la práctica este contexto casi nunca queda null.
-                            contextoArmaduraActiva = (resultado.overridesPorParte || resultado.accidentalesEsperadosPorParte || resultado.mordentesLargosPorParte)
+                            contextoArmaduraActiva = (resultado.overridesPorParte || resultado.accidentalesEsperadosPorParte || resultado.mordentesLargosPorParte || resultado.portatoPorParte)
                                 ? {
                                     overridesPorParte: resultado.overridesPorParte,
                                     accidentalesEsperadosPorParte: resultado.accidentalesEsperadosPorParte,
                                     mordentesLargosPorParte: resultado.mordentesLargosPorParte,
+                                    portatoPorParte: resultado.portatoPorParte,
                                     offset: seccion.offset,
                                 }
                                 : null;
