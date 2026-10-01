@@ -1886,6 +1886,43 @@ def _asegurar_fuente_unicode_pdf():
         logger.exception('[cursos] No se pudo registrar la fuente Unicode para el PDF del curso -- va a caer a Helvetica.')
 
 
+_PDF_EXPORT_LIMITE = 3
+_PDF_EXPORT_VENTANA_SEGUNDOS = 10 * 60  # 10 minutos
+
+
+def _demasiadas_exportaciones_pdf(user):
+    """
+    Rate limit simple por usuario para curso_exportar_pdf -- protege la
+    única parte realmente cara de este flujo (el render de xhtml2pdf +
+    decodificar potencialmente varios MB de imágenes en base64) contra un
+    cliente (un click repetido, o un script) disparando muchas generaciones
+    seguidas. No se aplica a curso_exportar_pdf_temas (el listado de Temas a
+    capturar): es una query liviana, de sólo lectura, que no justifica su
+    propio contador -- limitar únicamente la vista que hace el trabajo
+    pesado alcanza.
+
+    Usa el cache de Django (ventana fija vía cache.incr, con el típico
+    fallback a cache.set si la clave todavía no existe o expiró -- incr()
+    tira ValueError en ese caso). No hay backend de cache configurado
+    explícitamente en settings.py, así que esto corre sobre el LocMemCache
+    por default -- en memoria, por proceso. Alcanza para el único worker que
+    corre hoy en PythonAnywhere; si el sitio pasara a correr con más de un
+    worker, este contador dejaría de estar compartido entre ellos (cada uno
+    contaría por su cuenta, permitiendo más exportaciones de las pensadas)
+    -- el día que eso importe, pasar a un backend de cache compartido
+    (archivos o Redis) alcanza, sin tocar esta función.
+    """
+    from django.core.cache import cache
+    clave = 'pdf_export_rate:%d' % user.id
+    try:
+        conteo = cache.incr(clave)
+    except ValueError:
+        cache.set(clave, 1, timeout=_PDF_EXPORT_VENTANA_SEGUNDOS)
+        conteo = 1
+    return conteo > _PDF_EXPORT_LIMITE
+
+
+@login_required
 def curso_exportar_pdf_temas(request, curso_id):
     """
     Lista de URLs de Tema (JSON, GET) que curso_detail.html visita en un
@@ -1931,9 +1968,20 @@ def curso_exportar_pdf(request, curso_id):
     Práctica (el bloque, no el Tema) y Video siguen afuera por el mismo
     motivo que siempre: un link a un ejercicio o un video no tiene sentido
     incrustado en un PDF.
+
+    Rate-limited por usuario (ver _demasiadas_exportaciones_pdf) -- aplica
+    tanto a GET como a POST, antes de hacer cualquier trabajo: ambos disparan
+    el mismo render caro de xhtml2pdf, GET simplemente lo hace sin imágenes.
     """
+    from django.utils.translation import gettext as _
     from .models import Curso, Tema, BloqueContenido
     from .services import render_markdown_seguro
+
+    if _demasiadas_exportaciones_pdf(request.user):
+        return HttpResponse(
+            _('Ya generaste varios PDFs en poco tiempo. Esperá unos minutos y probá de nuevo.'),
+            status=429, content_type='text/plain; charset=utf-8',
+        )
 
     _asegurar_fuente_unicode_pdf()
 
