@@ -570,6 +570,189 @@
         return huboAlgunCambio ? overridesPorParte : null;
     }
 
+    // MuseScore (confirmado: comentario de los propios autores de OSMD en
+    // ExpressionReader.ts -- "unfortunately not always given in MusicXML
+    // (e.g. Musescore 3.6.2) even though required") a veces no exporta el
+    // <direction> de INICIO de un octavador (<octave-shift type="up"/"down">),
+    // aunque en MuseScore mismo el corchete se vea completo -- queda sólo el
+    // de FIN (<octave-shift type="stop">), sin pareja. OSMD, al toparse con
+    // un "stop" sin ningún "start" abierto, no hace NADA (confirmado leyendo
+    // el mismo archivo: `if (this.openOctaveShift) {...}` -- sin eso, el
+    // bloque entero se saltea en silencio) -- ni dibuja el corchete, ni
+    // corrige la posición de las notas, así que se ven literalmente como
+    // estén escritas en el XML (que es la altura REAL/sonante, no la
+    // posición a dibujar -- confirmado en OctaveShift.ts). Reconstruye el
+    // <direction> de inicio faltante al comienzo del MISMO compás donde está
+    // el "stop" huérfano -- asume que el corchete completo cabe en ese único
+    // compás, que es el caso real reportado por el usuario (y el único que
+    // se puede inferir con certeza sin arriesgar a adivinar mal un span más
+    // largo).
+    function repararOctavadoresSinInicio(doc) {
+        let huboReparacion = false;
+        const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
+        partesXml.forEach(function (parte) {
+            const medidas = Array.from(parte.children).filter(function (n) { return n.tagName === 'measure'; });
+            const numerosAbiertos = {};
+            medidas.forEach(function (medida) {
+                const direcciones = Array.from(medida.children).filter(function (n) { return n.tagName === 'direction'; });
+                direcciones.forEach(function (direccionEl) {
+                    const octaveEl = direccionEl.querySelector('direction-type > octave-shift');
+                    if (!octaveEl) return;
+                    const numero = octaveEl.getAttribute('number') || '1';
+                    const tipo = octaveEl.getAttribute('type');
+                    if (tipo === 'up' || tipo === 'down') {
+                        numerosAbiertos[numero] = true;
+                    } else if (tipo === 'stop') {
+                        if (!numerosAbiertos[numero]) {
+                            const nuevaDireccion = doc.createElement('direction');
+                            nuevaDireccion.setAttribute('placement', direccionEl.getAttribute('placement') || 'above');
+                            const nuevoTipoDir = doc.createElement('direction-type');
+                            const nuevoOctave = doc.createElement('octave-shift');
+                            nuevoOctave.setAttribute('type', 'down');
+                            nuevoOctave.setAttribute('size', octaveEl.getAttribute('size') || '8');
+                            nuevoOctave.setAttribute('number', numero);
+                            nuevoTipoDir.appendChild(nuevoOctave);
+                            nuevaDireccion.appendChild(nuevoTipoDir);
+                            const primeraNota = medida.querySelector('note');
+                            if (primeraNota) medida.insertBefore(nuevaDireccion, primeraNota);
+                            else medida.appendChild(nuevaDireccion);
+                            huboReparacion = true;
+                        }
+                        delete numerosAbiertos[numero];
+                    }
+                });
+            });
+        });
+        return huboReparacion;
+    }
+
+    // <measure-style><measure-repeat type="start">N</measure-repeat></measure-style>
+    // es la "barra de repetición" (símbolo de %, dos puntos cruzados por una
+    // diagonal) que le dice al LECTOR "tocá igual que el compás anterior" --
+    // MusicXML igual exige dejar las notas reales escritas en el compás (para
+    // software que no soporte el símbolo, y para la reproducción). OSMD 1.8.8
+    // no tiene NINGÚN soporte para esto (confirmado leyendo el bundle: sólo
+    // lee <multiple-rest> dentro de <measure-style>, nada de <measure-repeat>)
+    // -- simplemente dibuja las notas reales tal cual, sin mostrar nunca el
+    // símbolo. Sólo se soporta acá el caso de un único compás repetido
+    // (N === "1", el único usado en la práctica hasta ahora) -- un grupo de
+    // varios compases repetidos a la vez queda sin tocar (mejor eso que
+    // dibujar mal un símbolo de grupo).
+    function medidaConMeasureRepeatInicio(medidaXml) {
+        const estilo = medidaXml.querySelector('attributes > measure-style > measure-repeat');
+        if (!estilo || estilo.getAttribute('type') !== 'start') return false;
+        const cantidad = (estilo.textContent || '').trim();
+        return cantidad === '' || cantidad === '1';
+    }
+
+    function calcularMeasureRepeatInicio(doc) {
+        const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
+        return partesXml.map(function (parte) {
+            return Array.from(parte.children).filter(function (n) { return n.tagName === 'measure'; })
+                .map(function (medidaXml) { return medidaConMeasureRepeatInicio(medidaXml); });
+        });
+    }
+
+    // Dibuja el símbolo de "repetir el compás anterior" (una barra diagonal
+    // con dos puntos, el equivalente musical del "%") tapando con un
+    // rectángulo blanco TODO lo que OSMD ya dibujó en ese compás (las notas
+    // reales, que MusicXML exige dejar escritas aunque el software soporte
+    // el símbolo -- ver medidaConMeasureRepeatInicio). Corre DESPUÉS de
+    // osmd.render() (no es un parche de format() como el resto de estas
+    // correcciones): necesita que los <path> ya existan para saber dónde
+    // está realmente cada compás. Se agrega directo al <svg> ya renderizado,
+    // en el mismo sistema de coordenadas que usa VexFlow (stave.getX()/
+    // getWidth()/getYForLine()) -- nunca getBoundingClientRect(): así no
+    // dependemos del zoom/scroll del navegador ni hace falta reposicionar
+    // nada si la ventana cambia de tamaño (el <svg> ya escala solo).
+    function dibujarSimilesDeSeccion(osmd, contenedor) {
+        if (!contextoArmaduraActiva || !contextoArmaduraActiva.measureRepeatInicioPorParte) return;
+        const svg = contenedor.querySelector('svg');
+        if (!svg) return;
+        const NS = 'http://www.w3.org/2000/svg';
+
+        (osmd.GraphicSheet.MeasureList || []).forEach(function (sistema) {
+            sistema.forEach(function (medida) {
+                if (!medida || typeof medida.getVFStave !== 'function') return;
+                const instrumento = medida.ParentStaff && medida.ParentStaff.parentInstrument;
+                const idxParte = instrumento && typeof instrumento.id === 'number' ? instrumento.id : null;
+                if (idxParte === null) return;
+                const tablaParte = contextoArmaduraActiva.measureRepeatInicioPorParte[idxParte];
+                if (!tablaParte) return;
+                const idxMedida = idxMedidaDe(medida);
+                if (idxMedida === null) return;
+                if (!tablaParte[contextoArmaduraActiva.offset + idxMedida]) return;
+
+                let stave;
+                try { stave = medida.getVFStave(); } catch (e) { return; }
+                if (!stave) return;
+
+                // 2px de margen a cada lado -- deja asomar la barra de
+                // compás propia (se dibuja justo en el borde del stave) en
+                // vez de taparla también.
+                const INSET = 2;
+                const x0 = stave.getX() + INSET;
+                const ancho = stave.getWidth() - INSET * 2;
+                const espacio = stave.getSpacingBetweenLines();
+
+                // El alto NO se adivina con un margen fijo -- una nota grave
+                // con plica larga hacia abajo (confirmado con un caso real:
+                // una nota por debajo del pentagrama con 2 líneas adicionales
+                // + plica) se salía de un margen fijo de 3 espacios y quedaba
+                // asomando debajo de la máscara. En cambio se mide el cuadro
+                // real (getBBox(), en el mismo sistema de coordenadas del SVG
+                // -- a diferencia de getBoundingClientRect(), no depende del
+                // zoom/viewport) de TODO lo que haya adentro del rango
+                // horizontal de este compás, y se cubre eso + un margen chico.
+                let minY = stave.getYForLine(0);
+                let maxY = stave.getYForLine(4);
+                Array.from(svg.children).forEach(function (el) {
+                    if (typeof el.getBBox !== 'function') return;
+                    let caja;
+                    try { caja = el.getBBox(); } catch (e) { return; }
+                    if (!caja || (caja.width === 0 && caja.height === 0)) return;
+                    const centroX = caja.x + caja.width / 2;
+                    if (centroX < stave.getX() || centroX > stave.getX() + stave.getWidth()) return;
+                    minY = Math.min(minY, caja.y);
+                    maxY = Math.max(maxY, caja.y + caja.height);
+                });
+                const margenVertical = espacio * 0.6;
+                const yTop = minY - margenVertical;
+                const yBottom = maxY + margenVertical;
+                const alto = yBottom - yTop;
+
+                const mascara = document.createElementNS(NS, 'rect');
+                mascara.setAttribute('x', x0);
+                mascara.setAttribute('y', yTop);
+                mascara.setAttribute('width', ancho);
+                mascara.setAttribute('height', alto);
+                mascara.setAttribute('fill', '#ffffff');
+                svg.appendChild(mascara);
+
+                const cx = x0 + ancho / 2;
+                const cy = yTop + alto / 2;
+                const mitad = espacio * 1.1;
+                const linea = document.createElementNS(NS, 'line');
+                linea.setAttribute('x1', cx - mitad);
+                linea.setAttribute('y1', cy + mitad);
+                linea.setAttribute('x2', cx + mitad);
+                linea.setAttribute('y2', cy - mitad);
+                linea.setAttribute('stroke', '#000000');
+                linea.setAttribute('stroke-width', espacio * 0.35);
+                svg.appendChild(linea);
+
+                [[-1, -1], [1, 1]].forEach(function (signo) {
+                    const punto = document.createElementNS(NS, 'circle');
+                    punto.setAttribute('cx', cx + signo[0] * mitad * 0.55);
+                    punto.setAttribute('cy', cy + signo[1] * mitad * 0.55);
+                    punto.setAttribute('r', espacio * 0.22);
+                    punto.setAttribute('fill', '#000000');
+                    svg.appendChild(punto);
+                });
+            });
+        });
+    }
+
     // Parcha (una sola vez, a nivel de página) dos métodos de VexFlowMeasure
     // -- NO el drawer (ver bug real encontrado y corregido: aplicar la
     // corrección recién antes de dibujar es TARDE, el ancho de cada medida ya
@@ -1110,13 +1293,13 @@
     function construirSeccionesXml(xmlString, mostrarTextoStaff) {
         try {
             const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
-            if (doc.querySelector('parsererror')) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null };
+            if (doc.querySelector('parsererror')) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null, measureRepeatInicioPorParte: null };
 
             const raiz = doc.querySelector('score-partwise');
             const partesXml = Array.from(doc.querySelectorAll('score-partwise > part'));
-            if (!raiz || partesXml.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null };
+            if (!raiz || partesXml.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null, measureRepeatInicioPorParte: null };
             const medidasRef = Array.from(partesXml[0].children).filter(function (n) { return n.tagName === 'measure'; });
-            if (medidasRef.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null };
+            if (medidasRef.length === 0) return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null, measureRepeatInicioPorParte: null };
 
             // Muta `doc` in-place (reemplaza cada <key> no tradicional por su
             // <fifths> equivalente) ANTES de calcular cortes de sección o
@@ -1124,6 +1307,10 @@
             // <print>/número de compás, nunca <key>, así que es seguro
             // normalizar primero sin afectarla.
             const overridesPorParte = normalizarArmadurasNoTradicionales(doc);
+            // También muta `doc` in-place (agrega el <direction> de inicio de
+            // octavador si faltaba) -- mismo motivo/momento que la línea de
+            // arriba, antes de cualquier corte/serializado.
+            const huboReparacionOctavador = repararOctavadoresSinInicio(doc);
             // Se calcula SIEMPRE (a diferencia de overridesPorParte, que sólo
             // existe si hubo una armadura no tradicional) -- cualquier compás
             // puede tener una nota con <accidental> explícito/de cortesía que
@@ -1133,6 +1320,7 @@
             // nunca depende de si hubo o no una armadura no tradicional.
             const mordentesLargosPorParte = calcularMordentesLargosEsperados(doc);
             const portatoPorParte = calcularPortatoEsperado(doc);
+            const measureRepeatInicioPorParte = calcularMeasureRepeatInicio(doc);
 
             // indicesDeCorte[i] = índice de la ÚLTIMA medida de una sección
             // (0-based, sobre medidasRef) -- la sección siguiente arranca en i+1.
@@ -1168,8 +1356,8 @@
             // para el caso (mayoritario) de un bloque sin nada de eso. La
             // corrección de accidentales SÍ sigue activa igual (no reescribe
             // el XML, corre aparte a la hora de renderizar).
-            if (grupos.length === 1 && mostrarTextoStaff && !overridesPorParte) {
-                return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte, mordentesLargosPorParte: mordentesLargosPorParte, portatoPorParte: portatoPorParte };
+            if (grupos.length === 1 && mostrarTextoStaff && !overridesPorParte && !huboReparacionOctavador) {
+                return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte, mordentesLargosPorParte: mordentesLargosPorParte, portatoPorParte: portatoPorParte, measureRepeatInicioPorParte: measureRepeatInicioPorParte };
             }
 
             const serializer = new XMLSerializer();
@@ -1194,10 +1382,10 @@
                     + partListStr + partesStr + '</score-partwise>';
                 return { xml: xml, offset: rango[0] };
             });
-            return { secciones: secciones, overridesPorParte: overridesPorParte, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte, mordentesLargosPorParte: mordentesLargosPorParte, portatoPorParte: portatoPorParte };
+            return { secciones: secciones, overridesPorParte: overridesPorParte, accidentalesEsperadosPorParte: accidentalesEsperadosPorParte, mordentesLargosPorParte: mordentesLargosPorParte, portatoPorParte: portatoPorParte, measureRepeatInicioPorParte: measureRepeatInicioPorParte };
         } catch (e) {
             console.warn('[cursos] No se pudo procesar el archivo (cortes de sección / texto de staff / armadura / accidentales), se muestra tal cual:', e);
-            return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null };
+            return { secciones: [{ xml: xmlString, offset: 0 }], overridesPorParte: null, accidentalesEsperadosPorParte: null, mordentesLargosPorParte: null, portatoPorParte: null, measureRepeatInicioPorParte: null };
         }
     }
 
@@ -1214,6 +1402,22 @@
 
     const promesasBloquesPartitura = bloquesPartitura.map(function (info) {
         const contenedor = document.getElementById(info.containerId);
+        // Se mide el ancho disponible ACÁ, sincrónicamente, antes de que
+        // arranque el fetch de NINGÚN bloque -- no cuando esta entrada
+        // puntual termine de cargar su XML. Cada entrada de bloquesPartitura
+        // (incluidas las dos mitades de una Partitura pantalla dividida)
+        // sigue su propia cadena fetch()+render() independiente, sin
+        // sincronizarse entre sí -- si una termina antes que otra, el
+        // contenido ya agregado por la primera puede haber hecho aparecer o
+        // desaparecer la scrollbar vertical de la página, angostando o
+        // ensanchando el viewport para la que todavía no renderizó. Eso
+        // hacía que, en Partitura pantalla dividida, el panel derecho
+        // terminara levemente más angosto que el izquierdo -- bug real
+        // reportado por el usuario. Congelar el ancho acá, antes de que
+        // cualquier fetch arranque, garantiza que las dos mitades midan
+        // exactamente el mismo momento de layout (uno todavía sin ningún
+        // efecto de este mismo renderizado).
+        const anchoCongelado = contenedor.offsetWidth;
         const opciones = {
             drawTitle: false,
             autoResize: false,
@@ -1263,6 +1467,11 @@
                     return cadena.then(function () {
                         const divSeccion = document.createElement('div');
                         divSeccion.className = 'bloque-gab__seccion';
+                        // Ancho fijo (congelado más arriba) en vez de dejar
+                        // que este <div> herede el ancho disponible AL
+                        // MOMENTO de este render puntual -- ver el porqué
+                        // completo donde se calculó anchoCongelado.
+                        if (anchoCongelado > 0) divSeccion.style.width = anchoCongelado + 'px';
                         contenedor.appendChild(divSeccion);
                         const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(divSeccion, opciones);
                         return osmd.load(seccion.xml).then(function () {
@@ -1276,12 +1485,13 @@
                             // partitura corta independiente). accidentalesEsperadosPorParte
                             // está presente casi siempre (se calcula sin condición alguna),
                             // así que en la práctica este contexto casi nunca queda null.
-                            contextoArmaduraActiva = (resultado.overridesPorParte || resultado.accidentalesEsperadosPorParte || resultado.mordentesLargosPorParte || resultado.portatoPorParte)
+                            contextoArmaduraActiva = (resultado.overridesPorParte || resultado.accidentalesEsperadosPorParte || resultado.mordentesLargosPorParte || resultado.portatoPorParte || resultado.measureRepeatInicioPorParte)
                                 ? {
                                     overridesPorParte: resultado.overridesPorParte,
                                     accidentalesEsperadosPorParte: resultado.accidentalesEsperadosPorParte,
                                     mordentesLargosPorParte: resultado.mordentesLargosPorParte,
                                     portatoPorParte: resultado.portatoPorParte,
+                                    measureRepeatInicioPorParte: resultado.measureRepeatInicioPorParte,
                                     offset: seccion.offset,
                                 }
                                 : null;
@@ -1289,6 +1499,7 @@
                             contadorMedidaArmadura = 0;
                             try {
                                 osmd.render();
+                                dibujarSimilesDeSeccion(osmd, divSeccion);
                             } finally {
                                 contextoArmaduraActiva = null;
                             }
