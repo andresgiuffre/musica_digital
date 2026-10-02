@@ -729,6 +729,25 @@
                 mascara.setAttribute('fill', '#ffffff');
                 svg.appendChild(mascara);
 
+                // La máscara tapa TODO lo que haya en el rango horizontal de
+                // este compás -- incluidas las 5 líneas del pentagrama (son
+                // <path> propios de este mismo Stave, confirmado como bug
+                // real con una captura del usuario: el pentagrama quedaba
+                // directamente cortado donde iba el símbolo). Un compás de
+                // repetición sigue mostrando el pentagrama normal debajo del
+                // símbolo -- se vuelven a dibujar encima de la máscara.
+                for (let i = 0; i < 5; i++) {
+                    const yLinea = stave.getYForLine(i);
+                    const lineaPentagrama = document.createElementNS(NS, 'line');
+                    lineaPentagrama.setAttribute('x1', x0);
+                    lineaPentagrama.setAttribute('y1', yLinea);
+                    lineaPentagrama.setAttribute('x2', x0 + ancho);
+                    lineaPentagrama.setAttribute('y2', yLinea);
+                    lineaPentagrama.setAttribute('stroke', '#000000');
+                    lineaPentagrama.setAttribute('stroke-width', '1');
+                    svg.appendChild(lineaPentagrama);
+                }
+
                 const cx = x0 + ancho / 2;
                 const cy = yTop + alto / 2;
                 const mitad = espacio * 1.1;
@@ -751,6 +770,37 @@
                 });
             });
         });
+    }
+
+    // Partitura pantalla dividida: los dos paneles son dos archivos MusicXML
+    // completamente independientes, cada uno con su propia instancia de OSMD
+    // -- distintas claves necesitan realmente distinto alto (confirmado
+    // empíricamente contra la librería real: para un mismo compás, clave de
+    // Sol = 168px, Fa = 155px, Do en 3ra = 140px, Do en 4ta = 150px -- el
+    // dibujo de la clave de Sol sube y baja mucho más que el de una Do), así
+    // que si un lado tiene, por ejemplo, más ejemplos con clave de Sol que
+    // el otro, las dos columnas terminan de alturas distintas aunque tengan
+    // la misma cantidad de compases/secciones -- reportado como bug real por
+    // el usuario. Sólo se iguala el alto TOTAL de las dos cajas blancas
+    // (.bloque-gab__partitura), no ejemplo por ejemplo contra su "par" del
+    // otro lado -- eso requeriría rastrear una relación posicional entre
+    // ambos archivos que hoy no existe (son XML completamente
+    // independientes, sin ningún ID compartido entre secciones de un lado y
+    // del otro) y sería mucho más frágil para un beneficio visual menor,
+    // decisión tomada con el usuario.
+    function igualarAlturaDividida(base) {
+        const contIzq = document.getElementById(base + '-izquierda');
+        const contDer = document.getElementById(base + '-derecha');
+        if (!contIzq || !contDer) return;
+        const altoIzq = contIzq.getBoundingClientRect().height;
+        const altoDer = contDer.getBoundingClientRect().height;
+        const diferencia = Math.round(Math.abs(altoIzq - altoDer));
+        if (diferencia < 1) return;
+        const masCorto = altoIzq < altoDer ? contIzq : contDer;
+        const relleno = document.createElement('div');
+        relleno.setAttribute('aria-hidden', 'true');
+        relleno.style.height = diferencia + 'px';
+        masCorto.appendChild(relleno);
     }
 
     // Parcha (una sola vez, a nivel de página) dos métodos de VexFlowMeasure
@@ -1513,11 +1563,35 @@
             });
     });
 
+    // Agrupa las entradas de Partitura pantalla dividida por su bloque base
+    // (osmd-bloque-<id>), parejas izquierda/derecha -- el containerId ya
+    // trae esa relación codificada (ver bloquesPartitura más arriba), no
+    // hace falta mandar nada nuevo desde el template. Una vez que AMBAS
+    // mitades de un par terminaron de renderizar, iguala el alto total (ver
+    // igualarAlturaDividida). Si sólo existe un lado (no debería pasar
+    // nunca, pero por las dudas) no hace nada -- mejor dejar un alto
+    // desparejo que romper algo.
+    const paresDividida = {};
+    bloquesPartitura.forEach(function (info, idx) {
+        const m = info.containerId.match(/^(osmd-bloque-\d+)-(izquierda|derecha)$/);
+        if (!m) return;
+        const base = m[1];
+        if (!paresDividida[base]) paresDividida[base] = {};
+        paresDividida[base][m[2]] = promesasBloquesPartitura[idx];
+    });
+    const promesasParesDividida = Object.keys(paresDividida).map(function (base) {
+        const par = paresDividida[base];
+        if (!par.izquierda || !par.derecha) return Promise.resolve();
+        return Promise.all([par.izquierda, par.derecha]).then(function () {
+            igualarAlturaDividida(base);
+        });
+    });
+
     // .catch acá arriba ya se come cualquier error de UN bloque puntual (para
     // no romper el resto de la página) -- Promise.all sobre promesas que ya
     // nunca rechazan, así que esto siempre termina en .then, nunca hace falta
     // un .catch acá también.
-    Promise.all(promesasBloquesPartitura).then(function () {
+    Promise.all(promesasBloquesPartitura.concat(promesasParesDividida)).then(function () {
         window.__cursosPartiturasListas = true;
     });
 })();
