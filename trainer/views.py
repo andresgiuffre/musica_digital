@@ -2147,11 +2147,20 @@ def curso_exportar_pdf(request, curso_id):
     # confirmado que funciona en este entorno) en vez de un archivo, para
     # no depender de permisos de escritura del proceso web en /tmp.
     try:
-        entradas = (pisa_status.log or [])[:200]
+        frame_static = getattr(pisa_status, 'frameStatic', None)
+        claves = list(frame_static.keys()) if frame_static else []
+        detalle_pie = None
+        if frame_static and 'pie_pagina_contenido' in frame_static:
+            frames_pie = frame_static['pie_pagina_contenido']
+            detalle_pie = [
+                (getattr(fr, 'id', None), len(getattr(fr, 'pisaStaticStory', []) or []))
+                for fr in frames_pie
+            ]
+        template_list = getattr(pisa_status, 'templateList', None)
         logger.warning(
-            '[DIAG PIE] curso=%s usuario=%s warn=%d err=%d entradas=%d log=%s',
+            '[DIAG PIE] curso=%s usuario=%s warn=%d err=%d claves_frameStatic=%s detalle_pie=%s templates=%s',
             curso.id, request.user.id, pisa_status.warn, pisa_status.err,
-            len(pisa_status.log or []), repr(entradas)[:4000],
+            claves, detalle_pie, list(template_list.keys()) if template_list else None,
         )
     except Exception:
         logger.exception('[DIAG PIE] fallo el diagnostico en si')
