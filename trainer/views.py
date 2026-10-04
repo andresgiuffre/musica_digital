@@ -2143,18 +2143,18 @@ def curso_exportar_pdf(request, curso_id):
 
     # --- DIAGNOSTICO TEMPORAL: sacar en cuanto se encuentre la causa del
     # pie de pagina faltante -- ver la conversacion sobre curso_exportar_pdf.
+    # Usa logger.warning (mismo canal que _asegurar_fuente_unicode_pdf, ya
+    # confirmado que funciona en este entorno) en vez de un archivo, para
+    # no depender de permisos de escritura del proceso web en /tmp.
     try:
-        with open('/tmp/pisa_log_debug.txt', 'a', encoding='utf-8') as _f:
-            _f.write('--- render %s (curso %s, usuario %s) ---\n' % (
-                __import__('datetime').datetime.now().isoformat(), curso.id, request.user.id,
-            ))
-            for _entry in (pisa_status.log or [])[:200]:
-                _f.write(repr(_entry)[:500] + '\n')
-            _f.write('total entradas de log: %d, warn=%d, err=%d\n\n' % (
-                len(pisa_status.log or []), pisa_status.warn, pisa_status.err,
-            ))
+        entradas = (pisa_status.log or [])[:200]
+        logger.warning(
+            '[DIAG PIE] curso=%s usuario=%s warn=%d err=%d entradas=%d log=%s',
+            curso.id, request.user.id, pisa_status.warn, pisa_status.err,
+            len(pisa_status.log or []), repr(entradas)[:4000],
+        )
     except Exception:
-        pass
+        logger.exception('[DIAG PIE] fallo el diagnostico en si')
     # --- FIN DIAGNOSTICO TEMPORAL ---
 
     response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
