@@ -2105,6 +2105,26 @@ def curso_exportar_pdf(request, curso_id):
 
     from .pdf_postproceso import corregir_maquetacion_pdf
 
+    # --- DIAGNOSTICO TEMPORAL: xhtml2pdf traga en silencio cualquier
+    # excepcion al dibujar un frame estatico (ver xhtml2pdf_reportlab.py,
+    # "except Exception: # TODO: Kill this!") y la manda a log.debug, un
+    # logger que por default nunca emite nada -- esto reenvia ese debug
+    # al mismo canal ya confirmado que llega al Error log.
+    import logging as _logging
+
+    class _HandlerDiagPie(_logging.Handler):
+        def emit(self, record):
+            try:
+                logger.warning('[DIAG PIE xhtml2pdf-interno] %s', self.format(record))
+            except Exception:
+                pass
+
+    _logger_xhtml2pdf = _logging.getLogger('xhtml2pdf')
+    if not any(isinstance(h, _HandlerDiagPie) for h in _logger_xhtml2pdf.handlers):
+        _logger_xhtml2pdf.addHandler(_HandlerDiagPie())
+    _logger_xhtml2pdf.setLevel(_logging.DEBUG)
+    # --- FIN DIAGNOSTICO TEMPORAL (parte 1) ---
+
     def _generar_pdf():
         html_string = render_to_string('trainer/curso_pdf.html', {
             'curso': curso, 'grados': grados,
