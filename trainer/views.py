@@ -2105,57 +2105,13 @@ def curso_exportar_pdf(request, curso_id):
 
     from .pdf_postproceso import corregir_maquetacion_pdf
 
-    # --- DIAGNOSTICO TEMPORAL (bajo ruido: UNA sola linea de log por
-    # pasada, no una por pagina) -- confirma cual @page template esta
-    # realmente activo en cada pagina durante el dibujado real, algo que
-    # el diagnostico anterior (frameStatic en tiempo de parseo) no podia
-    # ver. Parcha beforeDrawPage una sola vez por proceso.
-    import collections as _collections
-    from xhtml2pdf.xhtml2pdf_reportlab import PmlPageTemplate as _PmlPageTemplate
-
-    _registro_paginas_diag = []
-    if not getattr(_PmlPageTemplate, '_diag_pie_parchado', False):
-        _original_beforeDrawPage = _PmlPageTemplate.beforeDrawPage
-
-        def _beforeDrawPage_diag(self, canvas, doc):
-            try:
-                _PmlPageTemplate._diag_pie_registro_actual.append((self.id, len(self.pisaStaticList)))
-            except Exception:
-                pass
-            return _original_beforeDrawPage(self, canvas, doc)
-
-        _PmlPageTemplate.beforeDrawPage = _beforeDrawPage_diag
-        _PmlPageTemplate._diag_pie_parchado = True
-    _PmlPageTemplate._diag_pie_registro_actual = _registro_paginas_diag
-
-    from xhtml2pdf.tags import pisaTagPDFNEXTTEMPLATE as _TagNext
-    _registro_tags_next_diag = []
-    if not getattr(_TagNext, '_diag_pie_parchado', False):
-        _original_tag_next_start = _TagNext.start
-
-        def _tag_next_start_diag(self, c):
-            try:
-                _TagNext._diag_pie_registro_actual.append(self.attr.get('name'))
-            except Exception:
-                pass
-            return _original_tag_next_start(self, c)
-
-        _TagNext.start = _tag_next_start_diag
-        _TagNext._diag_pie_parchado = True
-    _TagNext._diag_pie_registro_actual = _registro_tags_next_diag
-    # --- FIN DIAGNOSTICO TEMPORAL (parte 1) ---
-
-    _conteo_tags_diag = {}
-
     def _generar_pdf():
         html_string = render_to_string('trainer/curso_pdf.html', {
             'curso': curso, 'grados': grados,
             'portada_path': portada_path, 'contratapa_path': contratapa_path,
             'paginas_creditos': paginas_creditos, 'paginas_cierre': paginas_cierre,
         })
-        _conteo_tags_diag['antes'] = html_string.count('pdf:nexttemplate')
         html_string = corregir_maquetacion_pdf(html_string)
-        _conteo_tags_diag['despues'] = html_string.count('pdf:nexttemplate')
         buffer = io.BytesIO()
         pisa_status = pisa.CreatePDF(html_string, dest=buffer)
         return buffer, pisa_status
@@ -2181,43 +2137,9 @@ def curso_exportar_pdf(request, curso_id):
     # grande en curso_pdf.html sobre por qué esto es deliberadamente
     # distinto de multiBuild/<pdf:toc>) -- el costo es duplicar el
     # tiempo de generación, aceptado explícitamente por el usuario.
-    _registro_paginas_diag.clear()
-    _registro_tags_next_diag.clear()
     buffer, pisa_status = _generar_pdf()
     if pisa_status.err:
         return JsonResponse({'status': 'error', 'message': 'No se pudo generar el PDF.'}, status=500)
-
-    # --- DIAGNOSTICO TEMPORAL: sacar en cuanto se encuentre la causa del
-    # pie de pagina faltante -- ver la conversacion sobre curso_exportar_pdf.
-    # Usa logger.warning (mismo canal que _asegurar_fuente_unicode_pdf, ya
-    # confirmado que funciona en este entorno) en vez de un archivo, para
-    # no depender de permisos de escritura del proceso web en /tmp.
-    try:
-        frame_static = getattr(pisa_status, 'frameStatic', None)
-        claves = list(frame_static.keys()) if frame_static else []
-        detalle_pie = None
-        if frame_static and 'pie_pagina_contenido' in frame_static:
-            frames_pie = frame_static['pie_pagina_contenido']
-            detalle_pie = [
-                (getattr(fr, 'id', None), len(getattr(fr, 'pisaStaticStory', []) or []))
-                for fr in frames_pie
-            ]
-        template_list = getattr(pisa_status, 'templateList', None)
-        conteo_por_template = dict(_collections.Counter(
-            (tid, n_estaticos) for tid, n_estaticos in _registro_paginas_diag
-        ))
-        logger.warning(
-            '[DIAG PIE] curso=%s usuario=%s warn=%d err=%d claves_frameStatic=%s detalle_pie=%s '
-            'templates=%s paginas_dibujadas=%d conteo_template_usado=%s '
-            'tags_nexttemplate_en_html=%s llamadas_start_nexttemplate=%s',
-            curso.id, request.user.id, pisa_status.warn, pisa_status.err,
-            claves, detalle_pie, list(template_list.keys()) if template_list else None,
-            len(_registro_paginas_diag), conteo_por_template,
-            _conteo_tags_diag, _registro_tags_next_diag,
-        )
-    except Exception:
-        logger.exception('[DIAG PIE] fallo el diagnostico en si')
-    # --- FIN DIAGNOSTICO TEMPORAL ---
 
     response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
     nombre_archivo = "".join(c for c in curso.nombre_mostrado if c.isalnum() or c in " ._-").strip() or "curso"
