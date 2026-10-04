@@ -27,7 +27,15 @@
             bottom: 0.9cm; left: 1.8cm; right: 1.8cm; height: 1cm;
         }
     }
-    #pie_pagina_contenido { text-align: center; font-size: 8pt; color: #888; }
+    /* Tabla de 1 fila para el layout izquierda/derecha -- mismo criterio
+       ya usado en .indice-fila más abajo: xhtml2pdf ignora float (probado
+       con un render real, no tira error pero tampoco hace nada), <table>
+       es el único mecanismo de columnas que este motor soporta de
+       verdad acá. */
+    #pie_pagina_contenido { font-size: 8pt; color: #888; line-height: 1.2; }
+    #pie_pagina_contenido table { width: 100%; }
+    #pie_pagina_contenido td.izquierda { text-align: left; }
+    #pie_pagina_contenido td.derecha { text-align: right; width: 2.2cm; white-space: nowrap; }
     /* DejaVu Sans es la única fuente a mano confirmada que cubre ♭/♯/♮
        (U+266D/E/F) -- Helvetica (el default de xhtml2pdf/reportlab) sólo
        cubre Latin-1/WinAnsi y los dibuja como cuadro negro. Registrada del
@@ -192,7 +200,11 @@
 </head>
 <body>
     <pdf:nexttemplate name="sinpie" />
-    <div id="pie_pagina_contenido">{% trans "Página" %} <pdf:pagenumber/></div>
+    {% now "Y" as anio_actual %}
+    <div id="pie_pagina_contenido"><table><tr>
+        <td class="izquierda">{% blocktrans with anio=anio_actual %}© {{ anio }} — Tecnología Musical — Todos los derechos reservados{% endblocktrans %}</td>
+        <td class="derecha">{% trans "Página" %} <pdf:pagenumber/></td>
+    </tr></table></div>
     {% if portada_path %}
     <div class="portada-pdf"><img src="{{ portada_path }}"></div>
     {% endif %}
