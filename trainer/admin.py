@@ -10,7 +10,7 @@ from .models import (
     SheetMarker, SessionAudio, RehearsalConfig, RehearsalLog,
     MusicalProject, ProjectGoal, ProjectSection,
     MidiChordStat, MidiGameSession, UserProfile, FragmentoOrquestacion, ScoreAnalysis,
-    Curso, Grado, Tema, BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso,
+    Curso, CursoPdfPagina, Grado, Tema, BloqueContenido, PracticaDirigidaProgreso, RitmoMatematicaProgreso, CompletarCompasProgreso,
     LineasEspaciosProgreso, LigadurasPuntilloProgreso,
     InstrumentoHabilitadoOrquestacion, ProgresoOrquestacionLibre,
 )
@@ -30,11 +30,30 @@ class GradoInline(admin.TabularInline):
     fields = ('numero', 'titulo', 'titulo_en', 'activo')
 
 
+class CursoPdfPaginaInline(admin.TabularInline):
+    """
+    Tabular (no Stacked, a diferencia de BloqueContenidoInline): acá no hay
+    campos que dependan de un tipo -- todas las filas usan los mismos 4
+    campos, mismo criterio que GradoInline/TemaInline.
+    """
+    model = CursoPdfPagina
+    extra = 1
+    fields = ('ubicacion', 'orden', 'texto_markdown', 'texto_markdown_en')
+
+
 @admin.register(Curso)
 class CursoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'idioma', 'codigo', 'es_gratuito', 'precio_ars', 'precio_usd', 'activo')
     list_editable = ('es_gratuito', 'activo')
-    inlines = [GradoInline]
+    inlines = [GradoInline, CursoPdfPaginaInline]
+    fieldsets = (
+        (None, {'fields': ('nombre', 'nombre_en', 'descripcion_corta', 'descripcion_corta_en', 'activo', 'idioma', 'codigo')}),
+        ('Monetización', {'fields': ('es_gratuito', 'precio_ars', 'precio_usd')}),
+        ('PDF del libro', {
+            'fields': ('pdf_portada', 'pdf_contratapa'),
+            'description': "Tapa y contratapa del PDF exportado (ver curso_exportar_pdf). Las páginas de créditos/cierre se agregan más abajo.",
+        }),
+    )
 
 
 class TemaInline(admin.TabularInline):

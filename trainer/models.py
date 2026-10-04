@@ -598,6 +598,60 @@ class Curso(models.Model):
             return self.descripcion_corta_en
         return self.descripcion_corta
 
+    # --- PDF exportado (ver curso_exportar_pdf en views.py) ---
+    # FileField, no ImageField -- no hay un solo ImageField/import de PIL en
+    # todo el proyecto (mismo patrón que BloqueContenido.imagen: FileField +
+    # help_text describiendo los formatos esperados, sin validar dimensiones
+    # -- agregar Pillow como dependencia nueva no se justifica para esto).
+    pdf_portada = models.FileField(
+        upload_to='cursos_pdf/', null=True, blank=True,
+        help_text="Imagen de tapa (PNG o JPG) para el PDF exportado del curso. Si queda vacío, el PDF arranca directo con el título."
+    )
+    pdf_contratapa = models.FileField(
+        upload_to='cursos_pdf/', null=True, blank=True,
+        help_text="Imagen de contratapa (PNG o JPG), última página del PDF exportado. Si queda vacío, el PDF no la incluye."
+    )
+
+
+class CursoPdfPagina(models.Model):
+    """
+    Página de texto libre del PDF exportado de un Curso -- cubre TANTO
+    "créditos/agradecimientos antes del índice" COMO "cierre al final del
+    libro" con una sola tabla (son estructuralmente lo mismo, una página de
+    Markdown, sólo cambia dónde se inserta -- ver `ubicacion`). Un Curso
+    puede tener cualquier cantidad de páginas de cada ubicación, ordenadas
+    por `orden` -- ver curso_exportar_pdf en views.py.
+    """
+    UBICACION_CREDITOS = 'CREDITOS'
+    UBICACION_CIERRE = 'CIERRE'
+    UBICACION_CHOICES = (
+        (UBICACION_CREDITOS, 'Antes del índice (créditos/agradecimientos)'),
+        (UBICACION_CIERRE, 'Al final del libro (cierre)'),
+    )
+
+    curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name='paginas_pdf')
+    ubicacion = models.CharField(max_length=10, choices=UBICACION_CHOICES, default=UBICACION_CREDITOS)
+    orden = models.PositiveIntegerField(default=0, help_text="Orden dentro de su ubicación -- las páginas de una misma ubicación se muestran ordenadas por esto.")
+    texto_markdown = models.TextField(help_text="Fuente Markdown -- mismo renderizado/sanitización que un bloque de Texto (ver BloqueContenido.texto_markdown).")
+    # Mismo patrón bilingüe que el resto de Cursos -- campo _en en la misma
+    # fila, no un Curso separado por idioma (ver el comentario en Curso).
+    texto_markdown_en = models.TextField(blank=True, help_text="Versión en inglés. Si queda vacío, se muestra el texto en español también con idioma inglés activo.")
+
+    class Meta:
+        ordering = ['curso', 'ubicacion', 'orden']
+        verbose_name = "Página de PDF (créditos/cierre)"
+        verbose_name_plural = "Páginas de PDF (créditos/cierre)"
+
+    def __str__(self):
+        return f"{self.get_ubicacion_display()} #{self.orden} -- {self.curso}"
+
+    @property
+    def texto_markdown_mostrado(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.texto_markdown_en:
+            return self.texto_markdown_en
+        return self.texto_markdown
+
 
 class Grado(models.Model):
     curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name='grados')

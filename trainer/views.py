@@ -1972,9 +1972,18 @@ def curso_exportar_pdf(request, curso_id):
     Rate-limited por usuario (ver _demasiadas_exportaciones_pdf) -- aplica
     tanto a GET como a POST, antes de hacer cualquier trabajo: ambos disparan
     el mismo render caro de xhtml2pdf, GET simplemente lo hace sin imágenes.
+
+    Portada/contratapa (Curso.pdf_portada/pdf_contratapa) y páginas de texto
+    libre antes del índice o al final del libro (CursoPdfPagina, ver
+    modelo) son todas opcionales y se configuran por Curso desde el Admin.
+    El índice (Grado → Tema) se arma en curso_pdf.html con links internos
+    (<a name>/<a href="#...">), SIN números de página a propósito -- ver el
+    comentario grande en ese template sobre por qué este proyecto evita el
+    tag <pdf:toc> nativo de xhtml2pdf (fuerza multiBuild, confirmado
+    no-determinístico en la práctica).
     """
     from django.utils.translation import gettext as _
-    from .models import Curso, Tema, BloqueContenido
+    from .models import Curso, CursoPdfPagina, Tema, BloqueContenido
     from .services import render_markdown_seguro
 
     if _demasiadas_exportaciones_pdf(request.user):
@@ -1994,6 +2003,17 @@ def curso_exportar_pdf(request, curso_id):
             imagenes_partitura = {}
 
     curso = get_object_or_404(Curso, id=curso_id, activo=True)
+
+    # Portada/contratapa/créditos/cierre (ver CursoPdfPagina) -- rutas de
+    # disco directas, el render corre en el mismo proceso, mismo patrón ya
+    # usado acá abajo para bloque.imagen_pdf_path.
+    portada_path = curso.pdf_portada.path if curso.pdf_portada else None
+    contratapa_path = curso.pdf_contratapa.path if curso.pdf_contratapa else None
+    paginas_creditos = list(curso.paginas_pdf.filter(ubicacion=CursoPdfPagina.UBICACION_CREDITOS))
+    paginas_cierre = list(curso.paginas_pdf.filter(ubicacion=CursoPdfPagina.UBICACION_CIERRE))
+    for pagina in paginas_creditos + paginas_cierre:
+        pagina.html_renderizado = render_markdown_seguro(pagina.texto_markdown_mostrado)
+
     grados = list(curso.grados.filter(activo=True))
     for grado in grados:
         # Temas de Práctica excluidos -- ver docstring.
@@ -2032,7 +2052,11 @@ def curso_exportar_pdf(request, curso_id):
             tema.bloques_pdf = bloques_pdf
         grado.temas_activos = temas_activos
 
-    html_string = render_to_string('trainer/curso_pdf.html', {'curso': curso, 'grados': grados})
+    html_string = render_to_string('trainer/curso_pdf.html', {
+        'curso': curso, 'grados': grados,
+        'portada_path': portada_path, 'contratapa_path': contratapa_path,
+        'paginas_creditos': paginas_creditos, 'paginas_cierre': paginas_cierre,
+    })
 
     buffer = io.BytesIO()
     pisa_status = pisa.CreatePDF(html_string, dest=buffer)
