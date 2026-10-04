@@ -2058,8 +2058,8 @@ def curso_exportar_pdf(request, curso_id):
     # Portada/contratapa/créditos/cierre (ver CursoPdfPagina) -- rutas de
     # disco directas, el render corre en el mismo proceso, mismo patrón ya
     # usado acá abajo para bloque.imagen_pdf_path.
-    portada_path = curso.pdf_portada.path if curso.pdf_portada else None
-    contratapa_path = curso.pdf_contratapa.path if curso.pdf_contratapa else None
+    portada_path = curso.pdf_portada_mostrada.path if curso.pdf_portada_mostrada else None
+    contratapa_path = curso.pdf_contratapa_mostrada.path if curso.pdf_contratapa_mostrada else None
     paginas_creditos = list(curso.paginas_pdf.filter(ubicacion=CursoPdfPagina.UBICACION_CREDITOS))
     paginas_cierre = list(curso.paginas_pdf.filter(ubicacion=CursoPdfPagina.UBICACION_CIERRE))
     for pagina in paginas_creditos + paginas_cierre:

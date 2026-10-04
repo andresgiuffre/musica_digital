@@ -599,18 +599,48 @@ class Curso(models.Model):
         return self.descripcion_corta
 
     # --- PDF exportado (ver curso_exportar_pdf en views.py) ---
-    # FileField, no ImageField -- no hay un solo ImageField/import de PIL en
-    # todo el proyecto (mismo patrón que BloqueContenido.imagen: FileField +
-    # help_text describiendo los formatos esperados, sin validar dimensiones
-    # -- agregar Pillow como dependencia nueva no se justifica para esto).
+    # FileField, no ImageField -- mismo patrón que BloqueContenido.imagen
+    # (FileField + help_text describiendo los formatos esperados, sin
+    # validar dimensiones). Pillow SÍ es una dependencia directa del
+    # proyecto desde la corrección de maquetación del PDF (ver
+    # pdf_postproceso.py), pero no se usa acá: no hay razón para empezar
+    # a validar dimensiones de portada/contratapa solo porque la
+    # dependencia ya esté disponible.
+    # _en de cada campo: mismo patrón ya usado arriba para nombre_en/
+    # descripcion_corta_en -- una portada/contratapa alternativa para
+    # cuando el idioma de sesión es inglés, sin necesidad de un Curso
+    # separado por idioma (ver el comentario grande más arriba sobre por
+    # qué ese diseño se abandonó).
     pdf_portada = models.FileField(
         upload_to='cursos_pdf/', null=True, blank=True,
         help_text="Imagen de tapa (PNG o JPG) para el PDF exportado del curso. Si queda vacío, el PDF arranca directo con el título."
+    )
+    pdf_portada_en = models.FileField(
+        upload_to='cursos_pdf/', null=True, blank=True,
+        help_text="Versión en inglés de la tapa. Si queda vacío, se usa la tapa en español también con idioma inglés activo."
     )
     pdf_contratapa = models.FileField(
         upload_to='cursos_pdf/', null=True, blank=True,
         help_text="Imagen de contratapa (PNG o JPG), última página del PDF exportado. Si queda vacío, el PDF no la incluye."
     )
+    pdf_contratapa_en = models.FileField(
+        upload_to='cursos_pdf/', null=True, blank=True,
+        help_text="Versión en inglés de la contratapa. Si queda vacío, se usa la contratapa en español también con idioma inglés activo."
+    )
+
+    @property
+    def pdf_portada_mostrada(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.pdf_portada_en:
+            return self.pdf_portada_en
+        return self.pdf_portada
+
+    @property
+    def pdf_contratapa_mostrada(self):
+        from django.utils.translation import get_language
+        if get_language() == 'en' and self.pdf_contratapa_en:
+            return self.pdf_contratapa_en
+        return self.pdf_contratapa
 
 
 class CursoPdfPagina(models.Model):

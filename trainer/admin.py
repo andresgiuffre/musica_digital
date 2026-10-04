@@ -50,8 +50,8 @@ class CursoAdmin(admin.ModelAdmin):
         (None, {'fields': ('nombre', 'nombre_en', 'descripcion_corta', 'descripcion_corta_en', 'activo', 'idioma', 'codigo')}),
         ('Monetización', {'fields': ('es_gratuito', 'precio_ars', 'precio_usd')}),
         ('PDF del libro', {
-            'fields': ('pdf_portada', 'pdf_contratapa'),
-            'description': "Tapa y contratapa del PDF exportado (ver curso_exportar_pdf). Las páginas de créditos/cierre se agregan más abajo.",
+            'fields': ('pdf_portada', 'pdf_portada_en', 'pdf_contratapa', 'pdf_contratapa_en'),
+            'description': "Tapa y contratapa del PDF exportado (ver curso_exportar_pdf). Los campos _en son opcionales -- si quedan vacíos, se usa la versión en español también con idioma inglés activo. Las páginas de créditos/cierre se agregan más abajo.",
         }),
     )
 
