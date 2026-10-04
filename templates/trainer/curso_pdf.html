@@ -4,7 +4,30 @@
 <head>
 <meta charset="utf-8">
 <style>
-    @page { size: A4; margin: 2.2cm 1.8cm; }
+    /* Dos @page con nombre en vez de uno solo sin nombre -- necesario
+       para poder apagar el pie de página en portada/contratapa/índice
+       (pedido del usuario) y prenderlo en el resto. -pdf-frame-content
+       + @frame es el mecanismo real de xhtml2pdf para un pie que se
+       repite en cada página (confirmado con un render de prueba real,
+       en una sola pasada -- no dispara el bug de multiBuild ya conocido
+       de <pdf:toc>, que es sólo para TOC con números de página). El
+       índice SÍ usa "sinpie" (interpretación: "omitiendo la portada y
+       las páginas de índice", pedido tal cual) -- créditos y cierre,
+       en cambio, sí llevan número. Cuál template está activo en cada
+       momento se controla con <pdf:nexttemplate> más abajo en el body,
+       siempre ANTES del salto de página que arranca la sección -- un
+       <pdf:nexttemplate> after del salto no corre a tiempo, confirmado
+       con un render de prueba (afecta recién a la página siguiente a
+       la que ya estaba en curso). */
+    @page sinpie { size: A4; margin: 2.2cm 1.8cm; }
+    @page conpie {
+        size: A4; margin: 2.2cm 1.8cm;
+        @frame pie_pagina_frame {
+            -pdf-frame-content: pie_pagina_contenido;
+            bottom: 0.9cm; left: 1.8cm; right: 1.8cm; height: 1cm;
+        }
+    }
+    #pie_pagina_contenido { text-align: center; font-size: 8pt; color: #888; }
     /* DejaVu Sans es la única fuente a mano confirmada que cubre ♭/♯/♮
        (U+266D/E/F) -- Helvetica (el default de xhtml2pdf/reportlab) sólo
        cubre Latin-1/WinAnsi y los dibuja como cuadro negro. Registrada del
@@ -65,9 +88,17 @@
     .indice-titulo { font-size: 15pt; margin-bottom: 0.5cm; }
     .indice-pdf ul { margin: 0; padding-left: 0; }
     .indice-pdf li { list-style-type: none; }
-    .indice-pdf li.indice-grado { margin: 0.3cm 0 0.15cm; font-weight: bold; }
+    .indice-pdf li.indice-grado { margin: 0.3cm 0 0.15cm; font-weight: bold; -pdf-keep-with-next: true; }
     .indice-pdf li.indice-tema { margin: 0 0 0.1cm; padding-left: 0.6cm; }
     .indice-pdf a { color: #1a1a1a; text-decoration: none; }
+    .indice-fila { width: 100%; border-collapse: collapse; }
+    .indice-fila__titulo { text-align: left; }
+    .indice-fila__pagina { text-align: right; width: 1.4cm; white-space: nowrap; }
+    /* -pdf-keep-with-next arriba: así el título de un Grado nunca queda
+       solo al pie de una página con su lista de Temas recién empezando
+       en la siguiente -- confirmado con un render de prueba que esta
+       propiedad encadena bien a través de <li>, no sólo párrafos (ver
+       pdf_postproceso.py para el porqué general de este mecanismo). */
 
     /* Grado/Tema son los niveles del índice -- ver el porqué de -pdf-outline en
        el bloque .contenido-md más abajo. Cada Grado (salvo el primero, que ya
@@ -76,14 +107,44 @@
        Tema entero (h3 + todos sus bloques) evita partirse a la mitad si entra
        en lo que queda de la página actual -- si no entra ni en una página
        completa, igual se parte donde haga falta, no hay forma de evitar eso. */
-    h2.grado-titulo { font-size: 15pt; margin-top: 1.2cm; margin-bottom: 0.3cm; padding-bottom: 0.15cm; border-bottom: 1pt solid #999; }
+    /* -pdf-keep-with-next en h2/h3 de acá abajo: evita que un título
+       quede huérfano al pie de una página con su contenido recién
+       arrancando en la siguiente -- confirmado con un render de prueba
+       real que esta propiedad SÍ hace algo en xhtml2pdf (a diferencia de
+       page-break-inside, ver la nota en .tema-pdf-bloque más abajo) y
+       que encadena correctamente a través de <img>/<table>/<li>, no sólo
+       párrafos (ver pdf_postproceso.py para el resto de los casos que
+       esta única propiedad CSS no alcanza a cubrir). */
+    h2.grado-titulo { font-size: 15pt; margin-top: 1.2cm; margin-bottom: 0.3cm; padding-bottom: 0.15cm; border-bottom: 1pt solid #999; -pdf-keep-with-next: true; }
     h2.grado-titulo--salto { page-break-before: always; }
-    h3.tema-titulo { font-size: 12.5pt; margin-top: 0.7cm; margin-bottom: 0.35cm; color: #333; }
+    h3.tema-titulo { font-size: 12.5pt; margin-top: 0.7cm; margin-bottom: 0.35cm; color: #333; -pdf-keep-with-next: true; }
+    /* page-break-inside NUNCA funcionó acá -- confirmado leyendo
+       xhtml2pdf/parser.py (la propiedad no aparece implementada en
+       ningún lado del paquete) y probando un render real: un bloque
+       marcado así se parte igual entre dos páginas. La dejamos de todos
+       modos por si una versión futura de xhtml2pdf la implementa (no
+       hace daño, el motor simplemente la ignora hoy) -- el problema real
+       de "un Tema corto no debería partirse" se resuelve en la práctica
+       con -pdf-keep-with-next en su título (arriba) y en el <p class="pie">
+       de cada partitura (ver .bloque-partitura/.bloque-partitura-dividida
+       más abajo), que si funcionan. */
     .tema-pdf-bloque { page-break-inside: avoid; }
 
     .bloque-imagen { margin: 0.3cm 0 0.5cm; text-align: center; }
+    /* max-width acá no hace nada -- confirmado leyendo xhtml2pdf/tags.py
+       (pisaTagIMG.start sólo lee width/height explícitos, nunca
+       max-width/max-height) -- el tamaño real de estas imágenes se fija
+       en Python (width/height en cm) desde pdf_postproceso.py, que sí
+       hace caso porque usa esas dos propiedades directo, no max-*. La
+       dejamos igual, por si alguna imagen quedara sin pasar por el
+       postproceso (ej. no se pudo leer con Pillow, ver ese módulo). */
     .bloque-imagen img { max-width: 100%; }
     .bloque-imagen .pie { font-size: 8.5pt; color: #666; margin-top: 0.15cm; }
+    /* p.pie (la leyenda ANTES de una partitura, EJEMPLO_PARTITURA/
+       PARTITURA_DIVIDIDA más abajo -- distinta de .bloque-imagen .pie,
+       que es un <div> y va DESPUÉS) con -pdf-keep-with-next: encadena
+       hacia las <img> que le siguen, confirmado con un render de prueba. */
+    p.pie { -pdf-keep-with-next: true; }
 
     /* Cada <img> es un PNG capturado del <svg> que ya renderiza OSMD en la
        página normal (ver curso_detail.html) -- un archivo con cortes de
@@ -116,7 +177,7 @@
        aparecen en el índice ni en los marcadores del lector de PDF. */
     .contenido-md { line-height: 1.5; margin-bottom: 0.4cm; }
     .contenido-md h1, .contenido-md h2, .contenido-md h3, .contenido-md h4,
-    .contenido-md h5, .contenido-md h6 { -pdf-outline: false; font-size: 11pt; margin: 0.4cm 0 0.2cm; }
+    .contenido-md h5, .contenido-md h6 { -pdf-outline: false; font-size: 11pt; margin: 0.4cm 0 0.2cm; -pdf-keep-with-next: true; }
     .contenido-md p { margin: 0 0 0.3cm; }
     .contenido-md ul, .contenido-md ol { margin: 0 0 0.3cm; padding-left: 0.6cm; }
     .contenido-md blockquote { margin: 0 0 0.3cm; padding: 0.1cm 0.4cm; border-left: 2pt solid #ccc; color: #555; }
@@ -130,6 +191,8 @@
 </style>
 </head>
 <body>
+    <pdf:nexttemplate name="sinpie" />
+    <div id="pie_pagina_contenido">{% trans "Página" %} <pdf:pagenumber/></div>
     {% if portada_path %}
     <div class="portada-pdf"><img src="{{ portada_path }}"></div>
     {% endif %}
@@ -150,15 +213,25 @@
     entries not resolved after 10 passes") y a veces no -- no determinístico,
     así que un curso real podría tirar 500 al azar según el largo exacto del
     contenido.
-    El índice de más abajo (.indice-pdf) SÍ es real y clickeable, pero
-    deliberadamente SIN números de página -- son links internos (<a name>/
-    <a href="#...">), un mecanismo totalmente distinto que NO pasa por
-    multiBuild: se resuelven en la misma pasada simple (confirmado armando un
-    PDF mínimo con pisa.CreatePDF y leyendo sus anotaciones /Link con pypdf --
-    err=0, sin ninguna pasada extra). El panel de marcadores/outline del
-    lector (con jerarquía correcta) tampoco depende de multiBuild -- se arma
-    en la misma pasada simple mientras se van dibujando los h1-h3. Verificado
-    leyendo el outline y los /Annots del PDF generado, no asumido.
+    El índice de más abajo (.indice-pdf) SÍ es real y clickeable (son links
+    internos, <a name>/<a href="#...">, que se resuelven en una sola pasada
+    simple de pisa.CreatePDF -- confirmado armando un PDF mínimo y leyendo
+    sus anotaciones /Link con pypdf, err=0, sin ninguna pasada extra) Y AHORA
+    también muestra el número de página de cada entrada -- pero NO vía
+    multiBuild/<pdf:toc>, sino con una segunda pasada completa, propia y
+    controlada por curso_exportar_pdf (ver ahí _resolver_paginas_indice):
+    se genera el PDF una vez, se lee con pypdf en qué página cayó cada
+    anotación /Dest de este mismo índice (en el mismo orden en que este
+    template las genera -- grado, sus temas, el siguiente grado...), y se
+    vuelve a generar el PDF una segunda vez pasándole esos números ya
+    resueltos como grado.pagina_pdf/tema.pagina_pdf. Determinístico (siempre
+    EXACTAMENTE 2 pasadas, nunca un loop que pueda no converger como
+    multiBuild) a cambio de duplicar el tiempo de generación -- aceptado
+    explícitamente por el usuario sabiendo ese costo.
+    El panel de marcadores/outline del lector (con jerarquía correcta)
+    tampoco depende de multiBuild -- se arma en una sola pasada simple
+    mientras se van dibujando los h1-h3. Verificado leyendo el outline y
+    los /Annots del PDF generado, no asumido.
     IMPORTANTE: {# #} de una sola línea NO alcanza acá -- Django trunca los
     comentarios {# #} multilínea de forma silenciosa (ver la nota ya
     documentada sobre esto en CLAUDE.md) y el texto se cuela como contenido
@@ -170,16 +243,37 @@
 
     <div class="indice-pdf">
         <h2 class="indice-titulo">{% trans "Índice" %}</h2>
+        {% comment %}
+        Cada entrada es una tabla de 1 sola fila (título a la izquierda,
+        página a la derecha) en vez de un <li> con float -- confirmado con
+        un render real que xhtml2pdf directamente IGNORA float:left/right
+        (no tira error, pero tampoco hace nada, el contenido queda en
+        flujo normal). <table> es el único mecanismo de layout de columnas
+        que este motor soporta de verdad en todo este proyecto. Sigue
+        yendo DENTRO de <li>, no reemplazando el <ul>/<li> -- así el
+        -pdf-keep-with-next de .indice-grado (ver el <style>, encadena a
+        través de <li> reales) no se pierde; una tabla grande con todas
+        las filas juntas no lo hubiera respetado del mismo modo, porque
+        reportlab arma una tabla como un único flowable con su propio
+        splitByRow interno, no como entradas de "story" independientes
+        encadenables entre sí. {% endcomment %}
         <ul>
             {% for grado in grados %}
-                <li class="indice-grado"><a href="#grado-{{ grado.id }}">{% blocktrans with n=grado.numero titulo=grado.titulo_mostrado %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</a></li>
+                <li class="indice-grado"><table class="indice-fila"><tr>
+                    <td class="indice-fila__titulo"><a href="#grado-{{ grado.id }}">{% blocktrans with n=grado.numero titulo=grado.titulo_mostrado %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</a></td>
+                    <td class="indice-fila__pagina">{{ grado.pagina_pdf|default:"" }}</td>
+                </tr></table></li>
                 {% for tema in grado.temas_activos %}
-                    <li class="indice-tema"><a href="#tema-{{ tema.id }}">{{ tema.titulo_mostrado }}</a></li>
+                    <li class="indice-tema"><table class="indice-fila"><tr>
+                        <td class="indice-fila__titulo"><a href="#tema-{{ tema.id }}">{{ tema.titulo_mostrado }}</a></td>
+                        <td class="indice-fila__pagina">{{ tema.pagina_pdf|default:"" }}</td>
+                    </tr></table></li>
                 {% endfor %}
             {% endfor %}
         </ul>
     </div>
 
+    <pdf:nexttemplate name="conpie" />
     {% for grado in grados %}
         <a name="grado-{{ grado.id }}"></a>
         <h2 class="grado-titulo grado-titulo--salto">{% blocktrans with n=grado.numero titulo=grado.titulo_mostrado %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</h2>

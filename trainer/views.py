@@ -1886,6 +1886,57 @@ def _asegurar_fuente_unicode_pdf():
         logger.exception('[cursos] No se pudo registrar la fuente Unicode para el PDF del curso -- va a caer a Helvetica.')
 
 
+def _resolver_paginas_indice(pdf_bytes, grados):
+    """
+    Segunda pieza del índice con número de página (ver el comentario
+    grande en curso_pdf.html sobre por qué es una segunda pasada propia y
+    no <pdf:toc>/multiBuild): a partir de los bytes de un PDF YA
+    generado en una primera pasada (sin números todavía), devuelve un
+    dict {'grado-<id>': pagina, 'tema-<id>': pagina} leyendo con pypdf a
+    qué página de verdad cayó cada anotación /Dest del propio índice.
+
+    xhtml2pdf NO registra <a name="x"> como "named destination" real
+    (confirmado: reader.named_destinations da un dict vacío) -- en
+    cambio cada <a href="#x"> del índice genera una anotación /Link con
+    su propio /Dest = [IndirectObject(pagina), '/XYZ', ...] apuntando
+    directo al objeto de página (confirmado leyendo esa estructura con
+    pypdf). No hace falta resolver por nombre: alcanza con juntar esas
+    anotaciones EN ORDEN DE DOCUMENTO (recorriendo page.get('/Annots') de
+    cada página, de principio a fin) y emparejarlas 1 a 1 contra este
+    mismo recorrido de grados/temas -- es exactamente el mismo orden en
+    que curso_pdf.html genera las entradas del índice, porque ambos
+    recorridos vienen del mismo `grados` con el mismo
+    `grado.temas_activos` ya calculado. Esto asume que el índice es la
+    ÚNICA fuente de links internos (<a href="#...">, con /Dest) del
+    documento -- si alguna vez se agrega otro link interno en otro lado
+    del PDF, este emparejamiento por orden se corre y hay que revisarlo.
+    """
+    import pypdf
+    reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+
+    destinos = []
+    for pagina_pdf in reader.pages:
+        for anotacion in (pagina_pdf.get('/Annots') or []):
+            objeto = anotacion.get_object()
+            dest = objeto.get('/Dest')
+            if dest:
+                destinos.append(dest)
+
+    referencias_por_pagina = {pagina_pdf.indirect_reference: i + 1 for i, pagina_pdf in enumerate(reader.pages)}
+
+    paginas = {}
+    i = 0
+    for grado in grados:
+        if i < len(destinos):
+            paginas[f'grado-{grado.id}'] = referencias_por_pagina.get(destinos[i][0])
+            i += 1
+        for tema in grado.temas_activos:
+            if i < len(destinos):
+                paginas[f'tema-{tema.id}'] = referencias_por_pagina.get(destinos[i][0])
+                i += 1
+    return paginas
+
+
 _PDF_EXPORT_LIMITE = 3
 _PDF_EXPORT_VENTANA_SEGUNDOS = 10 * 60  # 10 minutos
 
@@ -2052,14 +2103,41 @@ def curso_exportar_pdf(request, curso_id):
             tema.bloques_pdf = bloques_pdf
         grado.temas_activos = temas_activos
 
-    html_string = render_to_string('trainer/curso_pdf.html', {
-        'curso': curso, 'grados': grados,
-        'portada_path': portada_path, 'contratapa_path': contratapa_path,
-        'paginas_creditos': paginas_creditos, 'paginas_cierre': paginas_cierre,
-    })
+    from .pdf_postproceso import corregir_maquetacion_pdf
 
-    buffer = io.BytesIO()
-    pisa_status = pisa.CreatePDF(html_string, dest=buffer)
+    def _generar_pdf():
+        html_string = render_to_string('trainer/curso_pdf.html', {
+            'curso': curso, 'grados': grados,
+            'portada_path': portada_path, 'contratapa_path': contratapa_path,
+            'paginas_creditos': paginas_creditos, 'paginas_cierre': paginas_cierre,
+        })
+        html_string = corregir_maquetacion_pdf(html_string)
+        buffer = io.BytesIO()
+        pisa_status = pisa.CreatePDF(html_string, dest=buffer)
+        return buffer, pisa_status
+
+    # Primera pasada: todavía sin número de página en el índice (cada
+    # grado.pagina_pdf/tema.pagina_pdf no existe todavía -- el template
+    # los muestra vacíos, ver {{ grado.pagina_pdf|default:"" }}). Sirve
+    # sólo para averiguar, leyendo el PDF resultante, en qué página cayó
+    # cada entrada -- ver _resolver_paginas_indice.
+    buffer, pisa_status = _generar_pdf()
+    if pisa_status.err:
+        return JsonResponse({'status': 'error', 'message': 'No se pudo generar el PDF.'}, status=500)
+
+    paginas_indice = _resolver_paginas_indice(buffer.getvalue(), grados)
+    for grado in grados:
+        grado.pagina_pdf = paginas_indice.get(f'grado-{grado.id}')
+        for tema in grado.temas_activos:
+            tema.pagina_pdf = paginas_indice.get(f'tema-{tema.id}')
+
+    # Segunda pasada: mismo contenido, ahora con los números ya
+    # resueltos -- esta es la que se le manda al usuario. Dos pasadas
+    # SIEMPRE, nunca un loop que pueda no converger (ver el comentario
+    # grande en curso_pdf.html sobre por qué esto es deliberadamente
+    # distinto de multiBuild/<pdf:toc>) -- el costo es duplicar el
+    # tiempo de generación, aceptado explícitamente por el usuario.
+    buffer, pisa_status = _generar_pdf()
     if pisa_status.err:
         return JsonResponse({'status': 'error', 'message': 'No se pudo generar el PDF.'}, status=500)
 
