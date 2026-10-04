@@ -199,7 +199,7 @@
 </style>
 </head>
 <body>
-    <pdf:nexttemplate name="sinpie" />
+    <pdf:nexttemplate name="sinpie"></pdf:nexttemplate>
     {% now "Y" as anio_actual %}
     <div id="pie_pagina_contenido"><table><tr>
         <td class="izquierda">{% blocktrans with anio=anio_actual %}© {{ anio }} — Tecnología Musical — Todos los derechos reservados{% endblocktrans %}</td>
@@ -285,7 +285,7 @@
         </ul>
     </div>
 
-    <pdf:nexttemplate name="conpie" />
+    <pdf:nexttemplate name="conpie"></pdf:nexttemplate>
     {% for grado in grados %}
         <a name="grado-{{ grado.id }}"></a>
         <h2 class="grado-titulo grado-titulo--salto">{% blocktrans with n=grado.numero titulo=grado.titulo_mostrado %}Grado {{ n }} — {{ titulo }}{% endblocktrans %}</h2>
