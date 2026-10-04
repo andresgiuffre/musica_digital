@@ -40,6 +40,35 @@ from PIL import Image
 
 _SRC_CON_ESPACIOS_CODIFICADOS = re.compile(r'src="([^"]*)"')
 
+# <pdf:nexttemplate name="...">/<pdf:pagenumber/> no son HTML estándar.
+# Confirmado con un caso real (índice en producción nunca cambiaba de
+# @page template, sin ningún error) que el parser HTML de libxml2 --el
+# que usa lxml.html, DISTINTO del html5lib que usa xhtml2pdf para el
+# render real-- puede directamente DESCARTAR esta clase de tag al
+# parsear/reserializar un documento real lo bastante grande/complejo,
+# sin levantar ningún error. Como estos tags no necesitan NINGUNA de
+# las correcciones de este módulo (no son contenido, son instrucciones
+# para xhtml2pdf), se los reemplaza acá por un <span> común antes de
+# que lxml los toque, y se los restaura después con un reemplazo de
+# texto plano -- nunca pasan por el árbol de lxml en absoluto, así que
+# esta rareza del parser deja de poder afectarlos.
+_TAG_PDF_ESPECIAL = re.compile(r'<pdf:([a-zA-Z]+)(?:\s+[^<>]*)?/?>(?:\s*</pdf:\1>)?')
+_PLACEHOLDER_TAG_PDF = re.compile(r'<span class="pdf-tag-protegido" data-indice="(\d+)"[^>]*></span>')
+
+
+def _proteger_tags_pdf_especiales(html_string):
+    protegidos = []
+
+    def _reemplazar(m):
+        protegidos.append(m.group(0))
+        return f'<span class="pdf-tag-protegido" data-indice="{len(protegidos) - 1}"></span>'
+
+    return _TAG_PDF_ESPECIAL.sub(_reemplazar, html_string), protegidos
+
+
+def _restaurar_tags_pdf_especiales(html_string, protegidos):
+    return _PLACEHOLDER_TAG_PDF.sub(lambda m: protegidos[int(m.group(1))], html_string)
+
 
 # --- Problema 1 (parcial) / Problema 2: etiquetas cortas antes de un
 # gráfico, y grupos de <img> consecutivas dentro de un mismo bloque de
@@ -213,6 +242,8 @@ def corregir_maquetacion_pdf(html_string):
     curso_pdf.html, justo antes de pisa.CreatePDF (ver curso_exportar_pdf
     en views.py).
     """
+    html_string, _tags_protegidos = _proteger_tags_pdf_especiales(html_string)
+
     arbol = lxml_html.fromstring(html_string)
     _encadenar_etiquetas_con_graficos(arbol)
     _encadenar_imagenes_de_partitura(arbol)
@@ -237,6 +268,7 @@ def corregir_maquetacion_pdf(html_string):
     # pisar el string entero (un data: URI en base64 no tiene espacios
     # para empezar, así que nunca lo toca).
     html_final = lxml_html.tostring(arbol, encoding='unicode', doctype='<!DOCTYPE html>')
-    return _SRC_CON_ESPACIOS_CODIFICADOS.sub(
+    html_final = _SRC_CON_ESPACIOS_CODIFICADOS.sub(
         lambda m: 'src="%s"' % m.group(1).replace('%20', ' '), html_final
     )
+    return _restaurar_tags_pdf_especiales(html_final, _tags_protegidos)
