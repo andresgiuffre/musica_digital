@@ -2141,6 +2141,22 @@ def curso_exportar_pdf(request, curso_id):
     if pisa_status.err:
         return JsonResponse({'status': 'error', 'message': 'No se pudo generar el PDF.'}, status=500)
 
+    # --- DIAGNOSTICO TEMPORAL: sacar en cuanto se encuentre la causa del
+    # pie de pagina faltante -- ver la conversacion sobre curso_exportar_pdf.
+    try:
+        with open('/tmp/pisa_log_debug.txt', 'a', encoding='utf-8') as _f:
+            _f.write('--- render %s (curso %s, usuario %s) ---\n' % (
+                __import__('datetime').datetime.now().isoformat(), curso.id, request.user.id,
+            ))
+            for _entry in (pisa_status.log or [])[:200]:
+                _f.write(repr(_entry)[:500] + '\n')
+            _f.write('total entradas de log: %d, warn=%d, err=%d\n\n' % (
+                len(pisa_status.log or []), pisa_status.warn, pisa_status.err,
+            ))
+    except Exception:
+        pass
+    # --- FIN DIAGNOSTICO TEMPORAL ---
+
     response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
     nombre_archivo = "".join(c for c in curso.nombre_mostrado if c.isalnum() or c in " ._-").strip() or "curso"
     response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}.pdf"'
