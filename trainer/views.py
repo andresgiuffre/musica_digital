@@ -2105,24 +2105,28 @@ def curso_exportar_pdf(request, curso_id):
 
     from .pdf_postproceso import corregir_maquetacion_pdf
 
-    # --- DIAGNOSTICO TEMPORAL: xhtml2pdf traga en silencio cualquier
-    # excepcion al dibujar un frame estatico (ver xhtml2pdf_reportlab.py,
-    # "except Exception: # TODO: Kill this!") y la manda a log.debug, un
-    # logger que por default nunca emite nada -- esto reenvia ese debug
-    # al mismo canal ya confirmado que llega al Error log.
-    import logging as _logging
+    # --- DIAGNOSTICO TEMPORAL (bajo ruido: UNA sola linea de log por
+    # pasada, no una por pagina) -- confirma cual @page template esta
+    # realmente activo en cada pagina durante el dibujado real, algo que
+    # el diagnostico anterior (frameStatic en tiempo de parseo) no podia
+    # ver. Parcha beforeDrawPage una sola vez por proceso.
+    import collections as _collections
+    from xhtml2pdf.xhtml2pdf_reportlab import PmlPageTemplate as _PmlPageTemplate
 
-    class _HandlerDiagPie(_logging.Handler):
-        def emit(self, record):
+    _registro_paginas_diag = []
+    if not getattr(_PmlPageTemplate, '_diag_pie_parchado', False):
+        _original_beforeDrawPage = _PmlPageTemplate.beforeDrawPage
+
+        def _beforeDrawPage_diag(self, canvas, doc):
             try:
-                logger.warning('[DIAG PIE xhtml2pdf-interno] %s', self.format(record))
+                _PmlPageTemplate._diag_pie_registro_actual.append((self.id, len(self.pisaStaticList)))
             except Exception:
                 pass
+            return _original_beforeDrawPage(self, canvas, doc)
 
-    _logger_xhtml2pdf = _logging.getLogger('xhtml2pdf')
-    if not any(isinstance(h, _HandlerDiagPie) for h in _logger_xhtml2pdf.handlers):
-        _logger_xhtml2pdf.addHandler(_HandlerDiagPie())
-    _logger_xhtml2pdf.setLevel(_logging.DEBUG)
+        _PmlPageTemplate.beforeDrawPage = _beforeDrawPage_diag
+        _PmlPageTemplate._diag_pie_parchado = True
+    _PmlPageTemplate._diag_pie_registro_actual = _registro_paginas_diag
     # --- FIN DIAGNOSTICO TEMPORAL (parte 1) ---
 
     def _generar_pdf():
@@ -2157,6 +2161,7 @@ def curso_exportar_pdf(request, curso_id):
     # grande en curso_pdf.html sobre por qué esto es deliberadamente
     # distinto de multiBuild/<pdf:toc>) -- el costo es duplicar el
     # tiempo de generación, aceptado explícitamente por el usuario.
+    _registro_paginas_diag.clear()
     buffer, pisa_status = _generar_pdf()
     if pisa_status.err:
         return JsonResponse({'status': 'error', 'message': 'No se pudo generar el PDF.'}, status=500)
@@ -2177,10 +2182,15 @@ def curso_exportar_pdf(request, curso_id):
                 for fr in frames_pie
             ]
         template_list = getattr(pisa_status, 'templateList', None)
+        conteo_por_template = dict(_collections.Counter(
+            (tid, n_estaticos) for tid, n_estaticos in _registro_paginas_diag
+        ))
         logger.warning(
-            '[DIAG PIE] curso=%s usuario=%s warn=%d err=%d claves_frameStatic=%s detalle_pie=%s templates=%s',
+            '[DIAG PIE] curso=%s usuario=%s warn=%d err=%d claves_frameStatic=%s detalle_pie=%s '
+            'templates=%s paginas_dibujadas=%d conteo_template_usado=%s',
             curso.id, request.user.id, pisa_status.warn, pisa_status.err,
             claves, detalle_pie, list(template_list.keys()) if template_list else None,
+            len(_registro_paginas_diag), conteo_por_template,
         )
     except Exception:
         logger.exception('[DIAG PIE] fallo el diagnostico en si')
