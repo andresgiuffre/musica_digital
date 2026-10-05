@@ -613,15 +613,23 @@ class Curso(models.Model):
     # qué ese diseño se abandonó).
     pdf_portada = models.FileField(
         upload_to='cursos_pdf/', null=True, blank=True,
-        help_text="Imagen de tapa (PNG o JPG) para el PDF exportado del curso. Si queda vacío, el PDF arranca directo con el título."
+        help_text=(
+            "Imagen de tapa (PNG o JPG) para el PDF exportado del curso. Se estira para cubrir "
+            "la hoja A4 entera, de punta a punta (sin margen) -- preparar el archivo en "
+            "proporción 1:1,4142 (igual que cualquier hoja ISO, ej. 1414x2000px o 2480x3508px) "
+            "para que no se vea deformada. Si queda vacío, el PDF arranca directo con el título."
+        )
     )
     pdf_portada_en = models.FileField(
         upload_to='cursos_pdf/', null=True, blank=True,
-        help_text="Versión en inglés de la tapa. Si queda vacío, se usa la tapa en español también con idioma inglés activo."
+        help_text="Versión en inglés de la tapa (misma proporción 1:1,4142 que pdf_portada). Si queda vacío, se usa la tapa en español también con idioma inglés activo."
     )
     pdf_contratapa = models.FileField(
         upload_to='cursos_pdf/', null=True, blank=True,
-        help_text="Imagen de contratapa (PNG o JPG), última página del PDF exportado. Si queda vacío, el PDF no la incluye."
+        help_text=(
+            "Imagen de contratapa (PNG o JPG), última página del PDF exportado -- misma "
+            "proporción 1:1,4142 que pdf_portada (ver ese campo). Si queda vacío, el PDF no la incluye."
+        )
     )
     pdf_contratapa_en = models.FileField(
         upload_to='cursos_pdf/', null=True, blank=True,

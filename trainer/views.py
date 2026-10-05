@@ -1886,6 +1886,42 @@ def _asegurar_fuente_unicode_pdf():
         logger.exception('[cursos] No se pudo registrar la fuente Unicode para el PDF del curso -- va a caer a Helvetica.')
 
 
+_LIMITE_95_IMAGENES_PDF_NEUTRALIZADO = False
+
+
+def _neutralizar_limite_95_imagenes_pdf():
+    """
+    xhtml2pdf (xhtml2pdf_reportlab.PmlImage.wrap) hardcodea
+    MAX_IMAGE_RATIO=0.95: recorta la altura de CUALQUIER imagen a como
+    máximo el 95% del alto disponible del frame, y como aplica ese mismo
+    factor también al ancho (para no deformar la proporción), termina
+    encogiendo ambas dimensiones -- confirmado leyendo el código fuente y
+    verificando con un PDF mínimo que, aun poniendo width/height
+    explícitos en cm que calzan exacto con la hoja A4 y margin:0, la
+    imagen sale al 95% (bordes blancos alrededor, el bug que reportó el
+    usuario para tapa/contratapa). No hay forma de esquivarlo desde
+    CSS/HTML -- es un tope matemático dentro de wrap(), ninguna
+    combinación de tamaños lo evita. Se neutraliza acá en vez de en el
+    import de xhtml2pdf porque sólo hace falta para el PDF de cursos.
+
+    Afecta a TODAS las imágenes del documento, no sólo tapa/contratapa
+    -- aceptable porque el resto del contenido (partituras, bloques
+    IMAGEN) ya vive dentro de frames con margen de página real
+    (2.2cm/1.8cm), así que perder el 5% de colchón adicional ahí no
+    produce ningún desborde visible.
+    """
+    global _LIMITE_95_IMAGENES_PDF_NEUTRALIZADO
+    if _LIMITE_95_IMAGENES_PDF_NEUTRALIZADO:
+        return
+    _LIMITE_95_IMAGENES_PDF_NEUTRALIZADO = True
+
+    try:
+        import xhtml2pdf.xhtml2pdf_reportlab as xhtml2pdf_reportlab
+        xhtml2pdf_reportlab.MAX_IMAGE_RATIO = 1.0
+    except Exception:
+        logger.exception('[cursos] No se pudo neutralizar el límite de 95%% de imágenes del PDF del curso -- la tapa/contratapa pueden salir con bordes blancos.')
+
+
 def _resolver_paginas_indice(pdf_bytes, grados):
     """
     Segunda pieza del índice con número de página (ver el comentario
@@ -2044,6 +2080,7 @@ def curso_exportar_pdf(request, curso_id):
         )
 
     _asegurar_fuente_unicode_pdf()
+    _neutralizar_limite_95_imagenes_pdf()
 
     imagenes_partitura = {}
     if request.method == 'POST':

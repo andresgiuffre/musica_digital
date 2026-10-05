@@ -19,6 +19,35 @@
        <pdf:nexttemplate> after del salto no corre a tiempo, confirmado
        con un render de prueba (afecta recién a la página siguiente a
        la que ya estaba en curso). */
+    /* Tapa/contratapa necesitan cubrir la hoja A4 entera (sangrado
+       completo, sin margen) -- con el margen de 2.2cm/1.8cm de
+       sinpie/conpie, aunque la imagen midiera exactamente el área
+       imprimible, quedaría ese margen como borde blanco alrededor.
+       Plantilla separada, sólo para esas páginas puntuales (título/
+       créditos/índice siguen necesitando su margen normal para que el
+       texto no quede pegado al borde).
+
+       La página 1 es un caso especial: confirmado con un render de
+       prueba mínimo (afuera de este proyecto, aislado) que
+       <pdf:nexttemplate> NUNCA afecta a la página en la que ya está
+       parado el documento -- sólo rige desde el próximo salto de
+       página en adelante. Un <pdf:nexttemplate name="tapa"> puesto al
+       principio del body, antes de la portada, NO logra que la portada
+       (que es la página 1) use "tapa": la página 1 siempre usa el
+       @page SIN NOMBRE (el default implícito de xhtml2pdf), sin
+       importar qué nexttemplate se dispare ahí. Por eso el @page sin
+       nombre de abajo es condicional: margin:0 cuando hay portada (para
+       que la página 1 -- la portada misma -- salga sin bordes), o el
+       margen normal cuando no hay portada (para que la página 1 --
+       ahí sí el título -- salga como siempre salió). "tapa" sigue
+       existiendo con nombre para la CONTRATAPA, que nunca es la
+       página 1 -- ahí <pdf:nexttemplate> sí funciona normalmente. */
+    {% if portada_path %}
+    @page { size: A4; margin: 0; }
+    {% else %}
+    @page { size: A4; margin: 2.2cm 1.8cm; }
+    {% endif %}
+    @page tapa { size: A4; margin: 0; }
     @page sinpie { size: A4; margin: 2.2cm 1.8cm; }
     @page conpie {
         size: A4; margin: 2.2cm 1.8cm;
@@ -73,9 +102,18 @@
        elemento". El corte real que importa (separar portada de título) ya
        lo pone .titulo-pdf--salto del lado del título. .contratapa-pdf SÍ
        lleva el corte -- nunca es el primer elemento del documento. */
-    .portada-pdf, .contratapa-pdf { text-align: center; }
     .contratapa-pdf { page-break-before: always; }
-    .portada-pdf img, .contratapa-pdf img { width: 17cm; display: block; margin: 0 auto; }
+    /* 21cm x 29.7cm = tamaño físico exacto de una hoja A4 (no el área
+       imprimible, la hoja entera) -- junto con @page tapa (margin: 0,
+       ver arriba), esto hace que la imagen cubra la página de punta a
+       punta sin ningún borde blanco. xhtml2pdf fuerza la imagen a
+       exactamente este width/height sin importar su proporción nativa
+       (no hay soporte de "object-fit: cover" en este motor), así que
+       una imagen que no venga ya en esta proporción (≈1:1.4142, la
+       misma de cualquier hoja ISO) se va a ver estirada -- ver el
+       help_text de Curso.pdf_portada sobre preparar el archivo en esa
+       proporción de entrada. */
+    .portada-pdf img, .contratapa-pdf img { width: 21cm; height: 29.7cm; }
 
     /* Páginas de texto libre antes del índice (créditos/agradecimientos) o al
        final del libro (cierre) -- CursoPdfPagina, una por página, cualquier
@@ -199,7 +237,6 @@
 </style>
 </head>
 <body>
-    <pdf:nexttemplate name="sinpie"></pdf:nexttemplate>
     {% now "Y" as anio_actual %}
     <div id="pie_pagina_contenido"><table><tr>
         <td class="izquierda">{% blocktrans with anio=anio_actual %}© {{ anio }} — Tecnología Musical — Todos los derechos reservados{% endblocktrans %}</td>
@@ -207,6 +244,9 @@
     </tr></table></div>
     {% if portada_path %}
     <div class="portada-pdf"><img src="{{ portada_path }}"></div>
+    <pdf:nexttemplate name="sinpie"></pdf:nexttemplate>
+    {% else %}
+    <pdf:nexttemplate name="sinpie"></pdf:nexttemplate>
     {% endif %}
     <h1{% if portada_path %} class="titulo-pdf--salto"{% endif %}>{{ curso.nombre_mostrado }}</h1>
     {% if curso.descripcion_corta_mostrado %}<p class="subtitulo">{{ curso.descripcion_corta_mostrado }}</p>{% endif %}
@@ -325,6 +365,7 @@
     {% endfor %}
 
     {% if contratapa_path %}
+    <pdf:nexttemplate name="tapa"></pdf:nexttemplate>
     <div class="contratapa-pdf"><img src="{{ contratapa_path }}"></div>
     {% endif %}
 </body>
