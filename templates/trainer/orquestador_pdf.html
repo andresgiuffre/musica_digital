@@ -46,9 +46,13 @@
     {% if data.resumen_por_instrumento %}
     <h2>{% trans "Resumen por Instrumento" %}</h2>
     <table class="tabla">
-        <tr><th>{% trans "Instrumento" %}</th><th>{% trans "Análisis" %}</th></tr>
+        <tr><th>{% trans "Instrumento" %}</th><th>{% trans "Análisis" %}</th><th>{% trans "Datos" %}</th></tr>
         {% for r in data.resumen_por_instrumento %}
-        <tr><td class="instrumento">{{ r.instrumento }}</td><td>{{ r.descripcion }}</td></tr>
+        <tr>
+            <td class="instrumento">{{ r.instrumento }}</td>
+            <td>{{ r.descripcion }}</td>
+            <td>{% if r.stats %}{% blocktrans with ambito=r.stats.ambito notas=r.stats.total_notas silencio=r.stats.compases_silencio frecuente=r.stats.nota_mas_frecuente %}Ámbito: {{ ambito }} · Notas: {{ notas }} · Compases de silencio: {{ silencio }} · Más frecuente: {{ frecuente }}{% endblocktrans %}{% endif %}</td>
+        </tr>
         {% endfor %}
     </table>
     {% endif %}

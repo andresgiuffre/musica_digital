@@ -43,6 +43,8 @@ const OrqI18n = (() => {
         avisoDinamicaNoReconocida: '{instrumento}: la marca de dinámica "{valor}" no se reconoce ({ocurrencias} vez/veces) -- se usó un valor neutro en su lugar.',
         avisoObraSinDinamica: 'Este archivo no trae marcas de dinámica explícitas (típico de MIDI) -- el cruce dinámica×registro y el multiplicador de dinámica en tiempo de aire usan un valor neutro en toda la obra.',
         avisoTempoAsumido: 'Esta obra no trae un tempo numérico explícito en ningún punto -- se asumió {bpm} bpm para calcular los segundos reales de tiempo de aire y densidad rítmica. Si el tempo real es distinto, esos valores van a estar corridos.',
+        datos: 'Datos',
+        datosInstrumento: 'Ámbito: {ambito} · Notas: {notas} · Compases de silencio: {silencio} · Más frecuente: {frecuente}',
     };
 })();
 
@@ -486,19 +488,31 @@ function renderAnalysisResult(data, container, analysisId) {
     container.appendChild(resumenPanel);
 
     if (data.resumen_por_instrumento && data.resumen_por_instrumento.length) {
-        const filas = data.resumen_por_instrumento.map(r => `
+        // Las cifras (ámbito, notas, compases de silencio, nota más frecuente) ya NO
+        // se le piden al modelo (FASE 2B, commit 2) -- se muestran acá directo desde
+        // estadisticas_por_instrumento, el dato real ya calculado por music21, nunca
+        // reescrito/redondeado por el modelo.
+        const filas = data.resumen_por_instrumento.map(r => {
+            const stats = (data.estadisticas_por_instrumento || {})[r.instrumento];
+            const datos = stats ? fmtR(OrqI18n.datosInstrumento, {
+                ambito: stats.ambito, notas: stats.total_notas,
+                silencio: stats.compases_silencio, frecuente: stats.nota_mas_frecuente,
+            }) : '';
+            return `
             <tr>
                 <td class="analisis-td-instrumento">${escapeHtml(r.instrumento)}</td>
                 <td>${escapeHtml(r.descripcion)}</td>
+                <td class="analisis-td-datos">${escapeHtml(datos)}</td>
             </tr>
-        `).join('');
+        `;
+        }).join('');
         const tablaPanel = document.createElement('div');
         tablaPanel.className = 'analisis-panel';
         tablaPanel.innerHTML = `
             <h3>${OrqI18n.resumenPorInstrumento}</h3>
             <div class="analisis-tabla-wrap">
                 <table class="analisis-tabla">
-                    <thead><tr><th>${OrqI18n.instrumento}</th><th>${OrqI18n.analisis}</th></tr></thead>
+                    <thead><tr><th>${OrqI18n.instrumento}</th><th>${OrqI18n.analisis}</th><th>${OrqI18n.datos}</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table>
             </div>

@@ -530,12 +530,12 @@ ORQUESTACION_TOOL = {
             },
             "resumen_por_instrumento": {
                 "type": "array",
-                "description": "Traducción a prosa de estadisticas_por_instrumento — no inventar ni recalcular números, solo redactar.",
+                "description": "Comentario cualitativo breve por instrumento — nunca repitas ni derives cifras de estadisticas_por_instrumento (ámbito, notas totales, compases de silencio, nota más frecuente); esos números ya se muestran aparte, directamente desde el dato real.",
                 "items": {
                     "type": "object",
                     "properties": {
                         "instrumento": {"type": "string", "description": "Nombre del instrumento/parte."},
-                        "descripcion": {"type": "string", "description": "Frase corta basada únicamente en los números ya calculados para ese instrumento (ámbito, notas totales, compases de silencio, clase de altura más frecuente)."}
+                        "descripcion": {"type": "string", "description": "Comentario cualitativo breve sobre el rol/tratamiento de ese instrumento en la obra (ej. 'sostiene la armonía en registro grave, con poca actividad melódica propia') — en prosa, sin ningún número, cifra, ámbito con notas concretas, ni cantidad de compases."}
                     },
                     "required": ["instrumento", "descripcion"],
                     "additionalProperties": False
@@ -1712,6 +1712,16 @@ def orquestador_exportar_pdf(request, analysis_id):
     from .models import ScoreAnalysis
     analysis = get_object_or_404(ScoreAnalysis, id=analysis_id, user=request.user)
     data = analysis.analysis_data or {}
+
+    # FASE 2B (commit 2): resumen_por_instrumento ya no lleva cifras (se le
+    # sacaron al modelo) -- se muestran acá, tomadas directo de
+    # estadisticas_por_instrumento (el dato real). Django templates no hacen
+    # lookup de dict por una CLAVE VARIABLE (r.instrumento) vía notación de
+    # punto, así que se precomputa acá, mismo criterio que ya usa
+    # curso_pdf.html para otros datos armados del lado de la vista.
+    estadisticas = data.get('estadisticas_por_instrumento') or {}
+    for r in data.get('resumen_por_instrumento') or []:
+        r['stats'] = estadisticas.get(r.get('instrumento'))
 
     html_string = render_to_string('trainer/orquestador_pdf.html', {
         'analysis': analysis,
