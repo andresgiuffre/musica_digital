@@ -28,7 +28,21 @@ const OrqI18n = (() => {
         descargarPdf: '⬇ Descargar PDF', resumenGeneral: 'Resumen General', resumenPorInstrumento: 'Resumen por Instrumento',
         instrumento: 'Instrumento', analisis: 'Análisis', compasesRango: 'Compases {rango}',
         cuerdas: 'Cuerdas', maderas: 'Maderas', metalesPercusion: 'Metales / Percusión',
-        balanceYFango: 'Balance y Fango', solucion: 'Solución'
+        balanceYFango: 'Balance y Fango', solucion: 'Solución',
+        tituloTiempoAire: 'Tiempo de Aire / Ejecución Continua',
+        tramoAire: '{instrumento}: tramo sin pausa suficiente en los compases {compasDesde}-{compasHasta} ({duracion}s reales, {ponderada}s ponderados, umbral {umbral}s)',
+        tituloSaltos: 'Saltos Melódicos',
+        saltoMelodico: '{instrumento}: {cantidad} salto(s) mayor(es) a una octava (máximo {maximo} semitonos)',
+        tituloCruceDinamica: 'Cruce Dinámica × Registro',
+        cruceDinamicaRegistro: '{instrumento}: compases {compasDesde}-{compasHasta} en registro {registro} con dinámica {dinamica}',
+        registroAgudo: 'agudo', registroGrave: 'grave',
+        tituloDensidadRitmica: 'Densidad Rítmica Local',
+        densidadRitmicaPico: '{instrumento}: pico de densidad en el compás {compas} ({notasPorSegundo} notas/segundo)',
+        tituloAvisosEjecucion: 'Avisos del Análisis de Ejecución',
+        avisoInstrumentoNoReconocido: 'No se reconoció el instrumento "{instrumento}" -- no se evaluó tiempo de aire ni cruce dinámica/registro para esa parte.',
+        avisoDinamicaNoReconocida: '{instrumento}: la marca de dinámica "{valor}" no se reconoce ({ocurrencias} vez/veces) -- se usó un valor neutro en su lugar.',
+        avisoObraSinDinamica: 'Este archivo no trae marcas de dinámica explícitas (típico de MIDI) -- el cruce dinámica×registro y el multiplicador de dinámica en tiempo de aire usan un valor neutro en toda la obra.',
+        avisoTempoAsumido: 'Esta obra no trae un tempo numérico explícito en ningún punto -- se asumió {bpm} bpm para calcular los segundos reales de tiempo de aire y densidad rítmica. Si el tempo real es distinto, esos valores van a estar corridos.',
     };
 })();
 
@@ -95,6 +109,95 @@ function renderAlertasViabilidad(alertas) {
             <div class="analisis-alertas">${filas}</div>
         </div>
     `;
+}
+
+// Panel de la capa de métricas de ejecución determinísticas (tiempo de aire,
+// densidad rítmica, saltos melódicos, cruce dinámica×registro --
+// trainer/metricas_ejecucion.py). El backend nunca arma prosa en español acá
+// (ver el comentario en views.py/_generar_analisis_orquestacion) -- todo el
+// texto visible se arma ACÁ, combinando los campos estructurados (instrumento,
+// compases, valor, umbral, nivel) con plantillas i18n, mismo mecanismo que
+// compasTooltip más arriba.
+function renderAlertasEjecucion(alertas) {
+    if (!alertas) return '';
+    const secciones = [];
+
+    const tramosNoOk = (alertas.tramos_aire || []).filter(t => t.nivel !== 'ok');
+    if (tramosNoOk.length) {
+        const filas = tramosNoOk.map(t => `
+            <div class="analisis-alerta analisis-alerta--${t.nivel === 'critico' ? 'excede' : 'roza'}">
+                <span class="analisis-alerta-icono">${t.nivel === 'critico' ? '⚠️' : '⚡'}</span>
+                <span>${escapeHtml(fmtR(OrqI18n.tramoAire, {
+                    instrumento: t.instrumento, compasDesde: t.compas_desde, compasHasta: t.compas_hasta,
+                    duracion: t.duracion_segundos.toFixed(1), ponderada: t.duracion_ponderada.toFixed(1),
+                    umbral: t.nivel === 'critico' ? t.umbral_critico : t.umbral_aviso,
+                }))}</span>
+            </div>
+        `).join('');
+        secciones.push(`<div class="analisis-panel"><h3>${OrqI18n.tituloTiempoAire}</h3><div class="analisis-alertas">${filas}</div></div>`);
+    }
+
+    const saltosConOctava = (alertas.saltos_melodicos || []).filter(s => s.cantidad_mayor_octava > 0);
+    if (saltosConOctava.length) {
+        const filas = saltosConOctava.map(s => `
+            <div class="analisis-alerta">
+                <span>${escapeHtml(fmtR(OrqI18n.saltoMelodico, {
+                    instrumento: s.instrumento, cantidad: s.cantidad_mayor_octava, maximo: Math.round(s.maximo_semitonos),
+                }))}</span>
+            </div>
+        `).join('');
+        secciones.push(`<div class="analisis-panel"><h3>${OrqI18n.tituloSaltos}</h3><div class="analisis-alertas">${filas}</div></div>`);
+    }
+
+    const cruces = alertas.cruce_dinamica_registro || [];
+    if (cruces.length) {
+        const filas = cruces.map(c => `
+            <div class="analisis-alerta">
+                <span>${escapeHtml(fmtR(OrqI18n.cruceDinamicaRegistro, {
+                    instrumento: c.instrumento, compasDesde: c.compas_desde, compasHasta: c.compas_hasta,
+                    registro: c.registro === 'agudo' ? OrqI18n.registroAgudo : OrqI18n.registroGrave,
+                    dinamica: c.dinamica,
+                }))}</span>
+            </div>
+        `).join('');
+        secciones.push(`<div class="analisis-panel"><h3>${OrqI18n.tituloCruceDinamica}</h3><div class="analisis-alertas">${filas}</div></div>`);
+    }
+
+    const densidad = alertas.densidad_ritmica || [];
+    if (densidad.length) {
+        const filas = densidad.map(d => `
+            <div class="analisis-alerta">
+                <span>${escapeHtml(fmtR(OrqI18n.densidadRitmicaPico, {
+                    instrumento: d.instrumento, compas: d.picos[0].compas,
+                    notasPorSegundo: d.picos[0].notas_por_segundo.toFixed(1),
+                }))}</span>
+            </div>
+        `).join('');
+        secciones.push(`<div class="analisis-panel"><h3>${OrqI18n.tituloDensidadRitmica}</h3><div class="analisis-alertas">${filas}</div></div>`);
+    }
+
+    const avisos = alertas.avisos || [];
+    if (avisos.length) {
+        const filas = avisos.map(a => {
+            let texto;
+            if (a.tipo === 'instrumento_no_reconocido') {
+                texto = fmtR(OrqI18n.avisoInstrumentoNoReconocido, { instrumento: a.instrumento });
+            } else if (a.tipo === 'dinamica_no_reconocida') {
+                texto = fmtR(OrqI18n.avisoDinamicaNoReconocida, { instrumento: a.instrumento, valor: a.valor, ocurrencias: a.ocurrencias });
+            } else if (a.tipo === 'obra_sin_dinamica') {
+                texto = OrqI18n.avisoObraSinDinamica;
+            } else if (a.tipo === 'tempo_asumido') {
+                texto = fmtR(OrqI18n.avisoTempoAsumido, { bpm: a.valor });
+            } else {
+                texto = `${a.tipo}: ${a.instrumento || ''}`;
+            }
+            return `<div class="analisis-alerta analisis-alerta--aviso"><span class="analisis-alerta-icono">ℹ️</span><span>${escapeHtml(texto)}</span></div>`;
+        }).join('');
+        secciones.push(`<div class="analisis-panel"><h3>${OrqI18n.tituloAvisosEjecucion}</h3><div class="analisis-alertas">${filas}</div></div>`);
+    }
+
+    if (!secciones.length) return '';
+    return `<div class="analisis-ejecucion-grupo">${secciones.join('')}</div>`;
 }
 
 function renderMapaDensidad(densidad) {
@@ -422,6 +525,13 @@ function renderAnalysisResult(data, container, analysisId) {
         const alertasWrap = document.createElement('div');
         alertasWrap.innerHTML = alertasHtml.trim();
         container.appendChild(alertasWrap.firstElementChild);
+    }
+
+    const ejecucionHtml = renderAlertasEjecucion(data.alertas_ejecucion);
+    if (ejecucionHtml) {
+        const ejecucionWrap = document.createElement('div');
+        ejecucionWrap.innerHTML = ejecucionHtml.trim();
+        container.appendChild(ejecucionWrap.firstElementChild);
     }
 
     const comparacionHtml = renderComparacionVersion(data.comparacion_version_anterior);

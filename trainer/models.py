@@ -1,3 +1,6 @@
+import re
+import unicodedata
+
 import music21
 from django.db import models
 from django.contrib.auth.models import User
@@ -1475,12 +1478,18 @@ class LigadurasPuntilloProgreso(models.Model):
 RANGOS_COMODOS = {
     'Flautín': ('D5', 'C8'),
     'Flauta': ('C4', 'C7'),
+    'Flauta Alto': ('G3', 'C7'),
+    'Flauta Bajo': ('C4', 'C7'),
     'Corno Inglés': ('B3', 'C6'),
     'Oboe': ('Bb3', 'F6'),
     'Clarinete Bajo': ('D3', 'G5'),
     'Clarinete': ('E3', 'C6'),
     'Contrafagot': ('Bb0', 'C4'),
     'Fagot': ('Bb1', 'D5'),
+    'Saxo Soprano': ('Bb3', 'F6'),
+    'Saxo Alto': ('Bb3', 'F6'),
+    'Saxo Tenor': ('Bb3', 'F6'),
+    'Saxo Barítono': ('Bb3', 'F6'),
     'Corno': ('F2', 'C6'),
     'Trompeta': ('F#3', 'C6'),
     'Trombón Bajo': ('Bb1', 'F4'),
@@ -1491,6 +1500,19 @@ RANGOS_COMODOS = {
     'Violonchelo': ('C2', 'C6'),
     'Contrabajo': ('C1', 'G4'),
     'Arpa': ('C1', 'G7'),
+    'Piano': ('A0', 'C8'),
+    'Guitarra': ('E3', 'C7'),
+    'Xilófono': ('C5', 'C8'),
+    'Marimba': ('C2', 'C7'),
+    'Vibráfono': ('F3', 'F6'),
+    'Glockenspiel': ('G4', 'C7'),
+    'Timbal': ('D2', 'C4'),
+    'Soprano': ('C4', 'A5'),
+    'Mezzosoprano': ('A3', 'F5'),
+    'Contralto': ('F3', 'D5'),
+    'Tenor': ('C3', 'A4'),
+    'Barítono': ('A2', 'F4'),
+    'Bajo': ('E2', 'D4'),
 }
 
 # Orden deliberado: las entradas más específicas van antes que las genéricas que
@@ -1524,6 +1546,93 @@ def _buscar_rango_comodo(part_name):
         if any(kw in nombre_norm for kw in keywords):
             return RANGOS_COMODOS[canonico]
     return None
+
+
+_PATRON_NUMERAL_ROMANO = re.compile(r'\b[ivx]+\b')
+_PATRON_TONALIDAD = re.compile(
+    r'\b(in|en)\s+(do|re|mi|fa|sol|la|si|[a-g])(b|is|#|bemol|sostenido)?\b'
+)
+_PATRON_DIGITOS = re.compile(r'\d+')
+_PATRON_ESPACIOS = re.compile(r'\s+')
+
+
+def _normalizar_nombre_parte(nombre):
+    """
+    Normaliza un nombre de parte/instrumento para matchear contra
+    ALIAS_INSTRUMENTO (trainer/configuracion_ejecucion.py): minúsculas, sin
+    tildes, sin puntos de abreviatura, sin numerales (arábigos o romanos como
+    token completo -- "Flute 1", "Flutes I-II"), sin anotación de tonalidad
+    ("Clarinet in Bb", "Corno en Fa", "Horn in F"). No es un parser completo de
+    nomenclatura orquestal, es heurística -- suficiente para los casos reales
+    que importan acá, no para cualquier texto libre posible.
+    """
+    if not nombre:
+        return ''
+    sin_tildes = ''.join(
+        c for c in unicodedata.normalize('NFD', nombre) if unicodedata.category(c) != 'Mn'
+    )
+    n = sin_tildes.lower()
+    # Los puntos se BORRAN, no se reemplazan por espacio -- "B.Cl." tiene que dar
+    # "bcl" como un solo token, no "b cl" (si fuera espacio, ningún alias de
+    # abreviatura calzaría nunca). El guion sí se vuelve espacio (separa
+    # numerales como en "Flutes I-II").
+    n = n.replace('.', '').replace('-', ' ')
+    n = _PATRON_TONALIDAD.sub(' ', n)
+    n = _PATRON_NUMERAL_ROMANO.sub(' ', n)
+    n = _PATRON_DIGITOS.sub(' ', n)
+    n = _PATRON_ESPACIOS.sub(' ', n).strip()
+    return n
+
+
+def _resolver_instrumento_normalizado(part_name, part=None):
+    """
+    Resolución de instrumento por nombre normalizado, NIVEL 2 de
+    metricas_ejecucion.resolver_instrumento (nivel 1 es la clase real de
+    music21, part.getInstrument() -- ver CLASE_A_CANONICO ahí). Deliberadamente
+    separada de _buscar_rango_comodo/SINONIMOS_INSTRUMENTOS (que no se tocan):
+    acá la resolución es por coincidencia MÁS LARGA, no por el primer alias que
+    matchea en orden de lista, y cubre alias en español/inglés/italiano.
+
+    `part` (opcional, un music21.stream.Part) solo se usa para desempatar
+    "bass"/"bajo"/"basso" sueltos (TERMINOS_AMBIGUOS_BAJO): con letra
+    (note.lyrics) en la parte, se asume voz de Bajo; sin letra, Contrabajo.
+
+    Devuelve una clave real de RANGOS_COMODOS, o None si no se reconoce nada
+    (nunca se inventa un match dudoso -- un None acá dispara el aviso explícito
+    de "instrumento no reconocido" del lado de metricas_ejecucion.py).
+    """
+    from .configuracion_ejecucion import ALIAS_INSTRUMENTO, TERMINOS_EXCLUIDOS, TERMINOS_AMBIGUOS_BAJO
+
+    n = _normalizar_nombre_parte(part_name)
+    if not n:
+        return None
+
+    if any(term in n for term in TERMINOS_EXCLUIDOS):
+        return None
+
+    if n in TERMINOS_AMBIGUOS_BAJO:
+        tiene_letra = False
+        if part is not None:
+            tiene_letra = any(getattr(nota, 'lyrics', None) for nota in part.recurse().notes)
+        return 'Bajo' if tiene_letra else 'Contrabajo'
+
+    # Coincidencia de PALABRA COMPLETA (\b...\b), no subcadena cruda -- necesario
+    # para que abreviaturas cortas ("ob", "cl", "hn") no matcheen por accidente
+    # dentro de una palabra más larga no relacionada (ej. "ob" dentro de
+    # "doble"). 'e?s?' al final tolera plural en inglés/español ("violin"
+    # matchea "violins"/"violines", "oboe" matchea "oboes") sin necesitar una
+    # entrada aparte por cada alias. Gana el alias más largo que matchea
+    # (contando SOLO la parte literal del alias, no el plural tolerado), sin
+    # importar el orden en ALIAS_INSTRUMENTO.
+    mejor_match = None
+    mejor_largo = -1
+    for keywords, canonico in ALIAS_INSTRUMENTO:
+        for kw in keywords:
+            if len(kw) > mejor_largo and re.search(r'\b' + re.escape(kw) + r'e?s?\b', n):
+                mejor_match = canonico
+                mejor_largo = len(kw)
+
+    return mejor_match
 
 
 def _serializar_rangos_comodos():

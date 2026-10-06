@@ -32,6 +32,21 @@
     "maderas": "{% trans 'Maderas' %}",
     "metalesPercusion": "{% trans 'Metales / Percusión' %}",
     "balanceYFango": "{% trans 'Balance y Fango' %}",
-    "solucion": "{% trans 'Solución' %}"
+    "solucion": "{% trans 'Solución' %}",
+    "tituloTiempoAire": "{% trans 'Tiempo de Aire / Ejecución Continua' %}",
+    "tramoAire": "{% blocktrans %}{instrumento}: tramo sin pausa suficiente en los compases {compasDesde}-{compasHasta} ({duracion}s reales, {ponderada}s ponderados, umbral {umbral}s){% endblocktrans %}",
+    "tituloSaltos": "{% trans 'Saltos Melódicos' %}",
+    "saltoMelodico": "{% blocktrans %}{instrumento}: {cantidad} salto(s) mayor(es) a una octava (máximo {maximo} semitonos){% endblocktrans %}",
+    "tituloCruceDinamica": "{% trans 'Cruce Dinámica × Registro' %}",
+    "cruceDinamicaRegistro": "{% blocktrans %}{instrumento}: compases {compasDesde}-{compasHasta} en registro {registro} con dinámica {dinamica}{% endblocktrans %}",
+    "registroAgudo": "{% trans 'agudo' %}",
+    "registroGrave": "{% trans 'grave' %}",
+    "tituloDensidadRitmica": "{% trans 'Densidad Rítmica Local' %}",
+    "densidadRitmicaPico": "{% blocktrans %}{instrumento}: pico de densidad en el compás {compas} ({notasPorSegundo} notas/segundo){% endblocktrans %}",
+    "tituloAvisosEjecucion": "{% trans 'Avisos del Análisis de Ejecución' %}",
+    "avisoInstrumentoNoReconocido": "{% blocktrans %}No se reconoció el instrumento \"{instrumento}\" -- no se evaluó tiempo de aire ni cruce dinámica/registro para esa parte.{% endblocktrans %}",
+    "avisoDinamicaNoReconocida": "{% blocktrans %}{instrumento}: la marca de dinámica \"{valor}\" no se reconoce ({ocurrencias} vez/veces) -- se usó un valor neutro en su lugar.{% endblocktrans %}",
+    "avisoObraSinDinamica": "{% trans 'Este archivo no trae marcas de dinámica explícitas (típico de MIDI) -- el cruce dinámica×registro y el multiplicador de dinámica en tiempo de aire usan un valor neutro en toda la obra.' %}",
+    "avisoTempoAsumido": "{% blocktrans %}Esta obra no trae un tempo numérico explícito en ningún punto -- se asumió {bpm} bpm para calcular los segundos reales de tiempo de aire y densidad rítmica. Si el tempo real es distinto, esos valores van a estar corridos.{% endblocktrans %}"
 }
 </script>

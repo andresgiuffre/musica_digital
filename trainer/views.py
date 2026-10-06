@@ -1147,6 +1147,25 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
         measures_data = {}
         estadisticas_por_instrumento = {}
         alertas_viabilidad = []
+        # alertas_ejecucion: capa de métricas determinísticas de ejecución
+        # (tiempo de aire, densidad rítmica, saltos melódicos, cruce
+        # dinámica×registro -- trainer/metricas_ejecucion.py). Se calcula acá
+        # adentro, instrumento por instrumento, junto con alertas_viabilidad --
+        # NO es una segunda pasada sobre `parts`, reusa el heartbeat que ya se
+        # emite una vez por instrumento más abajo. Igual que alertas_viabilidad,
+        # se mezcla a final_data recién DESPUÉS de la respuesta de Claude (ver
+        # más abajo) -- nunca entra en analysis_data/el prompt, cero tokens de
+        # impacto.
+        from .metricas_ejecucion import calcular_metricas_de_parte, construir_mapa_tiempos
+        alertas_ejecucion = {'tramos_aire': [], 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': []}
+        avisos_ejecucion_acumulados = {}
+        hubo_dynamic_en_la_obra = False
+        # Mapa de tiempo UNA sola vez para TODA la obra, nunca por parte -- una
+        # parte sin su propia marca de tempo no ve la de otra parte del mismo
+        # Score si se calcula por separado (confirmado con un caso de prueba
+        # real), y en una partitura real el tempo casi siempre se escribe una
+        # sola vez, no replicado en cada pentagrama.
+        tiempos_por_id_ejecucion, tempo_asumido = construir_mapa_tiempos(score)
         for part in parts:
             part_name = part.partName or "Instrumento Desconocido"
             measures = part.getElementsByClass(music21.stream.Measure)
@@ -1170,10 +1189,31 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
             estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part)
             alertas_viabilidad.extend(evaluar_viabilidad_instrumental(part_name, part))
 
+            resultado_ejecucion, hubo_dynamic_parte = calcular_metricas_de_parte(part, part_name, avisos_ejecucion_acumulados, tiempos_por_id_ejecucion)
+            hubo_dynamic_en_la_obra = hubo_dynamic_en_la_obra or hubo_dynamic_parte
+            for tramo in resultado_ejecucion['tramos_aire']:
+                alertas_ejecucion['tramos_aire'].append({**tramo, 'instrumento': part_name})
+            if resultado_ejecucion['densidad_ritmica']:
+                alertas_ejecucion['densidad_ritmica'].append({'instrumento': part_name, 'picos': resultado_ejecucion['densidad_ritmica']})
+            if resultado_ejecucion['saltos_melodicos']['mas_grandes']:
+                alertas_ejecucion['saltos_melodicos'].append({'instrumento': part_name, **resultado_ejecucion['saltos_melodicos']})
+            for cruce in resultado_ejecucion['cruce_dinamica_registro']:
+                alertas_ejecucion['cruce_dinamica_registro'].append({**cruce, 'instrumento': part_name})
+
             # Heartbeat por instrumento: en una obra con muchas partes, el parseo en
             # sí puede tardar — esto evita huecos largos de silencio antes de llegar
             # siquiera a llamar a Claude.
             yield json.dumps({"heartbeat": True}) + "\n"
+
+        alertas_ejecucion['avisos'] = list(avisos_ejecucion_acumulados.values())
+        if not hubo_dynamic_en_la_obra:
+            alertas_ejecucion['avisos'].append({
+                'tipo': 'obra_sin_dinamica', 'instrumento': None, 'valor': None, 'ocurrencias': 1,
+            })
+        if tempo_asumido:
+            alertas_ejecucion['avisos'].append({
+                'tipo': 'tempo_asumido', 'instrumento': None, 'valor': 120, 'ocurrencias': 1,
+            })
 
         # Puntaje de tamaño y chequeo de créditos, antes de gastar nada en la API.
         # Se calcula siempre (incluso en el camino ya confirmado) porque es gratis y
@@ -1321,6 +1361,7 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
 
                 final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
                 final_data['alertas_viabilidad'] = alertas_viabilidad
+                final_data['alertas_ejecucion'] = alertas_ejecucion
                 final_data['densidad_por_compas'] = densidad_por_compas
                 if version_de is not None:
                     final_data['comparacion_version_anterior'] = comparar_versiones(version_de, parts)

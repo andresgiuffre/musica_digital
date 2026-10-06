@@ -4,8 +4,17 @@ import music21
 from django.contrib.auth.models import User
 from django.test import Client, TestCase
 
-from trainer.models import Game, MusicalProject, Playlist, SheetMusic
+from trainer.models import Game, MusicalProject, Playlist, SheetMusic, RANGOS_COMODOS, _resolver_instrumento_normalizado
 from trainer.views import _eventos_ejecucion
+from trainer.metricas_ejecucion import calcular_metricas_de_parte, resolver_instrumento, _cortes_registro, construir_mapa_tiempos
+
+
+def _mapa_tiempos_de(part):
+    """Atajo para tests de un solo instrumento -- construir_mapa_tiempos()
+    funciona igual sobre una Part suelta que sobre un Score (ambos son
+    Stream), no hace falta envolverla. Devuelve solo tiempos_por_id,
+    descartando tempo_asumido (cada test que lo necesita lo pide aparte)."""
+    return construir_mapa_tiempos(part)[0]
 
 
 def _score_dos_manos(medidas_por_hand, repeticion=None):
@@ -383,3 +392,395 @@ class CSRFProtectionTests(TestCase):
                     f"Content-Type={response.get('Content-Type')!r}. El fetch() correspondiente "
                     f"se rompería en producción.",
                 )
+
+
+def _parte_de_corcheas(nombre, segundos_totales, bpm=120, pitch='G5', por_compas=8):
+    """
+    Arma una Part de música21 con corcheas consecutivas al pitch/bpm dado,
+    durante segundos_totales segundos reales -- usado por MetricasEjecucionTests
+    para no depender de un archivo en disco. 'G5' es el pitch por defecto
+    porque cae en el tercio MEDIO del ámbito de Flauta (ni grave ni agudo),
+    para no mezclar el multiplicador de registro en los tests que no lo piden.
+    Devuelve (part, próximo_número_de_compás_libre).
+    """
+    p = music21.stream.Part()
+    p.partName = nombre
+    duracion_corchea_seg = (60 / bpm) * 0.5
+    total_corcheas = int(round(segundos_totales / duracion_corchea_seg))
+    compas_num = 1
+    m = music21.stream.Measure(number=compas_num)
+    m.insert(0, music21.tempo.MetronomeMark(number=bpm))
+    en_compas = 0
+    for _ in range(total_corcheas):
+        m.append(music21.note.Note(pitch, quarterLength=0.5))
+        en_compas += 1
+        if en_compas >= por_compas:
+            p.append(m)
+            compas_num += 1
+            m = music21.stream.Measure(number=compas_num)
+            en_compas = 0
+    if en_compas > 0:
+        p.append(m)
+        compas_num += 1
+    return p, compas_num
+
+
+class ResolucionInstrumentoTests(TestCase):
+    """
+    _resolver_instrumento_normalizado (trainer/models.py) -- nivel 2 de
+    resolución de instrumento (nivel 1, por clase real de music21, se prueba
+    aparte en MetricasEjecucionTests.test_resolucion_nivel_1_clase_real).
+    Cada caso es un choque real que el usuario (músico) pidió explícitamente
+    verificar: abreviaturas, plurales, tonalidad transpositora, y los pares
+    instrumento específico/genérico que suelen convivir en una misma
+    partitura real (fagot/contrafagot, trombón/trombón bajo, etc.) en
+    español, inglés e italiano.
+    """
+
+    def test_especifico_gana_sobre_generico_en_los_tres_idiomas(self):
+        casos = [
+            ('Contrabassoon', 'Contrafagot'), ('Contrafagot', 'Contrafagot'), ('Controfagotto', 'Contrafagot'),
+            ('Bassoon', 'Fagot'), ('Fagot', 'Fagot'), ('Fagotto', 'Fagot'),
+            ('English Horn', 'Corno Inglés'), ('Cor Anglais', 'Corno Inglés'), ('Corno inglés', 'Corno Inglés'), ('Corno inglese', 'Corno Inglés'),
+            ('French Horn', 'Corno'), ('Horn', 'Corno'), ('Trompa', 'Corno'),
+            ('Bass Clarinet', 'Clarinete Bajo'), ('Clarinete bajo', 'Clarinete Bajo'), ('Clarinetto basso', 'Clarinete Bajo'),
+            ('Bass Trombone', 'Trombón Bajo'), ('Trombón bajo', 'Trombón Bajo'), ('Trombone basso', 'Trombón Bajo'),
+            ('Tenor Trombone', 'Trombón'), ('Trombón tenor', 'Trombón'), ('Trombone', 'Trombón'),
+            ('Tenor Sax', 'Saxo Tenor'), ('Alto Sax', 'Saxo Alto'), ('Soprano Sax', 'Saxo Soprano'), ('Baritone Sax', 'Saxo Barítono'),
+            ('Alto Flute', 'Flauta Alto'), ('Flauta alto', 'Flauta Alto'),
+            ('Bass Flute', 'Flauta Bajo'), ('Flauta bajo', 'Flauta Bajo'),
+            ('Contrabass', 'Contrabajo'), ('Double Bass', 'Contrabajo'), ('Contrabbasso', 'Contrabajo'),
+        ]
+        for nombre, esperado in casos:
+            with self.subTest(nombre=nombre):
+                self.assertEqual(_resolver_instrumento_normalizado(nombre), esperado)
+
+    def test_abreviaturas_estandar(self):
+        casos = [
+            ('Fl. 2', 'Flauta'), ('Picc.', 'Flautín'), ('Ob.', 'Oboe'), ('E.H.', 'Corno Inglés'),
+            ('Cl.', 'Clarinete'), ('B.Cl.', 'Clarinete Bajo'), ('Bsn.', 'Fagot'), ('Cbsn.', 'Contrafagot'),
+            ('Hn.', 'Corno'), ('Tpt.', 'Trompeta'), ('Tbn.', 'Trombón'), ('B.Tbn.', 'Trombón Bajo'),
+            ('Tba.', 'Tuba'), ('Sop.', 'Soprano'), ('Alt.', 'Contralto'), ('Ten.', 'Tenor'), ('Bar.', 'Barítono'),
+        ]
+        for nombre, esperado in casos:
+            with self.subTest(nombre=nombre):
+                self.assertEqual(_resolver_instrumento_normalizado(nombre), esperado)
+
+    def test_numerales_y_tonalidad_transpositora_se_ignoran(self):
+        casos = [
+            ('Violin I', 'Violín'), ('Violins I-II', 'Violín'), ('Flutes I-II', 'Flauta'),
+            ('Clarinet in Bb', 'Clarinete'), ('Clarinete en Sib', 'Clarinete'), ('Horn in F', 'Corno'),
+        ]
+        for nombre, esperado in casos:
+            with self.subTest(nombre=nombre):
+                self.assertEqual(_resolver_instrumento_normalizado(nombre), esperado)
+
+    def test_plural_ingles_y_espanol(self):
+        casos = [('Trumpets', 'Trompeta'), ('Violines', 'Violín'), ('Fagotes', 'Fagot'), ('Oboes', 'Oboe'), ('Trombones', 'Trombón')]
+        for nombre, esperado in casos:
+            with self.subTest(nombre=nombre):
+                self.assertEqual(_resolver_instrumento_normalizado(nombre), esperado)
+
+    def test_terminos_excluidos_no_matchean_por_subcadena(self):
+        """'Baritone Horn'/'Euphonium'/'Bombardino' NO tienen entrada en la tabla
+        a propósito -- no son la voz de Barítono ni ningún instrumento de
+        LIMITES_AIRE, y "baritone" es subcadena de "baritone horn" (si no
+        estuvieran excluidos explícitamente, matchearían mal)."""
+        for nombre in ('Baritone Horn', 'Euphonium', 'Bombardino', 'Flicorno'):
+            with self.subTest(nombre=nombre):
+                self.assertIsNone(_resolver_instrumento_normalizado(nombre))
+
+    def test_abreviatura_corta_no_matchea_dentro_de_palabra_no_relacionada(self):
+        """Guarda anti-falso-positivo: 'ob' (abreviatura de Oboe) no debe
+        matchear dentro de una palabra más larga que la contenga como
+        subcadena sin ser su propia palabra completa."""
+        self.assertIsNone(_resolver_instrumento_normalizado('Doble'))
+
+    def test_bass_ambiguo_se_desempata_por_presencia_de_letra(self):
+        parte_sin_letra = music21.stream.Part()
+        m = music21.stream.Measure(number=1)
+        m.append(music21.note.Note('C2', quarterLength=4.0))
+        parte_sin_letra.append(m)
+        self.assertEqual(_resolver_instrumento_normalizado('Bass', parte_sin_letra), 'Contrabajo')
+
+        parte_con_letra = music21.stream.Part()
+        m2 = music21.stream.Measure(number=1)
+        n = music21.note.Note('C3', quarterLength=4.0)
+        n.lyric = 'A-men'
+        m2.append(n)
+        parte_con_letra.append(m2)
+        self.assertEqual(_resolver_instrumento_normalizado('Bass', parte_con_letra), 'Bajo')
+
+        # Sin parte (no se puede chequear letra): cae al lado seguro, Contrabajo.
+        self.assertEqual(_resolver_instrumento_normalizado('Bass', None), 'Contrabajo')
+
+
+class MetricasEjecucionTests(TestCase):
+    """
+    Los 5 casos de tortura que el usuario (músico) pidió explícitamente antes
+    de aprobar el diseño de trainer/metricas_ejecucion.py, más cobertura de
+    las otras 3 métricas (densidad, saltos, cruce dinámica×registro) y la
+    resolución de instrumento nivel 1 (clase real de music21).
+    """
+
+    def test_tramo_critico_sin_pausa(self):
+        """Flauta, 30s de corcheas sin pausa a 120bpm -> nivel crítico."""
+        p, _ = _parte_de_corcheas('Flute', 30, bpm=120)
+        res, _ = calcular_metricas_de_parte(p, 'Flute', {}, _mapa_tiempos_de(p))
+        self.assertEqual(res['tramos_aire'][0]['nivel'], 'critico')
+
+    def test_pausa_suficiente_corta_el_tramo(self):
+        """La misma flauta, pero con solo 6s de corcheas seguidas de una pausa
+        de 2s -> ok (la pausa alcanza para cortar, y 6s por sí solas no llegan
+        ni a aviso)."""
+        p, ultimo_compas = _parte_de_corcheas('Flute', 6, bpm=120)
+        m_pausa = music21.stream.Measure(number=ultimo_compas)
+        m_pausa.append(music21.note.Rest(quarterLength=4.0))  # 2s a 120bpm
+        p.append(m_pausa)
+        res, _ = calcular_metricas_de_parte(p, 'Flute', {}, _mapa_tiempos_de(p))
+        self.assertEqual(len(res['tramos_aire']), 1)
+        self.assertEqual(res['tramos_aire'][0]['nivel'], 'ok')
+        self.assertAlmostEqual(res['tramos_aire'][0]['duracion_segundos'], 6.0, places=2)
+
+    def test_oboe_exige_pausa_de_exhalacion_tras_superar_aviso(self):
+        """Oboe: un tramo que ya superó su umbral de aviso (20s), seguido de
+        una pausa de solo 1.5s (menor a PAUSA_EXHALACION=3.0s), NO debe
+        cortar el tramo -- el oboe necesita más tiempo para exhalar el aire
+        sobrante que una respiración normal."""
+        p, ultimo_compas = _parte_de_corcheas('Oboe', 22, bpm=120)  # oboe aviso=20s
+        m_pausa = music21.stream.Measure(number=ultimo_compas)
+        m_pausa.append(music21.note.Rest(quarterLength=3.0))  # 1.5s a 120bpm
+        p.append(m_pausa)
+        m_resto = music21.stream.Measure(number=ultimo_compas + 1)
+        for _ in range(8):
+            m_resto.append(music21.note.Note('G5', quarterLength=0.5))
+        p.append(m_resto)
+        res, _ = calcular_metricas_de_parte(p, 'Oboe', {}, _mapa_tiempos_de(p))
+        self.assertEqual(len(res['tramos_aire']), 1, "la pausa de 1.5s no debía cortar el tramo")
+
+    def test_registro_grave_pesa_mas_que_registro_medio(self):
+        """Fagot: la misma duración real en el tercio grave del ámbito cómodo
+        da una duración ponderada (y por lo tanto un nivel) más alto que la
+        misma duración en el tercio medio -- confirma mult_grave."""
+        corte_grave, corte_agudo = _cortes_registro(RANGOS_COMODOS['Fagot'])
+        pitch_grave = RANGOS_COMODOS['Fagot'][0]  # el mínimo cómodo documentado, de por sí grave
+        pitch_medio = music21.pitch.Pitch()
+        pitch_medio.ps = (corte_grave + corte_agudo) / 2
+
+        p_grave, _ = _parte_de_corcheas('Bassoon', 10, bpm=120, pitch=pitch_grave)
+        p_medio, _ = _parte_de_corcheas('Bassoon', 10, bpm=120, pitch=pitch_medio.nameWithOctave)
+        res_grave, _ = calcular_metricas_de_parte(p_grave, 'Bassoon', {}, _mapa_tiempos_de(p_grave))
+        res_medio, _ = calcular_metricas_de_parte(p_medio, 'Bassoon', {}, _mapa_tiempos_de(p_medio))
+
+        self.assertGreater(res_grave['tramos_aire'][0]['duracion_ponderada'], res_medio['tramos_aire'][0]['duracion_ponderada'])
+
+    def test_cambio_de_tempo_a_mitad_de_obra_se_refleja_en_segundos(self):
+        """4 negras a 120bpm (2s) + 4 negras a 60bpm (4s), sin ninguna pausa
+        -> el tramo completo mide 6.0s reales, no 8 negras a un tempo fijo."""
+        p = music21.stream.Part()
+        p.partName = 'Flute'
+        m1 = music21.stream.Measure(number=1)
+        m1.insert(0, music21.tempo.MetronomeMark(number=120))
+        for _ in range(4):
+            m1.append(music21.note.Note('G5', quarterLength=1.0))
+        p.append(m1)
+        m2 = music21.stream.Measure(number=2)
+        m2.insert(0, music21.tempo.MetronomeMark(number=60))
+        for _ in range(4):
+            m2.append(music21.note.Note('G5', quarterLength=1.0))
+        p.append(m2)
+        res, _ = calcular_metricas_de_parte(p, 'Flute', {}, _mapa_tiempos_de(p))
+        self.assertAlmostEqual(res['tramos_aire'][0]['duracion_segundos'], 6.0, places=2)
+
+    def test_tempo_con_termino_de_texto_sin_numero_explicito(self):
+        """'Allegro' sin número de metrónomo explícito resuelve via la tabla
+        de términos de music21 (defaultTempoValues) a 132bpm -- confirma que
+        no hace falta un MetronomeMark numérico para que los segundos salgan
+        bien."""
+        p = music21.stream.Part()
+        p.partName = 'Flute'
+        m = music21.stream.Measure(number=1)
+        m.insert(0, music21.tempo.TempoText('Allegro'))
+        m.append(music21.note.Note('G5', quarterLength=1.0))
+        p.append(m)
+        res, _ = calcular_metricas_de_parte(p, 'Flute', {}, _mapa_tiempos_de(p))
+        self.assertAlmostEqual(res['tramos_aire'][0]['duracion_segundos'], 60 / 132, places=3)
+
+    def test_salto_melodico_mayor_a_octava_cuenta_exacta_no(self):
+        p = music21.stream.Part()
+        p.partName = 'Violin'
+        m = music21.stream.Measure(number=1)
+        m.append(music21.note.Note('C4', quarterLength=1.0))
+        m.append(music21.note.Note('C6', quarterLength=1.0))  # 24 semitonos, > octava
+        m.append(music21.note.Note('C5', quarterLength=1.0))  # 12 semitonos, EXACTO una octava, no cuenta
+        p.append(m)
+        res, _ = calcular_metricas_de_parte(p, 'Violin', {}, _mapa_tiempos_de(p))
+        self.assertEqual(res['saltos_melodicos']['maximo_semitonos'], 24)
+        self.assertEqual(res['saltos_melodicos']['cantidad_mayor_octava'], 1)
+
+    def test_cruce_dinamica_registro_agudo_con_ff(self):
+        p = music21.stream.Part()
+        p.partName = 'Trumpet'
+        m = music21.stream.Measure(number=1)
+        m.insert(0, music21.dynamics.Dynamic('ff'))
+        m.append(music21.note.Note('C6', quarterLength=1.0))  # agudo para trompeta
+        p.append(m)
+        res, _ = calcular_metricas_de_parte(p, 'Trumpet', {}, _mapa_tiempos_de(p))
+        self.assertEqual(len(res['cruce_dinamica_registro']), 1)
+        self.assertEqual(res['cruce_dinamica_registro'][0]['registro'], 'agudo')
+
+    def test_cruce_dinamica_registro_agrupa_compases_contiguos(self):
+        """Bug real encontrado al inspeccionar la salida JSON real antes de
+        cerrar la fase: un pasaje sostenido de muchas notas en el mismo
+        registro/dinámica daba una entrada POR NOTA (48 líneas casi idénticas
+        para 2 compases). Tiene que agruparse en un solo rango de compases."""
+        p = music21.stream.Part()
+        p.partName = 'Oboe'
+        m1 = music21.stream.Measure(number=1)
+        m1.insert(0, music21.dynamics.Dynamic('ff'))
+        for _ in range(16):
+            m1.append(music21.note.Note('F6', quarterLength=0.5))  # agudo para oboe
+        p.append(m1)
+        m2 = music21.stream.Measure(number=2)
+        for _ in range(16):
+            m2.append(music21.note.Note('G5', quarterLength=0.5))  # sigue agudo, sigue ff
+        p.append(m2)
+        res, _ = calcular_metricas_de_parte(p, 'Oboe', {}, _mapa_tiempos_de(p))
+        self.assertEqual(len(res['cruce_dinamica_registro']), 1, "debía agruparse en un solo rango, no una entrada por nota")
+        entrada = res['cruce_dinamica_registro'][0]
+        self.assertEqual((entrada['compas_desde'], entrada['compas_hasta']), (1, 2))
+
+    def test_densidad_ritmica_detecta_el_compas_mas_denso(self):
+        p = music21.stream.Part()
+        p.partName = 'Flute'
+        m1 = music21.stream.Measure(number=1)
+        m1.insert(0, music21.tempo.MetronomeMark(number=120))
+        for _ in range(8):
+            m1.append(music21.note.Note('G5', quarterLength=0.5))
+        p.append(m1)
+        m2 = music21.stream.Measure(number=2)
+        m2.append(music21.note.Note('G5', quarterLength=4.0))
+        p.append(m2)
+        res, _ = calcular_metricas_de_parte(p, 'Flute', {}, _mapa_tiempos_de(p))
+        self.assertEqual(res['densidad_ritmica'][0]['compas'], 1)
+
+    def test_instrumento_no_reconocido_genera_aviso_explicito(self):
+        p = music21.stream.Part()
+        p.partName = 'Theremin Cósmico'
+        m = music21.stream.Measure(number=1)
+        m.append(music21.note.Note('C4', quarterLength=1.0))
+        p.append(m)
+        avisos = {}
+        calcular_metricas_de_parte(p, 'Theremin Cósmico', avisos, _mapa_tiempos_de(p))
+        self.assertTrue(any(v['tipo'] == 'instrumento_no_reconocido' for v in avisos.values()))
+
+    def test_dinamica_no_reconocida_se_agrupa_no_una_por_nota(self):
+        p = music21.stream.Part()
+        p.partName = 'Oboe'
+        m = music21.stream.Measure(number=1)
+        m.insert(0, music21.dynamics.Dynamic('sfz'))
+        for _ in range(3):
+            m.append(music21.note.Note('G5', quarterLength=1.0))
+        p.append(m)
+        avisos = {}
+        _, hubo_dynamic = calcular_metricas_de_parte(p, 'Oboe', avisos, _mapa_tiempos_de(p))
+        self.assertTrue(hubo_dynamic)
+        entradas_sfz = [v for v in avisos.values() if v['tipo'] == 'dinamica_no_reconocida']
+        self.assertEqual(len(entradas_sfz), 1, "una marca no reconocida repetida debe agruparse, no una entrada por nota")
+        self.assertEqual(entradas_sfz[0]['valor'], 'sfz')
+        self.assertEqual(entradas_sfz[0]['ocurrencias'], 1)
+
+    def test_resolucion_nivel_1_clase_real(self):
+        """Con un objeto Instrument real de music21 insertado (independiente
+        de partName), la resolución tiene que ganar por clase, no por
+        nombre."""
+        p = music21.stream.Part()
+        p.insert(0, music21.instrument.Oboe())
+        m = music21.stream.Measure(number=1)
+        m.append(music21.note.Note('C4', quarterLength=1.0))
+        p.append(m)
+        canonico, nivel = resolver_instrumento(p, None)
+        self.assertEqual(canonico, 'Oboe')
+        self.assertEqual(nivel, 1)
+
+    def test_clarinete_en_sib_queda_en_tono_escrito_no_sonoro(self):
+        """Candado de regresión: RANGOS_COMODOS y las métricas nuevas asumen
+        tono ESCRITO (igual que estadisticas_por_instrumento en views.py,
+        nunca transpuesto a sonoro) -- confirmado reparseando por el mismo
+        camino real que usa el analizador (GeneralObjectExporter -> MusicXML
+        -> music21.converter.parseData), no asumido."""
+        p = music21.stream.Part()
+        clarinete = music21.instrument.Clarinet()
+        clarinete.transposition = music21.interval.Interval('M-2')
+        p.insert(0, clarinete)
+        m = music21.stream.Measure(number=1)
+        m.append(music21.note.Note('C5', quarterLength=4.0))  # escrita C5
+        p.append(m)
+        s = music21.stream.Score()
+        s.insert(0, p)
+
+        exporter = music21.musicxml.m21ToXml.GeneralObjectExporter(s)
+        xml_bytes = exporter.parse()
+        s2 = music21.converter.parseData(xml_bytes.decode('utf-8'))
+        parte_reparseada = s2.parts[0]
+
+        nota = list(parte_reparseada.recurse().notes)[0]
+        self.assertEqual(nota.nameWithOctave, 'C5', "la nota debe seguir escrita en C5, no convertida a Bb4 sonora")
+
+        canonico, _ = resolver_instrumento(parte_reparseada, 'Clarinet')
+        self.assertEqual(canonico, 'Clarinete')
+
+    def test_tempo_en_una_parte_se_propaga_a_las_demas(self):
+        """
+        Candado de regresión de un bug real encontrado al auditar esta fase:
+        part.flatten().secondsMap de una parte SIN su propia marca de tempo
+        NO ve la marca de otra parte del mismo Score (confirmado con un caso
+        de prueba aislado: daba 2.0s/120bpm por defecto en vez de
+        2.666s/90bpm). En una partitura real el tempo casi siempre se escribe
+        una sola vez, no replicado en cada pentagrama -- por eso
+        construir_mapa_tiempos() tiene que calcularse sobre el SCORE completo
+        una sola vez, nunca por parte."""
+        s = music21.stream.Score()
+        flauta = music21.stream.Part()
+        flauta.partName = 'Flute'
+        oboe = music21.stream.Part()
+        oboe.partName = 'Oboe'
+
+        m1f = music21.stream.Measure(number=1)
+        m1f.insert(0, music21.tempo.MetronomeMark(number=90))  # SOLO en flauta
+        m1f.append(music21.note.Note('G5', quarterLength=4.0))
+        flauta.append(m1f)
+
+        m1o = music21.stream.Measure(number=1)
+        m1o.append(music21.note.Note('C4', quarterLength=4.0))  # oboe sin marca propia
+        oboe.append(m1o)
+
+        s.insert(0, flauta)
+        s.insert(0, oboe)
+
+        tiempos_por_id, tempo_asumido = construir_mapa_tiempos(s)
+        self.assertFalse(tempo_asumido)
+
+        res_oboe, _ = calcular_metricas_de_parte(oboe, 'Oboe', {}, tiempos_por_id)
+        # redonda (4 negras) a 90bpm = 2.666s, NO 2.0s (que sería el default de
+        # 120bpm si no hubiera visto la marca de la flauta).
+        self.assertAlmostEqual(res_oboe['tramos_aire'][0]['duracion_segundos'], 60 / 90 * 4, places=2)
+
+    def test_aviso_tempo_asumido_cuando_no_hay_ningun_metronome_mark(self):
+        p = music21.stream.Part()
+        p.partName = 'Flute'
+        m = music21.stream.Measure(number=1)
+        m.append(music21.note.Note('G5', quarterLength=1.0))
+        p.append(m)
+        _, tempo_asumido = construir_mapa_tiempos(p)
+        self.assertTrue(tempo_asumido)
+
+    def test_sin_aviso_tempo_asumido_cuando_hay_metronome_mark_explicito(self):
+        p = music21.stream.Part()
+        p.partName = 'Flute'
+        m = music21.stream.Measure(number=1)
+        m.insert(0, music21.tempo.MetronomeMark(number=90))
+        m.append(music21.note.Note('G5', quarterLength=1.0))
+        p.append(m)
+        _, tempo_asumido = construir_mapa_tiempos(p)
+        self.assertFalse(tempo_asumido)
