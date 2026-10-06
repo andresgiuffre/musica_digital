@@ -72,6 +72,25 @@ PASO_VENTANA_SEGUNDOS = 1.0
 # mayor a esto (una octava exacta no cuenta).
 UMBRAL_SALTO_SEMITONOS = 12
 
+# --- FASE 2B: versión compacta de alertas_ejecucion para el prompt de Claude ---
+# (ver metricas_ejecucion.compactar_alertas_para_prompt). A diferencia de
+# TOP_N_PICOS_DENSIDAD (un tope de cantidad, siempre devuelve "los N picos más
+# densos" aunque la obra entera sea tranquila), esto es un UMBRAL real: si
+# ningún pico de un instrumento lo supera, ese instrumento no aporta nada al
+# prompt -- evita mandarle a Claude "el momento más denso" de una obra donde
+# nada es realmente notable. El panel UI sigue usando TOP_N_PICOS_DENSIDAD sin
+# umbral, son consumidores distintos del mismo cálculo.
+UMBRAL_DENSIDAD_NOTABLE = 3.0  # notas/segundo
+
+# Topes de la versión compacta para el prompt -- acotan el costo en tokens sin
+# importar qué tan grande sea la obra. MAX_ALERTAS_TOTAL_PROMPT es un tope
+# GLOBAL (no solo por instrumento): una obra con muchos instrumentos no debe
+# multiplicar el costo sin límite -- al recortar, se agrega una entrada
+# {'tipo': 'alertas_omitidas', 'cantidad': N} para que ni el modelo ni quien
+# lea el reporte final asuma que "no hay más" cuando en realidad se truncó.
+MAX_ALERTAS_POR_INSTRUMENTO_PROMPT = 3
+MAX_ALERTAS_TOTAL_PROMPT = 40
+
 # Fracción del ámbito cómodo (RANGOS_COMODOS) que define el tercio grave/agudo
 # para mult_registro (tiempo de aire) y para el cruce dinámica×registro. El corte
 # grave es inclusive hacia abajo (ps <= corte), así que cualquier nota por debajo

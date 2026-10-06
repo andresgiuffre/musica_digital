@@ -1,12 +1,16 @@
 import json
+from unittest.mock import patch
 
 import music21
 from django.contrib.auth.models import User
 from django.test import Client, TestCase
 
 from trainer.models import Game, MusicalProject, Playlist, SheetMusic, RANGOS_COMODOS, _resolver_instrumento_normalizado
-from trainer.views import _eventos_ejecucion
-from trainer.metricas_ejecucion import calcular_metricas_de_parte, resolver_instrumento, _cortes_registro, construir_mapa_tiempos
+from trainer.views import _eventos_ejecucion, _auditar_citas_ejecucion
+from trainer.metricas_ejecucion import (
+    calcular_metricas_de_parte, resolver_instrumento, _cortes_registro, construir_mapa_tiempos,
+    compactar_alertas_para_prompt,
+)
 
 
 def _mapa_tiempos_de(part):
@@ -784,3 +788,133 @@ class MetricasEjecucionTests(TestCase):
         p.append(m)
         _, tempo_asumido = construir_mapa_tiempos(p)
         self.assertFalse(tempo_asumido)
+
+
+class CompactarAlertasParaPromptTests(TestCase):
+    """
+    FASE 2B: compactar_alertas_para_prompt(alertas_ejecucion) -- la versión
+    reducida y acotada que SÍ entra al prompt de Claude (a diferencia de
+    alertas_ejecucion completa, que solo va al panel UI/final_data).
+    """
+
+    def test_filtra_nivel_ok(self):
+        alertas = {'tramos_aire': [
+            {'instrumento': 'Oboe', 'compas_desde': 1, 'compas_hasta': 2, 'duracion_ponderada': 5.0, 'umbral_aviso': 20, 'umbral_critico': 35, 'nivel': 'ok'},
+        ], 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [], 'avisos': []}
+        self.assertEqual(compactar_alertas_para_prompt(alertas), [])
+
+    def test_topa_tiempo_aire_por_instrumento(self):
+        tramos = [
+            {'instrumento': 'Oboe', 'compas_desde': n, 'compas_hasta': n, 'duracion_ponderada': float(20 + n), 'umbral_aviso': 20, 'umbral_critico': 35, 'nivel': 'aviso'}
+            for n in range(1, 6)  # 5 tramos, tope es 3
+        ]
+        alertas = {'tramos_aire': tramos, 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [], 'avisos': []}
+        compacto = compactar_alertas_para_prompt(alertas)
+        self.assertEqual(len(compacto), 3)
+        # se quedan los 3 de mayor duracion_ponderada (25, 24, 23), no los primeros 3 en orden de aparicion.
+        self.assertEqual([c['duracion_ponderada_seg'] for c in compacto], [25.0, 24.0, 23.0])
+
+    def test_topa_global_y_agrega_alertas_omitidas(self):
+        tramos = [
+            {'instrumento': f'Instrumento{i}', 'compas_desde': 1, 'compas_hasta': 1, 'duracion_ponderada': float(i), 'umbral_aviso': 5, 'umbral_critico': 100, 'nivel': 'aviso'}
+            for i in range(50)  # 50 instrumentos distintos, 1 alerta cada uno -- el tope por instrumento no actua, solo el global (40)
+        ]
+        alertas = {'tramos_aire': tramos, 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [], 'avisos': []}
+        compacto = compactar_alertas_para_prompt(alertas)
+        self.assertEqual(len(compacto), 41)  # 40 + la entrada de alertas_omitidas
+        self.assertEqual(compacto[-1]['tipo'], 'alertas_omitidas')
+        self.assertEqual(compacto[-1]['cantidad'], 10)
+
+    def test_densidad_usa_umbral_no_tope(self):
+        """Un pico por debajo de UMBRAL_DENSIDAD_NOTABLE no debe aparecer en
+        el compacto, aunque sea 'el mas denso' de ese instrumento -- a
+        diferencia del panel UI (TOP_N_PICOS_DENSIDAD), que siempre muestra
+        los N mas densos exista o no algo realmente notable."""
+        alertas = {'tramos_aire': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [],
+                   'densidad_ritmica': [{'instrumento': 'Flauta', 'picos': [{'compas': 1, 'notas_por_segundo': 1.0}]}],
+                   'avisos': []}
+        self.assertEqual(compactar_alertas_para_prompt(alertas), [])
+
+    def test_obra_sin_ninguna_alerta_da_lista_vacia(self):
+        alertas = {'tramos_aire': [], 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [], 'avisos': []}
+        self.assertEqual(compactar_alertas_para_prompt(alertas), [])
+
+    def test_incluye_aviso_instrumento_no_reconocido(self):
+        alertas = {'tramos_aire': [], 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [],
+                   'avisos': [{'tipo': 'instrumento_no_reconocido', 'instrumento': 'Theremin', 'valor': None, 'ocurrencias': 1}]}
+        compacto = compactar_alertas_para_prompt(alertas)
+        self.assertEqual(len(compacto), 1)
+        self.assertEqual(compacto[0]['tipo'], 'instrumento_no_reconocido')
+
+    def test_avisos_nunca_se_recortan_primero(self):
+        """Los avisos epistémicos (instrumento_no_reconocido, etc.) cambian
+        cómo se interpreta todo lo demás -- no pueden ser lo primero que se
+        pierde si hay que aplicar el tope global."""
+        tramos = [
+            {'instrumento': f'I{i}', 'compas_desde': 1, 'compas_hasta': 1, 'duracion_ponderada': 100.0, 'umbral_aviso': 5, 'umbral_critico': 10, 'nivel': 'critico'}
+            for i in range(45)
+        ]
+        alertas = {'tramos_aire': tramos, 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [],
+                   'avisos': [{'tipo': 'instrumento_no_reconocido', 'instrumento': 'Theremin', 'valor': None, 'ocurrencias': 1}]}
+        compacto = compactar_alertas_para_prompt(alertas)
+        self.assertIn('instrumento_no_reconocido', [c.get('tipo') for c in compacto])
+
+
+class AuditoriaCitasEjecucionTests(TestCase):
+    """FASE 2B: _auditar_citas_ejecucion -- bilingüe (ES/EN), análoga a
+    _auditar_citas_duplicaciones pero sin una sola palabra mágica como
+    'verificado' (son 4 tópicos con vocabulario propio cada uno)."""
+
+    def setUp(self):
+        self.alertas_compactas = [
+            {'tipo': 'tiempo_aire', 'instrumento': 'Oboe', 'compas_desde': 10, 'compas_hasta': 20,
+             'duracion_ponderada_seg': 25.0, 'umbral_seg': 20, 'nivel': 'aviso'},
+        ]
+
+    def _bloque(self, **kwargs):
+        base = {
+            'rango_compases': '1-20', 'analisis_cuerdas': '', 'analisis_maderas': '',
+            'analisis_metales_percusion': '', 'analisis_balance_y_fango': '', 'solucion_prosa': '',
+            'ediciones_sugeridas': [], 'alertas_ejecucion_citadas': [],
+        }
+        base.update(kwargs)
+        return base
+
+    def test_mencion_en_espanol_sin_cita_dispara_warning(self):
+        bloque = self._bloque(analisis_maderas='El oboe sostiene el pasaje sin pausa, exigiendo mucho aire.')
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_citas_ejecucion([bloque], self.alertas_compactas)
+        self.assertTrue(any('alertas_ejecucion_citadas' in m for m in cm.output))
+
+    def test_mencion_en_ingles_sin_cita_dispara_warning(self):
+        bloque = self._bloque(analisis_maderas='The oboe sustains the passage without a break, demanding a lot of breath.')
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_citas_ejecucion([bloque], self.alertas_compactas)
+        self.assertTrue(any('alertas_ejecucion_citadas' in m for m in cm.output))
+
+    def test_cita_valida_no_dispara_nada(self):
+        bloque = self._bloque(
+            analisis_maderas='El oboe sostiene el pasaje sin pausa.',
+            alertas_ejecucion_citadas=[{'instrumento': 'Oboe', 'compas_desde': 10, 'compas_hasta': 20, 'tipo': 'tiempo_aire'}],
+        )
+        with patch('trainer.views.logger') as logger_mock:
+            _auditar_citas_ejecucion([bloque], self.alertas_compactas)
+        logger_mock.warning.assert_not_called()
+
+    def test_cita_inventada_dispara_warning(self):
+        bloque = self._bloque(
+            alertas_ejecucion_citadas=[{'instrumento': 'Flauta', 'compas_desde': 1, 'compas_hasta': 2, 'tipo': 'tiempo_aire'}],
+        )
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_citas_ejecucion([bloque], self.alertas_compactas)
+        self.assertTrue(any('inventada' in m for m in cm.output))
+
+    def test_mencion_de_registro_sin_dinamica_extrema_no_dispara(self):
+        """Comentar que un instrumento toca en su registro agudo/grave es
+        orquestación normal -- solo cuenta como afirmación de
+        cruce_dinamica_registro si TAMBIÉN hay una dinámica extrema (ff/fff/
+        pp/ppp) mencionada en la misma cláusula."""
+        bloque = self._bloque(analisis_maderas='El oboe toca en su registro agudo durante este pasaje.')
+        with patch('trainer.views.logger') as logger_mock:
+            _auditar_citas_ejecucion([bloque], self.alertas_compactas)
+        logger_mock.warning.assert_not_called()

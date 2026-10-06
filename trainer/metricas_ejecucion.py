@@ -11,9 +11,13 @@ Se llama una vez por instrumento desde DENTRO del loop por-parte que ya existe
 en _generar_analisis_orquestacion (views.py) -- no agrega una segunda pasada
 sobre `parts` ni heartbeats nuevos, reutiliza los que ya hay ahí.
 
-Nunca entra en el prompt de Claude -- se mezcla a final_data recién después de
-la respuesta del modelo, igual que alertas_viabilidad/densidad_por_compas (ver
-el comentario en _generar_analisis_orquestacion). Impacto en tokens: cero.
+El resultado completo (`alertas_ejecucion`, con todos los niveles y sin topes
+para el prompt) se mezcla a final_data recién después de la respuesta del
+modelo, igual que alertas_viabilidad/densidad_por_compas -- nunca entra en
+analysis_data/el prompt. FASE 2B agregó `compactar_alertas_para_prompt`
+(abajo), que SÍ arma una versión reducida y acotada para que Claude pueda
+citarla (`analysis_data['alertas_ejecucion_verificadas']`) -- ver el costo en
+tokens medido en el plan de FASE 2B antes de tocar esto.
 """
 import music21
 
@@ -22,7 +26,8 @@ from .configuracion_ejecucion import (
     DINAMICA_POR_DEFECTO, TOP_N_TRAMOS_AIRE, TOP_N_PICOS_DENSIDAD, TOP_N_SALTOS,
     VENTANA_DENSIDAD_SEGUNDOS, PASO_VENTANA_SEGUNDOS, UMBRAL_SALTO_SEMITONOS,
     FRACCION_TERCIO_EXTREMO, DINAMICAS_EXTREMAS_FUERTE, DINAMICAS_EXTREMAS_SUAVE,
-    CANONICO_A_CLAVE_AIRE,
+    CANONICO_A_CLAVE_AIRE, UMBRAL_DENSIDAD_NOTABLE, MAX_ALERTAS_POR_INSTRUMENTO_PROMPT,
+    MAX_ALERTAS_TOTAL_PROMPT,
 )
 from .models import RANGOS_COMODOS, _resolver_instrumento_normalizado
 
@@ -470,3 +475,106 @@ def calcular_metricas_de_parte(part, part_name, avisos_acumulados, tiempos_por_i
     # guitarra/arpa) que correctamente no respira -- sin alerta, sin aviso.
 
     return resultado, hubo_dynamic
+
+
+# Avisos que cambian cómo se interpreta TODO lo demás (ej. "este instrumento
+# no se reconoció" implica que ninguna ausencia de alerta sobre él significa
+# "medido y sin hallazgo") -- nunca son lo primero que se recorta si hay que
+# aplicar MAX_ALERTAS_TOTAL_PROMPT, a diferencia de una alerta de medición
+# normal (esas sí se pueden recortar por severidad/magnitud).
+_TIPOS_AVISO_PRIORITARIOS = {'instrumento_no_reconocido', 'dinamica_no_reconocida', 'tempo_asumido', 'obra_sin_dinamica'}
+
+
+def _severidad_alerta_prompt(entrada):
+    if entrada.get('tipo') in _TIPOS_AVISO_PRIORITARIOS:
+        return (3, 0)
+    nivel_rank = {'critico': 2, 'aviso': 1}.get(entrada.get('nivel'), 0)
+    magnitud = entrada.get('duracion_ponderada_seg') or entrada.get('semitonos') or entrada.get('notas_por_segundo') or 0
+    return (nivel_rank, magnitud)
+
+
+def compactar_alertas_para_prompt(alertas_ejecucion):
+    """
+    Versión reducida y acotada de `alertas_ejecucion` (el dict completo, con
+    todos los niveles y sin topes de costo, pensado para el panel UI) para
+    mandarle a Claude dentro de analysis_data['alertas_ejecucion_verificadas']
+    -- FASE 2B. Lista PLANA (no anidada por instrumento), para que el schema
+    pueda citar cada entrada 1 a 1 (ver 'alertas_ejecucion_citadas' en
+    ORQUESTACION_TOOL), mismo criterio que duplicaciones_verificadas.
+
+    Filtros propios de este consumidor (no son los mismos topes/criterios que
+    usa el panel UI -- son dos consumidores distintos del mismo cálculo):
+    - tiempo_aire: nunca manda nivel 'ok', solo aviso/crítico.
+    - salto_melodico: solo instrumentos con cantidad_mayor_octava > 0; manda
+      el salto más grande nada más (no los TOP_N_SALTOS de 'mas_grandes',
+      eso es solo para el panel).
+    - cruce_dinamica_registro: tal cual (ya viene agrupado en rangos de
+      compases contiguos desde FASE 2A).
+    - densidad_ritmica: UMBRAL real (UMBRAL_DENSIDAD_NOTABLE), no un tope de
+      cantidad -- si ningún pico de un instrumento lo supera, ese instrumento
+      no aporta nada acá (a diferencia del panel UI, que siempre muestra
+      "los N picos más densos" aunque la obra entera sea tranquila).
+    - avisos: tal cual, ya vienen agrupados y son pocos.
+
+    Topes de costo, acotan el prompt sin importar el tamaño de la obra:
+    MAX_ALERTAS_POR_INSTRUMENTO_PROMPT por instrumento (tiempo_aire/
+    densidad_ritmica), y MAX_ALERTAS_TOTAL_PROMPT como tope GLOBAL -- si se
+    excede, se cortan las menos severas (los avisos epistémicos nunca se
+    cortan primero, ver _TIPOS_AVISO_PRIORITARIOS) y se agrega una entrada
+    {'tipo': 'alertas_omitidas', 'cantidad': N} para que no se asuma
+    silenciosamente que no hay más.
+    """
+    compacto = []
+
+    por_instrumento = {}
+    for t in alertas_ejecucion.get('tramos_aire', []):
+        if t['nivel'] == 'ok':
+            continue
+        por_instrumento.setdefault(t['instrumento'], []).append(t)
+    for instrumento, tramos in por_instrumento.items():
+        tramos_ordenados = sorted(tramos, key=lambda t: t['duracion_ponderada'], reverse=True)
+        for t in tramos_ordenados[:MAX_ALERTAS_POR_INSTRUMENTO_PROMPT]:
+            compacto.append({
+                'tipo': 'tiempo_aire', 'instrumento': instrumento,
+                'compas_desde': t['compas_desde'], 'compas_hasta': t['compas_hasta'],
+                'duracion_ponderada_seg': round(t['duracion_ponderada'], 1),
+                'umbral_seg': t['umbral_critico'] if t['nivel'] == 'critico' else t['umbral_aviso'],
+                'nivel': t['nivel'],
+            })
+
+    for s in alertas_ejecucion.get('saltos_melodicos', []):
+        if s['cantidad_mayor_octava'] > 0:
+            mayor = max(s['mas_grandes'], key=lambda x: x['semitonos'])
+            compacto.append({
+                'tipo': 'salto_melodico', 'instrumento': s['instrumento'],
+                'compas_desde': mayor['compas_desde'], 'compas_hasta': mayor['compas_hasta'],
+                'semitonos': int(mayor['semitonos']), 'cantidad_mayor_octava': s['cantidad_mayor_octava'],
+            })
+
+    for c in alertas_ejecucion.get('cruce_dinamica_registro', []):
+        compacto.append({
+            'tipo': 'cruce_dinamica_registro', 'instrumento': c['instrumento'],
+            'compas_desde': c['compas_desde'], 'compas_hasta': c['compas_hasta'],
+            'registro': c['registro'], 'dinamica': c['dinamica'],
+        })
+
+    for d in alertas_ejecucion.get('densidad_ritmica', []):
+        notables = sorted(
+            (p for p in d['picos'] if p['notas_por_segundo'] >= UMBRAL_DENSIDAD_NOTABLE),
+            key=lambda p: p['notas_por_segundo'], reverse=True,
+        )
+        for p in notables[:MAX_ALERTAS_POR_INSTRUMENTO_PROMPT]:
+            compacto.append({
+                'tipo': 'densidad_ritmica', 'instrumento': d['instrumento'],
+                'compas': p['compas'], 'notas_por_segundo': round(p['notas_por_segundo'], 1),
+            })
+
+    compacto.extend(alertas_ejecucion.get('avisos', []))
+
+    if len(compacto) > MAX_ALERTAS_TOTAL_PROMPT:
+        compacto.sort(key=_severidad_alerta_prompt, reverse=True)
+        omitidas = len(compacto) - MAX_ALERTAS_TOTAL_PROMPT
+        compacto = compacto[:MAX_ALERTAS_TOTAL_PROMPT]
+        compacto.append({'tipo': 'alertas_omitidas', 'cantidad': omitidas})
+
+    return compacto

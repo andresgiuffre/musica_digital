@@ -497,6 +497,21 @@ ORQUESTACION_TOOL = {
                                 "required": ["parte_a", "parte_b", "compas_desde", "compas_hasta", "tipo"],
                                 "additionalProperties": False
                             }
+                        },
+                        "alertas_ejecucion_citadas": {
+                            "type": "array",
+                            "description": "Cada entrada respalda una afirmación sobre resistencia/aire, velocidad/densidad rítmica, un salto melódico, o dinámica en registro extremo hecha en el texto de este bloque. Tiene que coincidir con una entrada real de alertas_ejecucion_verificadas (mismo instrumento, tipo, y rango de compases). Si el bloque no hace ninguna de estas afirmaciones, este array queda vacío.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "instrumento": {"type": "string", "description": "Nombre exacto del instrumento, igual que en alertas_ejecucion_verificadas."},
+                                    "compas_desde": {"type": "integer"},
+                                    "compas_hasta": {"type": "integer"},
+                                    "tipo": {"type": "string", "enum": ["tiempo_aire", "salto_melodico", "cruce_dinamica_registro", "densidad_ritmica"]}
+                                },
+                                "required": ["instrumento", "compas_desde", "compas_hasta", "tipo"],
+                                "additionalProperties": False
+                            }
                         }
                     },
                     "required": [
@@ -507,7 +522,8 @@ ORQUESTACION_TOOL = {
                         "analisis_balance_y_fango",
                         "solucion_prosa",
                         "ediciones_sugeridas",
-                        "duplicaciones_citadas"
+                        "duplicaciones_citadas",
+                        "alertas_ejecucion_citadas"
                     ],
                     "additionalProperties": False
                 }
@@ -1024,21 +1040,26 @@ def _limpiar_fuga_json_en_resumen(resumen_general):
     return resumen_general
 
 
-PATRON_VERIFICADO = re.compile(r'verificad[oa]s?', re.IGNORECASE)
+PATRON_VERIFICADO = re.compile(r'verificad[oa]s?|verified', re.IGNORECASE)
 CAMPOS_PROSA_BLOQUE = ('analisis_cuerdas', 'analisis_maderas', 'analisis_metales_percusion', 'analisis_balance_y_fango', 'solucion_prosa')
 LIMITES_CLAUSULA = re.compile(r'[.,;]')
-NEGACIONES_VERIFICADO = ('sin', 'no')
+# FASE 2B: el informe puede salir en español o en inglés (ver idioma del
+# usuario, get_language()) -- ambas auditorías (esta y _auditar_citas_ejecucion
+# más abajo) tienen que reconocer el vocabulario en los dos idiomas, nunca
+# solo el que se usó para escribir esta constante originalmente.
+NEGACIONES_VERIFICADO = ('sin', 'no', 'not', 'without')
 
 
 def _hay_negacion_cercana(texto, inicio_match):
     """
-    Busca una negación ('sin'/'no' — cubre también 'sin que', 'no hay', 'no está') en
-    toda la cláusula que contiene esta aparición de 'verificado'/'verificada',
-    delimitada hacia atrás por el punto, coma o punto y coma más cercano (o el inicio
-    del texto si no hay ninguno) — no una cantidad fija de palabras. La negación en
-    español rige sobre la cláusula, no sobre N palabras, así que esto se ajusta mejor
-    que una ventana arbitraria. Heurística, no un parser real: no captura negación al
-    100%, solo reduce falsos positivos obvios (ej. "sin ser doblaje verificado").
+    Busca una negación ('sin'/'no'/'not'/'without' — cubre también 'sin que', 'no hay',
+    'no está', 'not confirmed') en toda la cláusula que contiene esta aparición de
+    'verificado'/'verificada'/'verified', delimitada hacia atrás por el punto, coma o
+    punto y coma más cercano (o el inicio del texto si no hay ninguno) — no una
+    cantidad fija de palabras. La negación rige sobre la cláusula, no sobre N palabras,
+    así que esto se ajusta mejor que una ventana arbitraria. Heurística, no un parser
+    real: no captura negación al 100%, solo reduce falsos positivos obvios (ej. "sin
+    ser doblaje verificado").
     """
     antes = texto[:inicio_match]
     limites = [m.end() for m in LIMITES_CLAUSULA.finditer(antes)]
@@ -1085,6 +1106,88 @@ def _auditar_citas_duplicaciones(bloques, duplicaciones_verificadas):
                 logger.warning(
                     "auditoria_duplicaciones: bloque %r citó una duplicación inventada: %r "
                     "— no coincide con ninguna entrada real de duplicaciones_verificadas.",
+                    bloque.get('rango_compases'), cita,
+                )
+
+
+# FASE 2B: vocabulario bilingüe (ES/EN) para los 4 tópicos de
+# alertas_ejecucion_verificadas -- el informe puede salir en cualquiera de los
+# dos idiomas (ver get_language() en _generar_analisis_orquestacion).
+# A diferencia de "verificado" (una sola palabra inequívoca), acá no hay un
+# marcador léxico único por tópico -- esto es necesariamente más ambiguo y
+# heurístico que _auditar_citas_duplicaciones, con falsos positivos/negativos
+# reales esperables (mismo espíritu que ya admite _hay_negacion_cercana).
+PATRON_TEMA_AIRE = re.compile(
+    r'aire|resisten\w*|respir\w*|fatiga|sin pausa|continu\w*|breath\w*|stamina|endurance|without (a )?break',
+    re.IGNORECASE,
+)
+PATRON_TEMA_SALTO = re.compile(r'\bsaltos?\b|\bleaps?\b', re.IGNORECASE)
+PATRON_TEMA_DENSIDAD = re.compile(r'densidad r[ií]tmica|rhythmic density', re.IGNORECASE)
+# "registro agudo/grave" solo mencionado (sin dinámica extrema en la misma
+# cláusula) es comentario orquestal normal, no una afirmación de
+# cruce_dinamica_registro -- por eso ese tópico exige las DOS señales juntas
+# (ver _menciona_cruce_dinamica_registro), nunca una sola palabra suelta.
+PATRON_REGISTRO_EXTREMO = re.compile(r'registro (agudo|grave|extremo)|extreme register|(high|low) register', re.IGNORECASE)
+PATRON_DINAMICA_EXTREMA_TEXTO = re.compile(r'\bf{2,3}\b|\bp{2,3}\b|fortissimo|pianissimo', re.IGNORECASE)
+
+
+def _menciona_cruce_dinamica_registro(clausula):
+    return bool(PATRON_REGISTRO_EXTREMO.search(clausula)) and bool(PATRON_DINAMICA_EXTREMA_TEXTO.search(clausula))
+
+
+def _clausulas(texto):
+    """Parte texto en cláusulas delimitadas por . , ; -- mismo criterio que
+    _hay_negacion_cercana, reutilizado acá para los tópicos de ejecución."""
+    limites = [0] + [m.end() for m in LIMITES_CLAUSULA.finditer(texto)] + [len(texto)]
+    return [texto[limites[i]:limites[i + 1]] for i in range(len(limites) - 1)]
+
+
+TIPOS_EJECUCION_CITABLES = ('tiempo_aire', 'salto_melodico', 'cruce_dinamica_registro', 'densidad_ritmica')
+
+
+def _auditar_citas_ejecucion(bloques, alertas_compactas):
+    """
+    Auditoría determinística (sin IA, solo logging) análoga a
+    _auditar_citas_duplicaciones, para los 4 tópicos de
+    alertas_ejecucion_verificadas (FASE 2B). No modifica final_data ni
+    bloquea nada -- mismo criterio que la auditoría de duplicaciones.
+    """
+    alertas_por_tipo_instrumento = {}
+    for a in alertas_compactas:
+        if a.get('tipo') in TIPOS_EJECUCION_CITABLES:
+            alertas_por_tipo_instrumento.setdefault((a['tipo'], a.get('instrumento')), []).append(a)
+
+    for bloque in bloques or []:
+        citas = bloque.get('alertas_ejecucion_citadas') or []
+        texto = ' '.join(bloque.get(c, '') or '' for c in CAMPOS_PROSA_BLOQUE)
+        texto += ' ' + ' '.join(e.get('detalle', '') or '' for e in bloque.get('ediciones_sugeridas', []))
+
+        menciona_algun_topico = any(
+            PATRON_TEMA_AIRE.search(clausula) or PATRON_TEMA_SALTO.search(clausula)
+            or PATRON_TEMA_DENSIDAD.search(clausula) or _menciona_cruce_dinamica_registro(clausula)
+            for clausula in _clausulas(texto)
+        )
+
+        if menciona_algun_topico and not citas:
+            logger.warning(
+                "auditoria_ejecucion: bloque %r menciona aire/resistencia/saltos/densidad/dinámica "
+                "en registro extremo pero alertas_ejecucion_citadas está vacío. Texto: %.300s",
+                bloque.get('rango_compases'), texto,
+            )
+            continue
+
+        for cita in citas:
+            candidatas = alertas_por_tipo_instrumento.get((cita.get('tipo'), cita.get('instrumento')), [])
+            existe = any(
+                cita.get('compas_desde') is not None and cita.get('compas_hasta') is not None
+                and cita['compas_desde'] <= a.get('compas_hasta', a.get('compas', -1))
+                and cita['compas_hasta'] >= a.get('compas_desde', a.get('compas', 10**9))
+                for a in candidatas
+            )
+            if not existe:
+                logger.warning(
+                    "auditoria_ejecucion: bloque %r citó una alerta de ejecución inventada: %r "
+                    "— no coincide con ninguna entrada real de alertas_ejecucion_verificadas.",
                     bloque.get('rango_compases'), cita,
                 )
 
@@ -1251,6 +1354,13 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
 
         densidad_por_compas = calcular_densidad_por_compas(parts)
         duplicaciones_verificadas = detectar_duplicaciones_verificadas(parts)
+        # Versión compacta y acotada de alertas_ejecucion para que Claude la
+        # pueda citar (alertas_ejecucion_citadas, ver ORQUESTACION_TOOL) --
+        # FASE 2B. Distinta de `alertas_ejecucion` (la variable de arriba, sin
+        # topes, pensada para el panel UI): ver el costo en tokens medido en
+        # el plan de FASE 2B antes de tocar esto.
+        from .metricas_ejecucion import compactar_alertas_para_prompt
+        alertas_ejecucion_verificadas = compactar_alertas_para_prompt(alertas_ejecucion)
 
         analysis_data = {
             'instruments': instrument_names,
@@ -1260,6 +1370,7 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
             'measures_data': measures_data,
             'estadisticas_por_instrumento': estadisticas_por_instrumento,
             'duplicaciones_verificadas': duplicaciones_verificadas,
+            'alertas_ejecucion_verificadas': alertas_ejecucion_verificadas,
         }
 
         api_key = os.environ.get("ANTHROPIC_TEST_API_KEY")
@@ -1267,6 +1378,15 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
             client = anthropic.Anthropic(api_key=api_key)
 
             prompt = f"Analizá la siguiente estructura de datos musicales extraída de la partitura:\n{json.dumps(analysis_data, ensure_ascii=False)}"
+            # Idioma del informe: mismo mecanismo que el resto del sitio
+            # (get_language(), ya usado por _a_solfeo/evaluar_viabilidad_instrumental)
+            # en vez de un parámetro nuevo. Se agrega acá, al turno de usuario
+            # (que YA varía en cada request y nunca lleva cache_control), nunca
+            # al bloque de system cacheado (GUIA_ESTILO_ORQUESTAL) -- así el
+            # cache del system prompt no se invalida según el idioma elegido.
+            from django.utils.translation import get_language
+            if get_language() == 'en':
+                prompt += "\n\nEscribí todo el texto de salida (resumen_general, los campos de prosa de cada bloque, y resumen_por_instrumento) en inglés."
 
             with client.messages.stream(
                 model="claude-sonnet-5",
@@ -1358,6 +1478,7 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
 
                 if isinstance(final_data, dict):
                     _auditar_citas_duplicaciones(final_data.get('bloques'), duplicaciones_verificadas)
+                    _auditar_citas_ejecucion(final_data.get('bloques'), alertas_ejecucion_verificadas)
 
                 final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
                 final_data['alertas_viabilidad'] = alertas_viabilidad
@@ -1932,18 +2053,24 @@ _LIMITE_95_IMAGENES_PDF_NEUTRALIZADO = False
 
 def _neutralizar_limite_95_imagenes_pdf():
     """
-    xhtml2pdf (xhtml2pdf_reportlab.PmlImage.wrap) hardcodea
-    MAX_IMAGE_RATIO=0.95: recorta la altura de CUALQUIER imagen a como
-    máximo el 95% del alto disponible del frame, y como aplica ese mismo
-    factor también al ancho (para no deformar la proporción), termina
-    encogiendo ambas dimensiones -- confirmado leyendo el código fuente y
-    verificando con un PDF mínimo que, aun poniendo width/height
-    explícitos en cm que calzan exacto con la hoja A4 y margin:0, la
-    imagen sale al 95% (bordes blancos alrededor, el bug que reportó el
-    usuario para tapa/contratapa). No hay forma de esquivarlo desde
-    CSS/HTML -- es un tope matemático dentro de wrap(), ninguna
-    combinación de tamaños lo evita. Se neutraliza acá en vez de en el
-    import de xhtml2pdf porque sólo hace falta para el PDF de cursos.
+    Un <img> suelto (como la tapa/contratapa, sin align) no se dibuja
+    como flowable independiente -- xhtml2pdf lo mete como un "glifo"
+    inline dentro de un Paragraph (ABag con kind="img", ver
+    pisaTagIMG.start en tags.py), y es PmlParagraph._calcImageMaxSizes
+    (xhtml2pdf_reportlab.py) el que decide su tamaño final, no
+    PmlImage.wrap(). ESA función hardcodea MAX_IMAGE_RATIO=0.95
+    ("XXX 99% because 100% do not work...", comentario del propio
+    autor de la librería): recorta la altura a como máximo el 95% del
+    alto disponible del frame, y como aplica ese mismo factor también
+    al ancho (para no deformar la proporción), termina encogiendo
+    ambas dimensiones -- confirmado con un PDF mínimo que, aun con
+    width/height explícitos en cm que calzan exacto con la hoja A4 y
+    margin:0, la imagen salía al 95% (bordes blancos alrededor, el bug
+    que reportó el usuario para tapa/contratapa). No hay forma de
+    esquivarlo desde CSS/HTML -- es un tope matemático dentro de esa
+    función, ninguna combinación de tamaños lo evita. Se neutraliza acá
+    en vez de en el import de xhtml2pdf porque sólo hace falta para el
+    PDF de cursos.
 
     Afecta a TODAS las imágenes del documento, no sólo tapa/contratapa
     -- aceptable porque el resto del contenido (partituras, bloques
@@ -1961,6 +2088,61 @@ def _neutralizar_limite_95_imagenes_pdf():
         xhtml2pdf_reportlab.MAX_IMAGE_RATIO = 1.0
     except Exception:
         logger.exception('[cursos] No se pudo neutralizar el límite de 95%% de imágenes del PDF del curso -- la tapa/contratapa pueden salir con bordes blancos.')
+
+
+_BORDE_FANTASMA_PARRAFOS_PDF_NEUTRALIZADO = False
+
+
+def _neutralizar_borde_fantasma_parrafos_pdf():
+    """
+    Con MAX_IMAGE_RATIO ya neutralizado (ver arriba), la tapa/contratapa
+    seguía quedando ~1-2pt corta de cada borde -- confirmado con un
+    PDF mínimo instrumentado: xhtml2pdf.context.getParaFrag() hardcodea
+    frag.borderWidth=1 (y los 4 borderXxxWidth que derivan de ahí) como
+    valor INICIAL de cualquier fragmento de texto/párrafo, exista o no
+    un border real en el CSS (border-style/color quedan en None, así
+    que nunca se dibuja nada -- es puramente un ancho "fantasma" que
+    sigue afectando el layout). PmlParagraph.wrap() resta ese ancho del
+    espacio disponible ANTES de calcular el tamaño de una imagen inline
+    (ver _neutralizar_limite_95_imagenes_pdf) -- de ahí el margen
+    residual en la tapa, aunque nunca se vea ningún borde real en el
+    PDF.
+
+    Llevarlo a 0 exacto rompe: confirmado que una tapa/contratapa con
+    CERO margen de ningún tipo (border fantasma en 0 Y MAX_IMAGE_RATIO
+    en 1.0 a la vez) hace que reportlab detecte un "overflow" por un
+    error de redondeo de punto flotante (la imagen calza *justo* al
+    límite del frame) y rompe con un TypeError interno al intentar
+    loguear qué flowable desbordó -- un bug de la propia librería al
+    reportar el error, no algo que podamos manejar nosotros. 0.15pt
+    (~0.05mm, imperceptible en cualquier impresión) se probó estable en
+    5 corridas seguidas sin el error -- el umbral real está entre 0.05
+    y 0.1, así que 0.15 deja margen de sobra.
+
+    Igual que el parche de arriba, afecta a TODO el documento (cualquier
+    párrafo arranca con este borde fantasma) -- inofensivo para texto
+    normal: sólo cambia en centésimas de punto el ancho disponible para
+    el salto de línea, invisible a simple vista.
+    """
+    global _BORDE_FANTASMA_PARRAFOS_PDF_NEUTRALIZADO
+    if _BORDE_FANTASMA_PARRAFOS_PDF_NEUTRALIZADO:
+        return
+    _BORDE_FANTASMA_PARRAFOS_PDF_NEUTRALIZADO = True
+
+    try:
+        import xhtml2pdf.context as xhtml2pdf_context
+        getParaFrag_original = xhtml2pdf_context.getParaFrag
+
+        def getParaFrag_sin_borde_fantasma(style):
+            frag = getParaFrag_original(style)
+            frag.borderWidth = 0.15
+            frag.borderLeftWidth = frag.borderRightWidth = 0.15
+            frag.borderTopWidth = frag.borderBottomWidth = 0.15
+            return frag
+
+        xhtml2pdf_context.getParaFrag = getParaFrag_sin_borde_fantasma
+    except Exception:
+        logger.exception('[cursos] No se pudo neutralizar el borde fantasma de párrafos del PDF del curso -- la tapa/contratapa pueden quedar con un margen residual.')
 
 
 def _resolver_paginas_indice(pdf_bytes, grados):
@@ -2122,6 +2304,7 @@ def curso_exportar_pdf(request, curso_id):
 
     _asegurar_fuente_unicode_pdf()
     _neutralizar_limite_95_imagenes_pdf()
+    _neutralizar_borde_fantasma_parrafos_pdf()
 
     imagenes_partitura = {}
     if request.method == 'POST':
