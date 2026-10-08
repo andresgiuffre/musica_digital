@@ -512,6 +512,14 @@ class ScoreAnalysis(models.Model):
     puntaje_obra = models.IntegerField(null=True, blank=True)
     creditos_cobrados = models.IntegerField(null=True, blank=True)
 
+    # Instrumentación de tiempos (sin cambiar comportamiento) para calibrar
+    # max_tokens/el timeout de 5 minutos de PythonAnywhere con datos reales de
+    # producción, en vez de a ciegas -- ver _generar_analisis_orquestacion.
+    # tokens_por_segundo se guarda ya calculado (no solo output_tokens/tiempo)
+    # para poder comparar/ordenar muchas filas sin recalcular cada vez.
+    tiempo_generacion_segundos = models.FloatField(null=True, blank=True)
+    tokens_por_segundo = models.FloatField(null=True, blank=True)
+
     class Meta:
         verbose_name = "Análisis de Orquestación (Director de Estudio)"
         verbose_name_plural = "Análisis de Orquestación (Director de Estudio)"

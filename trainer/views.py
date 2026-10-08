@@ -6,6 +6,7 @@ import os
 import io
 import copy
 import pathlib
+import time
 import zipfile
 import secrets
 import xml.etree.ElementTree as ET
@@ -1422,6 +1423,13 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                 ],
             ) as stream:
                 json_bruto_tool_use = ""
+                # Instrumentación de tiempos (sin cambiar comportamiento) --
+                # para calibrar max_tokens=120000 contra el timeout fijo de 5
+                # minutos de PythonAnywhere con datos reales, en vez de a
+                # ciegas. Log cada ~20s de progreso + el resumen final
+                # persistido en ScoreAnalysis (ver más abajo).
+                tiempo_inicio_llamada = time.time()
+                ultimo_log_en_segundo = 0.0
                 for event in stream:
                     # El SDK expone, además del evento crudo, un evento "input_json" con
                     # el fragmento de texto tal cual llegó — lo acumulamos nosotros mismos
@@ -1429,11 +1437,35 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                     # confiar en el snapshot que arma el SDK internamente (ver más abajo).
                     if event.type == "input_json":
                         json_bruto_tool_use += event.partial_json
+                    transcurrido = time.time() - tiempo_inicio_llamada
+                    if transcurrido - ultimo_log_en_segundo >= 20:
+                        logger.info(
+                            "orquestador_analizar: progreso stream -- %.0fs transcurridos, "
+                            "%d caracteres acumulados en tool_use",
+                            transcurrido, len(json_bruto_tool_use),
+                        )
+                        ultimo_log_en_segundo = transcurrido
                     # Heartbeat por cada evento del stream de Claude: con max_tokens=120000
                     # esto da tráfico constante durante todo el minuto y medio que puede
                     # tardar una obra grande.
                     yield json.dumps({"heartbeat": True}) + "\n"
                 message = stream.get_final_message()
+                tiempo_generacion_segundos = time.time() - tiempo_inicio_llamada
+
+            total_compases = max((len(v) for v in measures_data.values()), default=0)
+            tokens_por_segundo = (
+                message.usage.output_tokens / tiempo_generacion_segundos
+                if tiempo_generacion_segundos > 0 else None
+            )
+            analysis.tiempo_generacion_segundos = tiempo_generacion_segundos
+            analysis.tokens_por_segundo = tokens_por_segundo
+            logger.info(
+                "orquestador_analizar: generación completa -- %.1fs totales, output_tokens=%s, "
+                "tokens/seg=%s, stop_reason=%s, puntaje_obra=%s, instrumentos=%d, compases=%d",
+                tiempo_generacion_segundos, message.usage.output_tokens,
+                f"{tokens_por_segundo:.1f}" if tokens_por_segundo is not None else "N/A",
+                message.stop_reason, puntaje_obra, len(parts), total_compases,
+            )
 
             # FASE 2B (commit 3): confirmado el diagnóstico que venía TEMPORAL acá --
             # stop_reason == 'max_tokens' significa que el informe se cortó por

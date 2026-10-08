@@ -1026,6 +1026,24 @@ class TruncamientoMaxTokensTests(TestCase):
         analysis.refresh_from_db()
         self.assertEqual(analysis.creditos_cobrados, 1)
 
+    def test_instrumentacion_de_tiempos_queda_persistida(self):
+        """Sin cambiar comportamiento -- solo confirma que
+        tiempo_generacion_segundos/tokens_por_segundo quedan guardados en
+        ScoreAnalysis después de un análisis exitoso, para poder calibrar
+        max_tokens/el timeout de 5 minutos de PythonAnywhere con datos
+        reales más adelante."""
+        analysis, profile = self._crear_analysis()
+        self._correr(analysis, stop_reason='end_turn')
+        analysis.refresh_from_db()
+        self.assertIsNotNone(analysis.tiempo_generacion_segundos)
+        self.assertGreaterEqual(analysis.tiempo_generacion_segundos, 0)
+        # tokens_por_segundo puede dar None si tiempo_generacion_segundos
+        # redondeó a 0 (guarda división por cero) -- con un stream fake que
+        # corre en microsegundos esto es normal, no un bug: en producción,
+        # con una llamada real de varios segundos, siempre va a ser > 0.
+        if analysis.tokens_por_segundo is not None:
+            self.assertGreater(analysis.tokens_por_segundo, 0)
+
     def test_informe_truncado_marca_flag_y_no_cobra(self):
         from trainer.views import CREDITOS_SI_TRUNCADO
         analysis, profile = self._crear_analysis()
