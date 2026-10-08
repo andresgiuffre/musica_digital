@@ -1193,6 +1193,14 @@ def _auditar_citas_ejecucion(bloques, alertas_compactas):
 
 
 UMBRAL_PUNTAJE_CONFIRMACION = 800  # ver justificación en CLAUDE.md / historial de diseño — punto de partida, no calibrado
+
+# FASE 2B (commit 3): créditos a cobrar cuando, pese a max_tokens=120000 (ver
+# la llamada a la API más abajo), el informe IGUAL se corta por longitud
+# (stop_reason == 'max_tokens', ver `truncado` en _generar_analisis_orquestacion
+# -- debería ser un caso rarísimo ahora). La llamada a la API ya se pagó igual
+# (no hay forma de evitar ese costo real), pero el usuario no recibió un
+# informe completo, así que no se le cobra nada -- confirmado con el usuario.
+CREDITOS_SI_TRUNCADO = 0
 MOTIVO_CONFIRMACION_OBRA_GRANDE = (
     "Esta obra tiene una escala considerable — un análisis con este nivel de detalle "
     "va a consumir 2 créditos en lugar de 1. ¿Querés continuar?"
@@ -1390,7 +1398,16 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
 
             with client.messages.stream(
                 model="claude-sonnet-5",
-                max_tokens=48000,
+                # FASE 2B (commit 3): subido de 48000 -- confirmado contra la
+                # documentación real del modelo que claude-sonnet-5 soporta hasta
+                # 128K tokens de salida en la API síncrona normal (la que usa este
+                # proyecto, no la Batch API). max_tokens es solo el TECHO de corte,
+                # no determina el costo -- se cobra por output_tokens realmente
+                # generados (ScoreAnalysis.output_tokens), así que subir el techo
+                # no le cuesta nada extra al usuario salvo que el modelo genere
+                # más contenido de verdad (lo que antes se hubiera cortado solo).
+                # 120000 deja margen de sobra bajo el techo real de 128000.
+                max_tokens=120000,
                 system=[
                     {
                         "type": "text",
@@ -1412,19 +1429,22 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                     # confiar en el snapshot que arma el SDK internamente (ver más abajo).
                     if event.type == "input_json":
                         json_bruto_tool_use += event.partial_json
-                    # Heartbeat por cada evento del stream de Claude: con max_tokens=48000
+                    # Heartbeat por cada evento del stream de Claude: con max_tokens=120000
                     # esto da tráfico constante durante todo el minuto y medio que puede
                     # tardar una obra grande.
                     yield json.dumps({"heartbeat": True}) + "\n"
                 message = stream.get_final_message()
 
-            # TEMPORAL: diagnóstico de un caso real donde el resultado llegó incompleto
-            # (alertas_viabilidad presente pero bloques ausente) — confirmar si se corta
-            # por max_tokens. Sacar una vez confirmado.
+            # FASE 2B (commit 3): confirmado el diagnóstico que venía TEMPORAL acá --
+            # stop_reason == 'max_tokens' significa que el informe se cortó por
+            # longitud, puede estar incompleto. Se loguea igual (dato útil para
+            # calibrar max_tokens/el nivel de detalle pedido más adelante) y además
+            # se surfacea explícitamente al usuario vía final_data['truncado'].
             logger.warning(
                 "orquestador_analizar: stop_reason=%s, tokens_entrada=%s, tokens_salida=%s",
                 message.stop_reason, message.usage.input_tokens, message.usage.output_tokens,
             )
+            truncado = message.stop_reason == 'max_tokens'
 
             tool_use_block = next(
                 (block for block in message.content if block.type == "tool_use"),
@@ -1434,7 +1454,7 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                 try:
                     # El SDK parsea el JSON del tool_use con partial_mode=True (tolerante
                     # a datos incompletos) incluso para el resultado final — con
-                    # respuestas muy grandes (max_tokens=48000) esto puede dejar el resto
+                    # respuestas muy grandes (max_tokens=120000) esto puede dejar el resto
                     # del JSON crudo pegado como texto dentro de un campo de string (bug
                     # real encontrado: resumen_general con ~1000 caracteres y después el
                     # resto del objeto sin parsear). Usamos json.loads estricto sobre el
@@ -1484,14 +1504,18 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                 final_data['alertas_viabilidad'] = alertas_viabilidad
                 final_data['alertas_ejecucion'] = alertas_ejecucion
                 final_data['densidad_por_compas'] = densidad_por_compas
+                final_data['truncado'] = truncado
                 if version_de is not None:
                     final_data['comparacion_version_anterior'] = comparar_versiones(version_de, parts)
 
+                creditos_a_cobrar_efectivo = CREDITOS_SI_TRUNCADO if truncado else creditos_a_cobrar
+
                 try:
-                    if creditos_a_cobrar == 1:
+                    if creditos_a_cobrar_efectivo == 1:
                         consumir_credito_analisis(profile)
-                    else:
-                        consumir_creditos_analisis_multiple(profile, creditos_a_cobrar)
+                    elif creditos_a_cobrar_efectivo > 1:
+                        consumir_creditos_analisis_multiple(profile, creditos_a_cobrar_efectivo)
+                    # == 0: no se cobra nada.
                 except CreditosInsuficientesError:
                     # Re-chequeo final por si el saldo cambió entre el aviso y esta
                     # confirmación (otra pestaña, por ejemplo). Ya se pagó el costo de la
@@ -1503,7 +1527,7 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                     return
 
                 profile.refresh_from_db()
-                analysis.creditos_cobrados = creditos_a_cobrar
+                analysis.creditos_cobrados = creditos_a_cobrar_efectivo
                 analysis.input_tokens = message.usage.input_tokens
                 analysis.output_tokens = message.usage.output_tokens
                 analysis.cache_creation_input_tokens = getattr(message.usage, 'cache_creation_input_tokens', None)

@@ -45,6 +45,7 @@ const OrqI18n = (() => {
         avisoTempoAsumido: 'Esta obra no trae un tempo numérico explícito en ningún punto -- se asumió {bpm} bpm para calcular los segundos reales de tiempo de aire y densidad rítmica. Si el tempo real es distinto, esos valores van a estar corridos.',
         datos: 'Datos',
         datosInstrumento: 'Ámbito: {ambito} · Notas: {notas} · Compases de silencio: {silencio} · Más frecuente: {frecuente}',
+        avisoInformeTruncado: 'Este informe se cortó por longitud y puede estar incompleto (puede faltar texto al final de algún campo, o bloques enteros). No se te cobró ningún crédito por este análisis.',
     };
 })();
 
@@ -477,6 +478,17 @@ function renderAnalysisResult(data, container, analysisId) {
         descargaWrap.className = 'analisis-descarga';
         descargaWrap.innerHTML = `<a href="/orquestador/exportar/${analysisId}/" class="analisis-btn-pdf" target="_blank" rel="noopener">${OrqI18n.descargarPdf}</a>`;
         container.appendChild(descargaWrap);
+    }
+
+    // FASE 2B (commit 3): stop_reason == 'max_tokens' del lado del backend --
+    // debería ser rarísimo ahora que max_tokens subió a 120000, pero si pasa,
+    // el usuario tiene que saber que el informe puede estar incompleto (y que
+    // no se le cobró nada por este análisis, ver CREDITOS_SI_TRUNCADO).
+    if (data.truncado) {
+        const truncadoPanel = document.createElement('div');
+        truncadoPanel.className = 'analisis-panel analisis-panel--aviso';
+        truncadoPanel.innerHTML = `<p class="analisis-prosa">⚠️ ${escapeHtml(OrqI18n.avisoInformeTruncado)}</p>`;
+        container.appendChild(truncadoPanel);
     }
 
     const resumenPanel = document.createElement('div');

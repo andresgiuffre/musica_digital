@@ -9,6 +9,7 @@
     h1 { font-size: 18pt; margin-bottom: 0.1cm; }
     h2 { font-size: 13pt; margin-top: 0.7cm; margin-bottom: 0.25cm; border-bottom: 1px solid #ccc; padding-bottom: 0.1cm; }
     .subtitulo { color: #666; font-size: 9pt; margin-bottom: 0.6cm; }
+    .aviso-truncado { background-color: #fdf3e3; border: 1pt solid #c98a3d; padding: 0.25cm 0.35cm; margin-bottom: 0.5cm; font-size: 9pt; }
     .prosa { line-height: 1.5; text-align: justify; }
     table.tabla { width: 100%; border-collapse: collapse; margin-bottom: 0.3cm; }
     table.tabla th { text-align: left; font-size: 8pt; text-transform: uppercase; color: #666; border-bottom: 1px solid #999; padding: 0.15cm 0.2cm; }
@@ -39,6 +40,10 @@
 <body>
     <h1>{{ analysis.name }}</h1>
     <p class="subtitulo">{% blocktrans with fecha=analysis.created_at|date:"d M Y, H:i" %}Analizado el {{ fecha }}{% endblocktrans %}</p>
+
+    {% if data.truncado %}
+    <p class="aviso-truncado">⚠️ {% trans "Este informe se cortó por longitud y puede estar incompleto (puede faltar texto al final de algún campo, o bloques enteros). No se te cobró ningún crédito por este análisis." %}</p>
+    {% endif %}
 
     <h2>{% trans "Resumen General" %}</h2>
     <p class="prosa">{{ data.resumen_general }}</p>

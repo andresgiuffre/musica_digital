@@ -918,3 +918,119 @@ class AuditoriaCitasEjecucionTests(TestCase):
         with patch('trainer.views.logger') as logger_mock:
             _auditar_citas_ejecucion([bloque], self.alertas_compactas)
         logger_mock.warning.assert_not_called()
+
+
+class _FakeUsage:
+    def __init__(self, input_tokens=100, output_tokens=200):
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+
+
+class _FakeToolUseBlock:
+    type = 'tool_use'
+
+    def __init__(self, input_dict):
+        self.input = input_dict
+
+
+class _FakeEvent:
+    def __init__(self, tipo, partial_json=''):
+        self.type = tipo
+        self.partial_json = partial_json
+
+
+class _FakeMessage:
+    def __init__(self, stop_reason, tool_input):
+        self.stop_reason = stop_reason
+        self.usage = _FakeUsage()
+        self.content = [_FakeToolUseBlock(tool_input)]
+
+
+class _FakeStream:
+    def __init__(self, stop_reason, tool_input):
+        self._json_texto = json.dumps(tool_input)
+        self._mensaje_final = _FakeMessage(stop_reason, tool_input)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def __iter__(self):
+        yield _FakeEvent('input_json', self._json_texto)
+
+    def get_final_message(self):
+        return self._mensaje_final
+
+
+def _reporte_minimo_valido():
+    return {
+        'resumen_general': 'x', 'bloques': [], 'resumen_por_instrumento': [],
+    }
+
+
+class TruncamientoMaxTokensTests(TestCase):
+    """
+    FASE 2B (commit 3): stop_reason == 'max_tokens' -> final_data['truncado']
+    y se cobra CREDITOS_SI_TRUNCADO en vez de creditos_a_cobrar normal.
+    End-to-end real a través de _generar_analisis_orquestacion, mockeando
+    solo el cliente de Anthropic (anthropic.Anthropic) -- todo lo demás
+    (parseo music21, cálculo de métricas, descuento de créditos real) corre
+    de verdad.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='truncamiento_test_user', password='x')
+
+    def _crear_analysis(self):
+        from trainer.models import ScoreAnalysis, UserProfile
+        from django.core.files.base import ContentFile
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        profile.creditos_bonus = 10
+        profile.save()
+
+        s = music21.stream.Score()
+        p = music21.stream.Part(); p.partName = 'Flute'
+        m = music21.stream.Measure(number=1)
+        m.insert(0, music21.tempo.MetronomeMark(number=100))
+        m.append(music21.note.Note('G5', quarterLength=4.0))
+        p.append(m)
+        s.insert(0, p)
+        xml_bytes = music21.musicxml.m21ToXml.GeneralObjectExporter(s).parse()
+
+        analysis = ScoreAnalysis.objects.create(user=self.user, name='Test truncamiento')
+        analysis.score_file.save('test.musicxml', ContentFile(xml_bytes))
+        analysis.save()
+        return analysis, profile
+
+    def _correr(self, analysis, stop_reason):
+        from trainer.views import _generar_analisis_orquestacion
+        fake_stream = _FakeStream(stop_reason, _reporte_minimo_valido())
+        fake_client = type('FakeClient', (), {'messages': type('FakeMessages', (), {'stream': staticmethod(lambda **kw: fake_stream)})()})()
+        with patch.dict('os.environ', {'ANTHROPIC_TEST_API_KEY': 'fake-key-para-test'}):
+            with patch('trainer.views.anthropic.Anthropic', return_value=fake_client):
+                resultado = None
+                for linea in _generar_analisis_orquestacion(analysis, None, creditos_a_cobrar=1, omitir_chequeo_tamano=True):
+                    obj = json.loads(linea)
+                    if not obj.get('heartbeat'):
+                        resultado = obj
+        return resultado
+
+    def test_informe_normal_no_truncado_cobra_credito_completo(self):
+        analysis, profile = self._crear_analysis()
+        resultado = self._correr(analysis, stop_reason='end_turn')
+        self.assertEqual(resultado['status'], 'success')
+        self.assertFalse(resultado['data']['truncado'])
+        analysis.refresh_from_db()
+        self.assertEqual(analysis.creditos_cobrados, 1)
+
+    def test_informe_truncado_marca_flag_y_no_cobra(self):
+        from trainer.views import CREDITOS_SI_TRUNCADO
+        analysis, profile = self._crear_analysis()
+        resultado = self._correr(analysis, stop_reason='max_tokens')
+        self.assertEqual(resultado['status'], 'success')
+        self.assertTrue(resultado['data']['truncado'])
+        analysis.refresh_from_db()
+        self.assertEqual(analysis.creditos_cobrados, CREDITOS_SI_TRUNCADO)

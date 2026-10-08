@@ -102,6 +102,9 @@
 .analisis-panel--error {
     border-color: color-mix(in srgb, var(--danger) 40%, transparent);
 }
+.analisis-panel--aviso {
+    border-color: color-mix(in srgb, var(--warning) 40%, transparent);
+}
 .analisis-prosa {
     color: var(--ink-body);
     line-height: 1.7;
