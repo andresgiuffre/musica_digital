@@ -1126,3 +1126,101 @@ class MapaRegistrosPdfLocaleTests(TestCase):
             status = pisa_doc.pisaDocument(html, dest=buf)
         self.assertEqual(status.err, 0)
         self.assertGreater(len(buf.getvalue()), 0)
+
+
+class AlertasEjecucionEnPdfTests(TestCase):
+    """
+    Bug real reportado por el usuario: el PDF exportado no incluía
+    alertas_ejecucion (tiempo de aire, saltos, cruce dinámica×registro,
+    densidad rítmica, avisos) -- orquestador_render.js (panel web) sí la
+    mostraba desde FASE 2A/2B, pero orquestador_pdf.html nunca se tocó para
+    incluirla. _preparar_alertas_ejecucion_pdf hace el mismo filtrado que
+    hace renderAlertasEjecucion del lado del cliente (JS), en Python, porque
+    Django templates no filtran listas por valor de un campo.
+    """
+
+    def _alertas_de_prueba(self):
+        return {
+            'tramos_aire': [
+                {'instrumento': 'Oboe', 'compas_desde': 10, 'compas_hasta': 20, 'duracion_segundos': 22.0,
+                 'duracion_ponderada': 25.3, 'umbral_aviso': 20, 'umbral_critico': 35, 'nivel': 'aviso'},
+                {'instrumento': 'Corno Inglés', 'compas_desde': 40, 'compas_hasta': 48, 'duracion_segundos': 38.0,
+                 'duracion_ponderada': 40.1, 'umbral_aviso': 18, 'umbral_critico': 30, 'nivel': 'critico'},
+                {'instrumento': 'Flauta', 'compas_desde': 1, 'compas_hasta': 2, 'duracion_segundos': 3.0,
+                 'duracion_ponderada': 3.0, 'umbral_aviso': 8, 'umbral_critico': 14, 'nivel': 'ok'},
+            ],
+            'saltos_melodicos': [
+                {'instrumento': 'Violonchelo', 'maximo_semitonos': 19.0, 'cantidad_mayor_octava': 3, 'mas_grandes': []},
+                {'instrumento': 'Viola', 'maximo_semitonos': 5.0, 'cantidad_mayor_octava': 0, 'mas_grandes': []},
+            ],
+            'cruce_dinamica_registro': [
+                {'instrumento': 'Trompeta', 'compas_desde': 112, 'compas_hasta': 116, 'registro': 'agudo', 'dinamica': 'ff'},
+            ],
+            'densidad_ritmica': [
+                {'instrumento': 'Flauta', 'picos': [{'compas': 30, 'notas_por_segundo': 6.2}, {'compas': 31, 'notas_por_segundo': 4.0}]},
+            ],
+            'avisos': [
+                {'tipo': 'instrumento_no_reconocido', 'instrumento': 'Theremin', 'valor': None, 'ocurrencias': 1},
+                {'tipo': 'tempo_asumido', 'instrumento': None, 'valor': 120, 'ocurrencias': 1},
+            ],
+        }
+
+    def test_filtra_nivel_ok_y_saltos_sin_octava(self):
+        from trainer.views import _preparar_alertas_ejecucion_pdf
+        preparado = _preparar_alertas_ejecucion_pdf(self._alertas_de_prueba())
+        self.assertEqual(len(preparado['tramos_aire']), 2, "el tramo nivel='ok' no debe aparecer")
+        self.assertEqual(len(preparado['saltos_melodicos']), 1, "el salto con 0 octavas no debe aparecer")
+
+    def test_umbral_elige_segun_nivel(self):
+        from trainer.views import _preparar_alertas_ejecucion_pdf
+        preparado = _preparar_alertas_ejecucion_pdf(self._alertas_de_prueba())
+        por_instrumento = {t['instrumento']: t for t in preparado['tramos_aire']}
+        self.assertEqual(por_instrumento['Oboe']['umbral'], 20)  # nivel aviso -> umbral_aviso
+        self.assertEqual(por_instrumento['Corno Inglés']['umbral'], 30)  # nivel critico -> umbral_critico
+
+    def test_densidad_elige_el_pico_mas_denso(self):
+        from trainer.views import _preparar_alertas_ejecucion_pdf
+        preparado = _preparar_alertas_ejecucion_pdf(self._alertas_de_prueba())
+        self.assertEqual(preparado['densidad_ritmica'][0]['pico']['notas_por_segundo'], 6.2)
+
+    def test_pdf_completo_incluye_las_5_secciones(self):
+        """End-to-end real: el caso exacto que faltaba -- el PDF ahora
+        incluye tiempo de aire, saltos, cruce dinámica×registro, densidad
+        rítmica y avisos, no solo lo que ya estaba (resumen, mapa de
+        registros, viabilidad, bloques)."""
+        from trainer.views import _calcular_mapa_registros, _preparar_densidad_pdf, _preparar_alertas_ejecucion_pdf
+        from django.template.loader import render_to_string
+        from django.utils import translation
+        import datetime
+        import xhtml2pdf.document as pisa_doc
+        import io
+
+        class FakeAnalysis:
+            name = 'Test'
+            created_at = datetime.datetime.now()
+
+        alertas_ejecucion = self._alertas_de_prueba()
+        data = {
+            'resumen_general': 'x', 'resumen_por_instrumento': [], 'estadisticas_por_instrumento': {},
+            'alertas_viabilidad': [], 'alertas_ejecucion': alertas_ejecucion, 'bloques': [],
+        }
+        with translation.override('es'):
+            alertas_pdf = _preparar_alertas_ejecucion_pdf(data.get('alertas_ejecucion'))
+            html = render_to_string('trainer/orquestador_pdf.html', {
+                'analysis': FakeAnalysis(), 'data': data,
+                'mapa_registros': _calcular_mapa_registros(data.get('estadisticas_por_instrumento')),
+                'densidad_pdf': _preparar_densidad_pdf(data.get('densidad_por_compas')),
+                'alertas_ejecucion_pdf': alertas_pdf,
+            })
+            buf = io.BytesIO()
+            status = pisa_doc.pisaDocument(html, dest=buf)
+        self.assertEqual(status.err, 0)
+
+        for esperado in (
+            'Tiempo de Aire', 'Oboe: tramo sin pausa', 'Corno Inglés: tramo sin pausa',
+            'Saltos Melódicos', 'Violonchelo: 3 salto',
+            'Cruce Dinámica', 'Trompeta: compases 112-116',
+            'Densidad Rítmica', 'Flauta: pico de densidad en el compás 30',
+            'Avisos del Análisis de Ejecución', 'Theremin', 'bpm',
+        ):
+            self.assertIn(esperado, html, f"falta en el PDF: {esperado!r}")

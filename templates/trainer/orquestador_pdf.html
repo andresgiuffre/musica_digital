@@ -35,6 +35,11 @@
 
     table.densidad-tabla td { height: 0.4cm; border: 0.5pt solid #ccc; }
     .alerta-pdf { padding: 0.2cm 0.3cm; margin-bottom: 0.15cm; background-color: #f9e9e8; border-left: 2pt solid #b5484a; font-size: 9pt; }
+
+    .alerta-ejecucion { padding: 0.2cm 0.3cm; margin-bottom: 0.15cm; font-size: 9pt; }
+    .alerta-ejecucion--critico { background-color: #f9e9e8; border-left: 2pt solid #b5484a; }
+    .alerta-ejecucion--aviso { background-color: #fdf3e3; border-left: 2pt solid #c98a3d; }
+    .alerta-ejecucion--info { background-color: #eef2f6; border-left: 2pt solid #6b8caf; }
 </style>
 </head>
 <body>
@@ -98,6 +103,47 @@
     <h2>{% trans "Alertas de Viabilidad Instrumental" %}</h2>
     {% for a in data.alertas_viabilidad %}
     <p class="alerta-pdf">{{ a.mensaje }}</p>
+    {% endfor %}
+    {% endif %}
+
+    {% if alertas_ejecucion_pdf.tramos_aire %}
+    <h2>{% trans "Tiempo de Aire / Ejecución Continua" %}</h2>
+    {% for t in alertas_ejecucion_pdf.tramos_aire %}
+    <p class="alerta-ejecucion alerta-ejecucion--{{ t.nivel }}">{% blocktrans with instrumento=t.instrumento compasDesde=t.compas_desde compasHasta=t.compas_hasta duracion=t.duracion_segundos|floatformat:1 ponderada=t.duracion_ponderada|floatformat:1 umbral=t.umbral|floatformat:0 %}{{ instrumento }}: tramo sin pausa suficiente en los compases {{ compasDesde }}-{{ compasHasta }} ({{ duracion }}s reales, {{ ponderada }}s ponderados, umbral {{ umbral }}s){% endblocktrans %}</p>
+    {% endfor %}
+    {% endif %}
+
+    {% if alertas_ejecucion_pdf.saltos_melodicos %}
+    <h2>{% trans "Saltos Melódicos" %}</h2>
+    {% for s in alertas_ejecucion_pdf.saltos_melodicos %}
+    <p class="alerta-ejecucion alerta-ejecucion--info">{% blocktrans with instrumento=s.instrumento cantidad=s.cantidad_mayor_octava maximo=s.maximo_semitonos|floatformat:0 %}{{ instrumento }}: {{ cantidad }} salto(s) mayor(es) a una octava (máximo {{ maximo }} semitonos){% endblocktrans %}</p>
+    {% endfor %}
+    {% endif %}
+
+    {% if alertas_ejecucion_pdf.cruce_dinamica_registro %}
+    <h2>{% trans "Cruce Dinámica × Registro" %}</h2>
+    {% for c in alertas_ejecucion_pdf.cruce_dinamica_registro %}
+    <p class="alerta-ejecucion alerta-ejecucion--info">{% blocktrans with instrumento=c.instrumento compasDesde=c.compas_desde compasHasta=c.compas_hasta registro=c.registro dinamica=c.dinamica %}{{ instrumento }}: compases {{ compasDesde }}-{{ compasHasta }} en registro {{ registro }} con dinámica {{ dinamica }}{% endblocktrans %}</p>
+    {% endfor %}
+    {% endif %}
+
+    {% if alertas_ejecucion_pdf.densidad_ritmica %}
+    <h2>{% trans "Densidad Rítmica Local" %}</h2>
+    {% for d in alertas_ejecucion_pdf.densidad_ritmica %}
+    <p class="alerta-ejecucion alerta-ejecucion--info">{% blocktrans with instrumento=d.instrumento compas=d.pico.compas notasPorSegundo=d.pico.notas_por_segundo|floatformat:1 %}{{ instrumento }}: pico de densidad en el compás {{ compas }} ({{ notasPorSegundo }} notas/segundo){% endblocktrans %}</p>
+    {% endfor %}
+    {% endif %}
+
+    {% if alertas_ejecucion_pdf.avisos %}
+    <h2>{% trans "Avisos del Análisis de Ejecución" %}</h2>
+    {% for a in alertas_ejecucion_pdf.avisos %}
+    <p class="alerta-ejecucion alerta-ejecucion--info">
+        {% if a.tipo == 'instrumento_no_reconocido' %}{% blocktrans with instrumento=a.instrumento %}No se reconoció el instrumento "{{ instrumento }}" -- no se evaluó tiempo de aire ni cruce dinámica/registro para esa parte.{% endblocktrans %}
+        {% elif a.tipo == 'dinamica_no_reconocida' %}{% blocktrans with instrumento=a.instrumento valor=a.valor ocurrencias=a.ocurrencias %}{{ instrumento }}: la marca de dinámica "{{ valor }}" no se reconoce ({{ ocurrencias }} vez/veces) -- se usó un valor neutro en su lugar.{% endblocktrans %}
+        {% elif a.tipo == 'obra_sin_dinamica' %}{% trans "Este archivo no trae marcas de dinámica explícitas (típico de MIDI) -- el cruce dinámica×registro y el multiplicador de dinámica en tiempo de aire usan un valor neutro en toda la obra." %}
+        {% elif a.tipo == 'tempo_asumido' %}{% blocktrans with bpm=a.valor %}Esta obra no trae un tempo numérico explícito en ningún punto -- se asumió {{ bpm }} bpm para calcular los segundos reales de tiempo de aire y densidad rítmica. Si el tempo real es distinto, esos valores van a estar corridos.{% endblocktrans %}
+        {% endif %}
+    </p>
     {% endfor %}
     {% endif %}
 

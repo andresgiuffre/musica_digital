@@ -1780,6 +1780,45 @@ def _preparar_densidad_pdf(densidad_por_compas):
     return resultado
 
 
+def _preparar_alertas_ejecucion_pdf(alertas_ejecucion):
+    """
+    Versión para el PDF de `alertas_ejecucion` (FASE 2A/2B) -- faltaba por
+    completo en el export, encontrado real en producción ("el PDF no se
+    genera con toda la data del informe"): orquestador_render.js (el panel
+    web) sí la mostraba desde que se agregó, pero orquestador_pdf.html nunca
+    se tocó para incluirla. Mismo filtrado que hace renderAlertasEjecucion
+    del lado del cliente (JS), hecho acá en Python porque Django templates no
+    filtran listas por valor de un campo sin un filtro custom.
+    """
+    alertas_ejecucion = alertas_ejecucion or {}
+
+    tramos_no_ok = []
+    for t in alertas_ejecucion.get('tramos_aire', []):
+        if t.get('nivel') == 'ok':
+            continue
+        umbral = t['umbral_critico'] if t.get('nivel') == 'critico' else t['umbral_aviso']
+        tramos_no_ok.append({**t, 'umbral': umbral})
+
+    saltos_con_octava = [s for s in alertas_ejecucion.get('saltos_melodicos', []) if s.get('cantidad_mayor_octava', 0) > 0]
+
+    cruces = alertas_ejecucion.get('cruce_dinamica_registro', [])
+
+    densidad_pico_por_instrumento = []
+    for d in alertas_ejecucion.get('densidad_ritmica', []):
+        picos = d.get('picos') or []
+        if picos:
+            pico_mas_denso = max(picos, key=lambda p: p['notas_por_segundo'])
+            densidad_pico_por_instrumento.append({'instrumento': d['instrumento'], 'pico': pico_mas_denso})
+
+    return {
+        'tramos_aire': tramos_no_ok,
+        'saltos_melodicos': saltos_con_octava,
+        'cruce_dinamica_registro': cruces,
+        'densidad_ritmica': densidad_pico_por_instrumento,
+        'avisos': alertas_ejecucion.get('avisos', []),
+    }
+
+
 @login_required
 def orquestador_exportar_pdf(request, analysis_id):
     from .models import ScoreAnalysis
@@ -1801,6 +1840,7 @@ def orquestador_exportar_pdf(request, analysis_id):
         'data': data,
         'mapa_registros': _calcular_mapa_registros(data.get('estadisticas_por_instrumento')),
         'densidad_pdf': _preparar_densidad_pdf(data.get('densidad_por_compas')),
+        'alertas_ejecucion_pdf': _preparar_alertas_ejecucion_pdf(data.get('alertas_ejecucion')),
     })
 
     buffer = io.BytesIO()
