@@ -149,7 +149,14 @@ ALIAS_INSTRUMENTO = [
     (('xilofono', 'xylophone'), 'Xilófono'),
     (('marimba',), 'Marimba'),
     (('vibrafono', 'vibraphone'), 'Vibráfono'),
-    (('glockenspiel', 'campanas tubulares', 'carillon', 'campanologia', 'metalofono'), 'Glockenspiel'),
+    # Bug real corregido en esta revisión: "campanas tubulares"/"carillon"
+    # estaban mal mapeados acá mismo a Glockenspiel -- son instrumentos
+    # distintos, con rango distinto (ver RANGOS_COMODOS en models.py).
+    # "Carillon" es justo el término francés/italiano habitual para campanas
+    # tubulares DENTRO de una orquesta (no para un carillón de torre real).
+    (('glockenspiel',), 'Glockenspiel'),
+    (('campanas tubulares', 'tubular bells', 'chimes', 'carillon', 'campane tubolari'), 'Campanas Tubulares'),
+    (('celesta', 'celeste'), 'Celesta'),
     (('timbal', 'timpani', 'timbales'), 'Timbal'),
     (('soprano', 'sop'), 'Soprano'),
     (('mezzosoprano', 'mezzo soprano'), 'Mezzosoprano'),
@@ -168,6 +175,29 @@ ALIAS_INSTRUMENTO = [
 # (no una subcadena de algo más largo, que ya matchearía 'Contrabajo' antes por
 # ser más específico), se desempata viendo si la parte tiene letra.
 TERMINOS_AMBIGUOS_BAJO = ('bass', 'bajo', 'basso')
+
+# Percusión SIN altura definida -- reconocida (no dispara aviso de "instrumento
+# no reconocido"), pero resuelve al sentinel models.INSTRUMENTO_SIN_ALTURA en
+# vez de a una clave real de RANGOS_COMODOS (no hay "ámbito cómodo" que tenga
+# sentido para algo sin altura). Entra en la misma competencia de coincidencia
+# más larga que ALIAS_INSTRUMENTO (ver _resolver_instrumento_normalizado) --
+# por eso es solo una tupla de keywords, no una lista de (keywords, canonico).
+ALIAS_PERCUSION_SIN_ALTURA = (
+    'caja', 'snare drum', 'snare', 'tamburo rullante',
+    'bombo', 'bass drum', 'gran cassa',
+    'platillos', 'platillo', 'cymbal', 'cymbals', 'piatti',
+    'triangulo', 'triangle', 'triangolo',
+    'pandereta', 'tambourine', 'tamburello',
+    'wood block', 'woodblock', 'claves', 'cowbell', 'guiro',
+    'tom tom', 'tom', 'bongo', 'bongos', 'conga', 'congas',
+    'redoblante', 'tarola',
+)
+
+# Para desempatar "Alto" suelto (ver _resolver_instrumento_normalizado): si
+# alguna de las OTRAS partes de la misma obra se normaliza a una de estas voces
+# de coro, "Alto" se reconoce como Contralto (voz) -- un contexto típico de
+# SATB es la señal más confiable además de letra propia.
+VOCES_DE_CORO_PARA_DESEMPATE_ALTO = ('soprano', 'tenor', 'bajo', 'bass', 'basso', 'baritono', 'baritone')
 
 # Términos que, si aparecen en el nombre normalizado, bloquean cualquier match
 # de ALIAS_INSTRUMENTO para esa parte (aunque una subcadena suya matchearía algo

@@ -29,7 +29,7 @@ from .configuracion_ejecucion import (
     CANONICO_A_CLAVE_AIRE, UMBRAL_DENSIDAD_NOTABLE, MAX_ALERTAS_POR_INSTRUMENTO_PROMPT,
     MAX_ALERTAS_TOTAL_PROMPT,
 )
-from .models import RANGOS_COMODOS, _resolver_instrumento_normalizado
+from .models import RANGOS_COMODOS, _resolver_instrumento_normalizado, INSTRUMENTO_SIN_ALTURA
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +74,8 @@ CLASE_A_CANONICO = {
     music21.instrument.Marimba: 'Marimba',
     music21.instrument.Vibraphone: 'Vibráfono',
     music21.instrument.Glockenspiel: 'Glockenspiel',
+    music21.instrument.TubularBells: 'Campanas Tubulares',
+    music21.instrument.Celesta: 'Celesta',
     music21.instrument.Timpani: 'Timbal',
     music21.instrument.Soprano: 'Soprano',
     music21.instrument.MezzoSoprano: 'Mezzosoprano',
@@ -95,12 +97,16 @@ CLASES_POR_ESPECIFICIDAD = [
 ] + list(CLASE_A_CANONICO.items())
 
 
-def resolver_instrumento(part, part_name):
+def resolver_instrumento(part, part_name, nombres_hermanos=None):
     """
-    Devuelve (clave_canonica_de_RANGOS_COMODOS | None, nivel) -- nivel 1 si se
-    resolvió por clase real de music21, nivel 2 si fue por nombre normalizado,
-    None si no se reconoció nada (dispara el aviso de "instrumento no
-    reconocido" del lado del llamador).
+    Devuelve (clave_canonica_de_RANGOS_COMODOS | models.INSTRUMENTO_SIN_ALTURA | None, nivel)
+    -- nivel 1 si se resolvió por clase real de music21, nivel 2 si fue por
+    nombre normalizado, None si no se reconoció nada (dispara el aviso de
+    "instrumento no reconocido" del lado del llamador).
+
+    `nombres_hermanos`: nombres de las DEMÁS partes de la misma obra, para
+    desempatar "Alto" suelto en el nivel 2 (ver
+    models._resolver_instrumento_normalizado) -- no afecta el nivel 1.
     """
     inst = None
     try:
@@ -112,12 +118,21 @@ def resolver_instrumento(part, part_name):
         clase = type(inst)
         if clase in CLASE_A_CANONICO:
             return CLASE_A_CANONICO[clase], 1
+        # Percusión sin altura (caja, bombo, platillos, etc.) -- reconocida por
+        # clase real de music21 (music21.instrument.UnpitchedPercussion cubre
+        # SnareDrum/BassDrum/Woodblock/Cymbals/etc.), sin necesitar que el
+        # nombre matchee ALIAS_PERCUSION_SIN_ALTURA. Antes de este fix, un
+        # nombre no reconocido acá disparaba "instrumento no reconocido" a
+        # pesar de estar perfectamente identificado por clase, solo que sin
+        # altura que medir.
+        if isinstance(inst, music21.instrument.UnpitchedPercussion):
+            return INSTRUMENTO_SIN_ALTURA, 1
         for clase_conocida, canonico in CLASES_POR_ESPECIFICIDAD:
             if isinstance(inst, clase_conocida):
                 return canonico, 1
 
     nombre = part_name or (getattr(inst, 'instrumentName', None) if inst else None) or ''
-    return _resolver_instrumento_normalizado(nombre, part), 2
+    return _resolver_instrumento_normalizado(nombre, part, nombres_hermanos), 2
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +447,7 @@ def _agregar_aviso(avisos_acumulados, tipo, instrumento, valor=None):
     avisos_acumulados[clave]['ocurrencias'] += 1
 
 
-def calcular_metricas_de_parte(part, part_name, avisos_acumulados, tiempos_por_id):
+def calcular_metricas_de_parte(part, part_name, avisos_acumulados, tiempos_por_id, nombres_hermanos=None):
     """
     Punto de entrada por instrumento -- se llama desde DENTRO del loop
     por-parte que ya existe en _generar_analisis_orquestacion (views.py),
@@ -442,7 +457,9 @@ def calcular_metricas_de_parte(part, part_name, avisos_acumulados, tiempos_por_i
     `tiempos_por_id` viene de construir_mapa_tiempos(score), calculado UNA
     sola vez para toda la obra antes del loop (ver el comentario grande ahí --
     nunca se recalcula por parte, un part.flatten().secondsMap propio no ve el
-    tempo de las demás partes).
+    tempo de las demás partes). `nombres_hermanos`: nombres de las DEMÁS
+    partes de la obra, para desempatar "Alto" suelto (ver
+    models._resolver_instrumento_normalizado).
 
     Devuelve (resultado_de_esta_parte, hubo_dynamic) -- el segundo valor se
     usa en el llamador para decidir el aviso de nivel-obra "este archivo no
@@ -452,7 +469,7 @@ def calcular_metricas_de_parte(part, part_name, avisos_acumulados, tiempos_por_i
     for valor in dinamicas_no_reconocidas:
         _agregar_aviso(avisos_acumulados, 'dinamica_no_reconocida', part_name, valor)
 
-    canonico, _nivel_resolucion = resolver_instrumento(part, part_name)
+    canonico, _nivel_resolucion = resolver_instrumento(part, part_name, nombres_hermanos)
 
     resultado = {
         'tramos_aire': [],
@@ -463,6 +480,15 @@ def calcular_metricas_de_parte(part, part_name, avisos_acumulados, tiempos_por_i
 
     if canonico is None:
         _agregar_aviso(avisos_acumulados, 'instrumento_no_reconocido', part_name)
+        return resultado, hubo_dynamic
+
+    if canonico == INSTRUMENTO_SIN_ALTURA:
+        # Percusión sin altura definida -- reconocida, pero ninguna métrica de
+        # registro aplica (no hay "ámbito cómodo" que tenga sentido). Sin
+        # aviso: está perfectamente identificada, solo que no respira ni tiene
+        # registro. densidad_ritmica/saltos_melodicos ya salieron vacíos de
+        # por sí (music21.note.Unpitched no genera eventos tipo 'nota', ver
+        # _construir_eventos_parte).
         return resultado, hubo_dynamic
 
     ambito_comodo = RANGOS_COMODOS[canonico]

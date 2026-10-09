@@ -550,17 +550,27 @@ ORQUESTACION_TOOL = {
 
 NOMBRES_SOLFEO = {'C': 'Do', 'D': 'Re', 'E': 'Mi', 'F': 'Fa', 'G': 'Sol', 'A': 'La', 'B': 'Si'}
 
+# music21 representa las alteraciones con '#'/'##' (sostenido/doble sostenido) y
+# '-'/'--' (bemol/doble bemol) antes de la octava (ej. 'B-3', 'C##4') -- se muestran
+# siempre con el símbolo musical real, nunca con el guion/almohadilla crudo de music21.
+SIMBOLOS_ALTERACION = {'##': '\U0001D12A', '#': '♯', '-': '♭', '--': '\U0001D12B'}
+PATRON_PITCH_CON_OCTAVA = re.compile(r'^([A-G])(#{1,2}|-{1,2})?(-?\d+)$')
+
 def _a_solfeo(nombre_pitch):
     """Convierte un nombre de music21 (ej. 'C#4', 'B-3') a la notación de nota que
-    corresponde al idioma activo de la request: solfeo español ('Do#4', 'Si-3') o,
-    en inglés, el nombre de letra sin cambios (ya es lo que un usuario angloparlante
-    espera ver, mismo criterio que la notación C/D/E/F/G/A/B ya usada en los Trainings)."""
+    corresponde al idioma activo de la request: solfeo español ('Do♯4', 'Si♭3') o,
+    en inglés, el nombre de letra ('C♯4', 'B♭3' -- mismo criterio que la notación
+    C/D/E/F/G/A/B ya usada en los Trainings), en ambos casos con el símbolo real de
+    alteración en vez del guion/almohadilla crudo de music21."""
     from django.utils.translation import get_language
-    if get_language() == 'en':
+    m = PATRON_PITCH_CON_OCTAVA.match(nombre_pitch)
+    if not m:
         return nombre_pitch
-    letra = nombre_pitch[0]
-    resto = nombre_pitch[1:]
-    return NOMBRES_SOLFEO.get(letra, letra) + resto
+    letra, alteracion, octava = m.groups()
+    simbolo = SIMBOLOS_ALTERACION.get(alteracion, '')
+    if get_language() == 'en':
+        return letra + simbolo + octava
+    return NOMBRES_SOLFEO.get(letra, letra) + simbolo + octava
 
 def calcular_estadisticas_parte(part):
     """
@@ -1224,6 +1234,29 @@ def _calcular_puntaje_obra(total_instrumentos, measures_data):
     return total_instrumentos * total_compases
 
 
+def _desambiguar_nombres_partes(parts):
+    """
+    Partes con el mismo nombre (ej. "Trumpet 1"/"Trumpet 2" ambas exportadas con
+    partName="Trumpet") se desambiguan ANTES de usar el nombre como clave de
+    cualquier dict (measures_data, estadisticas_por_instrumento) -- sin esto, la
+    segunda parte pisaba silenciosamente los datos de la primera en todas las
+    salidas. Se agrega un sufijo numérico solo a los nombres que realmente se
+    repiten; un nombre único no se toca. Devuelve una lista alineada 1 a 1 con
+    `parts`.
+    """
+    nombres_crudos = [p.partName or "Instrumento Desconocido" for p in parts]
+    conteo_nombres = Counter(nombres_crudos)
+    contador_repetidos = Counter()
+    nombres_unicos = []
+    for nombre in nombres_crudos:
+        if conteo_nombres[nombre] > 1:
+            contador_repetidos[nombre] += 1
+            nombres_unicos.append(f"{nombre} {contador_repetidos[nombre]}")
+        else:
+            nombres_unicos.append(nombre)
+    return nombres_unicos
+
+
 def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omitir_chequeo_tamano=False):
     """
     Generador NDJSON compartido por orquestador_analizar (primer intento, 1 crédito,
@@ -1242,7 +1275,8 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
     try:
         score = _parsear_score_descifrado(analysis.score_file)
         parts = score.parts
-        instrument_names = [p.partName for p in parts if p.partName]
+        nombres_unicos = _desambiguar_nombres_partes(parts)
+        instrument_names = [n for p, n in zip(parts, nombres_unicos) if p.partName]
 
         try:
             key_sig = score.analyze('key')
@@ -1278,8 +1312,12 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
         # real), y en una partitura real el tempo casi siempre se escribe una
         # sola vez, no replicado en cada pentagrama.
         tiempos_por_id_ejecucion, tempo_asumido = construir_mapa_tiempos(score)
-        for part in parts:
-            part_name = part.partName or "Instrumento Desconocido"
+        for part, part_name in zip(parts, nombres_unicos):
+            # nombres_hermanos: nombres YA desambiguados del resto de las partes de
+            # esta misma obra, para que resolver_instrumento pueda usar contexto
+            # cruzado (ej. distinguir una voz "Alto" ambigua según si hay otras
+            # voces de coro entre las hermanas) sin confundirse por el sufijo propio.
+            nombres_hermanos = [n for n in nombres_unicos if n != part_name]
             measures = part.getElementsByClass(music21.stream.Measure)
 
             part_data = []
@@ -1301,7 +1339,7 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
             estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part)
             alertas_viabilidad.extend(evaluar_viabilidad_instrumental(part_name, part))
 
-            resultado_ejecucion, hubo_dynamic_parte = calcular_metricas_de_parte(part, part_name, avisos_ejecucion_acumulados, tiempos_por_id_ejecucion)
+            resultado_ejecucion, hubo_dynamic_parte = calcular_metricas_de_parte(part, part_name, avisos_ejecucion_acumulados, tiempos_por_id_ejecucion, nombres_hermanos=nombres_hermanos)
             hubo_dynamic_en_la_obra = hubo_dynamic_en_la_obra or hubo_dynamic_parte
             for tramo in resultado_ejecucion['tramos_aire']:
                 alertas_ejecucion['tramos_aire'].append({**tramo, 'instrumento': part_name})

@@ -1515,6 +1515,8 @@ RANGOS_COMODOS = {
     'Vibráfono': ('F3', 'F6'),
     'Glockenspiel': ('G4', 'C7'),
     'Timbal': ('D2', 'C4'),
+    'Celesta': ('C4', 'C8'),
+    'Campanas Tubulares': ('C4', 'F5'),
     'Soprano': ('C4', 'A5'),
     'Mezzosoprano': ('A3', 'F5'),
     'Contralto': ('F3', 'D5'),
@@ -1522,6 +1524,16 @@ RANGOS_COMODOS = {
     'Barítono': ('A2', 'F4'),
     'Bajo': ('E2', 'D4'),
 }
+
+# Instrumentos de percusión SIN altura definida (caja, bombo, platillos, etc.)
+# -- no tienen una entrada de RANGOS_COMODOS real (no hay "ámbito cómodo" que
+# tenga sentido para algo sin altura). Esta clave especial, devuelta por
+# _resolver_instrumento_normalizado/metricas_ejecucion.resolver_instrumento en
+# vez de una clave real de RANGOS_COMODOS, marca "reconocido, pero no aplica
+# ninguna métrica de registro" -- sin esto, una caja/bombo sin match en la
+# tabla disparaba (antes de este fix) un aviso de "instrumento no reconocido"
+# a pesar de estar perfectamente identificado, solo que sin altura que medir.
+INSTRUMENTO_SIN_ALTURA = '__SIN_ALTURA__'
 
 # Orden deliberado: las entradas más específicas van antes que las genéricas que
 # las contienen como substring (ej. 'contrafagot' antes que 'fagot', 'trombón bajo'
@@ -1592,7 +1604,7 @@ def _normalizar_nombre_parte(nombre):
     return n
 
 
-def _resolver_instrumento_normalizado(part_name, part=None):
+def _resolver_instrumento_normalizado(part_name, part=None, nombres_hermanos=None):
     """
     Resolución de instrumento por nombre normalizado, NIVEL 2 de
     metricas_ejecucion.resolver_instrumento (nivel 1 es la clase real de
@@ -1601,15 +1613,22 @@ def _resolver_instrumento_normalizado(part_name, part=None):
     acá la resolución es por coincidencia MÁS LARGA, no por el primer alias que
     matchea en orden de lista, y cubre alias en español/inglés/italiano.
 
-    `part` (opcional, un music21.stream.Part) solo se usa para desempatar
-    "bass"/"bajo"/"basso" sueltos (TERMINOS_AMBIGUOS_BAJO): con letra
-    (note.lyrics) en la parte, se asume voz de Bajo; sin letra, Contrabajo.
+    `part` (opcional, un music21.stream.Part) se usa para desempatar
+    "bass"/"bajo"/"basso" sueltos (TERMINOS_AMBIGUOS_BAJO, con letra = voz de
+    Bajo, sin letra = Contrabajo) y "alto" suelto (ver abajo). `nombres_hermanos`
+    (opcional, nombres de las DEMÁS partes de la misma obra) solo se usa para
+    "alto".
 
-    Devuelve una clave real de RANGOS_COMODOS, o None si no se reconoce nada
-    (nunca se inventa un match dudoso -- un None acá dispara el aviso explícito
-    de "instrumento no reconocido" del lado de metricas_ejecucion.py).
+    Devuelve una clave real de RANGOS_COMODOS, el sentinel
+    models.INSTRUMENTO_SIN_ALTURA (percusión sin altura definida -- reconocida,
+    pero sin ámbito que medir), o None si no se reconoce nada (nunca se inventa
+    un match dudoso -- un None acá dispara el aviso explícito de "instrumento
+    no reconocido" del lado de metricas_ejecucion.py).
     """
-    from .configuracion_ejecucion import ALIAS_INSTRUMENTO, TERMINOS_EXCLUIDOS, TERMINOS_AMBIGUOS_BAJO
+    from .configuracion_ejecucion import (
+        ALIAS_INSTRUMENTO, TERMINOS_EXCLUIDOS, TERMINOS_AMBIGUOS_BAJO,
+        ALIAS_PERCUSION_SIN_ALTURA, VOCES_DE_CORO_PARA_DESEMPATE_ALTO,
+    )
 
     n = _normalizar_nombre_parte(part_name)
     if not n:
@@ -1624,6 +1643,24 @@ def _resolver_instrumento_normalizado(part_name, part=None):
             tiene_letra = any(getattr(nota, 'lyrics', None) for nota in part.recurse().notes)
         return 'Bajo' if tiene_letra else 'Contrabajo'
 
+    if n == 'alto':
+        # "Alto" a secas es ambiguo entre voz de Contralto, Viola (nombre
+        # francés/italiano habitual de la viola es justo "Alto"), y Saxo Alto
+        # -- se reconoce como VOZ solo con evidencia real (letra propia, o
+        # nombres de otras voces de coro presentes en la misma obra). Sin esa
+        # evidencia, mejor "no reconocido" (con aviso) que adivinar mal entre
+        # 3 instrumentos distintos.
+        tiene_letra = False
+        if part is not None:
+            tiene_letra = any(getattr(nota, 'lyrics', None) for nota in part.recurse().notes)
+        hay_hermanas_de_coro = any(
+            _normalizar_nombre_parte(h) in VOCES_DE_CORO_PARA_DESEMPATE_ALTO
+            for h in (nombres_hermanos or [])
+        )
+        if tiene_letra or hay_hermanas_de_coro:
+            return 'Contralto'
+        return None
+
     # Coincidencia de PALABRA COMPLETA (\b...\b), no subcadena cruda -- necesario
     # para que abreviaturas cortas ("ob", "cl", "hn") no matcheen por accidente
     # dentro de una palabra más larga no relacionada (ej. "ob" dentro de
@@ -1631,10 +1668,12 @@ def _resolver_instrumento_normalizado(part_name, part=None):
     # matchea "violins"/"violines", "oboe" matchea "oboes") sin necesitar una
     # entrada aparte por cada alias. Gana el alias más largo que matchea
     # (contando SOLO la parte literal del alias, no el plural tolerado), sin
-    # importar el orden en ALIAS_INSTRUMENTO.
+    # importar el orden en la tabla. ALIAS_PERCUSION_SIN_ALTURA (caja, bombo,
+    # platillos, etc.) entra en la MISMA competencia, apuntando al sentinel
+    # INSTRUMENTO_SIN_ALTURA en vez de a una clave real de RANGOS_COMODOS.
     mejor_match = None
     mejor_largo = -1
-    for keywords, canonico in ALIAS_INSTRUMENTO:
+    for keywords, canonico in ALIAS_INSTRUMENTO + [(ALIAS_PERCUSION_SIN_ALTURA, INSTRUMENTO_SIN_ALTURA)]:
         for kw in keywords:
             if len(kw) > mejor_largo and re.search(r'\b' + re.escape(kw) + r'e?s?\b', n):
                 mejor_match = canonico

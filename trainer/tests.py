@@ -5,8 +5,11 @@ import music21
 from django.contrib.auth.models import User
 from django.test import Client, TestCase
 
-from trainer.models import Game, MusicalProject, Playlist, SheetMusic, RANGOS_COMODOS, _resolver_instrumento_normalizado
-from trainer.views import _eventos_ejecucion, _auditar_citas_ejecucion
+from trainer.models import (
+    Game, MusicalProject, Playlist, SheetMusic, RANGOS_COMODOS,
+    _resolver_instrumento_normalizado, INSTRUMENTO_SIN_ALTURA,
+)
+from trainer.views import _eventos_ejecucion, _auditar_citas_ejecucion, _a_solfeo
 from trainer.metricas_ejecucion import (
     calcular_metricas_de_parte, resolver_instrumento, _cortes_registro, construir_mapa_tiempos,
     compactar_alertas_para_prompt,
@@ -1224,3 +1227,144 @@ class AlertasEjecucionEnPdfTests(TestCase):
             'Avisos del Análisis de Ejecución', 'Theremin', 'bpm',
         ):
             self.assertIn(esperado, html, f"falta en el PDF: {esperado!r}")
+
+
+class PercusionSinAlturaYVozAltoTests(TestCase):
+    """
+    Punto 3 del reporte de bugs sobre "Flauta exagerada": percusión sin altura
+    (caja, bombo, platillos, etc.), campanas tubulares y celesta deben
+    reconocerse como instrumentos conocidos (sin disparar el aviso de
+    "instrumento no reconocido"), y la voz "Alto" a secas solo se reconoce
+    como voz de Contralto con evidencia real (letra propia, u otra voz de
+    coro entre las partes hermanas) -- nunca por default.
+    """
+
+    def test_percusion_sin_altura_no_dispara_aviso(self):
+        for nombre in ('Caja', 'Snare Drum', 'Bombo', 'Platillos', 'Triángulo', 'Pandereta'):
+            with self.subTest(nombre=nombre):
+                self.assertEqual(_resolver_instrumento_normalizado(nombre), INSTRUMENTO_SIN_ALTURA)
+
+    def test_campanas_tubulares_y_celesta_tienen_rango_real_no_sentinel(self):
+        for nombre, esperado in (('Campanas Tubulares', 'Campanas Tubulares'), ('Tubular Bells', 'Campanas Tubulares'),
+                                  ('Chimes', 'Campanas Tubulares'), ('Celesta', 'Celesta'), ('Celeste', 'Celesta')):
+            with self.subTest(nombre=nombre):
+                resuelto = _resolver_instrumento_normalizado(nombre)
+                self.assertEqual(resuelto, esperado)
+                self.assertIn(resuelto, RANGOS_COMODOS)
+
+    def test_campanas_tubulares_ya_no_se_confunde_con_glockenspiel(self):
+        """Bug preexistente encontrado de paso: 'campanas tubulares'/'carillon'
+        estaban mal mapeadas a 'Glockenspiel' (instrumento distinto, rango
+        distinto) en ALIAS_INSTRUMENTO."""
+        self.assertEqual(_resolver_instrumento_normalizado('Carillon'), 'Campanas Tubulares')
+        self.assertNotEqual(_resolver_instrumento_normalizado('Campanas Tubulares'), 'Glockenspiel')
+
+    def test_percusion_sin_altura_via_calcular_metricas_de_parte_no_genera_aviso(self):
+        parte = music21.stream.Part()
+        parte.partName = 'Caja'
+        m = music21.stream.Measure(number=1)
+        m.append(music21.note.Unpitched())
+        parte.append(m)
+        avisos = {}
+        resultado, _hubo = calcular_metricas_de_parte(parte, 'Caja', avisos, _mapa_tiempos_de(parte))
+        self.assertEqual(avisos, {})
+        self.assertEqual(resultado['tramos_aire'], [])
+
+    def test_instrumento_real_unpitched_percussion_reconocido_por_clase(self):
+        """Nivel 1 (clase real de music21, no solo por nombre): un part con un
+        instrument.UnpitchedPercussion real (ej. Woodblock) debe resolverse al
+        sentinel aunque el partName no esté en ALIAS_PERCUSION_SIN_ALTURA."""
+        parte = music21.stream.Part()
+        parte.insert(0, music21.instrument.Woodblock())
+        canonico, _confianza = resolver_instrumento(parte, 'Percusión rara sin nombre reconocido')
+        self.assertEqual(canonico, INSTRUMENTO_SIN_ALTURA)
+
+    def test_alto_solo_no_se_reconoce_sin_evidencia(self):
+        self.assertIsNone(_resolver_instrumento_normalizado('Alto'))
+
+    def test_alto_con_letra_se_reconoce_como_contralto(self):
+        parte = music21.stream.Part()
+        m = music21.stream.Measure(number=1)
+        n = music21.note.Note('G4', quarterLength=4.0)
+        n.lyric = 'A-men'
+        m.append(n)
+        parte.append(m)
+        self.assertEqual(_resolver_instrumento_normalizado('Alto', parte), 'Contralto')
+
+    def test_alto_con_hermanas_de_coro_se_reconoce_como_contralto(self):
+        self.assertEqual(
+            _resolver_instrumento_normalizado('Alto', nombres_hermanos=['Soprano', 'Tenor', 'Bajo']),
+            'Contralto',
+        )
+
+    def test_alto_sin_letra_ni_hermanas_de_coro_sigue_sin_reconocerse(self):
+        """Mismo nombre "Alto", pero las hermanas son instrumentales (ej. una
+        sección de Viola/Saxo) -- no hay evidencia de coro, no se adivina."""
+        self.assertIsNone(_resolver_instrumento_normalizado('Alto', nombres_hermanos=['Violín', 'Violonchelo']))
+
+
+class DesambiguarNombresPartesTests(TestCase):
+    """
+    Punto 3 del reporte de bugs: partes con el mismo nombre (ej. dos partes
+    "Trumpet" en el archivo real, mostradas como "Trumpet 1/2") deben
+    distinguirse en measures_data/estadisticas_por_instrumento/instruments --
+    sin esto, la segunda pisaba silenciosamente los datos de la primera.
+    """
+
+    def test_nombres_duplicados_reciben_sufijo_numerico(self):
+        from trainer.views import _desambiguar_nombres_partes
+
+        class _Parte:
+            def __init__(self, nombre):
+                self.partName = nombre
+
+        partes = [_Parte('Trumpet'), _Parte('Trumpet'), _Parte('Oboe')]
+        self.assertEqual(_desambiguar_nombres_partes(partes), ['Trumpet 1', 'Trumpet 2', 'Oboe'])
+
+    def test_nombres_unicos_no_se_tocan(self):
+        from trainer.views import _desambiguar_nombres_partes
+
+        class _Parte:
+            def __init__(self, nombre):
+                self.partName = nombre
+
+        partes = [_Parte('Flauta'), _Parte('Oboe')]
+        self.assertEqual(_desambiguar_nombres_partes(partes), ['Flauta', 'Oboe'])
+
+    def test_partes_sin_nombre_tambien_se_desambiguan(self):
+        from trainer.views import _desambiguar_nombres_partes
+
+        class _Parte:
+            def __init__(self, nombre):
+                self.partName = nombre
+
+        partes = [_Parte(None), _Parte(None)]
+        self.assertEqual(
+            _desambiguar_nombres_partes(partes),
+            ['Instrumento Desconocido 1', 'Instrumento Desconocido 2'],
+        )
+
+
+class AlteracionesComoSimboloTests(TestCase):
+    """Punto 3 del reporte de bugs: los bemoles/sostenidos se muestran con el
+    símbolo musical real (♭/♯/𝄫/𝄪), no con el guion/almohadilla crudo de
+    music21 ('B-3', 'C##4')."""
+
+    def test_bemol_y_sostenido_simple_en_espanol(self):
+        from django.utils import translation
+        with translation.override('es'):
+            self.assertEqual(_a_solfeo('B-3'), 'Si♭3')
+            self.assertEqual(_a_solfeo('C#4'), 'Do♯4')
+            self.assertEqual(_a_solfeo('F4'), 'Fa4')
+
+    def test_doble_bemol_y_doble_sostenido_en_espanol(self):
+        from django.utils import translation
+        with translation.override('es'):
+            self.assertEqual(_a_solfeo('B--3'), 'Si\U0001D12B3')
+            self.assertEqual(_a_solfeo('C##4'), 'Do\U0001D12A4')
+
+    def test_bemol_y_sostenido_en_ingles(self):
+        from django.utils import translation
+        with translation.override('en'):
+            self.assertEqual(_a_solfeo('B-3'), 'B♭3')
+            self.assertEqual(_a_solfeo('C#4'), 'C♯4')
