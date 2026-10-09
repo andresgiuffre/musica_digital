@@ -15,7 +15,7 @@ python manage.py test trainer       # tests (trainer/tests.py está vacío por a
 Variables de entorno relevantes (ver `config/settings.py` para el detalle completo):
 
 - `DJANGO_SECRET_KEY`, `DJANGO_DEBUG` — configuración estándar de Django.
-- `ANTHROPIC_TEST_API_KEY` — necesaria para la función de análisis orquestal con IA (`orquestador_analizar`).
+- `ANT_TEST_API_KEY_2` — necesaria para la función de análisis orquestal con IA (`orquestador_analizar`).
 - `SCORE_FILE_ENCRYPTION_KEY` — clave Fernet para cifrar en reposo los archivos de partitura subidos (`ScoreAnalysis.score_file`). Sin default a propósito — perderla deja inaccesibles todos los archivos ya subidos.
 
 ### Scripts de semilla (raíz del repo)

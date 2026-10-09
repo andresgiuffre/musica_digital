@@ -1009,7 +1009,7 @@ class TruncamientoMaxTokensTests(TestCase):
         from trainer.views import _generar_analisis_orquestacion
         fake_stream = _FakeStream(stop_reason, _reporte_minimo_valido())
         fake_client = type('FakeClient', (), {'messages': type('FakeMessages', (), {'stream': staticmethod(lambda **kw: fake_stream)})()})()
-        with patch.dict('os.environ', {'ANTHROPIC_TEST_API_KEY': 'fake-key-para-test'}):
+        with patch.dict('os.environ', {'ANT_TEST_API_KEY_2': 'fake-key-para-test'}):
             with patch('trainer.views.anthropic.Anthropic', return_value=fake_client):
                 resultado = None
                 for linea in _generar_analisis_orquestacion(analysis, None, creditos_a_cobrar=1, omitir_chequeo_tamano=True):

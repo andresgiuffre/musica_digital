@@ -15,7 +15,7 @@ class PagosNoConfiguradoError(Exception):
     SCORE_FILE_ENCRYPTION_KEY (que crashean al importar config/settings.py), estas
     credenciales se chequean recién acá, al momento de uso -- nadie debería necesitar
     credenciales de pago (ni sandbox) para correr runserver/test/editar un Curso en el
-    admin. Mismo patrón que ANTHROPIC_TEST_API_KEY en trainer/views.py. Los callers
+    admin. Mismo patrón que ANT_TEST_API_KEY_2 en trainer/views.py. Los callers
     (pagos/views.py, pagos/webhooks.py) atrapan esto y degradan sin crashear: checkout
     muestra "pagos no disponible", el webhook loguea un EventoPago y responde 200 igual.
     """

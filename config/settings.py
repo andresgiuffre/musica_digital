@@ -254,7 +254,7 @@ if not DEBUG:
 # automático que Django ya sabe mandar ante cualquier error 500 con DEBUG=False (algo
 # que este proyecto no tenía para NADA del sitio hasta ahora, no solo pagos).
 #
-# Todo opcional, con degradación sin crash -- mismo patrón que ANTHROPIC_TEST_API_KEY:
+# Todo opcional, con degradación sin crash -- mismo patrón que ANT_TEST_API_KEY_2:
 # sin DJANGO_ADMIN_EMAILS configurada, ADMINS queda vacío y mail_admins()/el email de
 # error 500 simplemente no hacen nada (no hay excepción, no hay 500 en la carga del
 # sitio). Nadie debería necesitar SMTP configurado para correr runserver/test.

@@ -1382,7 +1382,7 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
             'alertas_ejecucion_verificadas': alertas_ejecucion_verificadas,
         }
 
-        api_key = os.environ.get("ANTHROPIC_TEST_API_KEY")
+        api_key = os.environ.get("ANT_TEST_API_KEY_2")
         if api_key:
             client = anthropic.Anthropic(api_key=api_key)
 
@@ -1571,7 +1571,7 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                 }
         else:
             final_data = {
-                "error": "Falta la variable de entorno ANTHROPIC_TEST_API_KEY.",
+                "error": "Falta la variable de entorno ANT_TEST_API_KEY_2.",
                 "raw_music_data": analysis_data
             }
 
