@@ -1743,23 +1743,40 @@ def _calcular_mapa_registros(estadisticas_por_instrumento):
     global_max = max(v['ambito_max_ps'] for v in entradas.values())
     rango = (global_max - global_min) or 1
 
+    # Los tres valores se guardan como STRING ya formateado (f"{x:.2f}"), no como
+    # float crudo -- bug real encontrado en producción: el template los interpola
+    # directo en un atributo HTML (width="{{ item.width }}%"), y con el idioma
+    # activo en español Django localiza el float con COMA decimal ("66,13").
+    # xhtml2pdf hace float("66,13") al parsear ese ancho más adelante y explota
+    # (ValueError). f"{x:.2f}" de Python nunca respeta locale (siempre usa '.'),
+    # a diferencia de interpolar el float directo en el template -- por eso se
+    # formatea ACÁ, no se deja para el template.
     mapa = []
     for nombre, v in entradas.items():
         left = round(((v['ambito_min_ps'] - global_min) / rango) * 100, 2)
         width = round(max(((v['ambito_max_ps'] - v['ambito_min_ps']) / rango) * 100, 1.5), 2)
         width = min(width, 100 - left)
         resto = round(100 - left - width, 2)
-        mapa.append({'nombre': nombre, 'ambito': v['ambito'], 'left': left, 'width': width, 'resto': resto})
+        mapa.append({
+            'nombre': nombre, 'ambito': v['ambito'],
+            'left': f"{left:.2f}", 'width': f"{width:.2f}", 'resto': f"{resto:.2f}",
+        })
     return mapa
 
 
 def _preparar_densidad_pdf(densidad_por_compas):
-    """Precalcula la opacidad (0.0-1.0) de cada compás para el mapa de densidad del PDF."""
+    """Precalcula la opacidad (0.0-1.0) de cada compás para el mapa de densidad del PDF.
+
+    Igual que en _calcular_mapa_registros: se guarda como string ya formateado
+    (f"{x:.2f}"), no como float crudo -- interpolado directo en un rgba(...) del
+    template, un float localizado con coma ("0,75") produce CSS inválido con el
+    idioma activo en español.
+    """
     resultado = []
     for item in (densidad_por_compas or []):
         total = item.get('total_instrumentos') or 0
-        opacidad = round(item['instrumentos_activos'] / total, 2) if total else 0
-        resultado.append({'compas': item['compas'], 'opacidad': opacidad})
+        opacidad = (item['instrumentos_activos'] / total) if total else 0
+        resultado.append({'compas': item['compas'], 'opacidad': f"{opacidad:.2f}"})
     return resultado
 
 

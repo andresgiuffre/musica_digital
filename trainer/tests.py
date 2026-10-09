@@ -1052,3 +1052,77 @@ class TruncamientoMaxTokensTests(TestCase):
         self.assertTrue(resultado['data']['truncado'])
         analysis.refresh_from_db()
         self.assertEqual(analysis.creditos_cobrados, CREDITOS_SI_TRUNCADO)
+
+
+class MapaRegistrosPdfLocaleTests(TestCase):
+    """
+    Bug real de producción: _calcular_mapa_registros/_preparar_densidad_pdf
+    devolvían floats crudos, interpolados directo en orquestador_pdf.html
+    (width="{{ item.width }}%", rgba(...,{{ item.opacidad }})). Con el
+    idioma activo en español, Django localiza el float con COMA decimal
+    ("66,13"), y xhtml2pdf hace float("66,13") al parsear ese ancho más
+    adelante -> ValueError, PDF export roto en producción. Fix: devolver
+    f"{x:.2f}" (string, nunca respeta locale) en vez del float.
+    """
+
+    def test_mapa_registros_devuelve_strings_no_floats(self):
+        from trainer.views import _calcular_mapa_registros
+        estadisticas = {
+            'Flauta': {'ambito_min_ps': 72.0, 'ambito_max_ps': 96.0, 'ambito': 'Do5 a Do7'},
+            'Oboe': {'ambito_min_ps': 58.0, 'ambito_max_ps': 89.0, 'ambito': 'Sib3 a Fa6'},
+            'Fagot': {'ambito_min_ps': 34.0, 'ambito_max_ps': 62.0, 'ambito': 'Sib1 a Re4'},
+        }
+        mapa = _calcular_mapa_registros(estadisticas)
+        for item in mapa:
+            for clave in ('left', 'width', 'resto'):
+                self.assertIsInstance(item[clave], str, f"{clave} debe ser string, no float")
+                float(item[clave])  # nunca debe tirar ValueError por coma decimal
+
+    def test_densidad_pdf_devuelve_strings_no_floats(self):
+        from trainer.views import _preparar_densidad_pdf
+        densidad = _preparar_densidad_pdf([{'compas': 1, 'instrumentos_activos': 2, 'total_instrumentos': 3}])
+        self.assertIsInstance(densidad[0]['opacidad'], str)
+        float(densidad[0]['opacidad'])
+
+    def test_locale_espanol_localiza_float_crudo_con_coma(self):
+        """Candado de regresión del bug en sí -- confirma que el problema de
+        fondo (Django localiza floats con coma en español) sigue siendo
+        real, para que el fix de arriba no parezca innecesario si alguien
+        lo revierte sin entender por qué está."""
+        from django.utils import translation
+        from django.template import Template, Context
+        with translation.override('es'):
+            resultado = Template('{{ valor }}').render(Context({'valor': 66.13}))
+        self.assertEqual(resultado, '66,13')
+
+    def test_pdf_completo_se_genera_sin_error_con_datos_reales(self):
+        """End-to-end real: el caso exacto que rompía en producción
+        (stop_reason del traceback: ValueError en xhtml2pdf al parsear
+        '66,13' como ancho de tabla) -- reproducido y confirmado resuelto."""
+        from trainer.views import _calcular_mapa_registros, _preparar_densidad_pdf
+        from django.template.loader import render_to_string
+        from django.utils import translation
+        import datetime
+        import xhtml2pdf.document as pisa_doc
+        import io
+
+        class FakeAnalysis:
+            name = 'Test PDF'
+            created_at = datetime.datetime.now()
+
+        estadisticas = {
+            'Flauta': {'ambito_min_ps': 72.0, 'ambito_max_ps': 96.0, 'ambito': 'Do5 a Do7'},
+            'Oboe': {'ambito_min_ps': 58.0, 'ambito_max_ps': 89.0, 'ambito': 'Sib3 a Fa6'},
+            'Fagot': {'ambito_min_ps': 34.0, 'ambito_max_ps': 62.0, 'ambito': 'Sib1 a Re4'},
+        }
+        with translation.override('es'):
+            mapa = _calcular_mapa_registros(estadisticas)
+            densidad = _preparar_densidad_pdf([{'compas': 1, 'instrumentos_activos': 2, 'total_instrumentos': 3}])
+            data = {'resumen_general': 'x', 'resumen_por_instrumento': [], 'estadisticas_por_instrumento': estadisticas}
+            html = render_to_string('trainer/orquestador_pdf.html', {
+                'analysis': FakeAnalysis(), 'data': data, 'mapa_registros': mapa, 'densidad_pdf': densidad,
+            })
+            buf = io.BytesIO()
+            status = pisa_doc.pisaDocument(html, dest=buf)
+        self.assertEqual(status.err, 0)
+        self.assertGreater(len(buf.getvalue()), 0)
