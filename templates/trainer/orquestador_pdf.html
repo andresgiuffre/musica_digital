@@ -178,5 +178,17 @@
     </div>
     {% endfor %}
     {% endif %}
+
+    {% if data.alertas_criticas_no_comentadas %}
+    <h2>{% trans "Alertas Críticas No Comentadas en el Informe" %}</h2>
+    <p class="subtitulo">{% trans "El informe no mencionó estas alertas de nivel crítico detectadas por el análisis determinístico -- se muestran acá como respaldo." %}</p>
+    {% for a in data.alertas_criticas_no_comentadas %}
+    <p class="alerta-ejecucion alerta-ejecucion--critico">
+        {% if a.tipo == 'tiempo_aire' %}{% blocktrans with instrumento=a.instrumento compasDesde=a.compas_desde compasHasta=a.compas_hasta duracion=a.duracion_ponderada_seg|floatformat:1 umbral=a.umbral_seg|floatformat:0 %}{{ instrumento }}: compases {{ compasDesde }}-{{ compasHasta }}, {{ duracion }}s ponderados (umbral {{ umbral }}s){% endblocktrans %}
+        {% else %}{% blocktrans with instrumento=a.instrumento compasDesde=a.compas_desde compasHasta=a.compas_hasta %}{{ instrumento }}: compases {{ compasDesde }}-{{ compasHasta }}{% endblocktrans %}
+        {% endif %}
+    </p>
+    {% endfor %}
+    {% endif %}
 </body>
 </html>

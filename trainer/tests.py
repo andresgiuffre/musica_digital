@@ -13,6 +13,7 @@ from trainer.views import (
     _eventos_ejecucion, _auditar_citas_ejecucion, _a_solfeo,
     _auditar_citas_duplicaciones, comparar_versiones,
     evaluar_viabilidad_instrumental, detectar_duplicaciones_verificadas,
+    detectar_alertas_criticas_no_comentadas,
 )
 from trainer.metricas_ejecucion import (
     calcular_metricas_de_parte, resolver_instrumento, _cortes_registro, construir_mapa_tiempos,
@@ -944,6 +945,71 @@ class AuditoriaCitasEjecucionTests(TestCase):
             ediciones_sugeridas=['edicion mal formada'],
         )
         _auditar_citas_ejecucion([bloque], self.alertas_compactas)  # no debe lanzar
+
+
+class AlertasCriticasNoComentadasTests(TestCase):
+    """
+    Punto A del reporte de bugs sobre "Flauta exagerada": a diferencia de
+    _auditar_citas_ejecucion (que detecta mención sin cita, o cita
+    inventada, bloque por bloque), detectar_alertas_criticas_no_comentadas
+    hace una pasada de COBERTURA sobre todo el informe -- una alerta crítica
+    que ningún bloque citó en absoluto, el caso real confirmado: la alerta
+    crítica de Flute (compases 5-23, nivel crítico) no aparecía citada en
+    ningún bloque del informe real.
+    """
+
+    def _bloque(self, **kwargs):
+        base = {'rango_compases': '1-20', 'alertas_ejecucion_citadas': []}
+        base.update(kwargs)
+        return base
+
+    def test_critica_sin_ninguna_cita_aparece_en_la_lista(self):
+        alertas = [
+            {'tipo': 'tiempo_aire', 'instrumento': 'Flute', 'compas_desde': 5, 'compas_hasta': 23,
+             'duracion_ponderada_seg': 34.8, 'umbral_seg': 14, 'nivel': 'critico'},
+        ]
+        no_comentadas = detectar_alertas_criticas_no_comentadas([self._bloque()], alertas)
+        self.assertEqual(len(no_comentadas), 1)
+        self.assertEqual(no_comentadas[0]['instrumento'], 'Flute')
+
+    def test_critica_citada_en_algun_bloque_no_aparece(self):
+        alertas = [
+            {'tipo': 'tiempo_aire', 'instrumento': 'Flute', 'compas_desde': 5, 'compas_hasta': 23,
+             'duracion_ponderada_seg': 34.8, 'umbral_seg': 14, 'nivel': 'critico'},
+        ]
+        bloque_con_cita = self._bloque(
+            rango_compases='5-23',
+            alertas_ejecucion_citadas=[{'tipo': 'tiempo_aire', 'instrumento': 'Flute', 'compas_desde': 5, 'compas_hasta': 23}],
+        )
+        no_comentadas = detectar_alertas_criticas_no_comentadas([bloque_con_cita], alertas)
+        self.assertEqual(no_comentadas, [])
+
+    def test_alerta_nivel_aviso_nunca_aparece_aunque_no_se_cite(self):
+        """Solo 'critico' es obligatorio citar -- 'aviso' es deseable pero no
+        entra en este respaldo (ver GUIA_ESTILO_ORQUESTAL)."""
+        alertas = [
+            {'tipo': 'tiempo_aire', 'instrumento': 'Bassoon', 'compas_desde': 10, 'compas_hasta': 20,
+             'duracion_ponderada_seg': 21.0, 'umbral_seg': 14, 'nivel': 'aviso'},
+        ]
+        no_comentadas = detectar_alertas_criticas_no_comentadas([self._bloque()], alertas)
+        self.assertEqual(no_comentadas, [])
+
+    def test_bloque_malformado_no_rompe(self):
+        alertas = [
+            {'tipo': 'tiempo_aire', 'instrumento': 'Flute', 'compas_desde': 5, 'compas_hasta': 23,
+             'duracion_ponderada_seg': 34.8, 'umbral_seg': 14, 'nivel': 'critico'},
+        ]
+        no_comentadas = detectar_alertas_criticas_no_comentadas(['bloque mal formado'], alertas)
+        self.assertEqual(len(no_comentadas), 1)
+
+    def test_auditoria_loggea_warning_para_critica_sin_cita(self):
+        alertas = [
+            {'tipo': 'tiempo_aire', 'instrumento': 'Flute', 'compas_desde': 5, 'compas_hasta': 23,
+             'duracion_ponderada_seg': 34.8, 'umbral_seg': 14, 'nivel': 'critico'},
+        ]
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_citas_ejecucion([self._bloque()], alertas)
+        self.assertTrue(any('sin ninguna cita en todo el informe' in m for m in cm.output))
 
 
 class BloquesMalformadosTests(TestCase):

@@ -203,6 +203,40 @@ function renderAlertasEjecucion(alertas) {
     return `<div class="analisis-ejecucion-grupo">${secciones.join('')}</div>`;
 }
 
+// PUNTO A del reporte de bugs sobre "Flauta exagerada": respaldo
+// determinístico visible -- alertas de nivel 'critico' que el modelo omitió
+// por completo (ninguna cita en ningún bloque, ver
+// views.detectar_alertas_criticas_no_comentadas). Entradas en formato
+// compacto (ver metricas_ejecucion.compactar_alertas_para_prompt) -- hoy en
+// la práctica solo 'tiempo_aire' tiene nivel 'critico', pero se deja un
+// formato genérico de respaldo por si algún otro tipo lo suma más adelante.
+function renderAlertasCriticasNoComentadas(alertas) {
+    if (!alertas || !alertas.length) return '';
+    const filas = alertas.map(a => {
+        const texto = a.tipo === 'tiempo_aire'
+            ? fmtR(OrqI18n.alertaCriticaNoComentadaTiempoAire, {
+                instrumento: a.instrumento, compasDesde: a.compas_desde, compasHasta: a.compas_hasta,
+                duracion: a.duracion_ponderada_seg.toFixed(1), umbral: a.umbral_seg,
+            })
+            : fmtR(OrqI18n.alertaCriticaNoComentadaGenerica, {
+                instrumento: a.instrumento, compasDesde: a.compas_desde ?? a.compas, compasHasta: a.compas_hasta ?? a.compas,
+            });
+        return `
+            <div class="analisis-alerta analisis-alerta--excede">
+                <span class="analisis-alerta-icono">⚠️</span>
+                <span>${escapeHtml(texto)}</span>
+            </div>
+        `;
+    }).join('');
+    return `
+        <div class="analisis-panel analisis-panel--aviso">
+            <h3>${OrqI18n.tituloAlertasCriticasNoComentadas}</h3>
+            <p class="analisis-prosa">${OrqI18n.avisoAlertasCriticasNoComentadas}</p>
+            <div class="analisis-alertas">${filas}</div>
+        </div>
+    `;
+}
+
 function renderMapaDensidad(densidad) {
     if (!densidad || !densidad.length) return '';
     const bloques = densidad.map(d => {
@@ -605,6 +639,15 @@ function renderAnalysisResult(data, container, analysisId) {
             bloquesWrap.appendChild(details);
         });
         container.appendChild(bloquesWrap);
+    }
+
+    // PUNTO A del reporte de bugs: al final de todo el informe, respaldo
+    // determinístico de las alertas críticas que el modelo no comentó.
+    const criticasNoComentadasHtml = renderAlertasCriticasNoComentadas(data.alertas_criticas_no_comentadas);
+    if (criticasNoComentadasHtml) {
+        const criticasWrap = document.createElement('div');
+        criticasWrap.innerHTML = criticasNoComentadasHtml.trim();
+        container.appendChild(criticasWrap.firstElementChild);
     }
 
     if (!container.dataset.comparacionBound) {

@@ -464,7 +464,7 @@ ORQUESTACION_TOOL = {
                                 "properties": {
                                     "compases": {"type": "string", "description": "Compás o rango de compases al que aplica la edición."},
                                     "parte": {"type": "string", "description": "Nombre exacto del instrumento tal como aparece en la partitura (partName de music21) — no traducir ni parafrasear, debe poder buscarse literalmente en el archivo original."},
-                                    "accion": {"type": "string", "description": "Acción de edición corta (ej. 'transponer', 'redistribuir voz', 'ajustar dinámica')."},
+                                    "accion": {"type": "string", "description": "Acción de edición corta (ej. 'transponer', 'redistribuir voz', 'ajustar dinámica', 'repartir con otro instrumento', 'agregar respiración')."},
                                     "detalle": {"type": "string", "description": "Detalle concreto de la acción, en prosa."},
                                     "compas_desde": {"type": "integer", "description": "Primer compás (inclusive, número entero) al que aplica la edición."},
                                     "compas_hasta": {"type": "integer", "description": "Último compás (inclusive, número entero) al que aplica la edición."},
@@ -1292,6 +1292,55 @@ def _auditar_citas_ejecucion(bloques, alertas_compactas):
                     bloque.get('rango_compases'), cita,
                 )
 
+    # PUNTO A del reporte de bugs: a diferencia de los dos chequeos de arriba
+    # (mención sin cita / cita inventada, ambos por bloque), esto es una
+    # pasada de COBERTURA sobre el informe completo -- una alerta crítica que
+    # ningún bloque citó en absoluto, el caso más grave (el modelo la omitió
+    # por completo, no solo sin citarla formalmente).
+    for alerta in detectar_alertas_criticas_no_comentadas(bloques, alertas_compactas):
+        logger.warning(
+            "auditoria_ejecucion: alerta crítica sin ninguna cita en todo el informe: %r", alerta,
+        )
+
+
+def detectar_alertas_criticas_no_comentadas(bloques, alertas_compactas):
+    """
+    PUNTO A del reporte de bugs sobre "Flauta exagerada": respaldo
+    determinístico (sin IA) de las alertas de nivel 'critico' en
+    alertas_ejecucion_verificadas que ningún bloque citó en
+    alertas_ejecucion_citadas, en TODO el informe -- confirmado con el
+    análisis real id=26: la alerta crítica de Flute (compases 5-23, 30s
+    reales) no aparecía citada en ningún bloque, y el resumen por
+    instrumento apenas decía "frases largas que exigen fraseo cuidado", sin
+    reflejar que era una medición crítica real.
+
+    Se usa en dos lugares: acá mismo (_auditar_citas_ejecucion, para
+    loggear) y en _generar_analisis_orquestacion (para mostrarse tal cual al
+    usuario, en final_data['alertas_criticas_no_comentadas'], cuando no está
+    vacía -- un respaldo visible de lo que el modelo omitió, no solo un
+    registro interno).
+    """
+    citadas = []
+    for bloque in bloques or []:
+        if not isinstance(bloque, dict):
+            continue
+        citadas.extend(c for c in (bloque.get('alertas_ejecucion_citadas') or []) if isinstance(c, dict))
+
+    no_comentadas = []
+    for alerta in alertas_compactas:
+        if alerta.get('nivel') != 'critico' or alerta.get('tipo') not in TIPOS_EJECUCION_CITABLES:
+            continue
+        fue_citada = any(
+            cita.get('tipo') == alerta.get('tipo') and cita.get('instrumento') == alerta.get('instrumento')
+            and cita.get('compas_desde') is not None and cita.get('compas_hasta') is not None
+            and cita['compas_desde'] <= alerta.get('compas_hasta', alerta.get('compas', -1))
+            and cita['compas_hasta'] >= alerta.get('compas_desde', alerta.get('compas', 10**9))
+            for cita in citadas
+        )
+        if not fue_citada:
+            no_comentadas.append(alerta)
+    return no_comentadas
+
 
 UMBRAL_PUNTAJE_CONFIRMACION = 800  # ver justificación en CLAUDE.md / historial de diseño — punto de partida, no calibrado
 
@@ -1672,13 +1721,22 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                         )
                         final_data['resumen_general'] = resumen_limpio
 
+                alertas_criticas_no_comentadas = []
                 if isinstance(final_data, dict):
                     _auditar_citas_duplicaciones(final_data.get('bloques'), duplicaciones_verificadas)
                     _auditar_citas_ejecucion(final_data.get('bloques'), alertas_ejecucion_verificadas)
+                    # PUNTO A del reporte de bugs: respaldo determinístico visible al
+                    # usuario -- si el modelo omitió por completo alguna alerta crítica
+                    # (sin citarla en ningún bloque), se muestra tal cual al final del
+                    # informe en vez de depender solo del log de auditoría.
+                    alertas_criticas_no_comentadas = detectar_alertas_criticas_no_comentadas(
+                        final_data.get('bloques'), alertas_ejecucion_verificadas,
+                    )
 
                 final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
                 final_data['alertas_viabilidad'] = alertas_viabilidad
                 final_data['alertas_ejecucion'] = alertas_ejecucion
+                final_data['alertas_criticas_no_comentadas'] = alertas_criticas_no_comentadas
                 final_data['densidad_por_compas'] = densidad_por_compas
                 final_data['truncado'] = truncado
                 if version_de is not None:
