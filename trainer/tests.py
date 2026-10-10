@@ -1037,6 +1037,27 @@ class AuditoriaCitasEjecucionTests(TestCase):
             _auditar_citas_ejecucion([bloque], self.alertas_compactas)
         logger_mock.warning.assert_not_called()
 
+    def test_cita_de_otro_tipo_no_cubre_mencion_de_densidad(self):
+        """Punto J del reporte de bugs: caso real confirmado -- un bloque
+        mencionaba "densidad rítmica elevada... según lo medido" para
+        Piccolo/Flauta/Oboe, pero alertas_ejecucion_citadas solo traía una
+        cita de tiempo_aire (de Piccolo, para OTRO rango de compases). El
+        chequeo viejo ("¿hay alguna cita?") daba por bueno esto -- tiene que
+        detectar específicamente que la mención de densidad no tiene ninguna
+        cita de tipo densidad_ritmica."""
+        bloque = self._bloque(
+            analisis_maderas=(
+                'Piccolo, Flauta y Oboe ejecutan un diseño rítmico muy veloz que, '
+                'según lo medido, representa una densidad rítmica elevada y exigente en estos compases.'
+            ),
+            alertas_ejecucion_citadas=[
+                {'instrumento': 'Piccolo', 'compas_desde': 17, 'compas_hasta': 23, 'tipo': 'tiempo_aire', 'nivel': 'critico'},
+            ],
+        )
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_citas_ejecucion([bloque], self.alertas_compactas)
+        self.assertTrue(any('densidad_ritmica' in m and 'alertas_ejecucion_citadas' in m for m in cm.output))
+
     def test_nivel_null_en_la_cita_no_dispara_nada(self):
         """nivel: null es válido para los 3 tipos sin nivel en los datos
         (salto_melodico/cruce_dinamica_registro/densidad_ritmica) -- no debe

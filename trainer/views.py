@@ -1252,6 +1252,21 @@ def _clausulas(texto):
 
 TIPOS_EJECUCION_CITABLES = ('tiempo_aire', 'salto_melodico', 'cruce_dinamica_registro', 'densidad_ritmica')
 
+# PUNTO J del reporte de bugs: mapeo tópico->detector, usado para un chequeo
+# de cobertura POR TÓPICO (no "¿citó algo?" en general) -- confirmado en un
+# informe real (bloque 16-17 de "Flauta exagerada"): el texto afirmaba
+# "densidad rítmica elevada... según lo medido" para Piccolo/Flauta/Oboe,
+# pero alertas_ejecucion_citadas solo traía una cita de tiempo_aire (de
+# Piccolo, para un rango de compases distinto) -- el chequeo viejo
+# ("¿citas no está vacío?") daba por bueno cualquier cita, sin importar que
+# ninguna fuera realmente de tipo densidad_ritmica.
+TEMA_A_TIPO_DETECTOR = {
+    'tiempo_aire': lambda clausula: bool(PATRON_TEMA_AIRE.search(clausula)),
+    'salto_melodico': lambda clausula: bool(PATRON_TEMA_SALTO.search(clausula)),
+    'densidad_ritmica': lambda clausula: bool(PATRON_TEMA_DENSIDAD.search(clausula)),
+    'cruce_dinamica_registro': _menciona_cruce_dinamica_registro,
+}
+
 
 def _auditar_citas_ejecucion(bloques, alertas_compactas):
     """
@@ -1278,19 +1293,19 @@ def _auditar_citas_ejecucion(bloques, alertas_compactas):
             e.get('detalle', '') or '' for e in bloque.get('ediciones_sugeridas', []) if isinstance(e, dict)
         )
 
-        menciona_algun_topico = any(
-            PATRON_TEMA_AIRE.search(clausula) or PATRON_TEMA_SALTO.search(clausula)
-            or PATRON_TEMA_DENSIDAD.search(clausula) or _menciona_cruce_dinamica_registro(clausula)
-            for clausula in _clausulas(texto)
-        )
-
-        if menciona_algun_topico and not citas:
-            logger.warning(
-                "auditoria_ejecucion: bloque %r menciona aire/resistencia/saltos/densidad/dinámica "
-                "en registro extremo pero alertas_ejecucion_citadas está vacío. Texto: %.300s",
-                bloque.get('rango_compases'), texto,
-            )
-            continue
+        # PUNTO J: chequeo POR TÓPICO -- un bloque puede citar un tipo
+        # (ej. tiempo_aire) y a la vez mencionar en prosa otro tipo sin
+        # ninguna cita que lo respalde (ej. densidad_ritmica); el chequeo
+        # viejo ("¿hay ALGUNA cita?") no distinguía esto.
+        clausulas = _clausulas(texto)
+        tipos_citados = {c.get('tipo') for c in citas}
+        for tipo, detector in TEMA_A_TIPO_DETECTOR.items():
+            if tipo not in tipos_citados and any(detector(clausula) for clausula in clausulas):
+                logger.warning(
+                    "auditoria_ejecucion: bloque %r menciona %s pero no tiene ninguna entrada de ese "
+                    "tipo en alertas_ejecucion_citadas. Texto: %.300s",
+                    bloque.get('rango_compases'), tipo, texto,
+                )
 
         for cita in citas:
             candidatas = alertas_por_tipo_instrumento.get((cita.get('tipo'), cita.get('instrumento')), [])
