@@ -5,7 +5,13 @@
 <meta charset="utf-8">
 <style>
     @page { size: A4; margin: 2cm 1.6cm; }
-    body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; color: #1a1a1a; }
+    /* PUNTO D del reporte de bugs: Helvetica (fuente default de xhtml2pdf/
+       reportlab) no cubre ♭/♯/♮ (U+266D/E/F) -- los dibuja como un cuadro
+       negro. DejaVuSans sí los cubre, registrada vía
+       views._asegurar_fuente_unicode_pdf() (mismo mecanismo ya probado en
+       curso_pdf.html) -- ver el comentario grande ahí para el porqué de
+       registrarla vía reportlab.pdfmetrics en vez de @font-face. */
+    body { font-family: "DejaVuSans", Helvetica, Arial, sans-serif; font-size: 10pt; color: #1a1a1a; }
     h1 { font-size: 18pt; margin-bottom: 0.1cm; }
     h2 { font-size: 13pt; margin-top: 0.7cm; margin-bottom: 0.25cm; border-bottom: 1px solid #ccc; padding-bottom: 0.1cm; }
     .subtitulo { color: #666; font-size: 9pt; margin-bottom: 0.6cm; }

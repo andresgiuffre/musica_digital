@@ -559,13 +559,22 @@ NOMBRES_SOLFEO = {'C': 'Do', 'D': 'Re', 'E': 'Mi', 'F': 'Fa', 'G': 'Sol', 'A': '
 # '-'/'--' (bemol/doble bemol) antes de la octava (ej. 'B-3', 'C##4') -- se muestran
 # siempre con el símbolo musical real, nunca con el guion/almohadilla crudo de music21.
 SIMBOLOS_ALTERACION = {'##': '\U0001D12A', '#': '♯', '-': '♭', '--': '\U0001D12B'}
-PATRON_PITCH_CON_OCTAVA = re.compile(r'^([A-G])(#{1,2}|-{1,2})?(-?\d+)$')
+# La octava es OPCIONAL -- music21.pitch.Pitch.name (la CLASE de altura, ej.
+# 'C', 'B-', sin número) no lleva octava, a diferencia de .nameWithOctave
+# ('C4', 'B-3'). Bug real confirmado (punto D del reporte de bugs): antes la
+# octava era obligatoria en el patrón, así que "nota_mas_frecuente" (que se
+# calcula a partir de .name, sin octava, ver calcular_estadisticas_parte en
+# views.py) nunca matcheaba y _a_solfeo devolvía la letra cruda sin
+# convertir ("C"/"B-" en vez de "Do"/"Si♭") -- "Más frecuente" en el panel/
+# PDF mezclaba letras con el resto del informe en solfeo.
+PATRON_PITCH_CON_OCTAVA = re.compile(r'^([A-G])(#{1,2}|-{1,2})?(-?\d+)?$')
 
 def _a_solfeo(nombre_pitch):
-    """Convierte un nombre de music21 (ej. 'C#4', 'B-3') a la notación de nota que
-    corresponde al idioma activo de la request: solfeo español ('Do♯4', 'Si♭3') o,
-    en inglés, el nombre de letra ('C♯4', 'B♭3' -- mismo criterio que la notación
-    C/D/E/F/G/A/B ya usada en los Trainings), en ambos casos con el símbolo real de
+    """Convierte un nombre de music21 (ej. 'C#4', 'B-3', o sin octava: 'C#',
+    'B-') a la notación de nota que corresponde al idioma activo de la
+    request: solfeo español ('Do♯4', 'Si♭3') o, en inglés, el nombre de
+    letra ('C♯4', 'B♭3' -- mismo criterio que la notación C/D/E/F/G/A/B ya
+    usada en los Trainings), en ambos casos con el símbolo real de
     alteración en vez del guion/almohadilla crudo de music21."""
     from django.utils.translation import get_language
     m = PATRON_PITCH_CON_OCTAVA.match(nombre_pitch)
@@ -573,6 +582,7 @@ def _a_solfeo(nombre_pitch):
         return nombre_pitch
     letra, alteracion, octava = m.groups()
     simbolo = SIMBOLOS_ALTERACION.get(alteracion, '')
+    octava = octava or ''
     if get_language() == 'en':
         return letra + simbolo + octava
     return NOMBRES_SOLFEO.get(letra, letra) + simbolo + octava
@@ -2057,6 +2067,11 @@ def orquestador_exportar_pdf(request, analysis_id):
     estadisticas = data.get('estadisticas_por_instrumento') or {}
     for r in data.get('resumen_por_instrumento') or []:
         r['stats'] = estadisticas.get(r.get('instrumento'))
+
+    # PUNTO D del reporte de bugs: sin esto, Helvetica (fuente default de
+    # xhtml2pdf) dibuja ♭/♯/♮ como un cuadro negro -- mismo fix ya probado
+    # en curso_exportar_pdf, ver el comentario grande en la función.
+    _asegurar_fuente_unicode_pdf()
 
     html_string = render_to_string('trainer/orquestador_pdf.html', {
         'analysis': analysis,

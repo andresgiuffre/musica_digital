@@ -1941,6 +1941,62 @@ class EspacioDeAlturasSonoroTests(TestCase):
         self.assertEqual(evaluar_viabilidad_instrumental('Trompa en Fa', p_corno), [])
 
 
+class NotaMasFrecuenteYFuentePdfTests(TestCase):
+    """
+    Punto D del reporte de bugs sobre "Flauta exagerada": "Más frecuente"
+    salía en letras crudas (C, B, G) en vez de solfeo, y el bemol/sostenido
+    salía como un cuadro negro en el PDF (fuente sin esos glifos).
+    """
+
+    def test_a_solfeo_sin_octava_tambien_convierte(self):
+        """Causa real del bug: PATRON_PITCH_CON_OCTAVA exigía octava
+        obligatoria -- .name de music21 (usado para nota_mas_frecuente, a
+        diferencia de .nameWithOctave) nunca la lleva, así que _a_solfeo
+        devolvía la letra cruda sin convertir."""
+        from django.utils import translation
+        with translation.override('es'):
+            self.assertEqual(_a_solfeo('C'), 'Do')
+            self.assertEqual(_a_solfeo('B-'), 'Si♭')
+            self.assertEqual(_a_solfeo('F#'), 'Fa♯')
+        with translation.override('en'):
+            self.assertEqual(_a_solfeo('B-'), 'B♭')
+
+    def test_nota_mas_frecuente_end_to_end_en_solfeo(self):
+        """Candado de regresión de punta a punta: calcular_estadisticas_parte
+        tiene que devolver nota_mas_frecuente en solfeo, no en letra cruda."""
+        from trainer.views import calcular_estadisticas_parte
+        from django.utils import translation
+        p = music21.stream.Part()
+        m = music21.stream.Measure(number=1)
+        m.append(music21.note.Note('G4', quarterLength=1.0))
+        m.append(music21.note.Note('G5', quarterLength=1.0))
+        m.append(music21.note.Note('C4', quarterLength=1.0))
+        p.append(m)
+        with translation.override('es'):
+            stats = calcular_estadisticas_parte(p)
+        self.assertEqual(stats['nota_mas_frecuente'], 'Sol')
+
+    def test_fuente_unicode_se_registra_para_el_pdf_del_analizador(self):
+        """orquestador_exportar_pdf tiene que registrar DejaVuSans (mismo
+        mecanismo que curso_exportar_pdf) -- antes nunca se llamaba, así que
+        el PDF caía a Helvetica, que dibuja ♭/♯/♮ como un cuadro negro."""
+        import trainer.views as views_module
+        views_module._FUENTE_UNICODE_PDF_REGISTRADA = False
+        views_module._asegurar_fuente_unicode_pdf()
+        self.assertTrue(views_module._FUENTE_UNICODE_PDF_REGISTRADA)
+        import xhtml2pdf.context as xhtml2pdf_context
+        self.assertIn('dejavusans', xhtml2pdf_context.pisaContext().fontList)
+
+    def test_pdf_usa_dejavusans_en_el_body(self):
+        from django.template.loader import render_to_string
+        html = render_to_string('trainer/orquestador_pdf.html', {
+            'analysis': type('FakeAnalysis', (), {'name': 'Test', 'created_at': None})(),
+            'data': {'resumen_general': 'x', 'resumen_por_instrumento': [], 'estadisticas_por_instrumento': {},
+                      'alertas_viabilidad': [], 'alertas_ejecucion': {}, 'bloques': []},
+        })
+        self.assertIn('DejaVuSans', html)
+
+
 class AlteracionesComoSimboloTests(TestCase):
     """Punto 3 del reporte de bugs: los bemoles/sostenidos se muestran con el
     símbolo musical real (♭/♯/𝄫/𝄪), no con el guion/almohadilla crudo de
