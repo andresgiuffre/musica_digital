@@ -914,7 +914,14 @@ def comparar_versiones(anterior, nueva_parts):
     parts_nueva_por_nombre = {p.partName: p for p in nueva_parts}
 
     for bloque in anterior_data.get('bloques', []):
+        if not isinstance(bloque, dict):
+            # Misma defensa que _auditar_citas_duplicaciones/_auditar_citas_ejecucion:
+            # un bloque malformado en el análisis ANTERIOR (string suelto en vez de
+            # objeto) no debe poder tumbar la comparación de versiones de la NUEVA.
+            continue
         for edicion in bloque.get('ediciones_sugeridas', []):
+            if not isinstance(edicion, dict):
+                continue
             accion_tipo = edicion.get('accion_tipo')
             parte = edicion.get('parte')
             compas_desde = edicion.get('compas_desde')
@@ -1088,9 +1095,21 @@ def _auditar_citas_duplicaciones(bloques, duplicaciones_verificadas):
     casos reales antes de decidir si hace falta rechazar/reintentar la respuesta.
     """
     for bloque in bloques or []:
-        citas = bloque.get('duplicaciones_citadas') or []
+        if not isinstance(bloque, dict):
+            # Defensa real: en respuestas grandes (max_tokens=120000) Claude a
+            # veces no respeta estrictamente el schema del tool_use y un
+            # elemento de `bloques` sale como string suelto en vez de objeto
+            # (confirmado en producción: 'str' object has no attribute 'get'
+            # tumbaba TODO el análisis, perdiendo el crédito ya cobrado, por
+            # un solo bloque malformado). Se saltea solo ese bloque -- esto es
+            # auditoría de logging, nunca debe poder romper el análisis real.
+            logger.warning("auditoria_duplicaciones: bloque no es un dict, se omite: %r", bloque)
+            continue
+        citas = [c for c in (bloque.get('duplicaciones_citadas') or []) if isinstance(c, dict)]
         texto = ' '.join(bloque.get(c, '') or '' for c in CAMPOS_PROSA_BLOQUE)
-        texto += ' ' + ' '.join(e.get('detalle', '') or '' for e in bloque.get('ediciones_sugeridas', []))
+        texto += ' ' + ' '.join(
+            e.get('detalle', '') or '' for e in bloque.get('ediciones_sugeridas', []) if isinstance(e, dict)
+        )
         usa_verificado = any(
             not _hay_negacion_cercana(texto, m.start())
             for m in PATRON_VERIFICADO.finditer(texto)
@@ -1169,9 +1188,17 @@ def _auditar_citas_ejecucion(bloques, alertas_compactas):
             alertas_por_tipo_instrumento.setdefault((a['tipo'], a.get('instrumento')), []).append(a)
 
     for bloque in bloques or []:
-        citas = bloque.get('alertas_ejecucion_citadas') or []
+        if not isinstance(bloque, dict):
+            # Misma defensa que _auditar_citas_duplicaciones (ver ahí el
+            # comentario completo): un bloque malformado (string suelto en vez
+            # de objeto) no debe poder tumbar el análisis entero.
+            logger.warning("auditoria_ejecucion: bloque no es un dict, se omite: %r", bloque)
+            continue
+        citas = [c for c in (bloque.get('alertas_ejecucion_citadas') or []) if isinstance(c, dict)]
         texto = ' '.join(bloque.get(c, '') or '' for c in CAMPOS_PROSA_BLOQUE)
-        texto += ' ' + ' '.join(e.get('detalle', '') or '' for e in bloque.get('ediciones_sugeridas', []))
+        texto += ' ' + ' '.join(
+            e.get('detalle', '') or '' for e in bloque.get('ediciones_sugeridas', []) if isinstance(e, dict)
+        )
 
         menciona_algun_topico = any(
             PATRON_TEMA_AIRE.search(clausula) or PATRON_TEMA_SALTO.search(clausula)

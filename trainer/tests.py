@@ -9,7 +9,10 @@ from trainer.models import (
     Game, MusicalProject, Playlist, SheetMusic, RANGOS_COMODOS,
     _resolver_instrumento_normalizado, INSTRUMENTO_SIN_ALTURA,
 )
-from trainer.views import _eventos_ejecucion, _auditar_citas_ejecucion, _a_solfeo
+from trainer.views import (
+    _eventos_ejecucion, _auditar_citas_ejecucion, _a_solfeo,
+    _auditar_citas_duplicaciones, comparar_versiones,
+)
 from trainer.metricas_ejecucion import (
     calcular_metricas_de_parte, resolver_instrumento, _cortes_registro, construir_mapa_tiempos,
     compactar_alertas_para_prompt,
@@ -921,6 +924,60 @@ class AuditoriaCitasEjecucionTests(TestCase):
         with patch('trainer.views.logger') as logger_mock:
             _auditar_citas_ejecucion([bloque], self.alertas_compactas)
         logger_mock.warning.assert_not_called()
+
+    def test_bloque_malformado_string_suelto_no_rompe_la_auditoria(self):
+        """Bug real de producción: en respuestas grandes (max_tokens=120000)
+        Claude a veces no respeta el schema del tool_use y un elemento de
+        `bloques` sale como string suelto en vez de objeto -- 'str' object has
+        no attribute 'get' tumbaba TODO el análisis (y el crédito ya cobrado
+        se perdía). La auditoría debe saltear ese bloque, nunca propagar la
+        excepción."""
+        bloque_bueno = self._bloque(analisis_maderas='El oboe sostiene el pasaje sin pausa.')
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_citas_ejecucion(['un bloque mal formado', bloque_bueno], self.alertas_compactas)
+        self.assertTrue(any('no es un dict' in m for m in cm.output))
+
+    def test_cita_o_edicion_malformada_dentro_de_un_bloque_valido_no_rompe(self):
+        bloque = self._bloque(
+            alertas_ejecucion_citadas=['cita mal formada'],
+            ediciones_sugeridas=['edicion mal formada'],
+        )
+        _auditar_citas_ejecucion([bloque], self.alertas_compactas)  # no debe lanzar
+
+
+class BloquesMalformadosTests(TestCase):
+    """
+    Bug real de producción ('str' object has no attribute 'get', reportado
+    sobre ripp76.pythonanywhere.com): un elemento de `bloques` que sale como
+    string suelto (en vez de objeto) en una respuesta grande de Claude no
+    debe poder tumbar _auditar_citas_duplicaciones ni comparar_versiones,
+    igual que ya se exige para _auditar_citas_ejecucion arriba.
+    """
+
+    def test_auditar_citas_duplicaciones_con_bloque_malformado_no_rompe(self):
+        bloque_bueno = {
+            'rango_compases': '1-20', 'analisis_cuerdas': 'Doblaje verificado entre flauta y oboe.',
+            'analisis_maderas': '', 'analisis_metales_percusion': '', 'analisis_balance_y_fango': '',
+            'solucion_prosa': '', 'ediciones_sugeridas': [],
+            'duplicaciones_citadas': [{'parte_a': 'Flauta', 'parte_b': 'Oboe', 'tipo': 'unísono',
+                                       'compas_desde': 1, 'compas_hasta': 20}],
+        }
+        duplicaciones_verificadas = [{'parte_a': 'Flauta', 'parte_b': 'Oboe', 'tipo': 'unísono',
+                                       'compas_desde': 1, 'compas_hasta': 20}]
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_citas_duplicaciones(['un bloque mal formado', bloque_bueno], duplicaciones_verificadas)
+        self.assertTrue(any('no es un dict' in m for m in cm.output))
+
+    def test_comparar_versiones_con_bloque_o_edicion_malformada_no_rompe(self):
+        class FakeAnalysisAnterior:
+            analysis_data = {'bloques': [
+                'un bloque mal formado',
+                {'ediciones_sugeridas': ['una edicion mal formada']},
+            ]}
+            score_file = None  # _parsear_score_descifrado falla -> cae a parts_anterior={}, ya contemplado
+
+        resultado = comparar_versiones(FakeAnalysisAnterior(), [])
+        self.assertEqual(resultado, [])
 
 
 class _FakeUsage:
