@@ -630,6 +630,25 @@ class MetricasEjecucionTests(TestCase):
         self.assertEqual(res['saltos_melodicos']['maximo_semitonos'], 24)
         self.assertEqual(res['saltos_melodicos']['cantidad_mayor_octava'], 1)
 
+    def test_salto_melodico_incluye_compas_y_nombre_de_intervalo(self):
+        """Punto C del reporte de bugs: cada entrada de mas_grandes tiene que
+        llevar compas_desde/compas_hasta (ya existía) y nombre_intervalo
+        (nuevo) -- calculado con music21, nunca dejado para que el modelo lo
+        nombre."""
+        p = music21.stream.Part()
+        p.partName = 'Violin'
+        m1 = music21.stream.Measure(number=5)
+        m1.append(music21.note.Note('C4', quarterLength=1.0))
+        m2 = music21.stream.Measure(number=6)
+        m2.append(music21.note.Note('D5', quarterLength=1.0))  # novena mayor (14 semitonos)
+        p.append(m1)
+        p.append(m2)
+        res, _ = calcular_metricas_de_parte(p, 'Violin', {}, _mapa_tiempos_de(p))
+        mayor = res['saltos_melodicos']['mas_grandes'][0]
+        self.assertEqual(mayor['compas_desde'], 5)
+        self.assertEqual(mayor['compas_hasta'], 6)
+        self.assertEqual(mayor['nombre_intervalo'], 'novena mayor')
+
     def test_cruce_dinamica_registro_agudo_con_ff(self):
         p = music21.stream.Part()
         p.partName = 'Trumpet'
@@ -798,6 +817,40 @@ class MetricasEjecucionTests(TestCase):
         self.assertFalse(tempo_asumido)
 
 
+class NombreIntervaloTests(TestCase):
+    """Punto C del reporte de bugs: nombre_intervalo(pitch_a, pitch_b)
+    calcula el nombre real (calidad + grado, en español) con
+    music21.interval.Interval, nunca una tabla propia de nombres."""
+
+    def test_casos_conocidos(self):
+        from trainer.metricas_ejecucion import nombre_intervalo
+        casos = [
+            ('C4', 'C5', 'octava justa'),
+            ('C4', 'D5', 'novena mayor'),
+            ('C4', 'Db5', 'novena menor'),
+            ('C4', 'C#5', 'octava aumentada'),
+            ('C4', 'B4', 'séptima mayor'),
+            ('C4', 'G5', 'duodécima justa'),
+        ]
+        for a, b, esperado in casos:
+            with self.subTest(a=a, b=b):
+                self.assertEqual(nombre_intervalo(music21.pitch.Pitch(a), music21.pitch.Pitch(b)), esperado)
+
+    def test_direccion_no_afecta_el_nombre(self):
+        """C5->C4 (descendente) tiene que dar el mismo nombre que C4->C5
+        (ascendente) -- confirmado que music21 solo cambia el signo de
+        .semitones, nunca la calidad/grado del nombre."""
+        from trainer.metricas_ejecucion import nombre_intervalo
+        self.assertEqual(
+            nombre_intervalo(music21.pitch.Pitch('C5'), music21.pitch.Pitch('C4')),
+            nombre_intervalo(music21.pitch.Pitch('C4'), music21.pitch.Pitch('C5')),
+        )
+
+    def test_intervalo_compuesto_mas_alla_de_la_octava(self):
+        from trainer.metricas_ejecucion import nombre_intervalo
+        self.assertEqual(nombre_intervalo(music21.pitch.Pitch('C4'), music21.pitch.Pitch('E5')), 'décima mayor')
+
+
 class CompactarAlertasParaPromptTests(TestCase):
     """
     FASE 2B: compactar_alertas_para_prompt(alertas_ejecucion) -- la versión
@@ -846,6 +899,21 @@ class CompactarAlertasParaPromptTests(TestCase):
     def test_obra_sin_ninguna_alerta_da_lista_vacia(self):
         alertas = {'tramos_aire': [], 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [], 'avisos': []}
         self.assertEqual(compactar_alertas_para_prompt(alertas), [])
+
+    def test_salto_melodico_incluye_nombre_de_intervalo(self):
+        """Punto C del reporte de bugs: la entrada compacta de salto_melodico
+        que se le manda al modelo tiene que llevar nombre_intervalo (ya
+        calculado con music21 en mas_grandes), no solo semitonos crudos."""
+        alertas = {
+            'tramos_aire': [], 'densidad_ritmica': [], 'cruce_dinamica_registro': [], 'avisos': [],
+            'saltos_melodicos': [{
+                'instrumento': 'Violín', 'cantidad_mayor_octava': 1, 'maximo_semitonos': 14.0,
+                'mas_grandes': [{'semitonos': 14.0, 'compas_desde': 5, 'compas_hasta': 6, 'nombre_intervalo': 'novena mayor'}],
+            }],
+        }
+        compacto = compactar_alertas_para_prompt(alertas)
+        self.assertEqual(len(compacto), 1)
+        self.assertEqual(compacto[0]['nombre_intervalo'], 'novena mayor')
 
     def test_incluye_aviso_instrumento_no_reconocido(self):
         alertas = {'tramos_aire': [], 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [],

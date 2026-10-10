@@ -314,6 +314,8 @@
     border-left-color: var(--ochre);
 }
 .analisis-alerta-icono { flex-shrink: 0; }
+.analisis-alerta-contenido { display: flex; flex-direction: column; gap: 0.3rem; }
+.analisis-salto-detalle { margin: 0; padding-left: 1.1rem; font-size: 0.84rem; opacity: 0.85; }
 
 .densidad-tira-wrap { overflow-x: auto; }
 .densidad-tira { display: flex; gap: 1px; height: 1.75rem; min-width: max-content; }

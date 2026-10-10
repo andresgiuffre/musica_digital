@@ -143,13 +143,29 @@ function renderAlertasEjecucion(alertas) {
 
     const saltosConOctava = (alertas.saltos_melodicos || []).filter(s => s.cantidad_mayor_octava > 0);
     if (saltosConOctava.length) {
-        const filas = saltosConOctava.map(s => `
-            <div class="analisis-alerta">
-                <span>${escapeHtml(fmtR(OrqI18n.saltoMelodico, {
-                    instrumento: s.instrumento, cantidad: s.cantidad_mayor_octava, maximo: Math.round(s.maximo_semitonos),
-                }))}</span>
-            </div>
-        `).join('');
+        const filas = saltosConOctava.map(s => {
+            // PUNTO C del reporte de bugs: compás y nombre real del intervalo
+            // de cada salto individual (no solo el resumen agregado) --
+            // nombre_intervalo ya viene calculado con music21 desde el
+            // backend (ver metricas_ejecucion.nombre_intervalo), nunca
+            // inventado acá ni por el modelo. 12 semitonos = UMBRAL_SALTO_SEMITONOS
+            // (una octava), mismo criterio que cantidad_mayor_octava.
+            const detalle = (s.mas_grandes || [])
+                .filter(m => m.semitonos > 12)
+                .map(m => `<li>${escapeHtml(fmtR(OrqI18n.saltoMelodicoDetalle, {
+                    compasDesde: m.compas_desde, compasHasta: m.compas_hasta, nombreIntervalo: m.nombre_intervalo,
+                }))}</li>`).join('');
+            return `
+                <div class="analisis-alerta">
+                    <div class="analisis-alerta-contenido">
+                        <span>${escapeHtml(fmtR(OrqI18n.saltoMelodico, {
+                            instrumento: s.instrumento, cantidad: s.cantidad_mayor_octava, maximo: Math.round(s.maximo_semitonos),
+                        }))}</span>
+                        ${detalle ? `<ul class="analisis-salto-detalle">${detalle}</ul>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
         secciones.push(`<div class="analisis-panel"><h3>${OrqI18n.tituloSaltos}</h3><div class="analisis-alertas">${filas}</div></div>`);
     }
 

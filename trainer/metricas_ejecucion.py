@@ -19,6 +19,8 @@ analysis_data/el prompt. FASE 2B agregó `compactar_alertas_para_prompt`
 citarla (`analysis_data['alertas_ejecucion_verificadas']`) -- ver el costo en
 tokens medido en el plan de FASE 2B antes de tocar esto.
 """
+import re
+
 import music21
 
 from .configuracion_ejecucion import (
@@ -672,6 +674,41 @@ def calcular_densidad_ritmica(eventos):
     return resultado
 
 
+# PUNTO C del reporte de bugs sobre "Flauta exagerada": el nombre del
+# intervalo de un salto melódico se calcula ACÁ, con music21, nunca lo
+# nombra el modelo de IA (podía inventar un nombre incorrecto o ambiguo
+# para el mismo par de alturas). music21.interval.Interval(p1, p2).name da
+# siempre "letra(s) de calidad + grado" (ej. "P8", "m9", "AA11"),
+# independiente del orden/dirección de p1/p2 (confirmado: C5->C4 da "P8"
+# igual que C4->C5, solo cambia el signo de .semitones) -- se parsea con una
+# regex simple en vez de mantener una tabla aparte de nombres compuestos.
+_CALIDAD_INTERVALO_ES = {
+    'P': 'justa', 'M': 'mayor', 'm': 'menor', 'A': 'aumentada', 'd': 'disminuida',
+    'AA': 'doblemente aumentada', 'dd': 'doblemente disminuida',
+}
+_ORDINAL_INTERVALO_ES = {
+    1: 'unísono', 2: 'segunda', 3: 'tercera', 4: 'cuarta', 5: 'quinta', 6: 'sexta', 7: 'séptima',
+    8: 'octava', 9: 'novena', 10: 'décima', 11: 'undécima', 12: 'duodécima', 13: 'decimotercera',
+    14: 'decimocuarta', 15: 'decimoquinta', 16: 'decimosexta',
+}
+_PATRON_NOMBRE_INTERVALO = re.compile(r'([A-Za-z]+)(\d+)')
+
+
+def nombre_intervalo(pitch_a, pitch_b):
+    """Nombre real del intervalo (calidad + grado) entre dos alturas, en
+    español -- ej. C4->C5 da 'octava justa', C4->D5 da 'novena mayor'.
+    Grados más allá de los tabulados en _ORDINAL_INTERVALO_ES (saltos
+    extremos, poco frecuentes) caen a un genérico "Na" (ej. '21a')."""
+    intervalo = music21.interval.Interval(pitch_a, pitch_b)
+    match = _PATRON_NOMBRE_INTERVALO.match(intervalo.name)
+    if not match:
+        return intervalo.niceName  # fallback defensivo, no debería ocurrir
+    calidad, grado = match.group(1), int(match.group(2))
+    calidad_es = _CALIDAD_INTERVALO_ES.get(calidad, calidad)
+    grado_es = _ORDINAL_INTERVALO_ES.get(grado, f'{grado}a')
+    return f'{grado_es} {calidad_es}'
+
+
 def detectar_saltos_melodicos(eventos):
     """Intervalo (semitonos) entre ataques consecutivos DE LA MISMA VOZ
     (acordes -> nota más aguda, mismo criterio que _eventos_sonantes_por_compas
@@ -706,15 +743,29 @@ def detectar_saltos_melodicos(eventos):
                 'semitonos': abs(actual['pitch'].ps - anterior['pitch'].ps),
                 'compas_desde': anterior['compas'],
                 'compas_hasta': actual['compas'],
+                # Pitches reales, solo para calcular nombre_intervalo más abajo
+                # -- nunca llegan al resultado final (se descartan antes de
+                # devolver mas_grandes, ver abajo).
+                '_pitch_anterior': anterior['pitch'],
+                '_pitch_actual': actual['pitch'],
             })
 
     if not saltos:
         return {'maximo_semitonos': 0, 'cantidad_mayor_octava': 0, 'mas_grandes': []}
 
+    # PUNTO C del reporte de bugs: compás de cada salto (ya estaba) + nombre
+    # real del intervalo (nuevo) -- calculado acá con music21 (ver
+    # nombre_intervalo arriba), nunca dejado para que el modelo de IA lo
+    # nombre. Solo se calcula para los TOP_N_SALTOS que de verdad se
+    # devuelven, no para cada salto de la obra (sería trabajo descartado).
+    mas_grandes = sorted(saltos, key=lambda s: s['semitonos'], reverse=True)[:TOP_N_SALTOS]
+    for s in mas_grandes:
+        s['nombre_intervalo'] = nombre_intervalo(s.pop('_pitch_anterior'), s.pop('_pitch_actual'))
+
     return {
         'maximo_semitonos': max(s['semitonos'] for s in saltos),
         'cantidad_mayor_octava': sum(1 for s in saltos if s['semitonos'] > UMBRAL_SALTO_SEMITONOS),
-        'mas_grandes': sorted(saltos, key=lambda s: s['semitonos'], reverse=True)[:TOP_N_SALTOS],
+        'mas_grandes': mas_grandes,
     }
 
 
@@ -933,6 +984,10 @@ def compactar_alertas_para_prompt(alertas_ejecucion):
                 'tipo': 'salto_melodico', 'instrumento': s['instrumento'],
                 'compas_desde': mayor['compas_desde'], 'compas_hasta': mayor['compas_hasta'],
                 'semitonos': int(mayor['semitonos']), 'cantidad_mayor_octava': s['cantidad_mayor_octava'],
+                # PUNTO C del reporte de bugs: nombre real del intervalo,
+                # calculado con music21 (ver nombre_intervalo) -- nunca
+                # dejado para que el modelo lo nombre por su cuenta.
+                'nombre_intervalo': mayor['nombre_intervalo'],
             })
 
     for c in alertas_ejecucion.get('cruce_dinamica_registro', []):
