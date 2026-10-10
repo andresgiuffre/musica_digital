@@ -25,6 +25,7 @@ from .configuracion_ejecucion import (
     PAUSA_MINIMA_RESPIRO, PAUSA_EXHALACION, LIMITES_AIRE, MULT_DINAMICA,
     DINAMICA_POR_DEFECTO, TOP_N_TRAMOS_AIRE, TOP_N_PICOS_DENSIDAD, TOP_N_SALTOS,
     VENTANA_DENSIDAD_SEGUNDOS, PASO_VENTANA_SEGUNDOS, UMBRAL_SALTO_SEMITONOS,
+    UMBRAL_SILENCIO_CORTA_SALTO_SEGUNDOS,
     FRACCION_TERCIO_EXTREMO, DINAMICAS_EXTREMAS_FUERTE, DINAMICAS_EXTREMAS_SUAVE,
     CANONICO_A_CLAVE_AIRE, UMBRAL_DENSIDAD_NOTABLE, MAX_ALERTAS_POR_INSTRUMENTO_PROMPT,
     MAX_ALERTAS_TOTAL_PROMPT,
@@ -169,13 +170,43 @@ def construir_mapa_tiempos(score):
 
 
 # ---------------------------------------------------------------------------
-# Un único pase por parte: arma la lista de eventos (notas y silencios, en
-# orden, con tiempo real en segundos vía el mapa de tiempos de la OBRA
-# precalculado -- ver construir_mapa_tiempos -- y la dinámica vigente en ese
-# punto) que consumen las 4 métricas de abajo -- evita recorrer la parte 4
-# veces. measureNumber se arrastra del `for m in measures` externo (mismo
-# patrón que calcular_densidad_por_compas/_eventos_sonantes_por_compas en
-# views.py), nunca se llama .measureNumber/.getContextByClass por nota.
+# Un único pase por parte: arma la lista de eventos (notas y silencios, cada
+# uno etiquetado con su VOZ real -- ver más abajo -- y con tiempo real en
+# segundos vía el mapa de tiempos de la OBRA precalculado, ver
+# construir_mapa_tiempos) que consumen las 4 métricas de abajo -- evita
+# recorrer la parte 4 veces. measureNumber se arrastra del `for m in
+# measures` externo (mismo patrón que
+# calcular_densidad_por_compas/_eventos_sonantes_por_compas en views.py),
+# nunca se llama .measureNumber/.getContextByClass por nota.
+#
+# VOCES MÚLTIPLES (divisi): bug real confirmado con un archivo de producción
+# -- `m.recurse()` NO recorre un compás con varias Voice en orden cronológico
+# real, recorre la Voz 1 completa y RECIÉN DESPUÉS la Voz 2 completa. Esto
+# rompía 3 cosas a la vez: (a) dinamica_vigente (una sola variable,
+# actualizada en orden de RECORRIDO, no de tiempo real) podía "filtrarse" de
+# una voz a la otra si sus offsets reales coincidían pero su orden de
+# documento no; (b) un salto melódico fantasma entre la última nota de la Voz
+# 1 y la primera de la Voz 2, que nunca suenan una a continuación de la otra;
+# (c) tiempo de aire y densidad rítmica sumando/contando ambas voces como si
+# fueran secuenciales en vez de simultáneas.
+#
+# El fix: por cada compás, se arman los candidatos de TODAS las voces (más
+# los elementos que cuelgan directo del compás, fuera de cualquier Voice --
+# típicamente una dinámica que aplica a todo el pentagrama, no a una sola
+# voz) y se ordenan por su offset REAL en segundos (confirmado empíricamente
+# que music21 sí incluye las Dynamic en secondsMap, con su offset real) --
+# nunca por orden de documento/voz. dinamica_vigente sigue siendo UNA sola
+# variable para toda la parte (no una por voz): una dinámica nueva, venga de
+# la voz que venga, rige para todas las voces desde su momento real en
+# adelante -- el caso típico en una partitura real es una marca de dinámica
+# que vale para todo el atril, no una por voz. Lo que sí se corrige es que
+# ahora se aplica en el momento temporal CORRECTO, no en el orden en que
+# music21 recorre el documento.
+#
+# Cada evento lleva 'voz' (el id de su Voice, o None si el compás no tiene
+# voces separadas o el elemento cuelga directo del compás) -- lo consumen
+# detectar_saltos_melodicos/detectar_cruce_dinamica_registro para no mezclar
+# voces distintas entre sí.
 # ---------------------------------------------------------------------------
 def _construir_eventos_parte(part, tiempos_por_id):
     eventos = []
@@ -183,8 +214,41 @@ def _construir_eventos_parte(part, tiempos_por_id):
     dinamicas_no_reconocidas = set()
     hubo_dynamic = False
 
+    _TIPOS_RELEVANTES = (
+        music21.dynamics.Dynamic, music21.note.Rest, music21.note.Note, music21.chord.Chord,
+    )
+
     for m in part.getElementsByClass(music21.stream.Measure):
-        for el in m.recurse():
+        candidatos = []
+        voces = list(m.voices)
+        if voces:
+            for v in voces:
+                for el in v.recurse():
+                    candidatos.append((v.id, el))
+            # Elementos que cuelgan directo del compás, fuera de cualquier Voice
+            # (ej. una dinámica que aplica a todo el pentagrama) -- no recursivo
+            # a propósito, los de cada Voice ya se agregaron arriba.
+            for el in m.getElementsByClass(_TIPOS_RELEVANTES):
+                candidatos.append((None, el))
+        else:
+            for el in m.recurse():
+                candidatos.append((None, el))
+
+        # Orden CRONOLÓGICO real (offset en segundos), no de documento/voz --
+        # ver el comentario grande arriba. Ante un empate exacto de offset,
+        # una Dynamic se procesa antes que las notas de ese mismo instante,
+        # para que la dinámica nueva ya rija desde la primera nota que
+        # arranca justo ahí.
+        def _clave_orden(item, _tiempos=tiempos_por_id):
+            _voz, el = item
+            entry = _tiempos.get(id(el))
+            offset = entry['offsetSeconds'] if entry is not None else 0.0
+            es_dinamica = 0 if isinstance(el, music21.dynamics.Dynamic) else 1
+            return (offset, es_dinamica)
+
+        candidatos.sort(key=_clave_orden)
+
+        for voz_id, el in candidatos:
             if isinstance(el, music21.dynamics.Dynamic):
                 hubo_dynamic = True
                 if el.value in MULT_DINAMICA:
@@ -202,7 +266,7 @@ def _construir_eventos_parte(part, tiempos_por_id):
                     'tipo': 'silencio', 'pitch': None,
                     'offset_segundos': entry['offsetSeconds'],
                     'duracion_segundos': entry['durationSeconds'],
-                    'compas': m.number, 'dinamica': dinamica_vigente,
+                    'compas': m.number, 'dinamica': dinamica_vigente, 'voz': voz_id,
                 })
             elif isinstance(el, music21.harmony.ChordSymbol):
                 continue  # cifrado (hereda de Chord pero no suena -- ver tests.py)
@@ -213,14 +277,14 @@ def _construir_eventos_parte(part, tiempos_por_id):
                     'tipo': 'nota', 'pitch': max(el.pitches, key=lambda p: p.ps),
                     'offset_segundos': entry['offsetSeconds'],
                     'duracion_segundos': entry['durationSeconds'],
-                    'compas': m.number, 'dinamica': dinamica_vigente,
+                    'compas': m.number, 'dinamica': dinamica_vigente, 'voz': voz_id,
                 })
             elif isinstance(el, music21.note.Note):
                 eventos.append({
                     'tipo': 'nota', 'pitch': el.pitch,
                     'offset_segundos': entry['offsetSeconds'],
                     'duracion_segundos': entry['durationSeconds'],
-                    'compas': m.number, 'dinamica': dinamica_vigente,
+                    'compas': m.number, 'dinamica': dinamica_vigente, 'voz': voz_id,
                 })
             # music21.note.Unpitched (percusión sin altura) y cualquier otro
             # elemento: ignorado, mismo criterio que _eventos_sonantes_por_compas.
@@ -239,6 +303,38 @@ def _cortes_registro(ambito_comodo):
     return comodo_min_ps + ancho * FRACCION_TERCIO_EXTREMO, comodo_max_ps - ancho * FRACCION_TERCIO_EXTREMO
 
 
+def _fusionar_intervalos_con_demanda(notas_con_mult):
+    """
+    Dadas notas (de UNA o VARIAS voces, ya mezcladas) con (offset_segundos,
+    duracion_segundos, mult = mult_registro*mult_din), devuelve
+    (duracion_real, duracion_ponderada) de su UNIÓN en el tiempo -- sin doble
+    conteo cuando dos o más se superponen (voces simultáneas).
+
+    Para la duración ponderada, en cada micro-instante donde se superponen
+    varias notas se usa el multiplicador MÁS EXIGENTE (el más chico, ya que
+    ponderada = duración / mult) entre las que suenan en ese instante -- ej.
+    si una voz toca grave en ff y la otra en registro cómodo a la vez, ese
+    tramo pesa como si fuera la voz grave en ff, no la suma de ambas.
+    """
+    if not notas_con_mult:
+        return 0.0, 0.0
+    intervalos = [
+        (n['offset_segundos'], n['offset_segundos'] + n['duracion_segundos'], n['mult'])
+        for n in notas_con_mult
+    ]
+    puntos = sorted({p for ini, fin, _ in intervalos for p in (ini, fin)})
+    duracion_real = 0.0
+    duracion_ponderada = 0.0
+    for a, b in zip(puntos, puntos[1:]):
+        activos = [mult for (ini, fin, mult) in intervalos if ini <= a and fin >= b]
+        if not activos:
+            continue
+        dur = b - a
+        duracion_real += dur
+        duracion_ponderada += dur / min(activos)
+    return duracion_real, duracion_ponderada
+
+
 def detectar_tramos_de_aire(eventos, clave_aire, ambito_comodo):
     """
     Tramos de ejecución continua (sin pausa suficiente) por instrumento, con
@@ -248,6 +344,13 @@ def detectar_tramos_de_aire(eventos, clave_aire, ambito_comodo):
     salvo para oboe/corno_ingles una vez que el tramo ya superó su propio
     umbral de aviso, donde el corte exige >= PAUSA_EXHALACION (el aire
     sobrante tarda más en exhalarse).
+
+    VOCES MÚLTIPLES: la duración (real y ponderada) se calcula sobre la
+    UNIÓN de los intervalos de sonido de TODAS las voces -- nunca se suman
+    como si fueran secuenciales (bug real confirmado: con 2 voces de igual
+    ritmo, el tiempo salía exactamente el doble del real). El "silencio" que
+    puede cortar un tramo también es el de la UNIÓN: un hueco solo cuenta
+    como pausa si NINGUNA voz está sonando en ese momento.
     """
     limites = LIMITES_AIRE[clave_aire]
     es_oboe_o_corno_ingles = clave_aire in ('oboe', 'corno_ingles')
@@ -255,44 +358,12 @@ def detectar_tramos_de_aire(eventos, clave_aire, ambito_comodo):
     mult_agudo = limites.get('mult_agudo', 1.0)  # solo trompeta lo define distinto de 1.0
     corte_grave, corte_agudo = _cortes_registro(ambito_comodo)
 
-    tramos = []
-    notas_tramo = []
-    ya_supero_aviso = False
+    notas = [ev for ev in eventos if ev['tipo'] == 'nota']
+    if not notas:
+        return []
 
-    def cerrar():
-        if not notas_tramo:
-            return None
-        duracion_real = sum(n['duracion_segundos'] for n in notas_tramo)
-        duracion_ponderada = sum(n['ponderada'] for n in notas_tramo)
-        if duracion_ponderada >= limites['critico']:
-            nivel = 'critico'
-        elif duracion_ponderada >= limites['aviso']:
-            nivel = 'aviso'
-        else:
-            nivel = 'ok'
-        return {
-            'compas_desde': notas_tramo[0]['compas'],
-            'compas_hasta': notas_tramo[-1]['compas'],
-            'duracion_segundos': duracion_real,
-            'duracion_ponderada': duracion_ponderada,
-            'umbral_aviso': limites['aviso'],
-            'umbral_critico': limites['critico'],
-            'nivel': nivel,
-        }
-
-    for ev in eventos:
-        if ev['tipo'] == 'silencio':
-            if not notas_tramo:
-                continue
-            requiere = PAUSA_EXHALACION if (es_oboe_o_corno_ingles and ya_supero_aviso) else PAUSA_MINIMA_RESPIRO
-            if ev['duracion_segundos'] >= requiere:
-                cerrado = cerrar()
-                if cerrado:
-                    tramos.append(cerrado)
-                notas_tramo = []
-                ya_supero_aviso = False
-            continue
-
+    notas_con_mult = []
+    for ev in notas:
         ps = ev['pitch'].ps
         mult_registro = 1.0
         if ps <= corte_grave:
@@ -300,15 +371,62 @@ def detectar_tramos_de_aire(eventos, clave_aire, ambito_comodo):
         elif clave_aire == 'trompeta' and ps >= corte_agudo:
             mult_registro = mult_agudo
         mult_din = MULT_DINAMICA.get(ev['dinamica'], 1.0)
-        ponderada = ev['duracion_segundos'] / (mult_registro * mult_din)
-        notas_tramo.append({**ev, 'ponderada': ponderada})
+        notas_con_mult.append({**ev, 'mult': mult_registro * mult_din})
 
-        if sum(n['ponderada'] for n in notas_tramo) >= limites['aviso']:
-            ya_supero_aviso = True
+    # Unión de los intervalos de sonido de TODAS las voces (sin importar cuál).
+    intervalos = sorted(
+        (n['offset_segundos'], n['offset_segundos'] + n['duracion_segundos']) for n in notas_con_mult
+    )
+    fusionados = [intervalos[0]]
+    for ini, fin in intervalos[1:]:
+        ult_ini, ult_fin = fusionados[-1]
+        if ini <= ult_fin:
+            fusionados[-1] = (ult_ini, max(ult_fin, fin))
+        else:
+            fusionados.append((ini, fin))
 
-    cerrado = cerrar()
-    if cerrado:
-        tramos.append(cerrado)
+    # Cortar en tramos según los huecos REALES entre intervalos fusionados
+    # (huecos de la unión -- una pausa solo cuenta si NINGUNA voz suena ahí).
+    grupos = [[fusionados[0]]]
+    ya_supero_aviso = False
+    for ini, fin in fusionados[1:]:
+        grupo_actual = grupos[-1]
+        hueco = ini - grupo_actual[-1][1]
+        notas_grupo_actual = [
+            n for n in notas_con_mult
+            if any(g_ini <= n['offset_segundos'] < g_fin for g_ini, g_fin in grupo_actual)
+        ]
+        _, ponderada_hasta_ahora = _fusionar_intervalos_con_demanda(notas_grupo_actual)
+        ya_supero_aviso = ponderada_hasta_ahora >= limites['aviso']
+        requiere = PAUSA_EXHALACION if (es_oboe_o_corno_ingles and ya_supero_aviso) else PAUSA_MINIMA_RESPIRO
+        if hueco >= requiere:
+            grupos.append([(ini, fin)])
+        else:
+            grupo_actual.append((ini, fin))
+
+    tramos = []
+    for grupo in grupos:
+        ini_tramo, fin_tramo = grupo[0][0], grupo[-1][1]
+        notas_tramo = [n for n in notas_con_mult if ini_tramo <= n['offset_segundos'] < fin_tramo]
+        if not notas_tramo:
+            continue
+        duracion_real, duracion_ponderada = _fusionar_intervalos_con_demanda(notas_tramo)
+        if duracion_ponderada >= limites['critico']:
+            nivel = 'critico'
+        elif duracion_ponderada >= limites['aviso']:
+            nivel = 'aviso'
+        else:
+            nivel = 'ok'
+        compases = [n['compas'] for n in notas_tramo]
+        tramos.append({
+            'compas_desde': min(compases),
+            'compas_hasta': max(compases),
+            'duracion_segundos': duracion_real,
+            'duracion_ponderada': duracion_ponderada,
+            'umbral_aviso': limites['aviso'],
+            'umbral_critico': limites['critico'],
+            'nivel': nivel,
+        })
 
     tramos.sort(key=lambda t: t['duracion_ponderada'], reverse=True)
     return tramos[:TOP_N_TRAMOS_AIRE]
@@ -316,7 +434,7 @@ def detectar_tramos_de_aire(eventos, clave_aire, ambito_comodo):
 
 def calcular_densidad_ritmica(eventos):
     """
-    Notas (ataques, no silencios) por segundo en ventana móvil de
+    MOMENTOS DE ATAQUE (no notas) por segundo en ventana móvil de
     VENTANA_DENSIDAD_SEGUNDOS, paso PASO_VENTANA_SEGUNDOS -- devuelve los picos
     más densos, uno por compás distinto (si varias ventanas consecutivas caen
     en el mismo compás de inicio, se cuenta una sola vez: el pico real, no un
@@ -324,18 +442,36 @@ def calcular_densidad_ritmica(eventos):
     confirmado con el usuario, un pasaje suena más denso a tempo rápido que a
     tempo lento aunque la partitura se vea igual.
 
-    Dos punteros en vez de recorrer todas las notas en cada ventana: O(notas +
-    ventanas) en vez de O(notas × ventanas), importa en una obra larga.
+    VOCES MÚLTIPLES: un acorde o dos voces que atacan exactamente en el mismo
+    instante cuentan como UN solo ataque, no uno por nota/voz -- lo que mide
+    "densidad" acá es cuántos MOMENTOS de ataque distintos hay por segundo,
+    no cuántas notas suenan en total (eso ya lo refleja, aparte, que cada
+    ataque puede ser más o menos denso en notas simultáneas, pero no es lo
+    que esta métrica mide). Esto de paso corrige el supuesto de offsets
+    ORDENADOS que necesitan los dos punteros: antes, con varias voces, la
+    lista de offsets no venía ordenada y el barrido dejaba de ser válido.
+
+    Dos punteros en vez de recorrer todas las notas en cada ventana: O(ataques
+    + ventanas) en vez de O(ataques × ventanas), importa en una obra larga.
     """
     ataques = [e for e in eventos if e['tipo'] == 'nota']
     if not ataques:
         return []
-    offsets = [a['offset_segundos'] for a in ataques]
-    duracion_total = offsets[-1] + ataques[-1]['duracion_segundos']
+
+    compas_por_offset = {}
+    fin_por_offset = {}
+    for a in ataques:
+        offset = a['offset_segundos']
+        if offset not in compas_por_offset:
+            compas_por_offset[offset] = a['compas']
+        fin_por_offset[offset] = max(fin_por_offset.get(offset, 0.0), offset + a['duracion_segundos'])
+
+    offsets = sorted(compas_por_offset)
+    duracion_total = max(fin_por_offset.values())
 
     picos = []
     izq = der = 0
-    n = len(ataques)
+    n = len(offsets)
     t = 0.0
     while t < duracion_total:
         while izq < n and offsets[izq] < t:
@@ -347,7 +483,7 @@ def calcular_densidad_ritmica(eventos):
         if cantidad > 0:
             picos.append({
                 'notas_por_segundo': cantidad / VENTANA_DENSIDAD_SEGUNDOS,
-                'compas': ataques[izq]['compas'],
+                'compas': compas_por_offset[offsets[izq]],
             })
         t += PASO_VENTANA_SEGUNDOS
 
@@ -365,19 +501,41 @@ def calcular_densidad_ritmica(eventos):
 
 
 def detectar_saltos_melodicos(eventos):
-    """Intervalo (semitonos) entre ataques consecutivos de la parte (acordes
-    -> nota más aguda, mismo criterio que _eventos_sonantes_por_compas en
-    views.py). 'Mayor a una octava' es estrictamente > 12 semitonos -- una
-    octava exacta no cuenta."""
-    ataques = [e for e in eventos if e['tipo'] == 'nota']
-    saltos = [
-        {
-            'semitonos': abs(actual['pitch'].ps - anterior['pitch'].ps),
-            'compas_desde': anterior['compas'],
-            'compas_hasta': actual['compas'],
-        }
-        for anterior, actual in zip(ataques, ataques[1:])
-    ]
+    """Intervalo (semitonos) entre ataques consecutivos DE LA MISMA VOZ
+    (acordes -> nota más aguda, mismo criterio que _eventos_sonantes_por_compas
+    en views.py). 'Mayor a una octava' es estrictamente > 12 semitonos -- una
+    octava exacta no cuenta.
+
+    VOCES MÚLTIPLES: nunca se mide un salto entre ataques de voces distintas
+    -- cada voz se procesa por separado, ordenada por su propio offset real
+    (bug real confirmado: con 2 voces, la lista plana sin ordenar generaba
+    saltos fantasma entre la última nota de una voz y la primera de la otra).
+
+    SILENCIO LARGO: tampoco se mide un salto entre dos ataques de la MISMA
+    voz si entre ellos hay un hueco real >= UMBRAL_SILENCIO_CORTA_SALTO_SEGUNDOS
+    -- son dos frases distintas, no un salto dentro de una misma línea
+    (bug real reportado: un "salto" medido a través de ~11 compases de
+    silencio).
+    """
+    por_voz = {}
+    for ev in eventos:
+        if ev['tipo'] != 'nota':
+            continue
+        por_voz.setdefault(ev['voz'], []).append(ev)
+
+    saltos = []
+    for ataques_voz in por_voz.values():
+        ataques_ordenados = sorted(ataques_voz, key=lambda e: e['offset_segundos'])
+        for anterior, actual in zip(ataques_ordenados, ataques_ordenados[1:]):
+            hueco = actual['offset_segundos'] - (anterior['offset_segundos'] + anterior['duracion_segundos'])
+            if hueco >= UMBRAL_SILENCIO_CORTA_SALTO_SEGUNDOS:
+                continue
+            saltos.append({
+                'semitonos': abs(actual['pitch'].ps - anterior['pitch'].ps),
+                'compas_desde': anterior['compas'],
+                'compas_hasta': actual['compas'],
+            })
+
     if not saltos:
         return {'maximo_semitonos': 0, 'cantidad_mayor_octava': 0, 'mas_grandes': []}
 
@@ -388,21 +546,9 @@ def detectar_saltos_melodicos(eventos):
     }
 
 
-def detectar_cruce_dinamica_registro(eventos, ambito_comodo):
-    """Notas en zona extrema (tercio grave o agudo del ámbito cómodo) con
-    dinámica vigente extrema (f/ff/fff o pp/ppp) en ese punto -- cualquiera de
-    las 4 combinaciones registro×dinámica cuenta, no solo la más obvia.
-
-    Agrupa en rangos de compases contiguos con el mismo (registro, dinámica)
-    -- mismo criterio que detectar_duplicaciones_verificadas en views.py. Sin
-    esto, un pasaje sostenido de 30 notas en ff daba 30 entradas casi
-    idénticas (bug real encontrado al inspeccionar la salida JSON real antes
-    de cerrar esta fase)."""
-    corte_grave, corte_agudo = _cortes_registro(ambito_comodo)
+def _detectar_cruce_dinamica_registro_una_voz(eventos_voz, corte_grave, corte_agudo):
     coincidencias = []
-    for ev in eventos:
-        if ev['tipo'] != 'nota':
-            continue
+    for ev in sorted(eventos_voz, key=lambda e: e['offset_segundos']):
         ps = ev['pitch'].ps
         if ps <= corte_grave:
             registro = 'grave'
@@ -435,6 +581,36 @@ def detectar_cruce_dinamica_registro(eventos, ambito_comodo):
             }
     if actual:
         resultado.append(actual)
+    return resultado
+
+
+def detectar_cruce_dinamica_registro(eventos, ambito_comodo):
+    """Notas en zona extrema (tercio grave o agudo del ámbito cómodo) con
+    dinámica vigente extrema (f/ff/fff o pp/ppp) en ese punto -- cualquiera de
+    las 4 combinaciones registro×dinámica cuenta, no solo la más obvia.
+
+    Agrupa en rangos de compases contiguos con el mismo (registro, dinámica)
+    -- mismo criterio que detectar_duplicaciones_verificadas en views.py. Sin
+    esto, un pasaje sostenido de 30 notas en ff daba 30 entradas casi
+    idénticas (bug real encontrado al inspeccionar la salida JSON real antes
+    de cerrar esta fase).
+
+    VOCES MÚLTIPLES: la detección y el agrupamiento en rangos contiguos se
+    hacen POR VOZ, por separado -- nunca se mezclan los compases de una voz
+    con los de otra dentro de un mismo rango agrupado.
+    """
+    corte_grave, corte_agudo = _cortes_registro(ambito_comodo)
+    por_voz = {}
+    for ev in eventos:
+        if ev['tipo'] != 'nota':
+            continue
+        por_voz.setdefault(ev['voz'], []).append(ev)
+
+    resultado = []
+    for eventos_voz in por_voz.values():
+        resultado.extend(_detectar_cruce_dinamica_registro_una_voz(eventos_voz, corte_grave, corte_agudo))
+
+    resultado.sort(key=lambda r: r['compas_desde'])
     return resultado
 
 

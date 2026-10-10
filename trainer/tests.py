@@ -1402,6 +1402,121 @@ class DesambiguarNombresPartesTests(TestCase):
         )
 
 
+class VocesMultiplesTests(TestCase):
+    """
+    Punto 1 del reporte de bugs sobre "Flauta exagerada" (confirmado contra
+    el archivo real: Horn 2 y Trombone, con divisi de 2 voces en los
+    compases 29-34, daban EXACTAMENTE el doble del tiempo de aire real --
+    19,6s en vez de 9,8s -- y el Trombone, 8 saltos melódicos fantasma entre
+    voces de hasta 17 semitonos que nunca sonaron). Reproducido acá con
+    partes sintéticas de 2 voces y MISMO ritmo -- deben dar el mismo
+    resultado que una sola voz.
+    """
+
+    def _parte_una_voz(self, nombre, pitch, compases=6, bpm=60):
+        p = music21.stream.Part()
+        p.partName = nombre
+        for i in range(compases):
+            m = music21.stream.Measure(number=i + 1)
+            if i == 0:
+                m.insert(0, music21.tempo.MetronomeMark(number=bpm))
+            for j in range(4):
+                m.insert(j * 1.0, music21.note.Note(pitch, quarterLength=1.0))
+            p.append(m)
+        return p
+
+    def _parte_divisi(self, nombre, pitch_v1, pitch_v2, compases=6, bpm=60, dinamica=None):
+        p = music21.stream.Part()
+        p.partName = nombre
+        for i in range(compases):
+            m = music21.stream.Measure(number=i + 1)
+            if i == 0:
+                m.insert(0, music21.tempo.MetronomeMark(number=bpm))
+            v1 = music21.stream.Voice(id='1')
+            v2 = music21.stream.Voice(id='2')
+            if dinamica and i == 0:
+                v1.insert(0, music21.dynamics.Dynamic(dinamica))
+                v2.insert(0, music21.dynamics.Dynamic(dinamica))
+            for j in range(4):
+                v1.insert(j * 1.0, music21.note.Note(pitch_v1, quarterLength=1.0))
+                v2.insert(j * 1.0, music21.note.Note(pitch_v2, quarterLength=1.0))
+            m.insert(0, v1)
+            m.insert(0, v2)
+            p.append(m)
+        return p
+
+    def test_tiempo_de_aire_union_no_duplica_con_dos_voces_mismo_ritmo(self):
+        p_una_voz = self._parte_una_voz('Horn', 'G4')
+        p_divisi = self._parte_divisi('Horn', 'G4', 'E4')
+        res_una, _ = calcular_metricas_de_parte(p_una_voz, 'Horn', {}, _mapa_tiempos_de(p_una_voz))
+        res_divisi, _ = calcular_metricas_de_parte(p_divisi, 'Horn', {}, _mapa_tiempos_de(p_divisi))
+        dur_una = res_una['tramos_aire'][0]['duracion_segundos']
+        dur_divisi = res_divisi['tramos_aire'][0]['duracion_segundos']
+        self.assertAlmostEqual(dur_una, dur_divisi, places=2)
+        self.assertAlmostEqual(dur_divisi, 24.0, places=2)  # 6 compases x 4 negras a 60bpm
+
+    def test_no_aparecen_saltos_falsos_entre_voces(self):
+        """Voz 1 fija en C3, voz 2 fija en C5 -- si se midiera (como antes del
+        fix) un salto FALSO entre el final de una voz y el principio de la
+        otra, saldria un salto de 24 semitonos. Cada voz por separado no
+        tiene ningun salto real (misma nota repetida)."""
+        p = self._parte_divisi('Trombone', 'C3', 'C5')
+        res, _ = calcular_metricas_de_parte(p, 'Trombone', {}, _mapa_tiempos_de(p))
+        self.assertEqual(res['saltos_melodicos']['cantidad_mayor_octava'], 0)
+        self.assertEqual(res['saltos_melodicos']['maximo_semitonos'], 0)
+
+    def test_salto_real_dentro_de_una_voz_sigue_detectandose(self):
+        """El fix no debe "apagar" saltos reales: una sola voz que alterna
+        grave/agudo cada compás sí debe detectarlos."""
+        p = music21.stream.Part()
+        p.partName = 'Trombone'
+        for i, pitch in enumerate(['C3', 'C5', 'C3', 'C5']):
+            m = music21.stream.Measure(number=i + 1)
+            if i == 0:
+                m.insert(0, music21.tempo.MetronomeMark(number=60))
+            m.insert(0, music21.note.Note(pitch, quarterLength=4.0))
+            p.append(m)
+        res, _ = calcular_metricas_de_parte(p, 'Trombone', {}, _mapa_tiempos_de(p))
+        self.assertGreater(res['saltos_melodicos']['cantidad_mayor_octava'], 0)
+
+    def test_salto_no_se_mide_a_traves_de_un_silencio_largo(self):
+        p = music21.stream.Part()
+        p.partName = 'Horn'
+        m1 = music21.stream.Measure(number=1)
+        m1.insert(0, music21.tempo.MetronomeMark(number=60))
+        m1.insert(0, music21.note.Note('C3', quarterLength=4.0))
+        m_silencio = music21.stream.Measure(number=2)
+        m_silencio.insert(0, music21.note.Rest(quarterLength=32.0))  # 32s de silencio a 60bpm
+        m3 = music21.stream.Measure(number=3)
+        m3.insert(0, music21.note.Note('C6', quarterLength=4.0))  # 3 octavas de diferencia
+        p.append(m1)
+        p.append(m_silencio)
+        p.append(m3)
+        res, _ = calcular_metricas_de_parte(p, 'Horn', {}, _mapa_tiempos_de(p))
+        self.assertEqual(res['saltos_melodicos']['cantidad_mayor_octava'], 0)
+        self.assertEqual(res['saltos_melodicos']['maximo_semitonos'], 0)
+
+    def test_densidad_cuenta_momentos_de_ataque_no_notas(self):
+        """2 voces atacando SIEMPRE juntas (mismo ritmo) no deben duplicar la
+        densidad respecto de una sola voz con el mismo ritmo -- un acorde o
+        dos voces que atacan juntas cuentan como UN ataque."""
+        p_una_voz = self._parte_una_voz('Horn', 'G4')
+        p_divisi = self._parte_divisi('Horn', 'G4', 'E4')
+        res_una, _ = calcular_metricas_de_parte(p_una_voz, 'Horn', {}, _mapa_tiempos_de(p_una_voz))
+        res_divisi, _ = calcular_metricas_de_parte(p_divisi, 'Horn', {}, _mapa_tiempos_de(p_divisi))
+        picos_una = {p['compas']: p['notas_por_segundo'] for p in res_una['densidad_ritmica']}
+        picos_divisi = {p['compas']: p['notas_por_segundo'] for p in res_divisi['densidad_ritmica']}
+        self.assertEqual(picos_una, picos_divisi)
+
+    def test_cruce_dinamica_registro_se_evalua_por_voz(self):
+        """Voz 1 aguda+ff, voz 2 grave+ff, mismo compás -- deben salir DOS
+        entradas separadas (una por voz), nunca mezcladas en una sola."""
+        p = self._parte_divisi('Trombone', 'C6', 'C2', dinamica='ff')
+        res, _ = calcular_metricas_de_parte(p, 'Trombone', {}, _mapa_tiempos_de(p))
+        registros = sorted(c['registro'] for c in res['cruce_dinamica_registro'])
+        self.assertEqual(registros, ['agudo', 'grave'])
+
+
 class AlteracionesComoSimboloTests(TestCase):
     """Punto 3 del reporte de bugs: los bemoles/sostenidos se muestran con el
     símbolo musical real (♭/♯/𝄫/𝄪), no con el guion/almohadilla crudo de

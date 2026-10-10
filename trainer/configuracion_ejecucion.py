@@ -72,6 +72,13 @@ PASO_VENTANA_SEGUNDOS = 1.0
 # mayor a esto (una octava exacta no cuenta).
 UMBRAL_SALTO_SEMITONOS = 12
 
+# Dos ataques consecutivos de una misma voz separados por un silencio REAL (de
+# esa voz) de esta duración o más no se consideran un salto melódico -- son
+# dos frases distintas, no un salto dentro de una misma línea (bug real
+# reportado: un "salto" medido entre notas con ~11 compases de silencio en el
+# medio). Provisorio/configurable, no calibrado contra un corpus real.
+UMBRAL_SILENCIO_CORTA_SALTO_SEGUNDOS = 2.0
+
 # --- FASE 2B: versión compacta de alertas_ejecucion para el prompt de Claude ---
 # (ver metricas_ejecucion.compactar_alertas_para_prompt). A diferencia de
 # TOP_N_PICOS_DENSIDAD (un tope de cantidad, siempre devuelve "los N picos más
