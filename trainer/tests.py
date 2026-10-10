@@ -13,7 +13,7 @@ from trainer.views import (
     _eventos_ejecucion, _auditar_citas_ejecucion, _a_solfeo,
     _auditar_citas_duplicaciones, comparar_versiones,
     evaluar_viabilidad_instrumental, detectar_duplicaciones_verificadas,
-    detectar_alertas_criticas_no_comentadas,
+    detectar_alertas_criticas_no_comentadas, _auditar_identificadores_con_guion_bajo,
 )
 from trainer.metricas_ejecucion import (
     calcular_metricas_de_parte, resolver_instrumento, _cortes_registro, construir_mapa_tiempos,
@@ -1114,6 +1114,78 @@ class AlertasCriticasNoComentadasTests(TestCase):
         with self.assertLogs('trainer.views', level='WARNING') as cm:
             _auditar_citas_ejecucion([self._bloque()], alertas)
         self.assertTrue(any('sin ninguna cita en todo el informe' in m for m in cm.output))
+
+
+class HigieneTextoIdentificadoresTests(TestCase):
+    """
+    Punto I del reporte de bugs sobre "Flauta exagerada": identificadores
+    internos de los datos (ej. "intervalo_fijo") filtrándose tal cual en la
+    prosa del informe, en vez de traducirse a lenguaje musical natural.
+    A diferencia de los tópicos ambiguos ya auditados (requieren vocabulario
+    heurístico), esto no lo es: prosa real nunca usa snake_case.
+    """
+
+    def test_identificador_en_resumen_general_dispara_warning(self):
+        final_data = {'resumen_general': 'Las cuerdas duplican en intervalo_fijo durante este pasaje.', 'bloques': [], 'resumen_por_instrumento': []}
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_identificadores_con_guion_bajo(final_data)
+        self.assertTrue(any('intervalo_fijo' in m for m in cm.output))
+
+    def test_identificador_en_bloque_dispara_warning(self):
+        final_data = {
+            'resumen_general': 'x', 'resumen_por_instrumento': [],
+            'bloques': [{
+                'rango_compases': '1-9', 'analisis_cuerdas': 'Doblaje en intervalo_fijo entre violines.',
+                'analisis_maderas': '', 'analisis_metales_percusion': '', 'analisis_balance_y_fango': '',
+                'solucion_prosa': '', 'ediciones_sugeridas': [],
+            }],
+        }
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_identificadores_con_guion_bajo(final_data)
+        self.assertTrue(any('intervalo_fijo' in m for m in cm.output))
+
+    def test_identificador_en_ediciones_sugeridas_dispara_warning(self):
+        final_data = {
+            'resumen_general': 'x', 'resumen_por_instrumento': [],
+            'bloques': [{
+                'rango_compases': '1-9', 'analisis_cuerdas': '', 'analisis_maderas': '',
+                'analisis_metales_percusion': '', 'analisis_balance_y_fango': '', 'solucion_prosa': '',
+                'ediciones_sugeridas': [{'detalle': 'Reducir la duplicacion en tiempo_aire del Oboe.'}],
+            }],
+        }
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_identificadores_con_guion_bajo(final_data)
+        self.assertTrue(any('tiempo_aire' in m for m in cm.output))
+
+    def test_identificador_en_resumen_por_instrumento_dispara_warning(self):
+        final_data = {
+            'resumen_general': 'x', 'bloques': [],
+            'resumen_por_instrumento': [{'instrumento': 'Oboe', 'descripcion': 'Sostiene el pasaje en cruce_dinamica_registro.'}],
+        }
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_identificadores_con_guion_bajo(final_data)
+        self.assertTrue(any('cruce_dinamica_registro' in m for m in cm.output))
+
+    def test_texto_limpio_no_dispara_nada(self):
+        final_data = {
+            'resumen_general': 'Las cuerdas duplican a un intervalo fijo durante este pasaje.',
+            'resumen_por_instrumento': [{'instrumento': 'Oboe', 'descripcion': 'Sostiene el pasaje en registro agudo.'}],
+            'bloques': [{
+                'rango_compases': '1-9', 'analisis_cuerdas': 'Doblaje normal entre violines.',
+                'analisis_maderas': '', 'analisis_metales_percusion': '', 'analisis_balance_y_fango': '',
+                'solucion_prosa': '', 'ediciones_sugeridas': [{'detalle': 'Reducir dinámica.'}],
+            }],
+        }
+        with patch('trainer.views.logger') as logger_mock:
+            _auditar_identificadores_con_guion_bajo(final_data)
+        logger_mock.warning.assert_not_called()
+
+    def test_final_data_no_dict_no_rompe(self):
+        _auditar_identificadores_con_guion_bajo('no es un dict')  # no debe lanzar
+
+    def test_bloque_malformado_no_rompe(self):
+        final_data = {'resumen_general': 'x', 'resumen_por_instrumento': [], 'bloques': ['bloque mal formado']}
+        _auditar_identificadores_con_guion_bajo(final_data)  # no debe lanzar
 
 
 class BloquesMalformadosTests(TestCase):

@@ -1373,6 +1373,65 @@ def detectar_alertas_criticas_no_comentadas(bloques, alertas_compactas):
     return no_comentadas
 
 
+# PUNTO I del reporte de bugs: identificadores internos de los datos (ej.
+# "intervalo_fijo", "tiempo_aire") filtrándose tal cual al texto en prosa en
+# vez de traducirse a lenguaje musical natural. A diferencia de los otros
+# tópicos auditados (ambiguos, requieren heurística de vocabulario), esto no
+# es ambiguo: prosa real en cualquier idioma nunca usa snake_case, así que
+# un simple patrón de "palabra_con_guion_bajo" alcanza, sin falsos positivos
+# esperables.
+PATRON_IDENTIFICADOR_CON_GUION_BAJO = re.compile(r'\b[a-zA-ZáéíóúñÁÉÍÓÚÑ]+_[a-zA-ZáéíóúñÁÉÍÓÚÑ_]+\b')
+
+
+def _auditar_identificadores_con_guion_bajo(final_data):
+    """
+    Auditoría determinística (sin IA, solo logging) -- confirmado en un
+    informe real ("intervalo_fijo" citado tal cual en prosa en vez de "a un
+    intervalo fijo"): busca cualquier identificador con guion bajo filtrado
+    en resumen_general, en los campos de prosa de cada bloque (incluyendo el
+    detalle de sus ediciones_sugeridas), y en la descripción de cada entrada
+    de resumen_por_instrumento. No modifica nada, mismo criterio que el
+    resto de las auditorías de esta fase.
+    """
+    if not isinstance(final_data, dict):
+        return
+
+    resumen_general = final_data.get('resumen_general')
+    if isinstance(resumen_general, str):
+        encontrados = PATRON_IDENTIFICADOR_CON_GUION_BAJO.findall(resumen_general)
+        if encontrados:
+            logger.warning(
+                "auditoria_higiene_texto: resumen_general contiene identificador(es) con guion bajo "
+                "sin traducir: %r", encontrados,
+            )
+
+    for bloque in final_data.get('bloques') or []:
+        if not isinstance(bloque, dict):
+            continue
+        texto = ' '.join(bloque.get(c, '') or '' for c in CAMPOS_PROSA_BLOQUE)
+        texto += ' ' + ' '.join(
+            e.get('detalle', '') or '' for e in (bloque.get('ediciones_sugeridas') or []) if isinstance(e, dict)
+        )
+        encontrados = PATRON_IDENTIFICADOR_CON_GUION_BAJO.findall(texto)
+        if encontrados:
+            logger.warning(
+                "auditoria_higiene_texto: bloque %r contiene identificador(es) con guion bajo "
+                "sin traducir: %r", bloque.get('rango_compases'), encontrados,
+            )
+
+    for r in final_data.get('resumen_por_instrumento') or []:
+        if not isinstance(r, dict):
+            continue
+        descripcion = r.get('descripcion')
+        if isinstance(descripcion, str):
+            encontrados = PATRON_IDENTIFICADOR_CON_GUION_BAJO.findall(descripcion)
+            if encontrados:
+                logger.warning(
+                    "auditoria_higiene_texto: resumen_por_instrumento de %r contiene identificador(es) "
+                    "con guion bajo sin traducir: %r", r.get('instrumento'), encontrados,
+                )
+
+
 UMBRAL_PUNTAJE_CONFIRMACION = 800  # ver justificación en CLAUDE.md / historial de diseño — punto de partida, no calibrado
 
 # FASE 2B (commit 3): créditos a cobrar cuando, pese a max_tokens=120000 (ver
@@ -1756,6 +1815,9 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                 if isinstance(final_data, dict):
                     _auditar_citas_duplicaciones(final_data.get('bloques'), duplicaciones_verificadas)
                     _auditar_citas_ejecucion(final_data.get('bloques'), alertas_ejecucion_verificadas)
+                    # PUNTO I del reporte de bugs: identificadores internos (ej.
+                    # "intervalo_fijo") filtrándose tal cual en la prosa, sin traducir.
+                    _auditar_identificadores_con_guion_bajo(final_data)
                     # PUNTO A del reporte de bugs: respaldo determinístico visible al
                     # usuario -- si el modelo omitió por completo alguna alerta crítica
                     # (sin citarla en ningún bloque), se muestra tal cual al final del
