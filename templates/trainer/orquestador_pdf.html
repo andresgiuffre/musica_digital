@@ -110,7 +110,7 @@
     {% if alertas_ejecucion_pdf.tramos_aire %}
     <h2>{% trans "Tiempo de Aire / Ejecución Continua" %}</h2>
     {% for t in alertas_ejecucion_pdf.tramos_aire %}
-    <p class="alerta-ejecucion alerta-ejecucion--{{ t.nivel }}">{% blocktrans with instrumento=t.instrumento compasDesde=t.compas_desde compasHasta=t.compas_hasta duracion=t.duracion_segundos|floatformat:1 ponderada=t.duracion_ponderada|floatformat:1 umbral=t.umbral|floatformat:0 %}{{ instrumento }}: tramo sin pausa suficiente en los compases {{ compasDesde }}-{{ compasHasta }} ({{ duracion }}s reales, {{ ponderada }}s ponderados, umbral {{ umbral }}s){% endblocktrans %}</p>
+    <p class="alerta-ejecucion alerta-ejecucion--{{ t.nivel }}">{% blocktrans with instrumento=t.instrumento compasDesde=t.compas_desde compasHasta=t.compas_hasta duracion=t.duracion_segundos|floatformat:1 ponderada=t.duracion_ponderada|floatformat:1 umbral=t.umbral|floatformat:0 nivel=t.nivel %}{{ instrumento }}: tramo sin pausa suficiente en los compases {{ compasDesde }}-{{ compasHasta }} ({{ duracion }}s reales, {{ ponderada }}s ponderados, umbral {{ umbral }}s, nivel: {{ nivel }}){% endblocktrans %}</p>
     {% endfor %}
     {% endif %}
 

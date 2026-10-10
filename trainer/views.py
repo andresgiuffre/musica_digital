@@ -508,9 +508,14 @@ ORQUESTACION_TOOL = {
                                     "instrumento": {"type": "string", "description": "Nombre exacto del instrumento, igual que en alertas_ejecucion_verificadas."},
                                     "compas_desde": {"type": "integer"},
                                     "compas_hasta": {"type": "integer"},
-                                    "tipo": {"type": "string", "enum": ["tiempo_aire", "salto_melodico", "cruce_dinamica_registro", "densidad_ritmica"]}
+                                    "tipo": {"type": "string", "enum": ["tiempo_aire", "salto_melodico", "cruce_dinamica_registro", "densidad_ritmica"]},
+                                    "nivel": {
+                                        "type": ["string", "null"],
+                                        "enum": ["aviso", "critico", None],
+                                        "description": "El nivel (aviso o crítico) que la entrada real de alertas_ejecucion_verificadas que estás citando tiene en el campo 'nivel' -- copiá ese valor tal cual, nunca lo inventes ni lo infieras del texto. Solo tiempo_aire tiene nivel hoy; null para los demás tipos."
+                                    }
                                 },
-                                "required": ["instrumento", "compas_desde", "compas_hasta", "tipo"],
+                                "required": ["instrumento", "compas_desde", "compas_hasta", "tipo", "nivel"],
                                 "additionalProperties": False
                             }
                         }
@@ -1279,18 +1284,34 @@ def _auditar_citas_ejecucion(bloques, alertas_compactas):
 
         for cita in citas:
             candidatas = alertas_por_tipo_instrumento.get((cita.get('tipo'), cita.get('instrumento')), [])
-            existe = any(
-                cita.get('compas_desde') is not None and cita.get('compas_hasta') is not None
+            coincidentes = [
+                a for a in candidatas
+                if cita.get('compas_desde') is not None and cita.get('compas_hasta') is not None
                 and cita['compas_desde'] <= a.get('compas_hasta', a.get('compas', -1))
                 and cita['compas_hasta'] >= a.get('compas_desde', a.get('compas', 10**9))
-                for a in candidatas
-            )
-            if not existe:
+            ]
+            if not coincidentes:
                 logger.warning(
                     "auditoria_ejecucion: bloque %r citó una alerta de ejecución inventada: %r "
                     "— no coincide con ninguna entrada real de alertas_ejecucion_verificadas.",
                     bloque.get('rango_compases'), cita,
                 )
+                continue
+
+            # PUNTO B del reporte de bugs: el nivel que la cita declara tiene
+            # que coincidir con el nivel real de la(s) entrada(s) que
+            # coinciden -- un desvío significa que el informe usó un nivel
+            # distinto al medido (ej. citó "aviso" para algo que en realidad
+            # es "critico").
+            nivel_citado = cita.get('nivel')
+            if nivel_citado is not None:
+                niveles_reales = {a.get('nivel') for a in coincidentes if a.get('nivel') is not None}
+                if niveles_reales and nivel_citado not in niveles_reales:
+                    logger.warning(
+                        "auditoria_ejecucion: bloque %r citó nivel %r para %r, pero el nivel real "
+                        "de la entrada correspondiente es %r.",
+                        bloque.get('rango_compases'), nivel_citado, cita, niveles_reales,
+                    )
 
     # PUNTO A del reporte de bugs: a diferencia de los dos chequeos de arriba
     # (mención sin cita / cita inventada, ambos por bloque), esto es una

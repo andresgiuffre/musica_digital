@@ -134,6 +134,7 @@ function renderAlertasEjecucion(alertas) {
                     instrumento: t.instrumento, compasDesde: t.compas_desde, compasHasta: t.compas_hasta,
                     duracion: t.duracion_segundos.toFixed(1), ponderada: t.duracion_ponderada.toFixed(1),
                     umbral: t.nivel === 'critico' ? t.umbral_critico : t.umbral_aviso,
+                    nivel: t.nivel === 'critico' ? OrqI18n.nivelCritico : OrqI18n.nivelAviso,
                 }))}</span>
             </div>
         `).join('');

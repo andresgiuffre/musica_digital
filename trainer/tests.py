@@ -946,6 +946,42 @@ class AuditoriaCitasEjecucionTests(TestCase):
         )
         _auditar_citas_ejecucion([bloque], self.alertas_compactas)  # no debe lanzar
 
+    def test_nivel_citado_distinto_del_real_dispara_warning(self):
+        """Punto B del reporte de bugs: self.alertas_compactas tiene nivel
+        'aviso' real para Oboe 10-20 -- citar nivel 'critico' tiene que
+        detectarse como un desvío, no pasar en silencio."""
+        bloque = self._bloque(
+            alertas_ejecucion_citadas=[
+                {'instrumento': 'Oboe', 'compas_desde': 10, 'compas_hasta': 20, 'tipo': 'tiempo_aire', 'nivel': 'critico'},
+            ],
+        )
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_citas_ejecucion([bloque], self.alertas_compactas)
+        self.assertTrue(any('nivel real' in m for m in cm.output))
+
+    def test_nivel_citado_correcto_no_dispara_nada(self):
+        bloque = self._bloque(
+            alertas_ejecucion_citadas=[
+                {'instrumento': 'Oboe', 'compas_desde': 10, 'compas_hasta': 20, 'tipo': 'tiempo_aire', 'nivel': 'aviso'},
+            ],
+        )
+        with patch('trainer.views.logger') as logger_mock:
+            _auditar_citas_ejecucion([bloque], self.alertas_compactas)
+        logger_mock.warning.assert_not_called()
+
+    def test_nivel_null_en_la_cita_no_dispara_nada(self):
+        """nivel: null es válido para los 3 tipos sin nivel en los datos
+        (salto_melodico/cruce_dinamica_registro/densidad_ritmica) -- no debe
+        generar ninguna advertencia de desvío."""
+        bloque = self._bloque(
+            alertas_ejecucion_citadas=[
+                {'instrumento': 'Oboe', 'compas_desde': 10, 'compas_hasta': 20, 'tipo': 'tiempo_aire', 'nivel': None},
+            ],
+        )
+        with patch('trainer.views.logger') as logger_mock:
+            _auditar_citas_ejecucion([bloque], self.alertas_compactas)
+        logger_mock.warning.assert_not_called()
+
 
 class AlertasCriticasNoComentadasTests(TestCase):
     """
