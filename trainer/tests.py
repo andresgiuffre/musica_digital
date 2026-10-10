@@ -649,6 +649,61 @@ class MetricasEjecucionTests(TestCase):
         self.assertEqual(mayor['compas_hasta'], 6)
         self.assertEqual(mayor['nombre_intervalo'], 'novena mayor')
 
+    def test_motivo_registro_dinamica_ambos_y_ninguno(self):
+        """Punto 1 del pedido de correcciones sobre ponderación: motivo
+        refleja de dónde viene el peso del tramo -- registro grave, dinámica
+        fuerte, ambos a la vez, o ninguno (tramo en registro/dinámica
+        normales, aunque haya durado lo suficiente para dar aviso/crítico)."""
+        pitch_grave = RANGOS_COMODOS['Contrafagot'][0]  # mínimo cómodo, de por sí grave
+        corte_grave, corte_agudo = _cortes_registro(RANGOS_COMODOS['Contrafagot'])
+        pitch_medio = music21.pitch.Pitch()
+        pitch_medio.ps = (corte_grave + corte_agudo) / 2
+
+        def _parte(pitch, dinamica=None):
+            p = music21.stream.Part()
+            p.partName = 'Contrabassoon'
+            m = music21.stream.Measure(number=1)
+            m.insert(0, music21.tempo.MetronomeMark(number=120))
+            if dinamica:
+                m.insert(0, music21.dynamics.Dynamic(dinamica))
+            for _ in range(20):
+                m.append(music21.note.Note(pitch, quarterLength=1.0))
+            p.append(m)
+            return p
+
+        casos = [
+            (pitch_grave, None, 'registro'),
+            (pitch_medio.nameWithOctave, 'fff', 'dinamica'),
+            (pitch_grave, 'fff', 'ambos'),
+            (pitch_medio.nameWithOctave, None, 'ninguno'),
+        ]
+        for pitch, dinamica, motivo_esperado in casos:
+            with self.subTest(pitch=pitch, dinamica=dinamica):
+                p = _parte(pitch, dinamica)
+                res, _ = calcular_metricas_de_parte(p, 'Contrabassoon', {}, _mapa_tiempos_de(p))
+                self.assertEqual(res['tramos_aire'][0]['motivo'], motivo_esperado)
+
+    def test_tope_duracion_ponderada_se_aplica_de_punta_a_punta(self):
+        """Punto E del reporte de bugs (aprobado): Contrafagot (mult_grave=0.6)
+        en registro grave a fff (mult_din=0.5) da un factor combinado teórico
+        de 1/0.3 = 3.33x -- por encima del tope (3.0x) aprobado. La duración
+        ponderada final nunca debe superar duracion_real * TOPE_DURACION_PONDERADA."""
+        from trainer.metricas_ejecucion import TOPE_DURACION_PONDERADA
+        pitch_grave = RANGOS_COMODOS['Contrafagot'][0]
+        p = music21.stream.Part()
+        p.partName = 'Contrabassoon'
+        m = music21.stream.Measure(number=1)
+        m.insert(0, music21.tempo.MetronomeMark(number=120))
+        m.insert(0, music21.dynamics.Dynamic('fff'))
+        for _ in range(20):
+            m.append(music21.note.Note(pitch_grave, quarterLength=1.0))
+        p.append(m)
+        res, _ = calcular_metricas_de_parte(p, 'Contrabassoon', {}, _mapa_tiempos_de(p))
+        tramo = res['tramos_aire'][0]
+        self.assertAlmostEqual(tramo['duracion_ponderada'], tramo['duracion_segundos'] * TOPE_DURACION_PONDERADA, places=5)
+        # Sin tope hubiera dado duracion_segundos / 0.3 (~3.33x) -- confirmamos que es MENOR a eso.
+        self.assertLess(tramo['duracion_ponderada'], tramo['duracion_segundos'] / 0.3)
+
     def test_cruce_dinamica_registro_agudo_con_ff(self):
         p = music21.stream.Part()
         p.partName = 'Trumpet'
@@ -851,6 +906,29 @@ class NombreIntervaloTests(TestCase):
         self.assertEqual(nombre_intervalo(music21.pitch.Pitch('C4'), music21.pitch.Pitch('E5')), 'décima mayor')
 
 
+class TopeDuracionPonderadaTests(TestCase):
+    """
+    Punto E del reporte de bugs (diagnóstico, luego aprobado): tope directo
+    sobre _fusionar_intervalos_con_demanda -- duracion_ponderada nunca puede
+    superar duracion_real * TOPE_DURACION_PONDERADA (provisoria, 3.0).
+    """
+
+    def test_factor_por_encima_del_tope_se_recorta(self):
+        from trainer.metricas_ejecucion import _fusionar_intervalos_con_demanda, TOPE_DURACION_PONDERADA
+        # mult=0.3 -> factor teorico 1/0.3 = 3.33x, por encima del tope (3.0x).
+        notas = [{'offset_segundos': 0.0, 'duracion_segundos': 10.0, 'mult': 0.3}]
+        duracion_real, duracion_ponderada = _fusionar_intervalos_con_demanda(notas)
+        self.assertAlmostEqual(duracion_real, 10.0)
+        self.assertAlmostEqual(duracion_ponderada, 10.0 * TOPE_DURACION_PONDERADA)
+
+    def test_factor_por_debajo_del_tope_no_se_toca(self):
+        from trainer.metricas_ejecucion import _fusionar_intervalos_con_demanda
+        # mult=0.6 -> factor 1/0.6 = 1.667x, bien debajo del tope (3.0x).
+        notas = [{'offset_segundos': 0.0, 'duracion_segundos': 10.0, 'mult': 0.6}]
+        duracion_real, duracion_ponderada = _fusionar_intervalos_con_demanda(notas)
+        self.assertAlmostEqual(duracion_ponderada, 10.0 / 0.6)
+
+
 class CompactarAlertasParaPromptTests(TestCase):
     """
     FASE 2B: compactar_alertas_para_prompt(alertas_ejecucion) -- la versión
@@ -866,7 +944,8 @@ class CompactarAlertasParaPromptTests(TestCase):
 
     def test_topa_tiempo_aire_por_instrumento(self):
         tramos = [
-            {'instrumento': 'Oboe', 'compas_desde': n, 'compas_hasta': n, 'duracion_ponderada': float(20 + n), 'umbral_aviso': 20, 'umbral_critico': 35, 'nivel': 'aviso'}
+            {'instrumento': 'Oboe', 'compas_desde': n, 'compas_hasta': n, 'duracion_segundos': float(18 + n),
+             'duracion_ponderada': float(20 + n), 'umbral_aviso': 20, 'umbral_critico': 35, 'nivel': 'aviso', 'motivo': 'registro'}
             for n in range(1, 6)  # 5 tramos, tope es 3
         ]
         alertas = {'tramos_aire': tramos, 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [], 'avisos': []}
@@ -875,9 +954,25 @@ class CompactarAlertasParaPromptTests(TestCase):
         # se quedan los 3 de mayor duracion_ponderada (25, 24, 23), no los primeros 3 en orden de aparicion.
         self.assertEqual([c['duracion_ponderada_seg'] for c in compacto], [25.0, 24.0, 23.0])
 
+    def test_tiempo_aire_incluye_duracion_real_y_motivo(self):
+        """Punto 2 del pedido de correcciones sobre ponderación: la entrada
+        que recibe el modelo tiene que llevar duracion_real_seg y motivo,
+        no solo duracion_ponderada_seg -- el informe describe el tramo con
+        la duración REAL, nunca con la ponderada."""
+        alertas = {'tramos_aire': [
+            {'instrumento': 'Contrabassoon', 'compas_desde': 29, 'compas_hasta': 34, 'duracion_segundos': 10.3,
+             'duracion_ponderada': 23.7, 'umbral_aviso': 7, 'umbral_critico': 12, 'nivel': 'critico', 'motivo': 'ambos'},
+        ], 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [], 'avisos': []}
+        compacto = compactar_alertas_para_prompt(alertas)
+        self.assertEqual(len(compacto), 1)
+        self.assertEqual(compacto[0]['duracion_real_seg'], 10.3)
+        self.assertEqual(compacto[0]['motivo'], 'ambos')
+        self.assertEqual(compacto[0]['duracion_ponderada_seg'], 23.7)
+
     def test_topa_global_y_agrega_alertas_omitidas(self):
         tramos = [
-            {'instrumento': f'Instrumento{i}', 'compas_desde': 1, 'compas_hasta': 1, 'duracion_ponderada': float(i), 'umbral_aviso': 5, 'umbral_critico': 100, 'nivel': 'aviso'}
+            {'instrumento': f'Instrumento{i}', 'compas_desde': 1, 'compas_hasta': 1, 'duracion_segundos': float(i),
+             'duracion_ponderada': float(i), 'umbral_aviso': 5, 'umbral_critico': 100, 'nivel': 'aviso', 'motivo': 'ninguno'}
             for i in range(50)  # 50 instrumentos distintos, 1 alerta cada uno -- el tope por instrumento no actua, solo el global (40)
         ]
         alertas = {'tramos_aire': tramos, 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [], 'avisos': []}
@@ -927,7 +1022,8 @@ class CompactarAlertasParaPromptTests(TestCase):
         cómo se interpreta todo lo demás -- no pueden ser lo primero que se
         pierde si hay que aplicar el tope global."""
         tramos = [
-            {'instrumento': f'I{i}', 'compas_desde': 1, 'compas_hasta': 1, 'duracion_ponderada': 100.0, 'umbral_aviso': 5, 'umbral_critico': 10, 'nivel': 'critico'}
+            {'instrumento': f'I{i}', 'compas_desde': 1, 'compas_hasta': 1, 'duracion_segundos': 50.0,
+             'duracion_ponderada': 100.0, 'umbral_aviso': 5, 'umbral_critico': 10, 'nivel': 'critico', 'motivo': 'ambos'}
             for i in range(45)
         ]
         alertas = {'tramos_aire': tramos, 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [],
@@ -1602,7 +1698,7 @@ class AlertasEjecucionEnPdfTests(TestCase):
         self.assertEqual(status.err, 0)
 
         for esperado in (
-            'Tiempo de Aire', 'Oboe: tramo sin pausa', 'Corno Inglés: tramo sin pausa',
+            'Tiempo de Aire', 'Oboe: 22,0s seguidos', 'Corno Inglés: 38,0s seguidos',
             'Saltos Melódicos', 'Violonchelo: 3 salto',
             'Cruce Dinámica', 'Trompeta: compases 112-116',
             'Densidad Rítmica', 'Flauta: pico de densidad en el compás 30',

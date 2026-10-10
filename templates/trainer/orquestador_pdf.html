@@ -116,7 +116,10 @@
     {% if alertas_ejecucion_pdf.tramos_aire %}
     <h2>{% trans "Tiempo de Aire / Ejecución Continua" %}</h2>
     {% for t in alertas_ejecucion_pdf.tramos_aire %}
-    <p class="alerta-ejecucion alerta-ejecucion--{{ t.nivel }}">{% blocktrans with instrumento=t.instrumento compasDesde=t.compas_desde compasHasta=t.compas_hasta duracion=t.duracion_segundos|floatformat:1 ponderada=t.duracion_ponderada|floatformat:1 umbral=t.umbral|floatformat:0 nivel=t.nivel %}{{ instrumento }}: tramo sin pausa suficiente en los compases {{ compasDesde }}-{{ compasHasta }} ({{ duracion }}s reales, {{ ponderada }}s ponderados, umbral {{ umbral }}s, nivel: {{ nivel }}){% endblocktrans %}</p>
+    {% if t.motivo == 'registro' %}{% trans "registro" as motivo_t %}{% elif t.motivo == 'dinamica' %}{% trans "dinámica" as motivo_t %}{% elif t.motivo == 'ambos' %}{% trans "registro y dinámica" as motivo_t %}{% else %}{% trans "sin motivo particular" as motivo_t %}{% endif %}
+    {# PUNTO 1 del pedido de correcciones sobre ponderación: duración real, nivel y motivo primero -- ponderado/umbral quedan como detalle secundario más chico. #}
+    <p class="alerta-ejecucion alerta-ejecucion--{{ t.nivel }}">{% blocktrans with instrumento=t.instrumento compasDesde=t.compas_desde compasHasta=t.compas_hasta duracion=t.duracion_segundos|floatformat:1 nivel=t.nivel motivo=motivo_t %}{{ instrumento }}: {{ duracion }}s seguidos en los compases {{ compasDesde }}-{{ compasHasta }} — nivel {{ nivel }} ({{ motivo }}){% endblocktrans %}<br>
+    <span class="subtitulo">{% blocktrans with ponderada=t.duracion_ponderada|floatformat:1 umbral=t.umbral|floatformat:0 %}ponderado: {{ ponderada }}s · umbral: {{ umbral }}s{% endblocktrans %}</span></p>
     {% endfor %}
     {% endif %}
 

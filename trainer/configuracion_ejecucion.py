@@ -105,6 +105,22 @@ MAX_ALERTAS_TOTAL_PROMPT = 40
 # dentro del tercio.
 FRACCION_TERCIO_EXTREMO = 1 / 3
 
+# PUNTO E del reporte de bugs sobre "Flauta exagerada" (diagnóstico, luego
+# aprobado): tope al factor de ponderación combinado (mult_registro x
+# mult_din, ver _fusionar_intervalos_con_demanda) -- duracion_ponderada
+# nunca puede superar duracion_real x este tope. Sin tope, el máximo
+# teórico es 1/(0.5*0.5) = 4.0x (Flauta Bajo, registro grave, dinámica fff);
+# entre los graves de uso habitual en una orquesta real (Contrafagot/
+# Trombón Bajo/Tuba/Fagot, mult_grave=0.6) el máximo es 1/(0.6*0.5) = 3.33x.
+# Valores reales observados en "Flauta exagerada" antes de este tope:
+# Contrabassoon x2.3, Bass Trombone x2.1, Tuba x2.0 -- ninguno es un bug (la
+# fórmula hacía lo que se diseñó: un pasaje genuinamente grave + fuerte), el
+# tope solo evita que una combinación más extrema (grave + fff sostenido)
+# infle el reporte a un múltiplo difícil de justificar en prosa.
+# PROVISORIO, no calibrado contra un corpus real -- a ajustar si 3.0 resulta
+# muy o poco conservador.
+TOPE_DURACION_PONDERADA = 3.0
+
 # Para el cruce dinámica×registro: "dinámica activa" extrema. 'p' y 'mf'/'f' solos
 # quedan afuera a propósito -- son el caso normal, no el extremo.
 DINAMICAS_EXTREMAS_FUERTE = {'f', 'ff', 'fff'}

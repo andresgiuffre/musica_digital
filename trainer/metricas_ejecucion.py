@@ -30,7 +30,7 @@ from .configuracion_ejecucion import (
     UMBRAL_SILENCIO_CORTA_SALTO_SEGUNDOS,
     FRACCION_TERCIO_EXTREMO, DINAMICAS_EXTREMAS_FUERTE, DINAMICAS_EXTREMAS_SUAVE,
     CANONICO_A_CLAVE_AIRE, UMBRAL_DENSIDAD_NOTABLE, MAX_ALERTAS_POR_INSTRUMENTO_PROMPT,
-    MAX_ALERTAS_TOTAL_PROMPT,
+    MAX_ALERTAS_TOTAL_PROMPT, TOPE_DURACION_PONDERADA,
 )
 from .models import RANGOS_COMODOS, _resolver_instrumento_normalizado, INSTRUMENTO_SIN_ALTURA
 
@@ -489,6 +489,13 @@ def _fusionar_intervalos_con_demanda(notas_con_mult):
     ponderada = duración / mult) entre las que suenan en ese instante -- ej.
     si una voz toca grave en ff y la otra en registro cómodo a la vez, ese
     tramo pesa como si fuera la voz grave en ff, no la suma de ambas.
+
+    PUNTO E del reporte de bugs (diagnóstico, luego aprobado): el resultado
+    nunca supera duracion_real * TOPE_DURACION_PONDERADA -- sin tope, una
+    combinación extrema (registro grave + dinámica fff sostenidos) puede
+    multiplicar la duración real hasta 3-4x (ver el comentario grande junto
+    a TOPE_DURACION_PONDERADA en configuracion_ejecucion.py para los valores
+    reales observados y el porqué del tope elegido).
     """
     if not notas_con_mult:
         return 0.0, 0.0
@@ -506,6 +513,7 @@ def _fusionar_intervalos_con_demanda(notas_con_mult):
         dur = b - a
         duracion_real += dur
         duracion_ponderada += dur / min(activos)
+    duracion_ponderada = min(duracion_ponderada, duracion_real * TOPE_DURACION_PONDERADA)
     return duracion_real, duracion_ponderada
 
 
@@ -545,7 +553,14 @@ def detectar_tramos_de_aire(eventos, clave_aire, ambito_comodo):
         elif clave_aire == 'trompeta' and ps >= corte_agudo:
             mult_registro = mult_agudo
         mult_din = MULT_DINAMICA.get(ev['dinamica'], 1.0)
-        notas_con_mult.append({**ev, 'mult': mult_registro * mult_din})
+        # mult_registro/mult_din se guardan también por separado (además del
+        # combinado 'mult') para poder armar 'motivo' (PUNTO 1 del pedido de
+        # correcciones sobre ponderación): de qué viene el peso de este
+        # tramo -- registro, dinámica, o ambos.
+        notas_con_mult.append({
+            **ev, 'mult': mult_registro * mult_din,
+            'mult_registro': mult_registro, 'mult_din': mult_din,
+        })
 
     # Unión de los intervalos de sonido de TODAS las voces (sin importar cuál).
     intervalos = sorted(
@@ -592,6 +607,21 @@ def detectar_tramos_de_aire(eventos, clave_aire, ambito_comodo):
         else:
             nivel = 'ok'
         compases = [n['compas'] for n in notas_tramo]
+        # PUNTO 1 del pedido de correcciones sobre ponderación: por qué este
+        # tramo pesa lo que pesa -- si ALGUNA nota del tramo tuvo
+        # mult_registro/mult_din distinto de 1.0 (registro grave/agudo
+        # extremo, o dinámica fuerte), se marca como motivo. Un tramo 'ok'
+        # puede no tener ningún motivo (mult=1.0 en toda su extensión).
+        motivo_registro = any(n['mult_registro'] != 1.0 for n in notas_tramo)
+        motivo_dinamica = any(n['mult_din'] != 1.0 for n in notas_tramo)
+        if motivo_registro and motivo_dinamica:
+            motivo = 'ambos'
+        elif motivo_registro:
+            motivo = 'registro'
+        elif motivo_dinamica:
+            motivo = 'dinamica'
+        else:
+            motivo = 'ninguno'
         tramos.append({
             'compas_desde': min(compases),
             'compas_hasta': max(compases),
@@ -600,6 +630,7 @@ def detectar_tramos_de_aire(eventos, clave_aire, ambito_comodo):
             'umbral_aviso': limites['aviso'],
             'umbral_critico': limites['critico'],
             'nivel': nivel,
+            'motivo': motivo,
         })
 
     tramos.sort(key=lambda t: t['duracion_ponderada'], reverse=True)
@@ -972,9 +1003,17 @@ def compactar_alertas_para_prompt(alertas_ejecucion):
             compacto.append({
                 'tipo': 'tiempo_aire', 'instrumento': instrumento,
                 'compas_desde': t['compas_desde'], 'compas_hasta': t['compas_hasta'],
+                # PUNTO 2 del pedido de correcciones sobre ponderación:
+                # duracion_real_seg y motivo van primero en la intención de
+                # uso -- el informe tiene que describir el tramo con la
+                # duración REAL ("10 segundos seguidos en ff en registro
+                # grave"), nunca con duracion_ponderada_seg (dato interno de
+                # severidad, ver GUIA_ESTILO_ORQUESTAL).
+                'duracion_real_seg': round(t['duracion_segundos'], 1),
+                'nivel': t['nivel'],
+                'motivo': t['motivo'],
                 'duracion_ponderada_seg': round(t['duracion_ponderada'], 1),
                 'umbral_seg': t['umbral_critico'] if t['nivel'] == 'critico' else t['umbral_aviso'],
-                'nivel': t['nivel'],
             })
 
     for s in alertas_ejecucion.get('saltos_melodicos', []):

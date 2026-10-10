@@ -127,15 +127,29 @@ function renderAlertasEjecucion(alertas) {
 
     const tramosNoOk = (alertas.tramos_aire || []).filter(t => t.nivel !== 'ok');
     if (tramosNoOk.length) {
+        // PUNTO 1 del pedido de correcciones sobre ponderación: la duración
+        // REAL, el nivel y el motivo van primero y son lo único destacado --
+        // los segundos ponderados/umbral quedan como detalle secundario
+        // (texto más chico), nunca el dato principal que ve el usuario.
+        const MOTIVO_TEXTO = {
+            registro: OrqI18n.motivoRegistro, dinamica: OrqI18n.motivoDinamica,
+            ambos: OrqI18n.motivoAmbos, ninguno: OrqI18n.motivoNinguno,
+        };
         const filas = tramosNoOk.map(t => `
             <div class="analisis-alerta analisis-alerta--${t.nivel === 'critico' ? 'excede' : 'roza'}">
                 <span class="analisis-alerta-icono">${t.nivel === 'critico' ? '⚠️' : '⚡'}</span>
-                <span>${escapeHtml(fmtR(OrqI18n.tramoAire, {
-                    instrumento: t.instrumento, compasDesde: t.compas_desde, compasHasta: t.compas_hasta,
-                    duracion: t.duracion_segundos.toFixed(1), ponderada: t.duracion_ponderada.toFixed(1),
-                    umbral: t.nivel === 'critico' ? t.umbral_critico : t.umbral_aviso,
-                    nivel: t.nivel === 'critico' ? OrqI18n.nivelCritico : OrqI18n.nivelAviso,
-                }))}</span>
+                <div class="analisis-alerta-contenido">
+                    <span>${escapeHtml(fmtR(OrqI18n.tramoAire, {
+                        instrumento: t.instrumento, compasDesde: t.compas_desde, compasHasta: t.compas_hasta,
+                        duracion: t.duracion_segundos.toFixed(1),
+                        nivel: t.nivel === 'critico' ? OrqI18n.nivelCritico : OrqI18n.nivelAviso,
+                        motivo: MOTIVO_TEXTO[t.motivo] || t.motivo,
+                    }))}</span>
+                    <span class="analisis-detalle-secundario">${escapeHtml(fmtR(OrqI18n.tramoAireDetalleSecundario, {
+                        ponderada: t.duracion_ponderada.toFixed(1),
+                        umbral: t.nivel === 'critico' ? t.umbral_critico : t.umbral_aviso,
+                    }))}</span>
+                </div>
             </div>
         `).join('');
         secciones.push(`<div class="analisis-panel"><h3>${OrqI18n.tituloTiempoAire}</h3><div class="analisis-alertas">${filas}</div></div>`);
