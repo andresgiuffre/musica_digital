@@ -1481,10 +1481,24 @@ class LigadurasPuntilloProgreso(models.Model):
 # ---------------------------------------------------------------------------
 
 # Rangos prácticos/cómodos de referencia por instrumento (no el extremo teórico),
-# en pitch escrito (igual que estadisticas_por_instrumento, sin transponer a concert pitch).
+# en pitch ESCRITO (igual que estadisticas_por_instrumento, sin transponer a concert
+# pitch) -- esta tabla es la única fuente "de referencia" y se mantiene en escrito
+# a propósito, pero NINGÚN cálculo del analizador debe comparar alturas contra ella
+# directamente: todo el analizador compara en SONIDO REAL (ver punto 2 del reporte
+# de bugs sobre "Flauta exagerada" -- metricas_ejecucion.TRANSPOSICION_ESCRITO_A_SONANDO
+# / rango_comodo_sonando() hacen esa conversión una sola vez, a partir de esta tabla).
+#
+# Bug real corregido en esta revisión: Flautín, Contrafagot y Contrabajo estaban
+# cargados en SONANDO (no en escrito, al revés que el resto de la tabla) -- confirmado
+# cruzando cada entrada contra music21.instrument.<Clase>().lowestNote (que sí está en
+# escrito): coincidían exactamente con "lowestNote + su transposición", nunca con
+# lowestNote a secas. Esto hacía, por ejemplo, que un Piccolo escrito en Fa4 (perfectamente
+# cómodo, el piso escrito real es Re4) disparara una alerta de "excede el registro grave"
+# al compararlo contra un Re5 que en realidad ya estaba en sonando. Corregidos a su valor
+# escrito real (restando la transposición con la que estaban cargados).
 # Son aproximados y pensados para ajustarse con el tiempo, no una fuente normativa única.
 RANGOS_COMODOS = {
-    'Flautín': ('D5', 'C8'),
+    'Flautín': ('D4', 'C7'),  # antes 'D5'/'C8' -- estaba en sonando (Piccolo transpone +12)
     'Flauta': ('C4', 'C7'),
     'Flauta Alto': ('G3', 'C7'),
     'Flauta Bajo': ('C4', 'C7'),
@@ -1492,7 +1506,7 @@ RANGOS_COMODOS = {
     'Oboe': ('Bb3', 'F6'),
     'Clarinete Bajo': ('D3', 'G5'),
     'Clarinete': ('E3', 'C6'),
-    'Contrafagot': ('Bb0', 'C4'),
+    'Contrafagot': ('Bb1', 'C5'),  # antes 'Bb0'/'C4' -- estaba en sonando (suena -12)
     'Fagot': ('Bb1', 'D5'),
     'Saxo Soprano': ('Bb3', 'F6'),
     'Saxo Alto': ('Bb3', 'F6'),
@@ -1506,7 +1520,7 @@ RANGOS_COMODOS = {
     'Violín': ('G3', 'C7'),
     'Viola': ('C3', 'E6'),
     'Violonchelo': ('C2', 'C6'),
-    'Contrabajo': ('C1', 'G4'),
+    'Contrabajo': ('C2', 'G5'),  # antes 'C1'/'G4' -- estaba en sonando (suena -12)
     'Arpa': ('C1', 'G7'),
     'Piano': ('A0', 'C8'),
     'Guitarra': ('E3', 'C7'),
@@ -1561,10 +1575,14 @@ SINONIMOS_INSTRUMENTOS = [
 
 
 def _buscar_rango_comodo(part_name):
+    """Devuelve (canonico, rango_ESCRITO) o None. El canónico hace falta para
+    poder convertir el rango a sonando (ver metricas_ejecucion.rango_comodo_sonando)
+    -- comparar directamente contra el rango escrito que devuelve esta función,
+    sin convertir, es exactamente el bug de espacio de alturas del punto 2."""
     nombre_norm = (part_name or '').lower()
     for keywords, canonico in SINONIMOS_INSTRUMENTOS:
         if any(kw in nombre_norm for kw in keywords):
-            return RANGOS_COMODOS[canonico]
+            return canonico, RANGOS_COMODOS[canonico]
     return None
 
 

@@ -572,11 +572,17 @@ def _a_solfeo(nombre_pitch):
         return letra + simbolo + octava
     return NOMBRES_SOLFEO.get(letra, letra) + simbolo + octava
 
-def calcular_estadisticas_parte(part):
+def calcular_estadisticas_parte(part, canonico=None):
     """
     Calcula de forma determinística (sin IA) estadísticas objetivas de una parte:
     ámbito realmente tocado, total de notas, compases de silencio total, y la
     clase de altura más frecuente.
+
+    PUNTO 2 del reporte de bugs: el ámbito y la nota más frecuente se muestran
+    en SONIDO REAL (ver metricas_ejecucion.pitch_a_sonando), nunca escritos --
+    `canonico` (el instrumento ya resuelto para esta parte) determina la
+    transposición real a aplicar. Sin `canonico` (o sin transposición
+    conocida), se muestran tal cual están escritos.
     """
     all_pitches = []
     total_notas = 0
@@ -594,12 +600,13 @@ def calcular_estadisticas_parte(part):
     from django.utils.translation import gettext as _
 
     if all_pitches:
-        pitch_min = min(all_pitches, key=lambda p: p.ps)
-        pitch_max = max(all_pitches, key=lambda p: p.ps)
-        ambito = _("%(min)s a %(max)s") % {'min': _a_solfeo(pitch_min.nameWithOctave), 'max': _a_solfeo(pitch_max.nameWithOctave)}
+        pitches_sonando = [pitch_a_sonando(p, canonico) for p in all_pitches]
+        pitch_min = min(pitches_sonando, key=lambda p: p.ps)
+        pitch_max = max(pitches_sonando, key=lambda p: p.ps)
+        ambito = _("%(min)s a %(max)s (sonido real)") % {'min': _a_solfeo(pitch_min.nameWithOctave), 'max': _a_solfeo(pitch_max.nameWithOctave)}
         ambito_min_ps = pitch_min.ps
         ambito_max_ps = pitch_max.ps
-        clase_mas_frecuente = Counter(p.name for p in all_pitches).most_common(1)[0][0]
+        clase_mas_frecuente = Counter(p.name for p in pitches_sonando).most_common(1)[0][0]
         nota_mas_frecuente = _a_solfeo(clase_mas_frecuente)
     else:
         ambito = _("Sin notas")
@@ -622,6 +629,7 @@ def calcular_estadisticas_parte(part):
 # `choices=` en tiempo de definición de clase) -- ver el comentario ahí. Se importan acá
 # tal cual, mismo contenido y comportamiento de siempre.
 from .models import RANGOS_COMODOS, _buscar_rango_comodo, _serializar_rangos_comodos
+from .metricas_ejecucion import rango_comodo_sonando, pitch_a_sonando, resolver_instrumento
 
 
 def evaluar_viabilidad_instrumental(part_name, part):
@@ -630,12 +638,23 @@ def evaluar_viabilidad_instrumental(part_name, part):
     rango cómodo/práctico de referencia. Si el instrumento no matchea ninguna entrada
     conocida de RANGOS_COMODOS, no genera alertas — mejor ninguna alerta que una mal
     atribuida a un instrumento equivocado.
+
+    PUNTO 2 del reporte de bugs sobre "Flauta exagerada": espacio de alturas
+    ÚNICO, sonido real -- _buscar_rango_comodo da el rango en ESCRITO (ver su
+    docstring en models.py); acá se convierte a sonando con
+    rango_comodo_sonando() y cada nota candidata de la parte también se
+    transpone a sonando con pitch_a_sonando() antes de comparar. Sin esto,
+    un Piccolo escrito en Fa4 (perfectamente cómodo) disparaba una alerta de
+    "excede el registro grave" real, porque Fa4 escrito se comparaba contra
+    un rango que además estaba mal cargado en sonando.
     """
     from django.utils.translation import gettext as _
 
-    rango = _buscar_rango_comodo(part_name)
-    if rango is None:
+    resuelto = _buscar_rango_comodo(part_name)
+    if resuelto is None:
         return []
+    canonico, _rango_escrito = resuelto
+    rango = rango_comodo_sonando(canonico)
 
     comodo_min = music21.pitch.Pitch(rango[0]).ps
     comodo_max = music21.pitch.Pitch(rango[1]).ps
@@ -648,7 +667,8 @@ def evaluar_viabilidad_instrumental(part_name, part):
     for m in part.getElementsByClass(music21.stream.Measure):
         for element in m.recurse().notes:
             pitches = element.pitches if isinstance(element, music21.chord.Chord) else [element.pitch]
-            for p in pitches:
+            for p_escrito in pitches:
+                p = pitch_a_sonando(p_escrito, canonico)
                 if p.ps > comodo_max - margen:
                     candidatas_agudas.append((p.ps, m.number, p))
                 if p.ps < comodo_min + margen:
@@ -660,9 +680,9 @@ def evaluar_viabilidad_instrumental(part_name, part):
         severidad = 'excede' if ps > comodo_max else 'roza'
         nota = _a_solfeo(p.nameWithOctave)
         if severidad == 'excede':
-            mensaje = _("Atención: %(instrumento)s excede el registro agudo cómodo (%(nombre_min)s a %(nombre_max)s) alcanzando %(nota)s en el compás %(compas)s.")
+            mensaje = _("Atención: %(instrumento)s excede el registro agudo cómodo en sonido real (%(nombre_min)s a %(nombre_max)s) alcanzando %(nota)s en el compás %(compas)s.")
         else:
-            mensaje = _("Atención: %(instrumento)s roza el registro agudo cómodo (%(nombre_min)s a %(nombre_max)s) alcanzando %(nota)s en el compás %(compas)s.")
+            mensaje = _("Atención: %(instrumento)s roza el registro agudo cómodo en sonido real (%(nombre_min)s a %(nombre_max)s) alcanzando %(nota)s en el compás %(compas)s.")
         alertas.append({
             'instrumento': part_name,
             'compas': compas,
@@ -678,9 +698,9 @@ def evaluar_viabilidad_instrumental(part_name, part):
         severidad = 'excede' if ps < comodo_min else 'roza'
         nota = _a_solfeo(p.nameWithOctave)
         if severidad == 'excede':
-            mensaje = _("Atención: %(instrumento)s excede el registro grave cómodo (%(nombre_min)s a %(nombre_max)s) descendiendo a %(nota)s en el compás %(compas)s.")
+            mensaje = _("Atención: %(instrumento)s excede el registro grave cómodo en sonido real (%(nombre_min)s a %(nombre_max)s) descendiendo a %(nota)s en el compás %(compas)s.")
         else:
-            mensaje = _("Atención: %(instrumento)s roza el registro grave cómodo (%(nombre_min)s a %(nombre_max)s) descendiendo a %(nota)s en el compás %(compas)s.")
+            mensaje = _("Atención: %(instrumento)s roza el registro grave cómodo en sonido real (%(nombre_min)s a %(nombre_max)s) descendiendo a %(nota)s en el compás %(compas)s.")
         alertas.append({
             'instrumento': part_name,
             'compas': compas,
@@ -715,11 +735,20 @@ def calcular_densidad_por_compas(parts):
     ]
 
 
-def _eventos_sonantes_por_compas(part):
+def _eventos_sonantes_por_compas(part, canonico=None):
     """
-    Para una parte, arma {compás: [altura1, altura2, ...]} — la secuencia de alturas (en
-    .ps, semitonos) realmente sonando en cada compás, en orden de ataque, ignorando
-    silencios. En acordes se usa la nota más aguda como altura representativa del ataque.
+    Para una parte, arma {compás: [altura1, altura2, ...]} — la secuencia de alturas
+    EN SONIDO REAL (ver punto 2 del reporte de bugs: "espacio de alturas único"),
+    en orden de ataque, ignorando silencios. En acordes se usa la nota más aguda
+    como altura representativa del ataque.
+
+    `canonico`: el instrumento canónico de RANGOS_COMODOS ya resuelto para esta
+    parte (ver metricas_ejecucion.resolver_instrumento) -- determina la
+    transposición real escrito->sonando a aplicar (pitch_a_sonando). Sin esto
+    (o con un canónico no reconocido), las alturas quedan en escrito sin
+    convertir -- bug real confirmado: Piccolo y Flauta con las MISMAS notas
+    escritas se clasificaban como "unísono", cuando en realidad SUENA una
+    octava (el piccolo transpone +12).
 
     La percusión sin altura definida (music21.note.Unpitched — caja, bombo, platillo, etc.)
     se ignora igual que los silencios: no tiene .pitch, y no puede compararse por altura
@@ -733,9 +762,9 @@ def _eventos_sonantes_por_compas(part):
         for el in m.recurse().notes:
             if isinstance(el, music21.chord.Chord):
                 if el.pitches:
-                    eventos.append(max(el.pitches, key=lambda p: p.ps).ps)
+                    eventos.append(pitch_a_sonando(max(el.pitches, key=lambda p: p.ps), canonico).ps)
             elif isinstance(el, music21.note.Note):
-                eventos.append(el.pitch.ps)
+                eventos.append(pitch_a_sonando(el.pitch, canonico).ps)
             # music21.note.Unpitched (percusión sin altura) y cualquier otro tipo
             # inesperado se ignoran deliberadamente: no aportan una altura comparable.
         if eventos:
@@ -763,17 +792,30 @@ def _clasificar_relacion(eventos_a, eventos_b):
     return 'intervalo_fijo'
 
 
-def detectar_duplicaciones_verificadas(parts):
+def detectar_duplicaciones_verificadas(parts, nombres=None):
     """
     Calcula (con music21, sin IA) qué pares de partes comparten literalmente las mismas
     alturas (o las mismas a distancia de octava, o a intervalo fijo) en cada compás de la
     obra, agrupando en rangos contiguos de compases donde la relación se mantiene. Es un
     reemplazo determinístico de la detección de doblaje que antes dependía de la lectura
     del modelo de IA — ahora ese cálculo ya viene hecho y verificado.
+
+    PUNTO 2 del reporte de bugs: compara en SONIDO REAL -- cada parte se resuelve a
+    su instrumento canónico (mismo resolver que metricas_ejecucion.calcular_metricas_de_parte)
+    para transponer sus alturas antes de clasificar la relación (ver
+    _eventos_sonantes_por_compas). `nombres`, si se pasa, son los nombres YA
+    desambiguados de las partes (ver views._desambiguar_nombres_partes) -- sin
+    esto, dos partes con el mismo partName (ej. dos "Trumpet") salían con la
+    MISMA etiqueta en el resultado, aunque adentro de la función sí se las
+    distinguía correctamente por índice.
     """
     parts = list(parts)
-    eventos_por_parte = [_eventos_sonantes_por_compas(p) for p in parts]
-    nombres = [p.partName or f"Parte {i+1}" for i, p in enumerate(parts)]
+    if nombres is None:
+        nombres = [p.partName or f"Parte {i+1}" for i, p in enumerate(parts)]
+    else:
+        nombres = list(nombres)
+    canonicos = [resolver_instrumento(p, n)[0] for p, n in zip(parts, nombres)]
+    eventos_por_parte = [_eventos_sonantes_por_compas(p, c) for p, c in zip(parts, canonicos)]
 
     duplicaciones = []
     for i in range(len(parts)):
@@ -1363,7 +1405,13 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
 
                 part_data.append(m_dict)
             measures_data[part_name] = part_data
-            estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part)
+            # PUNTO 2: canonico resuelto UNA vez acá (mismo resolver que usa
+            # calcular_metricas_de_parte internamente) para que
+            # calcular_estadisticas_parte muestre el ámbito realmente tocado
+            # en SONIDO REAL, no escrito -- ver el comentario grande junto a
+            # TRANSPOSICION_ESCRITO_A_SONANDO en metricas_ejecucion.py.
+            canonico_parte, _nivel_resolucion_parte = resolver_instrumento(part, part_name, nombres_hermanos)
+            estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part, canonico_parte)
             alertas_viabilidad.extend(evaluar_viabilidad_instrumental(part_name, part))
 
             resultado_ejecucion, hubo_dynamic_parte = calcular_metricas_de_parte(part, part_name, avisos_ejecucion_acumulados, tiempos_por_id_ejecucion, nombres_hermanos=nombres_hermanos)
@@ -1427,7 +1475,7 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
             return
 
         densidad_por_compas = calcular_densidad_por_compas(parts)
-        duplicaciones_verificadas = detectar_duplicaciones_verificadas(parts)
+        duplicaciones_verificadas = detectar_duplicaciones_verificadas(parts, nombres_unicos)
         # Versión compacta y acotada de alertas_ejecucion para que Claude la
         # pueda citar (alertas_ejecucion_citadas, ver ORQUESTACION_TOOL) --
         # FASE 2B. Distinta de `alertas_ejecucion` (la variable de arriba, sin

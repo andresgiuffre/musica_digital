@@ -12,10 +12,11 @@ from trainer.models import (
 from trainer.views import (
     _eventos_ejecucion, _auditar_citas_ejecucion, _a_solfeo,
     _auditar_citas_duplicaciones, comparar_versiones,
+    evaluar_viabilidad_instrumental, detectar_duplicaciones_verificadas,
 )
 from trainer.metricas_ejecucion import (
     calcular_metricas_de_parte, resolver_instrumento, _cortes_registro, construir_mapa_tiempos,
-    compactar_alertas_para_prompt,
+    compactar_alertas_para_prompt, rango_comodo_sonando,
 )
 
 
@@ -1515,6 +1516,68 @@ class VocesMultiplesTests(TestCase):
         res, _ = calcular_metricas_de_parte(p, 'Trombone', {}, _mapa_tiempos_de(p))
         registros = sorted(c['registro'] for c in res['cruce_dinamica_registro'])
         self.assertEqual(registros, ['agudo', 'grave'])
+
+
+class EspacioDeAlturasSonoroTests(TestCase):
+    """
+    Punto 2 del reporte de bugs sobre "Flauta exagerada" (confirmado contra el
+    archivo real): todas las alturas tienen que compararse en SONIDO REAL, no
+    escritas. Antes del fix, un Piccolo escrito en Fa4 (perfectamente cómodo)
+    disparaba "excede el registro grave" porque se comparaba contra un rango
+    que además estaba mal cargado en sonando, y un Piccolo+Flauta con las
+    MISMAS notas escritas se clasificaba como "unísono" cuando en realidad
+    suena una octava (el piccolo transpone +12).
+    """
+
+    def _parte_simple(self, nombre, pitches, duracion_cada=4.0):
+        p = music21.stream.Part()
+        p.partName = nombre
+        for i, pitch in enumerate(pitches):
+            m = music21.stream.Measure(number=i + 1)
+            m.insert(0, music21.note.Note(pitch, quarterLength=duracion_cada))
+            p.append(m)
+        return p
+
+    def test_piccolo_escrito_fa4_no_genera_alerta_de_registro(self):
+        p = self._parte_simple('Piccolo', ['F4', 'F4'])
+        alertas = evaluar_viabilidad_instrumental('Piccolo', p)
+        self.assertEqual(alertas, [])
+
+    def test_piccolo_y_flauta_mismas_notas_escritas_da_octava(self):
+        """Mismas alturas ESCRITAS, mismo ritmo -- el piccolo suena +12
+        semitonos sobre la flauta, nunca unísono."""
+        p_picc = self._parte_simple('Piccolo', ['C5', 'D5', 'C5'])
+        p_fl = self._parte_simple('Flauta', ['C5', 'D5', 'C5'])
+        duplicaciones = detectar_duplicaciones_verificadas([p_picc, p_fl], ['Piccolo', 'Flauta'])
+        self.assertEqual(len(duplicaciones), 1)
+        self.assertEqual(duplicaciones[0]['tipo'], 'octava')
+        self.assertEqual(duplicaciones[0]['compas_desde'], 1)
+        self.assertEqual(duplicaciones[0]['compas_hasta'], 3)
+
+    def test_clarinete_sib_y_trompa_fa_en_sus_rangos_reales(self):
+        """El rango cómodo de un transpositor tiene que convertirse a sonido
+        real con SU PROPIO intervalo -- clarinete en Sib baja 2 semitonos,
+        trompa en Fa baja 7 (quinta justa), nunca el mismo delta para los
+        dos ni el rango dejado tal cual escrito."""
+        clarinete_sonando = rango_comodo_sonando('Clarinete')
+        self.assertEqual(
+            (music21.pitch.Pitch(clarinete_sonando[0]).ps, music21.pitch.Pitch(clarinete_sonando[1]).ps),
+            (music21.pitch.Pitch('E3').ps - 2, music21.pitch.Pitch('C6').ps - 2),
+        )
+        corno_sonando = rango_comodo_sonando('Corno')
+        self.assertEqual(
+            (music21.pitch.Pitch(corno_sonando[0]).ps, music21.pitch.Pitch(corno_sonando[1]).ps),
+            (music21.pitch.Pitch('F2').ps - 7, music21.pitch.Pitch('C6').ps - 7),
+        )
+
+        # Notas bien interiores a ambos rangos (escrito y sonando), lejos de
+        # cualquier margen -- lo que se verifica acá es que la transposición
+        # correcta no inventa una alerta donde no la hay, no un caso límite.
+        p_clarinete = self._parte_simple('Clarinete en Sib', ['B4', 'B4'])
+        self.assertEqual(evaluar_viabilidad_instrumental('Clarinete en Sib', p_clarinete), [])
+
+        p_corno = self._parte_simple('Trompa en Fa', ['C4', 'C4'])
+        self.assertEqual(evaluar_viabilidad_instrumental('Trompa en Fa', p_corno), [])
 
 
 class AlteracionesComoSimboloTests(TestCase):
