@@ -180,7 +180,8 @@ ALIAS_INSTRUMENTO = [
 # instrumentos aparece en ALIAS_INSTRUMENTO bajo estas palabras sueltas a
 # propósito. Si el nombre normalizado de la parte es EXACTAMENTE uno de estos
 # (no una subcadena de algo más largo, que ya matchearía 'Contrabajo' antes por
-# ser más específico), se desempata viendo si la parte tiene letra.
+# ser más específico), se desempata viendo si la parte tiene letra, o si hay
+# hermanas de coro en la obra (ver VOCES_DE_CORO_PARA_DESEMPATE_BAJO).
 TERMINOS_AMBIGUOS_BAJO = ('bass', 'bajo', 'basso')
 
 # Percusión SIN altura definida -- reconocida (no dispara aviso de "instrumento
@@ -205,6 +206,17 @@ ALIAS_PERCUSION_SIN_ALTURA = (
 # de coro, "Alto" se reconoce como Contralto (voz) -- un contexto típico de
 # SATB es la señal más confiable además de letra propia.
 VOCES_DE_CORO_PARA_DESEMPATE_ALTO = ('soprano', 'tenor', 'bajo', 'bass', 'basso', 'baritono', 'baritone')
+
+# Mismo criterio que arriba, pero para desempatar "Bass"/"Bajo"/"Basso" suelto
+# (ver TERMINOS_AMBIGUOS_BAJO): si alguna hermana se normaliza a una de estas
+# voces de coro, "Bass" se reconoce como voz de Bajo (no transpone), no como
+# Contrabajo. Bug real confirmado contra un archivo de producción: una obra
+# con coro SATB completo (Soprano/Alto/Tenor/Bass) y SIN ninguna lírica
+# cargada en las notas resolvía "Bass" como Contrabajo -- la rama de "Alto" ya
+# tenía esta señal de hermanas, la de "Bass" dependía solo de .lyrics y no la
+# tenía. No incluye 'bajo'/'bass'/'basso' (a diferencia de la tupla de arriba):
+# que OTRA parte también se llame "Bass" no aporta ninguna señal nueva.
+VOCES_DE_CORO_PARA_DESEMPATE_BAJO = ('soprano', 'alto', 'contralto', 'tenor', 'baritono', 'baritone')
 
 # Términos que, si aparecen en el nombre normalizado, bloquean cualquier match
 # de ALIAS_INSTRUMENTO para esa parte (aunque una subcadena suya matchearía algo

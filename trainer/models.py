@@ -1634,8 +1634,12 @@ def _resolver_instrumento_normalizado(part_name, part=None, nombres_hermanos=Non
     `part` (opcional, un music21.stream.Part) se usa para desempatar
     "bass"/"bajo"/"basso" sueltos (TERMINOS_AMBIGUOS_BAJO, con letra = voz de
     Bajo, sin letra = Contrabajo) y "alto" suelto (ver abajo). `nombres_hermanos`
-    (opcional, nombres de las DEMÁS partes de la misma obra) solo se usa para
-    "alto".
+    (opcional, nombres de las DEMÁS partes de la misma obra) se usa para "alto"
+    Y para "bass"/"bajo"/"basso" -- un coro SATB real puede no tener ninguna
+    lírica cargada (bug real confirmado: "Bass" resolvía a Contrabajo en una
+    obra con Soprano/Alto/Tenor como hermanas, solo porque ninguna parte tenía
+    .lyrics), así que la presencia de hermanas de coro es tan válida como la
+    letra para esta desambiguación, igual criterio que "alto" ya usaba.
 
     Devuelve una clave real de RANGOS_COMODOS, el sentinel
     models.INSTRUMENTO_SIN_ALTURA (percusión sin altura definida -- reconocida,
@@ -1646,6 +1650,7 @@ def _resolver_instrumento_normalizado(part_name, part=None, nombres_hermanos=Non
     from .configuracion_ejecucion import (
         ALIAS_INSTRUMENTO, TERMINOS_EXCLUIDOS, TERMINOS_AMBIGUOS_BAJO,
         ALIAS_PERCUSION_SIN_ALTURA, VOCES_DE_CORO_PARA_DESEMPATE_ALTO,
+        VOCES_DE_CORO_PARA_DESEMPATE_BAJO,
     )
 
     n = _normalizar_nombre_parte(part_name)
@@ -1659,7 +1664,11 @@ def _resolver_instrumento_normalizado(part_name, part=None, nombres_hermanos=Non
         tiene_letra = False
         if part is not None:
             tiene_letra = any(getattr(nota, 'lyrics', None) for nota in part.recurse().notes)
-        return 'Bajo' if tiene_letra else 'Contrabajo'
+        hay_hermanas_de_coro = any(
+            _normalizar_nombre_parte(h) in VOCES_DE_CORO_PARA_DESEMPATE_BAJO
+            for h in (nombres_hermanos or [])
+        )
+        return 'Bajo' if (tiene_letra or hay_hermanas_de_coro) else 'Contrabajo'
 
     if n == 'alto':
         # "Alto" a secas es ambiguo entre voz de Contralto, Viola (nombre

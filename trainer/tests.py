@@ -1361,6 +1361,57 @@ class PercusionSinAlturaYVozAltoTests(TestCase):
         self.assertIsNone(_resolver_instrumento_normalizado('Alto', nombres_hermanos=['Violín', 'Violonchelo']))
 
 
+class VozBajoVsContrabajoTests(TestCase):
+    """
+    Punto F del reporte de bugs sobre "Flauta exagerada": confirmado contra el
+    archivo real de producción (coro SATB completo, Soprano/Alto/Tenor/Bass,
+    SIN ninguna lírica cargada en las notas) que "Bass" resolvía como
+    Contrabajo (transpone -12) en vez de la voz de Bajo (no transpone) --
+    exactamente la misma ambigüedad que "Alto" ya resolvía con evidencia de
+    hermanas de coro, pero que la rama de "Bass"/"Bajo"/"Basso" no usaba,
+    dependiendo solo de .lyrics.
+    """
+
+    def test_bass_sin_letra_ni_hermanas_de_coro_sigue_siendo_contrabajo(self):
+        """Sin evidencia de coro (ni letra, ni hermanas de voz), "Bass" sigue
+        resolviendo como Contrabajo -- no se cambia el comportamiento para el
+        caso real de una sección de cuerdas sin coro en la obra."""
+        self.assertEqual(
+            _resolver_instrumento_normalizado('Bass', nombres_hermanos=['Violín', 'Violonchelo']),
+            'Contrabajo',
+        )
+
+    def test_bass_con_letra_se_reconoce_como_voz_de_bajo(self):
+        parte = music21.stream.Part()
+        m = music21.stream.Measure(number=1)
+        n = music21.note.Note('A2', quarterLength=4.0)
+        n.lyric = 'A-men'
+        m.append(n)
+        parte.append(m)
+        self.assertEqual(_resolver_instrumento_normalizado('Bass', parte), 'Bajo')
+
+    def test_bass_con_hermanas_de_coro_se_reconoce_como_voz_de_bajo_sin_letra(self):
+        """Caso real exacto del bug: coro SATB sin ninguna lírica cargada --
+        la sola presencia de Soprano/Alto/Tenor como hermanas alcanza."""
+        self.assertEqual(
+            _resolver_instrumento_normalizado('Bass', nombres_hermanos=['Soprano', 'Alto', 'Tenor']),
+            'Bajo',
+        )
+
+    def test_bass_con_hermanas_de_coro_no_transpone_via_calcular_metricas_de_parte(self):
+        """Verificación de punta a punta: con el canónico correcto ('Bajo'),
+        una nota escrita A2 tiene que mostrarse como A2 sonando (0 semitonos),
+        nunca como A1 (lo que pasaría si, por error, se resolviera a
+        Contrabajo, que transpone -12)."""
+        from trainer.metricas_ejecucion import pitch_a_sonando
+        canonico, _nivel = resolver_instrumento(
+            music21.stream.Part(), 'Bass', nombres_hermanos=['Soprano', 'Alto', 'Tenor'],
+        )
+        self.assertEqual(canonico, 'Bajo')
+        sonando = pitch_a_sonando(music21.pitch.Pitch('A2'), canonico)
+        self.assertEqual(sonando.nameWithOctave, 'A2')
+
+
 class DesambiguarNombresPartesTests(TestCase):
     """
     Punto 3 del reporte de bugs: partes con el mismo nombre (ej. dos partes
