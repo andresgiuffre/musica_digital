@@ -1410,14 +1410,30 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
             nombres_hermanos = [n for n in nombres_unicos if n != part_name]
             measures = part.getElementsByClass(music21.stream.Measure)
 
+            # PUNTO 2/G: canonico e intervalo_real resueltos ACÁ, antes de
+            # construir measures_data, para que las alturas que se le mandan
+            # al modelo (PUNTO H del reporte de bugs) también estén en
+            # SONIDO REAL -- antes se mandaban escritas (element.nameWithOctave
+            # crudo), por eso el informe citaba "Sol5, Fa#5" de una Trompa que
+            # en realidad suenan Do5/Si4 (transpone -7). Mismo resolver que
+            # usa calcular_metricas_de_parte internamente; intervalo_real_parte
+            # (PUNTO G) es la transposición real del archivo si la trae (ej.
+            # <transpose> de MusicXML para Glockenspiel/Xilófono/Celesta),
+            # con prioridad sobre TRANSPOSICION_ESCRITO_A_SONANDO.
+            canonico_parte, _nivel_resolucion_parte, intervalo_real_parte = resolver_instrumento(part, part_name, nombres_hermanos)
+
             part_data = []
             for m in list(measures):
                 m_dict = {'number': m.number, 'notes': []}
                 for element in m.recurse().notes:
                     if isinstance(element, music21.note.Note):
-                        m_dict['notes'].append(f"{element.nameWithOctave} ({element.duration.type})")
+                        p_sonando = pitch_a_sonando(element.pitch, canonico_parte, intervalo_real_parte)
+                        m_dict['notes'].append(f"{p_sonando.nameWithOctave} ({element.duration.type})")
                     elif isinstance(element, music21.chord.Chord):
-                        chord_notes = "-".join([n.nameWithOctave for n in element.notes])
+                        chord_notes = "-".join([
+                            pitch_a_sonando(n.pitch, canonico_parte, intervalo_real_parte).nameWithOctave
+                            for n in element.notes
+                        ])
                         m_dict['notes'].append(f"[{chord_notes}] ({element.duration.type})")
 
                 dynamics = m.recurse().getElementsByClass(music21.dynamics.Dynamic)
@@ -1426,15 +1442,6 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
 
                 part_data.append(m_dict)
             measures_data[part_name] = part_data
-            # PUNTO 2: canonico resuelto UNA vez acá (mismo resolver que usa
-            # calcular_metricas_de_parte internamente) para que
-            # calcular_estadisticas_parte muestre el ámbito realmente tocado
-            # en SONIDO REAL, no escrito -- ver el comentario grande junto a
-            # TRANSPOSICION_ESCRITO_A_SONANDO en metricas_ejecucion.py.
-            # `intervalo_real_parte` (PUNTO G): el archivo puede traer su
-            # propia transposición (ej. <transpose> de MusicXML para
-            # Glockenspiel/Xilófono/Celesta) -- tiene prioridad sobre esa tabla.
-            canonico_parte, _nivel_resolucion_parte, intervalo_real_parte = resolver_instrumento(part, part_name, nombres_hermanos)
             estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part, canonico_parte, intervalo_real_parte)
             alertas_viabilidad.extend(evaluar_viabilidad_instrumental(part_name, part))
 

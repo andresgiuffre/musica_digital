@@ -1115,6 +1115,67 @@ class TruncamientoMaxTokensTests(TestCase):
         self.assertEqual(analysis.creditos_cobrados, CREDITOS_SI_TRUNCADO)
 
 
+class AlturasSonorasEnMeasuresDataTests(TestCase):
+    """
+    Punto H del reporte de bugs sobre "Flauta exagerada": measures_data --lo
+    que efectivamente se le manda al prompt-- llevaba element.nameWithOctave
+    crudo (ESCRITO), nunca pasado por pitch_a_sonando. Confirmado contra el
+    informe real: Trumpet 1 citada con acordes "A5-D6" (escrito) aunque su
+    ámbito sonoro real llega a Do6 (Trompeta transpone -2); Horn 1 citada con
+    "Sol5, Fa#5, Mi5" escrito aunque suena una quinta justa abajo. End-to-end
+    real a través de _generar_analisis_orquestacion, capturando el `prompt`
+    real que se le manda a client.messages.stream (mismo patrón que
+    TruncamientoMaxTokensTests, mockeando solo el cliente de Anthropic).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='alturas_sonoras_test_user', password='x')
+
+    def test_measures_data_enviada_al_prompt_usa_alturas_sonoras_no_escritas(self):
+        from trainer.models import ScoreAnalysis, UserProfile
+        from django.core.files.base import ContentFile
+        from trainer.views import _generar_analisis_orquestacion
+
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        profile.creditos_bonus = 10
+        profile.save()
+
+        s = music21.stream.Score()
+        p = music21.stream.Part()
+        p.partName = 'Horn'
+        m = music21.stream.Measure(number=1)
+        m.insert(0, music21.tempo.MetronomeMark(number=100))
+        m.append(music21.note.Note('C5', quarterLength=4.0))  # escrito C5 -- Corno transpone -7 (quinta justa) -> sonando F4
+        p.append(m)
+        s.insert(0, p)
+        xml_bytes = music21.musicxml.m21ToXml.GeneralObjectExporter(s).parse()
+
+        analysis = ScoreAnalysis.objects.create(user=self.user, name='Test alturas sonoras')
+        analysis.score_file.save('test.musicxml', ContentFile(xml_bytes))
+        analysis.save()
+
+        prompts_capturados = []
+
+        def fake_stream(**kw):
+            prompts_capturados.append(kw['messages'][0]['content'])
+            return _FakeStream('end_turn', _reporte_minimo_valido())
+
+        fake_client = type(
+            'FakeClient', (), {'messages': type('FakeMessages', (), {'stream': staticmethod(fake_stream)})()}
+        )()
+        with patch.dict('os.environ', {'ANT_TEST_API_KEY_2': 'fake-key-para-test'}):
+            with patch('trainer.views.anthropic.Anthropic', return_value=fake_client):
+                for linea in _generar_analisis_orquestacion(analysis, None, creditos_a_cobrar=1, omitir_chequeo_tamano=True):
+                    json.loads(linea)
+
+        self.assertEqual(len(prompts_capturados), 1)
+        prefijo = "Analizá la siguiente estructura de datos musicales extraída de la partitura:\n"
+        analysis_data = json.loads(prompts_capturados[0][len(prefijo):])
+        notas = analysis_data['measures_data']['Horn'][0]['notes']
+        self.assertEqual(notas, ['F4 (whole)'], "measures_data tiene que llevar la altura SONANDO (F4), no la escrita (C5)")
+
+
 class MapaRegistrosPdfLocaleTests(TestCase):
     """
     Bug real de producción: _calcular_mapa_registros/_preparar_densidad_pdf
