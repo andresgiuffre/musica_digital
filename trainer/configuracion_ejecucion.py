@@ -162,6 +162,7 @@ ALIAS_INSTRUMENTO = [
     # "Carillon" es justo el término francés/italiano habitual para campanas
     # tubulares DENTRO de una orquesta (no para un carillón de torre real).
     (('glockenspiel',), 'Glockenspiel'),
+    (('crotales', 'antique cymbals', 'platillos antiguos', 'piatti antichi'), 'Crotales'),
     (('campanas tubulares', 'tubular bells', 'chimes', 'carillon', 'campane tubolari'), 'Campanas Tubulares'),
     (('celesta', 'celeste'), 'Celesta'),
     (('timbal', 'timpani', 'timbales'), 'Timbal'),

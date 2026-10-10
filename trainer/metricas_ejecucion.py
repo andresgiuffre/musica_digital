@@ -134,6 +134,30 @@ CLASES_POR_ESPECIFICIDAD = [
 #   - Flauta Alto/Flauta Bajo: no existen como clases propias en music21 (no
 #     hay AltoFlute/BassFlute) -- Flauta Alto en Sol transpone P4 justa
 #     abajo, Flauta Bajo suena una octava (P8) abajo, por convención real.
+#
+# PUNTO G del reporte de bugs: Glockenspiel/Xilófono/Celesta tampoco tienen
+# transposición propia en music21 (confirmado: transposition is None para
+# los 3, igual que Contrafagot/Guitarra arriba) a pesar de sonar distinto de
+# lo escrito en la práctica real -- Glockenspiel 2 octavas arriba, Xilófono y
+# Celesta 1 octava arriba (convención estándar de orquestación, Adler/Piston/
+# Forsyth; music21 no la modela, no hay clase real de la que derivarla). Se
+# agrega Crotales (platillos antiguos) con la MISMA convención que
+# Glockenspiel (2 octavas arriba) -- music21 ni siquiera tiene una clase
+# music21.instrument.Crotales, así que resuelve solo por nombre (nivel 2,
+# ver ALIAS_INSTRUMENTO en configuracion_ejecucion.py), nunca por clase.
+#
+# IMPORTANTE -- el archivo real tiene prioridad sobre esta tabla, siempre:
+# confirmado contra un archivo real de producción que SÍ trae el elemento
+# <transpose> de MusicXML para Glockenspiel/Xilófono/Celesta (octave-change
+# 2/1/1 respectivamente, exactamente la convención de arriba) -- en ese caso
+# part.getInstrument().transposition YA viene poblado con el valor real del
+# archivo, y aplicar esta tabla ENCIMA duplicaría el corrimiento. Por eso
+# toda función de este módulo que transpone acepta un `intervalo_real`
+# opcional (el `.transposition` de la Instrument real ya resuelta por
+# resolver_instrumento, ver ahí) que, si no es None, se usa tal cual y nunca
+# se compara ni se mezcla con esta tabla -- la tabla es respaldo exclusivo
+# para cuando el archivo NO trae esa información (instrument.transposition
+# is None), no una validación cruzada.
 # ---------------------------------------------------------------------------
 def _construir_transposiciones_escrito_a_sonando():
     tabla = {}
@@ -144,26 +168,41 @@ def _construir_transposiciones_escrito_a_sonando():
     tabla['Guitarra'] = -12
     tabla['Flauta Alto'] = -5
     tabla['Flauta Bajo'] = -12
+    tabla['Glockenspiel'] = 24
+    tabla['Xilófono'] = 12
+    tabla['Celesta'] = 12
+    tabla['Crotales'] = 24
     return tabla
 
 
 TRANSPOSICION_ESCRITO_A_SONANDO = _construir_transposiciones_escrito_a_sonando()
 
-# Intervalo real (music21.interval.Interval) para los 4 overrides manuales --
-# siempre cuarta justa u octava limpias, para preservar la grafía de la nota
-# al transponer (ver pitch_a_sonando), igual criterio que
+# Intervalo real (music21.interval.Interval) para los overrides manuales --
+# siempre cuarta justa u octava(s) limpias, para preservar la grafía de la
+# nota al transponer (ver pitch_a_sonando), igual criterio que
 # _transportar_pitch_preservando_grafia en views.py.
 _INTERVALOS_OVERRIDE_MANUAL = {
     'Contrafagot': 'P-8', 'Guitarra': 'P-8', 'Flauta Alto': 'P-4', 'Flauta Bajo': 'P-8',
+    'Glockenspiel': 'P15', 'Xilófono': 'P8', 'Celesta': 'P8', 'Crotales': 'P15',
 }
 
 
-def _intervalo_transposicion(canonico):
+def _intervalo_transposicion(canonico, intervalo_real=None):
     """Intervalo real (music21.interval.Interval) de transposición escrito->
     sonando para este canónico, o None si no transpone o no se reconoce.
+
+    `intervalo_real`, si no es None, es el `.transposition` de la Instrument
+    real tal como la resolvió resolver_instrumento desde el propio archivo --
+    tiene prioridad absoluta sobre la tabla/override de abajo (ver el
+    comentario grande junto a TRANSPOSICION_ESCRITO_A_SONANDO): el archivo es
+    la fuente de verdad cuando la trae, la tabla es solo el respaldo para
+    cuando no.
+
     Preferido sobre aritmética cruda de semitonos porque preserva la grafía
     real de la nota (ej. Do escrito de un clarinete en Sib transpone a Sib,
     no a un enarmónico elegido por music21 al reconstruir desde .ps)."""
+    if intervalo_real is not None:
+        return intervalo_real
     if TRANSPOSICION_ESCRITO_A_SONANDO.get(canonico, 0) == 0:
         return None
     for clase, canon in CLASE_A_CANONICO.items():
@@ -176,22 +215,22 @@ def _intervalo_transposicion(canonico):
     return music21.interval.Interval(nombre_intervalo) if nombre_intervalo else None
 
 
-def pitch_a_sonando(pitch, canonico):
+def pitch_a_sonando(pitch, canonico, intervalo_real=None):
     """Transpone un Pitch ESCRITO a sonido real usando el intervalo real del
     instrumento (ver _intervalo_transposicion) -- para mostrar nombres de
     nota. Si el instrumento no transpone o no se reconoce, devuelve el mismo
     Pitch sin tocar (nunca copia innecesariamente)."""
-    intervalo = _intervalo_transposicion(canonico)
+    intervalo = _intervalo_transposicion(canonico, intervalo_real)
     return pitch.transpose(intervalo) if intervalo is not None else pitch
 
 
-def rango_comodo_sonando(canonico):
+def rango_comodo_sonando(canonico, intervalo_real=None):
     """RANGOS_COMODOS[canonico] (en ESCRITO, ver su docstring en models.py)
     ya convertido a sonido real -- la única fuente de verdad para comparar
     contra alturas reales de una parte en todo el analizador (punto 2 del
     reporte de bugs: "espacio de alturas único, sonido real")."""
     lo, hi = RANGOS_COMODOS[canonico]
-    intervalo = _intervalo_transposicion(canonico)
+    intervalo = _intervalo_transposicion(canonico, intervalo_real)
     if intervalo is None:
         return (lo, hi)
     return (
@@ -200,12 +239,12 @@ def rango_comodo_sonando(canonico):
     )
 
 
-def _eventos_a_sonando(eventos, canonico):
+def _eventos_a_sonando(eventos, canonico, intervalo_real=None):
     """Transpone el campo 'pitch' de cada evento de tipo 'nota' a sonido real
     -- ver pitch_a_sonando. Los eventos 'silencio' no tienen pitch, se
     devuelven sin tocar. Si el instrumento no transpone o no se reconoce,
     devuelve la misma lista sin copiar nada (ni el intervalo se calcula)."""
-    intervalo = _intervalo_transposicion(canonico)
+    intervalo = _intervalo_transposicion(canonico, intervalo_real)
     if intervalo is None:
         return eventos
     return [
@@ -216,13 +255,28 @@ def _eventos_a_sonando(eventos, canonico):
 
 def resolver_instrumento(part, part_name, nombres_hermanos=None):
     """
-    Devuelve (clave_canonica_de_RANGOS_COMODOS | models.INSTRUMENTO_SIN_ALTURA | None, nivel)
+    Devuelve (clave_canonica_de_RANGOS_COMODOS | models.INSTRUMENTO_SIN_ALTURA | None, nivel, intervalo_real)
     -- nivel 1 si se resolvió por clase real de music21, nivel 2 si fue por
     nombre normalizado, None si no se reconoció nada (dispara el aviso de
     "instrumento no reconocido" del lado del llamador).
 
+    `intervalo_real`: el `.transposition` (music21.interval.Interval) de la
+    Instrument real de esta parte tal como la parseó music21 del propio
+    archivo, o None si el archivo no trae esa información (ej. sin elemento
+    <transpose> de MusicXML). PUNTO G del reporte de bugs: confirmado contra
+    un archivo real que SÍ trae <transpose> para Glockenspiel/Xilófono/
+    Celesta -- en ese caso esto YA es el valor correcto (ej. P15 para
+    Glockenspiel), y tiene que usarse tal cual en vez de la tabla/override de
+    TRANSPOSICION_ESCRITO_A_SONANDO (ver _intervalo_transposicion) para no
+    duplicar el corrimiento. Se devuelve en los dos niveles (no solo nivel 1):
+    aunque el nombre no alcance para identificar la CLASE del instrumento,
+    `part.getInstrument()` puede igual traer un `.transposition` real del
+    archivo (ej. un clarinete en La con <transpose> propio, detectado solo
+    por nombre) -- el archivo manda siempre que lo informa, sin importar por
+    qué nivel se resolvió el canónico.
+
     `nombres_hermanos`: nombres de las DEMÁS partes de la misma obra, para
-    desempatar "Alto" suelto en el nivel 2 (ver
+    desempatar "Alto"/"Bass" sueltos en el nivel 2 (ver
     models._resolver_instrumento_normalizado) -- no afecta el nivel 1.
     """
     inst = None
@@ -231,10 +285,12 @@ def resolver_instrumento(part, part_name, nombres_hermanos=None):
     except Exception:
         inst = None
 
+    intervalo_real = inst.transposition if inst is not None else None
+
     if inst is not None:
         clase = type(inst)
         if clase in CLASE_A_CANONICO:
-            return CLASE_A_CANONICO[clase], 1
+            return CLASE_A_CANONICO[clase], 1, intervalo_real
         # Percusión sin altura (caja, bombo, platillos, etc.) -- reconocida por
         # clase real de music21 (music21.instrument.UnpitchedPercussion cubre
         # SnareDrum/BassDrum/Woodblock/Cymbals/etc.), sin necesitar que el
@@ -243,13 +299,13 @@ def resolver_instrumento(part, part_name, nombres_hermanos=None):
         # pesar de estar perfectamente identificado por clase, solo que sin
         # altura que medir.
         if isinstance(inst, music21.instrument.UnpitchedPercussion):
-            return INSTRUMENTO_SIN_ALTURA, 1
+            return INSTRUMENTO_SIN_ALTURA, 1, intervalo_real
         for clase_conocida, canonico in CLASES_POR_ESPECIFICIDAD:
             if isinstance(inst, clase_conocida):
-                return canonico, 1
+                return canonico, 1, intervalo_real
 
     nombre = part_name or (getattr(inst, 'instrumentName', None) if inst else None) or ''
-    return _resolver_instrumento_normalizado(nombre, part, nombres_hermanos), 2
+    return _resolver_instrumento_normalizado(nombre, part, nombres_hermanos), 2, intervalo_real
 
 
 # ---------------------------------------------------------------------------
@@ -761,7 +817,7 @@ def calcular_metricas_de_parte(part, part_name, avisos_acumulados, tiempos_por_i
     for valor in dinamicas_no_reconocidas:
         _agregar_aviso(avisos_acumulados, 'dinamica_no_reconocida', part_name, valor)
 
-    canonico, _nivel_resolucion = resolver_instrumento(part, part_name, nombres_hermanos)
+    canonico, _nivel_resolucion, intervalo_real = resolver_instrumento(part, part_name, nombres_hermanos)
 
     # PUNTO 2 del reporte de bugs: espacio de alturas ÚNICO, sonido real --
     # ver el comentario grande junto a TRANSPOSICION_ESCRITO_A_SONANDO más
@@ -769,7 +825,9 @@ def calcular_metricas_de_parte(part, part_name, avisos_acumulados, tiempos_por_i
     # métrica -- las 4 funciones de abajo nunca vuelven a tocar .ps crudo
     # escrito. Si canonico es None o INSTRUMENTO_SIN_ALTURA, no hay
     # transposición conocida (_eventos_a_sonando no transforma nada).
-    eventos = _eventos_a_sonando(eventos, canonico)
+    # `intervalo_real` (PUNTO G): si el archivo ya trae su propia
+    # transposición, tiene prioridad sobre la tabla -- ver resolver_instrumento.
+    eventos = _eventos_a_sonando(eventos, canonico, intervalo_real)
 
     resultado = {
         'tramos_aire': [],
@@ -791,7 +849,7 @@ def calcular_metricas_de_parte(part, part_name, avisos_acumulados, tiempos_por_i
         # _construir_eventos_parte).
         return resultado, hubo_dynamic
 
-    ambito_comodo = rango_comodo_sonando(canonico)
+    ambito_comodo = rango_comodo_sonando(canonico, intervalo_real)
     resultado['cruce_dinamica_registro'] = detectar_cruce_dinamica_registro(eventos, ambito_comodo)
 
     clave_aire = CANONICO_A_CLAVE_AIRE.get(canonico)

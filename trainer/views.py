@@ -572,7 +572,7 @@ def _a_solfeo(nombre_pitch):
         return letra + simbolo + octava
     return NOMBRES_SOLFEO.get(letra, letra) + simbolo + octava
 
-def calcular_estadisticas_parte(part, canonico=None):
+def calcular_estadisticas_parte(part, canonico=None, intervalo_real=None):
     """
     Calcula de forma determinística (sin IA) estadísticas objetivas de una parte:
     ámbito realmente tocado, total de notas, compases de silencio total, y la
@@ -583,6 +583,11 @@ def calcular_estadisticas_parte(part, canonico=None):
     `canonico` (el instrumento ya resuelto para esta parte) determina la
     transposición real a aplicar. Sin `canonico` (o sin transposición
     conocida), se muestran tal cual están escritos.
+
+    PUNTO G del reporte de bugs: `intervalo_real` (el `.transposition` real ya
+    resuelto por metricas_ejecucion.resolver_instrumento desde el propio
+    archivo) tiene prioridad sobre la tabla/override de `canonico` -- ver el
+    comentario grande en metricas_ejecucion.py.
     """
     all_pitches = []
     total_notas = 0
@@ -600,7 +605,7 @@ def calcular_estadisticas_parte(part, canonico=None):
     from django.utils.translation import gettext as _
 
     if all_pitches:
-        pitches_sonando = [pitch_a_sonando(p, canonico) for p in all_pitches]
+        pitches_sonando = [pitch_a_sonando(p, canonico, intervalo_real) for p in all_pitches]
         pitch_min = min(pitches_sonando, key=lambda p: p.ps)
         pitch_max = max(pitches_sonando, key=lambda p: p.ps)
         ambito = _("%(min)s a %(max)s (sonido real)") % {'min': _a_solfeo(pitch_min.nameWithOctave), 'max': _a_solfeo(pitch_max.nameWithOctave)}
@@ -647,6 +652,12 @@ def evaluar_viabilidad_instrumental(part_name, part):
     un Piccolo escrito en Fa4 (perfectamente cómodo) disparaba una alerta de
     "excede el registro grave" real, porque Fa4 escrito se comparaba contra
     un rango que además estaba mal cargado en sonando.
+
+    PUNTO G del reporte de bugs: si el archivo ya trae su propia transposición
+    (part.getInstrument().transposition, ej. un <transpose> real de MusicXML
+    para Glockenspiel/Xilófono/Celesta), esa es la fuente de verdad -- tiene
+    prioridad sobre TRANSPOSICION_ESCRITO_A_SONANDO (ver el comentario grande
+    en metricas_ejecucion.py), nunca se aplican las dos a la vez.
     """
     from django.utils.translation import gettext as _
 
@@ -654,7 +665,11 @@ def evaluar_viabilidad_instrumental(part_name, part):
     if resuelto is None:
         return []
     canonico, _rango_escrito = resuelto
-    rango = rango_comodo_sonando(canonico)
+    try:
+        intervalo_real = part.getInstrument().transposition
+    except Exception:
+        intervalo_real = None
+    rango = rango_comodo_sonando(canonico, intervalo_real)
 
     comodo_min = music21.pitch.Pitch(rango[0]).ps
     comodo_max = music21.pitch.Pitch(rango[1]).ps
@@ -668,7 +683,7 @@ def evaluar_viabilidad_instrumental(part_name, part):
         for element in m.recurse().notes:
             pitches = element.pitches if isinstance(element, music21.chord.Chord) else [element.pitch]
             for p_escrito in pitches:
-                p = pitch_a_sonando(p_escrito, canonico)
+                p = pitch_a_sonando(p_escrito, canonico, intervalo_real)
                 if p.ps > comodo_max - margen:
                     candidatas_agudas.append((p.ps, m.number, p))
                 if p.ps < comodo_min + margen:
@@ -735,7 +750,7 @@ def calcular_densidad_por_compas(parts):
     ]
 
 
-def _eventos_sonantes_por_compas(part, canonico=None):
+def _eventos_sonantes_por_compas(part, canonico=None, intervalo_real=None):
     """
     Para una parte, arma {compás: [altura1, altura2, ...]} — la secuencia de alturas
     EN SONIDO REAL (ver punto 2 del reporte de bugs: "espacio de alturas único"),
@@ -748,7 +763,9 @@ def _eventos_sonantes_por_compas(part, canonico=None):
     (o con un canónico no reconocido), las alturas quedan en escrito sin
     convertir -- bug real confirmado: Piccolo y Flauta con las MISMAS notas
     escritas se clasificaban como "unísono", cuando en realidad SUENA una
-    octava (el piccolo transpone +12).
+    octava (el piccolo transpone +12). `intervalo_real` (PUNTO G): si el
+    archivo ya trae su propia transposición, tiene prioridad sobre la tabla
+    de `canonico` -- ver el comentario grande en metricas_ejecucion.py.
 
     La percusión sin altura definida (music21.note.Unpitched — caja, bombo, platillo, etc.)
     se ignora igual que los silencios: no tiene .pitch, y no puede compararse por altura
@@ -762,9 +779,9 @@ def _eventos_sonantes_por_compas(part, canonico=None):
         for el in m.recurse().notes:
             if isinstance(el, music21.chord.Chord):
                 if el.pitches:
-                    eventos.append(pitch_a_sonando(max(el.pitches, key=lambda p: p.ps), canonico).ps)
+                    eventos.append(pitch_a_sonando(max(el.pitches, key=lambda p: p.ps), canonico, intervalo_real).ps)
             elif isinstance(el, music21.note.Note):
-                eventos.append(pitch_a_sonando(el.pitch, canonico).ps)
+                eventos.append(pitch_a_sonando(el.pitch, canonico, intervalo_real).ps)
             # music21.note.Unpitched (percusión sin altura) y cualquier otro tipo
             # inesperado se ignoran deliberadamente: no aportan una altura comparable.
         if eventos:
@@ -814,8 +831,12 @@ def detectar_duplicaciones_verificadas(parts, nombres=None):
         nombres = [p.partName or f"Parte {i+1}" for i, p in enumerate(parts)]
     else:
         nombres = list(nombres)
-    canonicos = [resolver_instrumento(p, n)[0] for p, n in zip(parts, nombres)]
-    eventos_por_parte = [_eventos_sonantes_por_compas(p, c) for p, c in zip(parts, canonicos)]
+    resueltos = [resolver_instrumento(p, n) for p, n in zip(parts, nombres)]
+    canonicos = [r[0] for r in resueltos]
+    intervalos_reales = [r[2] for r in resueltos]
+    eventos_por_parte = [
+        _eventos_sonantes_por_compas(p, c, iv) for p, c, iv in zip(parts, canonicos, intervalos_reales)
+    ]
 
     duplicaciones = []
     for i in range(len(parts)):
@@ -1410,8 +1431,11 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
             # calcular_estadisticas_parte muestre el ámbito realmente tocado
             # en SONIDO REAL, no escrito -- ver el comentario grande junto a
             # TRANSPOSICION_ESCRITO_A_SONANDO en metricas_ejecucion.py.
-            canonico_parte, _nivel_resolucion_parte = resolver_instrumento(part, part_name, nombres_hermanos)
-            estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part, canonico_parte)
+            # `intervalo_real_parte` (PUNTO G): el archivo puede traer su
+            # propia transposición (ej. <transpose> de MusicXML para
+            # Glockenspiel/Xilófono/Celesta) -- tiene prioridad sobre esa tabla.
+            canonico_parte, _nivel_resolucion_parte, intervalo_real_parte = resolver_instrumento(part, part_name, nombres_hermanos)
+            estadisticas_por_instrumento[part_name] = calcular_estadisticas_parte(part, canonico_parte, intervalo_real_parte)
             alertas_viabilidad.extend(evaluar_viabilidad_instrumental(part_name, part))
 
             resultado_ejecucion, hubo_dynamic_parte = calcular_metricas_de_parte(part, part_name, avisos_ejecucion_acumulados, tiempos_por_id_ejecucion, nombres_hermanos=nombres_hermanos)

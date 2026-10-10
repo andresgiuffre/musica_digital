@@ -1528,6 +1528,7 @@ RANGOS_COMODOS = {
     'Marimba': ('C2', 'C7'),
     'Vibráfono': ('F3', 'F6'),
     'Glockenspiel': ('G4', 'C7'),
+    'Crotales': ('C4', 'C6'),  # aproximado, sin fuente music21 (no existe la clase) -- mismo criterio que Glockenspiel (2 octavas arriba)
     'Timbal': ('D2', 'C4'),
     'Celesta': ('C4', 'C8'),
     'Campanas Tubulares': ('C4', 'F5'),

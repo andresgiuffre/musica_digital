@@ -16,7 +16,7 @@ from trainer.views import (
 )
 from trainer.metricas_ejecucion import (
     calcular_metricas_de_parte, resolver_instrumento, _cortes_registro, construir_mapa_tiempos,
-    compactar_alertas_para_prompt, rango_comodo_sonando,
+    compactar_alertas_para_prompt, rango_comodo_sonando, pitch_a_sonando,
 )
 
 
@@ -710,7 +710,7 @@ class MetricasEjecucionTests(TestCase):
         m = music21.stream.Measure(number=1)
         m.append(music21.note.Note('C4', quarterLength=1.0))
         p.append(m)
-        canonico, nivel = resolver_instrumento(p, None)
+        canonico, nivel, _intervalo_real = resolver_instrumento(p, None)
         self.assertEqual(canonico, 'Oboe')
         self.assertEqual(nivel, 1)
 
@@ -738,7 +738,7 @@ class MetricasEjecucionTests(TestCase):
         nota = list(parte_reparseada.recurse().notes)[0]
         self.assertEqual(nota.nameWithOctave, 'C5', "la nota debe seguir escrita en C5, no convertida a Bb4 sonora")
 
-        canonico, _ = resolver_instrumento(parte_reparseada, 'Clarinet')
+        canonico, _nivel, _intervalo_real = resolver_instrumento(parte_reparseada, 'Clarinet')
         self.assertEqual(canonico, 'Clarinete')
 
     def test_tempo_en_una_parte_se_propaga_a_las_demas(self):
@@ -1334,7 +1334,7 @@ class PercusionSinAlturaYVozAltoTests(TestCase):
         sentinel aunque el partName no esté en ALIAS_PERCUSION_SIN_ALTURA."""
         parte = music21.stream.Part()
         parte.insert(0, music21.instrument.Woodblock())
-        canonico, _confianza = resolver_instrumento(parte, 'Percusión rara sin nombre reconocido')
+        canonico, _confianza, _intervalo_real = resolver_instrumento(parte, 'Percusión rara sin nombre reconocido')
         self.assertEqual(canonico, INSTRUMENTO_SIN_ALTURA)
 
     def test_alto_solo_no_se_reconoce_sin_evidencia(self):
@@ -1404,12 +1404,91 @@ class VozBajoVsContrabajoTests(TestCase):
         nunca como A1 (lo que pasaría si, por error, se resolviera a
         Contrabajo, que transpone -12)."""
         from trainer.metricas_ejecucion import pitch_a_sonando
-        canonico, _nivel = resolver_instrumento(
+        canonico, _nivel, _intervalo_real = resolver_instrumento(
             music21.stream.Part(), 'Bass', nombres_hermanos=['Soprano', 'Alto', 'Tenor'],
         )
         self.assertEqual(canonico, 'Bajo')
         sonando = pitch_a_sonando(music21.pitch.Pitch('A2'), canonico)
         self.assertEqual(sonando.nameWithOctave, 'A2')
+
+
+class NormalizacionPercusionDeTecladoTests(TestCase):
+    """
+    Punto G del reporte de bugs sobre "Flauta exagerada": Glockenspiel,
+    Xilófono y Celesta no tenían transposición propia (music21 no las
+    modela, igual que Contrafagot/Guitarra ya documentados en punto 2), así
+    que se mostraban en escrito aunque el informe dijera "sonido real".
+    Confirmado contra un archivo real de producción que SÍ trae el elemento
+    <transpose> de MusicXML para estos 3 instrumentos -- el archivo tiene
+    que ganar siempre sobre la tabla/override nueva, nunca aplicarse las dos
+    a la vez.
+    """
+
+    def test_glockenspiel_xilofono_celesta_transponen_por_tabla_sin_info_del_archivo(self):
+        casos = (('Glockenspiel', 'G4', 'G6'), ('Xylophone', 'G4', 'G5'), ('Celesta', 'C5', 'C6'))
+        for nombre, escrito, sonando_esperado in casos:
+            with self.subTest(nombre=nombre):
+                p = music21.stream.Part()
+                p.partName = nombre
+                inst_cls = {'Glockenspiel': music21.instrument.Glockenspiel,
+                            'Xylophone': music21.instrument.Xylophone,
+                            'Celesta': music21.instrument.Celesta}[nombre]
+                p.insert(0, inst_cls())
+                m = music21.stream.Measure(number=1)
+                m.append(music21.note.Note(escrito, quarterLength=4.0))
+                p.append(m)
+
+                canonico, _nivel, intervalo_real = resolver_instrumento(p, nombre)
+                self.assertIsNone(intervalo_real, "sin <transpose> en el archivo, no debe haber intervalo real")
+                sonando = pitch_a_sonando(music21.pitch.Pitch(escrito), canonico, intervalo_real)
+                self.assertEqual(sonando.nameWithOctave, sonando_esperado)
+
+    def test_xilofono_con_transposicion_real_del_archivo_da_el_mismo_sonando_que_sin_ella(self):
+        """Condición 3 del pedido: un archivo CON <transpose> propio (ej.
+        MuseScore que lo exporta) y uno SIN él tienen que dar el MISMO ámbito
+        sonoro -- ni se duplica el corrimiento ni se pierde."""
+        from trainer.metricas_ejecucion import rango_comodo_sonando
+
+        # Archivo SIN informacion de transposicion (instrumento recien
+        # construido, igual que el caso mas comun en la practica).
+        p_sin = music21.stream.Part()
+        p_sin.partName = 'Xylophone'
+        p_sin.insert(0, music21.instrument.Xylophone())
+        m_sin = music21.stream.Measure(number=1)
+        m_sin.append(music21.note.Note('G4', quarterLength=4.0))
+        p_sin.append(m_sin)
+
+        # Archivo CON <transpose> real -- reparseado por el mismo camino que
+        # usa el analizador (GeneralObjectExporter -> MusicXML -> parseData),
+        # mismo patron que test_clarinete_en_sib_queda_en_tono_escrito_no_sonoro.
+        p_con = music21.stream.Part()
+        xil = music21.instrument.Xylophone()
+        xil.transposition = music21.interval.Interval('P8')
+        p_con.insert(0, xil)
+        m_con = music21.stream.Measure(number=1)
+        m_con.append(music21.note.Note('G4', quarterLength=4.0))
+        p_con.append(m_con)
+        s = music21.stream.Score()
+        s.insert(0, p_con)
+        exporter = music21.musicxml.m21ToXml.GeneralObjectExporter(s)
+        xml_bytes = exporter.parse()
+        p_con_reparseada = music21.converter.parseData(xml_bytes.decode('utf-8')).parts[0]
+
+        canonico_sin, _n1, intervalo_sin = resolver_instrumento(p_sin, 'Xylophone')
+        canonico_con, _n2, intervalo_con = resolver_instrumento(p_con_reparseada, 'Xylophone')
+
+        self.assertIsNone(intervalo_sin)
+        self.assertIsNotNone(intervalo_con, "el archivo reparseado debe traer su propio <transpose>")
+
+        sonando_sin = pitch_a_sonando(music21.pitch.Pitch('G4'), canonico_sin, intervalo_sin)
+        sonando_con = pitch_a_sonando(music21.pitch.Pitch('G4'), canonico_con, intervalo_con)
+        self.assertEqual(sonando_sin.nameWithOctave, sonando_con.nameWithOctave)
+        self.assertEqual(sonando_sin.nameWithOctave, 'G5')
+
+        self.assertEqual(
+            rango_comodo_sonando(canonico_sin, intervalo_sin),
+            rango_comodo_sonando(canonico_con, intervalo_con),
+        )
 
 
 class DesambiguarNombresPartesTests(TestCase):
