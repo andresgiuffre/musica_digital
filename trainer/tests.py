@@ -969,6 +969,20 @@ class CompactarAlertasParaPromptTests(TestCase):
         self.assertEqual(compacto[0]['motivo'], 'ambos')
         self.assertEqual(compacto[0]['duracion_ponderada_seg'], 23.7)
 
+    def test_tiempo_aire_sin_motivo_en_datos_viejos_no_rompe(self):
+        """Bug real confirmado (scripts/auditar_analisis.py contra el id=26
+        real, generado ANTES de que existiera 'motivo'): un tramo_aire
+        guardado antes de este campo no lo tiene -- compactar_alertas_para_prompt
+        se usa también para re-auditar informes viejos ya guardados, no solo
+        en el momento de generación, así que tiene que tolerar la ausencia
+        con un default explícito ('desconocido'), nunca un KeyError."""
+        alertas = {'tramos_aire': [
+            {'instrumento': 'Flute', 'compas_desde': 5, 'compas_hasta': 23, 'duracion_segundos': 30.0,
+             'duracion_ponderada': 34.8, 'umbral_aviso': 8, 'umbral_critico': 14, 'nivel': 'critico'},  # sin 'motivo'
+        ], 'densidad_ritmica': [], 'saltos_melodicos': [], 'cruce_dinamica_registro': [], 'avisos': []}
+        compacto = compactar_alertas_para_prompt(alertas)  # no debe lanzar KeyError
+        self.assertEqual(compacto[0]['motivo'], 'desconocido')
+
     def test_topa_global_y_agrega_alertas_omitidas(self):
         tramos = [
             {'instrumento': f'Instrumento{i}', 'compas_desde': 1, 'compas_hasta': 1, 'duracion_segundos': float(i),

@@ -1011,7 +1011,15 @@ def compactar_alertas_para_prompt(alertas_ejecucion):
                 # severidad, ver GUIA_ESTILO_ORQUESTAL).
                 'duracion_real_seg': round(t['duracion_segundos'], 1),
                 'nivel': t['nivel'],
-                'motivo': t['motivo'],
+                # .get(): 'motivo' es un campo NUEVO (punto 1 del pedido de
+                # correcciones sobre ponderación) -- un análisis guardado
+                # ANTES de ese cambio no lo tiene (bug real confirmado: esta
+                # función se usa también para re-auditar informes viejos ya
+                # guardados, no solo en el momento de generación). 'desconocido'
+                # en vez de 'ninguno': no sabemos si hubo o no un motivo real,
+                # a diferencia de un tramo nuevo donde 'ninguno' es un dato
+                # positivo (se calculó y dio que no hay motivo particular).
+                'motivo': t.get('motivo', 'desconocido'),
                 'duracion_ponderada_seg': round(t['duracion_ponderada'], 1),
                 'umbral_seg': t['umbral_critico'] if t['nivel'] == 'critico' else t['umbral_aviso'],
             })
