@@ -159,9 +159,9 @@
     {% endfor %}
     {% endif %}
 
-    {% if data.bloques %}
+    {% if bloques_pdf %}
     <h2>{% trans "Análisis por Bloques de Compases" %}</h2>
-    {% for bloque in data.bloques %}
+    {% for bloque in bloques_pdf %}
     <div class="bloque">
         <div class="bloque-titulo">{% blocktrans with rango=bloque.rango_compases %}Compases {{ rango }}{% endblocktrans %}</div>
         <div class="bloque-sub">

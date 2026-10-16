@@ -1417,6 +1417,37 @@ class BloquesComoStringCuelgaElProcesoTests(TestCase):
         self.assertEqual(resultado, [])
         self.assertEqual(logger_mock.warning.call_count, 1)
 
+    def test_exportar_pdf_con_bloques_string_no_cuelga(self):
+        """Incidente real reportado por el usuario DESPUÉS del fix de las 5
+        auditorías: el PDF "se queda dando vueltas eternamente" -- causa
+        real distinta pero del mismo incidente: orquestador_pdf.html hacía
+        {% for bloque in data.bloques %} SIN ningún chequeo de tipo. Con
+        bloques como string de varios miles de caracteres, xhtml2pdf tenía
+        que maquetar un <div> casi vacío por cada carácter y nunca
+        terminaba -- a diferencia de las auditorías (que solo loggean), acá
+        no hay ninguna excepción que lo delate, por eso "cuelga" en vez de
+        tirar un error. Test de punta a punta real, vía el cliente de
+        Django, con límite de tiempo explícito para que una regresión
+        futura falle rápido en vez de colgar la corrida de tests."""
+        import time
+        from trainer.models import ScoreAnalysis
+        user = User.objects.create_user(username='pdf_cuelgue_test_user', password='x')
+        analysis = ScoreAnalysis.objects.create(
+            user=user, name='Test PDF no cuelga',
+            analysis_data={
+                'resumen_general': 'x', 'resumen_por_instrumento': [], 'estadisticas_por_instrumento': {},
+                'alertas_viabilidad': [], 'alertas_ejecucion': {},
+                'bloques': self.STRING_LARGO,  # el bug real: bloques entero como string
+            },
+        )
+        client = Client()
+        client.force_login(user)
+        inicio = time.time()
+        response = client.get(f'/orquestador/exportar/{analysis.id}/')
+        transcurrido = time.time() - inicio
+        self.assertEqual(response.status_code, 200)
+        self.assertLess(transcurrido, 10, "el PDF tiene que generarse en segundos, no colgarse")
+
 
 class _FakeUsage:
     def __init__(self, input_tokens=100, output_tokens=200):

@@ -1164,34 +1164,37 @@ def _hay_negacion_cercana(texto, inicio_match):
     return any(p.lower() in NEGACIONES_VERIFICADO for p in palabras)
 
 
-def _bloques_validos(bloques, contexto):
+def _bloques_validos(valor, contexto, nombre_campo='bloques'):
     """
-    Normaliza `bloques` a una lista real antes de que cualquier auditoría lo
-    itere -- bug real de producción (incidente confirmado, no hipotético):
-    `bloques or []` deja pasar cualquier valor truthy tal cual, y si
-    `final_data['bloques']` terminó siendo un STRING (una respuesta truncada
-    puede dejar ese campo a medio parsear como texto en vez de lista, ver el
-    comentario grande en comparar_versiones/_auditar_citas_ejecucion sobre
-    JSON truncado), `for bloque in bloques:` lo recorre CARÁCTER POR
-    CARÁCTER -- cada "bloque" (una letra suelta) entra al chequeo
-    `isinstance(bloque, dict)`, falla, y dispara un logger.warning por cada
-    carácter. Para un string de varios miles de caracteres (el texto crudo
-    de un informe grande) esto generó decenas de miles de líneas de log en
-    un segundo y colgó el proceso real en producción -- no es un caso de
-    borde teórico.
+    Normaliza `valor` (típicamente final_data['bloques'], pero también
+    reutilizado para resumen_por_instrumento -- ver nombre_campo) a una
+    lista real antes de que algo lo itere -- bug real de producción
+    (incidente confirmado, no hipotético): `valor or []` deja pasar
+    cualquier valor truthy tal cual, y si ese campo terminó siendo un
+    STRING (una respuesta truncada puede dejar un campo a medio parsear
+    como texto en vez de lista, ver el comentario grande en
+    comparar_versiones/_auditar_citas_ejecucion sobre JSON truncado),
+    `for elemento in valor:` lo recorre CARÁCTER POR CARÁCTER. Dos
+    variantes del mismo incidente, ambas confirmadas en producción:
+      - Para las auditorías (que loggean un warning por elemento no-dict):
+        decenas de miles de líneas de log por segundo, colgó el proceso.
+      - Para orquestador_pdf.html ({% for bloque in data.bloques %}, sin
+        ningún chequeo de tipo): un <div> casi vacío por cada carácter,
+        xhtml2pdf nunca terminaba de maquetar el PDF -- "se queda dando
+        vueltas eternamente", nunca una excepción.
 
-    Devuelve `bloques` tal cual si ya es una lista real; si no, loggea UNA
-    sola advertencia (nunca una por elemento) y devuelve una lista vacía,
-    para que el resto de la función siga su camino normal ("no hay ningún
-    bloque citado/mencionado") en vez de romper o colgarse.
+    Devuelve `valor` tal cual si ya es una lista real; si no, loggea UNA
+    sola advertencia (nunca una por elemento/carácter) y devuelve una lista
+    vacía, para que el resto del código siga su camino normal ("no hay
+    ningún bloque/entrada") en vez de romper o colgarse.
     """
-    if isinstance(bloques, list):
-        return bloques
-    if bloques:
+    if isinstance(valor, list):
+        return valor
+    if valor:
         logger.warning(
-            "%s: 'bloques' no es una lista (tipo %s), se trata como vacía -- "
+            "%s: '%s' no es una lista (tipo %s), se trata como vacía -- "
             "evita iterar carácter por carácter si es un string.",
-            contexto, type(bloques).__name__,
+            contexto, nombre_campo, type(valor).__name__,
         )
     return []
 
@@ -2179,17 +2182,39 @@ def orquestador_exportar_pdf(request, analysis_id):
     # punto, así que se precomputa acá, mismo criterio que ya usa
     # curso_pdf.html para otros datos armados del lado de la vista.
     estadisticas = data.get('estadisticas_por_instrumento') or {}
-    for r in data.get('resumen_por_instrumento') or []:
-        r['stats'] = estadisticas.get(r.get('instrumento'))
+    # Mismo incidente real que _bloques_validos (ver ahí el comentario
+    # completo): resumen_por_instrumento/bloques de un informe truncado
+    # pueden terminar siendo un string en vez de una lista. Acá
+    # `isinstance(r, dict)` ya filtraba elementos sueltos malformados DENTRO
+    # de la lista, pero nunca el caso de que el campo entero no sea una
+    # lista -- `for r in "texto" or []:` itera carácter por carácter, y
+    # `r.get(...)` sobre un carácter (un str) revienta con AttributeError.
+    for r in _bloques_validos(data.get('resumen_por_instrumento'), 'orquestador_exportar_pdf', nombre_campo='resumen_por_instrumento'):
+        if isinstance(r, dict):
+            r['stats'] = estadisticas.get(r.get('instrumento'))
 
     # PUNTO D del reporte de bugs: sin esto, Helvetica (fuente default de
     # xhtml2pdf) dibuja ♭/♯/♮ como un cuadro negro -- mismo fix ya probado
     # en curso_exportar_pdf, ver el comentario grande en la función.
     _asegurar_fuente_unicode_pdf()
 
+    # PUNTO critico encontrado en producción: el PDF nunca se descargaba,
+    # quedaba colgado -- data.bloques (un string en vez de lista, mismo
+    # incidente que _bloques_validos) se recorría CARÁCTER POR CARÁCTER
+    # directo en el template ({% for bloque in data.bloques %}, sin ningún
+    # chequeo de tipo), generando un <div class="bloque"> casi vacío por
+    # cada carácter -- para un string de miles de caracteres, xhtml2pdf
+    # tenía que maquetar miles de bloques degenerados y quedaba colgado
+    # procesando el PDF indefinidamente, nunca tiraba una excepción (a
+    # diferencia del caso de resumen_por_instrumento de arriba, que sí
+    # crashea). Se normaliza ACÁ, antes de que el template lo vea, igual
+    # que ya se hace para las 5 auditorías de _generar_analisis_orquestacion.
+    bloques_pdf = _bloques_validos(data.get('bloques'), 'orquestador_exportar_pdf')
+
     html_string = render_to_string('trainer/orquestador_pdf.html', {
         'analysis': analysis,
         'data': data,
+        'bloques_pdf': bloques_pdf,
         'mapa_registros': _calcular_mapa_registros(data.get('estadisticas_por_instrumento')),
         'densidad_pdf': _preparar_densidad_pdf(data.get('densidad_por_compas')),
         'alertas_ejecucion_pdf': _preparar_alertas_ejecucion_pdf(data.get('alertas_ejecucion')),
