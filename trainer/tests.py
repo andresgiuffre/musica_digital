@@ -1368,6 +1368,56 @@ class BloquesMalformadosTests(TestCase):
         self.assertEqual(resultado, [])
 
 
+class BloquesComoStringCuelgaElProcesoTests(TestCase):
+    """
+    Incidente real de producción, más grave que BloquesMalformadosTests de
+    arriba (que cubre un ELEMENTO de la lista `bloques` malformado): acá
+    `bloques` ENTERO llegó siendo un string (no una lista en absoluto) --
+    `for bloque in bloques or []:` itera un string CARÁCTER POR CARÁCTER, y
+    cada "bloque" (una letra suelta) fallaba el isinstance(dict) y generaba
+    un logger.warning -- miles de líneas de log por segundo con un string de
+    varios miles de caracteres, que colgó el proceso real en producción
+    (confirmado por el usuario: "se me colgó el servidor muy mal"). Cada
+    test confirma UNA sola advertencia controlada (nunca una por carácter).
+    """
+
+    STRING_LARGO = 'x' * 5000  # simula el texto crudo de una respuesta truncada
+
+    def test_auditar_citas_duplicaciones_con_bloques_string_no_explota(self):
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_citas_duplicaciones(self.STRING_LARGO, [])
+        self.assertEqual(len(cm.output), 1, "tiene que haber UNA sola advertencia, no una por carácter")
+        self.assertIn("'bloques' no es una lista", cm.output[0])
+
+    def test_auditar_citas_ejecucion_con_bloques_string_no_explota(self):
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            _auditar_citas_ejecucion(self.STRING_LARGO, [])
+        self.assertEqual(len(cm.output), 1, "tiene que haber UNA sola advertencia, no una por carácter")
+        self.assertIn("'bloques' no es una lista", cm.output[0])
+
+    def test_detectar_alertas_criticas_no_comentadas_con_bloques_string_no_rompe(self):
+        alertas = [{'tipo': 'tiempo_aire', 'instrumento': 'Flute', 'compas_desde': 5, 'compas_hasta': 23, 'nivel': 'critico'}]
+        resultado = detectar_alertas_criticas_no_comentadas(self.STRING_LARGO, alertas)
+        self.assertEqual(resultado, alertas)  # tratado como "sin ninguna cita" -- conservador, no silencioso
+
+    def test_auditar_identificadores_con_bloques_string_no_explota(self):
+        final_data = {'resumen_general': 'x', 'resumen_por_instrumento': [], 'bloques': self.STRING_LARGO}
+        with patch('trainer.views.logger') as logger_mock:
+            _auditar_identificadores_con_guion_bajo(final_data)
+        # Un solo warning real (el de _bloques_validos), nunca miles.
+        self.assertEqual(logger_mock.warning.call_count, 1)
+
+    def test_comparar_versiones_con_bloques_string_no_explota(self):
+        class FakeAnalysisAnterior:
+            analysis_data = {'bloques': BloquesComoStringCuelgaElProcesoTests.STRING_LARGO}
+            score_file = None
+
+        with patch('trainer.views.logger') as logger_mock:
+            resultado = comparar_versiones(FakeAnalysisAnterior(), [])
+        self.assertEqual(resultado, [])
+        self.assertEqual(logger_mock.warning.call_count, 1)
+
+
 class _FakeUsage:
     def __init__(self, input_tokens=100, output_tokens=200):
         self.input_tokens = input_tokens

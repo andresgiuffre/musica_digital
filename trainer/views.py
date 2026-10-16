@@ -991,7 +991,7 @@ def comparar_versiones(anterior, nueva_parts):
 
     parts_nueva_por_nombre = {p.partName: p for p in nueva_parts}
 
-    for bloque in anterior_data.get('bloques', []):
+    for bloque in _bloques_validos(anterior_data.get('bloques'), 'comparar_versiones'):
         if not isinstance(bloque, dict):
             # Misma defensa que _auditar_citas_duplicaciones/_auditar_citas_ejecucion:
             # un bloque malformado en el análisis ANTERIOR (string suelto en vez de
@@ -1164,6 +1164,38 @@ def _hay_negacion_cercana(texto, inicio_match):
     return any(p.lower() in NEGACIONES_VERIFICADO for p in palabras)
 
 
+def _bloques_validos(bloques, contexto):
+    """
+    Normaliza `bloques` a una lista real antes de que cualquier auditoría lo
+    itere -- bug real de producción (incidente confirmado, no hipotético):
+    `bloques or []` deja pasar cualquier valor truthy tal cual, y si
+    `final_data['bloques']` terminó siendo un STRING (una respuesta truncada
+    puede dejar ese campo a medio parsear como texto en vez de lista, ver el
+    comentario grande en comparar_versiones/_auditar_citas_ejecucion sobre
+    JSON truncado), `for bloque in bloques:` lo recorre CARÁCTER POR
+    CARÁCTER -- cada "bloque" (una letra suelta) entra al chequeo
+    `isinstance(bloque, dict)`, falla, y dispara un logger.warning por cada
+    carácter. Para un string de varios miles de caracteres (el texto crudo
+    de un informe grande) esto generó decenas de miles de líneas de log en
+    un segundo y colgó el proceso real en producción -- no es un caso de
+    borde teórico.
+
+    Devuelve `bloques` tal cual si ya es una lista real; si no, loggea UNA
+    sola advertencia (nunca una por elemento) y devuelve una lista vacía,
+    para que el resto de la función siga su camino normal ("no hay ningún
+    bloque citado/mencionado") en vez de romper o colgarse.
+    """
+    if isinstance(bloques, list):
+        return bloques
+    if bloques:
+        logger.warning(
+            "%s: 'bloques' no es una lista (tipo %s), se trata como vacía -- "
+            "evita iterar carácter por carácter si es un string.",
+            contexto, type(bloques).__name__,
+        )
+    return []
+
+
 def _auditar_citas_duplicaciones(bloques, duplicaciones_verificadas):
     """
     Auditoría determinística (sin IA, solo logging) de que cada uso de la palabra
@@ -1172,7 +1204,7 @@ def _auditar_citas_duplicaciones(bloques, duplicaciones_verificadas):
     bloque. No modifica final_data ni bloquea nada — solo deja registro para juntar
     casos reales antes de decidir si hace falta rechazar/reintentar la respuesta.
     """
-    for bloque in bloques or []:
+    for bloque in _bloques_validos(bloques, 'auditoria_duplicaciones'):
         if not isinstance(bloque, dict):
             # Defensa real: en respuestas grandes (max_tokens=120000) Claude a
             # veces no respeta estrictamente el schema del tool_use y un
@@ -1280,7 +1312,12 @@ def _auditar_citas_ejecucion(bloques, alertas_compactas):
         if a.get('tipo') in TIPOS_EJECUCION_CITABLES:
             alertas_por_tipo_instrumento.setdefault((a['tipo'], a.get('instrumento')), []).append(a)
 
-    for bloque in bloques or []:
+    # Normalizado UNA sola vez acá -- se reusa tal cual más abajo al llamar a
+    # detectar_alertas_criticas_no_comentadas, para no loggear la misma
+    # advertencia de "'bloques' no es una lista" dos veces por la misma causa.
+    bloques = _bloques_validos(bloques, 'auditoria_ejecucion')
+
+    for bloque in bloques:
         if not isinstance(bloque, dict):
             # Misma defensa que _auditar_citas_duplicaciones (ver ahí el
             # comentario completo): un bloque malformado (string suelto en vez
@@ -1367,7 +1404,7 @@ def detectar_alertas_criticas_no_comentadas(bloques, alertas_compactas):
     registro interno).
     """
     citadas = []
-    for bloque in bloques or []:
+    for bloque in _bloques_validos(bloques, 'auditoria_ejecucion'):
         if not isinstance(bloque, dict):
             continue
         citadas.extend(c for c in (bloque.get('alertas_ejecucion_citadas') or []) if isinstance(c, dict))
@@ -1420,7 +1457,7 @@ def _auditar_identificadores_con_guion_bajo(final_data):
                 "sin traducir: %r", encontrados,
             )
 
-    for bloque in final_data.get('bloques') or []:
+    for bloque in _bloques_validos(final_data.get('bloques'), 'auditoria_higiene_texto'):
         if not isinstance(bloque, dict):
             continue
         texto = ' '.join(bloque.get(c, '') or '' for c in CAMPOS_PROSA_BLOQUE)
