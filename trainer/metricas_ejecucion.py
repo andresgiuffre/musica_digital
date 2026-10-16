@@ -1034,7 +1034,11 @@ def compactar_alertas_para_prompt(alertas_ejecucion):
                 # PUNTO C del reporte de bugs: nombre real del intervalo,
                 # calculado con music21 (ver nombre_intervalo) -- nunca
                 # dejado para que el modelo lo nombre por su cuenta.
-                'nombre_intervalo': mayor['nombre_intervalo'],
+                # .get(): mismo motivo que 'motivo' arriba -- un análisis
+                # guardado antes de este campo (bug real confirmado
+                # re-auditando id=26 con scripts/auditar_analisis.py) no lo
+                # tiene.
+                'nombre_intervalo': mayor.get('nombre_intervalo', 'desconocido'),
             })
 
     for c in alertas_ejecucion.get('cruce_dinamica_registro', []):

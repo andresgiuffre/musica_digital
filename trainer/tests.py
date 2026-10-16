@@ -983,6 +983,20 @@ class CompactarAlertasParaPromptTests(TestCase):
         compacto = compactar_alertas_para_prompt(alertas)  # no debe lanzar KeyError
         self.assertEqual(compacto[0]['motivo'], 'desconocido')
 
+    def test_salto_melodico_sin_nombre_intervalo_en_datos_viejos_no_rompe(self):
+        """Mismo bug real, segunda aparición (también confirmado contra
+        id=26): 'nombre_intervalo' (punto C) tampoco existía antes -- un
+        mas_grandes guardado de esa época no lo tiene."""
+        alertas = {
+            'tramos_aire': [], 'densidad_ritmica': [], 'cruce_dinamica_registro': [], 'avisos': [],
+            'saltos_melodicos': [{
+                'instrumento': 'Trombone', 'cantidad_mayor_octava': 8, 'maximo_semitonos': 17.0,
+                'mas_grandes': [{'semitonos': 17.0, 'compas_desde': 32, 'compas_hasta': 32}],  # sin 'nombre_intervalo'
+            }],
+        }
+        compacto = compactar_alertas_para_prompt(alertas)  # no debe lanzar KeyError
+        self.assertEqual(compacto[0]['nombre_intervalo'], 'desconocido')
+
     def test_topa_global_y_agrega_alertas_omitidas(self):
         tramos = [
             {'instrumento': f'Instrumento{i}', 'compas_desde': 1, 'compas_hasta': 1, 'duracion_segundos': float(i),
