@@ -1448,6 +1448,35 @@ class BloquesComoStringCuelgaElProcesoTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertLess(transcurrido, 10, "el PDF tiene que generarse en segundos, no colgarse")
 
+    def test_exportar_pdf_con_resumen_por_instrumento_string_no_cuelga(self):
+        """Mismo incidente, CUARTO lugar encontrado al revisar la situación
+        completa después de los dos fixes anteriores: orquestador_pdf.html
+        también hacía {% for r in data.resumen_por_instrumento %} directo,
+        sin pasar por ninguna normalización -- el primer fix solo arregló
+        el loop de Python que le agrega 'stats' (_bloques_validos(...)),
+        pero ESE resultado nunca se usaba en el template, que seguía
+        leyendo data.resumen_por_instrumento crudo (el mismo string
+        corrupto). Confirmado que ahora el template usa
+        resumen_por_instrumento_pdf (ya normalizado)."""
+        import time
+        from trainer.models import ScoreAnalysis
+        user = User.objects.create_user(username='pdf_cuelgue_test_user2', password='x')
+        analysis = ScoreAnalysis.objects.create(
+            user=user, name='Test PDF no cuelga (resumen_por_instrumento)',
+            analysis_data={
+                'resumen_general': 'x', 'estadisticas_por_instrumento': {},
+                'alertas_viabilidad': [], 'alertas_ejecucion': {}, 'bloques': [],
+                'resumen_por_instrumento': self.STRING_LARGO,  # el bug: string entero, no lista
+            },
+        )
+        client = Client()
+        client.force_login(user)
+        inicio = time.time()
+        response = client.get(f'/orquestador/exportar/{analysis.id}/')
+        transcurrido = time.time() - inicio
+        self.assertEqual(response.status_code, 200)
+        self.assertLess(transcurrido, 10, "el PDF tiene que generarse en segundos, no colgarse")
+
 
 class _FakeUsage:
     def __init__(self, input_tokens=100, output_tokens=200):

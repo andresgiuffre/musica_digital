@@ -2189,7 +2189,17 @@ def orquestador_exportar_pdf(request, analysis_id):
     # de la lista, pero nunca el caso de que el campo entero no sea una
     # lista -- `for r in "texto" or []:` itera carácter por carácter, y
     # `r.get(...)` sobre un carácter (un str) revienta con AttributeError.
-    for r in _bloques_validos(data.get('resumen_por_instrumento'), 'orquestador_exportar_pdf', nombre_campo='resumen_por_instrumento'):
+    #
+    # IMPORTANTE: el resultado se guarda en resumen_por_instrumento_pdf, una
+    # variable NUEVA -- normalizar acá y seguir usando data['resumen_por_instrumento']
+    # (el campo crudo, intacto, todavía el string corrupto si lo era) en el
+    # template hubiera sido el mismo bug de data.bloques otra vez, solo que
+    # a medio corregir: el template tiene que leer la lista YA normalizada,
+    # nunca el campo crudo de `data` directamente.
+    resumen_por_instrumento_pdf = _bloques_validos(
+        data.get('resumen_por_instrumento'), 'orquestador_exportar_pdf', nombre_campo='resumen_por_instrumento',
+    )
+    for r in resumen_por_instrumento_pdf:
         if isinstance(r, dict):
             r['stats'] = estadisticas.get(r.get('instrumento'))
 
@@ -2215,6 +2225,7 @@ def orquestador_exportar_pdf(request, analysis_id):
         'analysis': analysis,
         'data': data,
         'bloques_pdf': bloques_pdf,
+        'resumen_por_instrumento_pdf': resumen_por_instrumento_pdf,
         'mapa_registros': _calcular_mapa_registros(data.get('estadisticas_por_instrumento')),
         'densidad_pdf': _preparar_densidad_pdf(data.get('densidad_por_compas')),
         'alertas_ejecucion_pdf': _preparar_alertas_ejecucion_pdf(data.get('alertas_ejecucion')),

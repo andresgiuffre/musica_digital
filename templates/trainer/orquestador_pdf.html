@@ -59,11 +59,11 @@
     <h2>{% trans "Resumen General" %}</h2>
     <p class="prosa">{{ data.resumen_general }}</p>
 
-    {% if data.resumen_por_instrumento %}
+    {% if resumen_por_instrumento_pdf %}
     <h2>{% trans "Resumen por Instrumento" %}</h2>
     <table class="tabla">
         <tr><th>{% trans "Instrumento" %}</th><th>{% trans "Análisis" %}</th><th>{% trans "Datos" %}</th></tr>
-        {% for r in data.resumen_por_instrumento %}
+        {% for r in resumen_por_instrumento_pdf %}
         <tr>
             <td class="instrumento">{{ r.instrumento }}</td>
             <td>{{ r.descripcion }}</td>
