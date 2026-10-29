@@ -85,6 +85,12 @@ def _diagnosticar_string_corrupto(valor, nombre_campo):
         return
     except json.JSONDecodeError as e:
         print(f"    json.loads(valor) FALLÓ: {e}")
+        inicio = max(0, e.pos - 150)
+        fin = min(len(valor), e.pos + 150)
+        print(f"    contexto alrededor del error (char {e.pos}, mostrando [{inicio}:{fin}]):")
+        print(f"    {valor[inicio:e.pos]!r}")
+        print(f"    >>> AQUÍ (char {e.pos}): {valor[e.pos:e.pos + 1]!r} <<<")
+        print(f"    {valor[e.pos:fin]!r}")
 
     abre_llave, cierra_llave = valor.count('{'), valor.count('}')
     abre_corchete, cierra_corchete = valor.count('['), valor.count(']')
