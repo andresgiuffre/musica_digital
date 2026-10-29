@@ -1199,6 +1199,67 @@ def _bloques_validos(valor, contexto, nombre_campo='bloques'):
     return []
 
 
+def _validar_forma_final_data(final_data, contexto):
+    """
+    Valida que la respuesta de Claude tenga la forma mínima utilizable antes de
+    someterla a cualquier otro paso (auditorías, cobro de crédito, guardado como
+    éxito) -- incidente real: ScoreAnalysis id=27, 'bloques' llegó como un string
+    con un ':' faltante en medio de contenido por lo demás bien formado (ni
+    truncamiento por max_tokens ni doble serialización, confirmado con
+    scripts/diagnosticar_corrupcion.py), y tanto el parseo estricto propio
+    (json.loads sobre json_bruto_tool_use) como el fallback tool_use_block.input
+    del SDK lo dejaron pasar sin que nada lo marcara como inválido.
+
+    Las claves requeridas por bloque/por entrada de resumen_por_instrumento se
+    leen directamente de ORQUESTACION_TOOL (una sola fuente de verdad) en vez de
+    duplicarlas acá a mano.
+
+    Solo logea y devuelve bool -- qué hacer con el resultado (reintentar,
+    guardar estado de error, cobrar) queda en el llamador.
+    """
+    if not isinstance(final_data, dict):
+        logger.warning("%s: final_data no es un dict (tipo %s).", contexto, type(final_data).__name__)
+        return False
+
+    for clave in ('resumen_general', 'bloques', 'resumen_por_instrumento'):
+        if clave not in final_data:
+            logger.warning("%s: falta la clave de nivel superior '%s'.", contexto, clave)
+            return False
+
+    if not isinstance(final_data['resumen_general'], str) or not final_data['resumen_general'].strip():
+        logger.warning("%s: 'resumen_general' no es un string no vacío.", contexto)
+        return False
+
+    bloques = final_data['bloques']
+    if not isinstance(bloques, list) or not bloques:
+        logger.warning(
+            "%s: 'bloques' no es una lista no vacía (tipo %s).", contexto, type(bloques).__name__,
+        )
+        return False
+
+    claves_bloque = ORQUESTACION_TOOL['input_schema']['properties']['bloques']['items']['required']
+    for i, bloque in enumerate(bloques):
+        if not isinstance(bloque, dict) or not all(c in bloque for c in claves_bloque):
+            logger.warning("%s: bloques[%d] no es un dict con todas las claves requeridas.", contexto, i)
+            return False
+
+    resumen = final_data['resumen_por_instrumento']
+    if not isinstance(resumen, list) or not resumen:
+        logger.warning(
+            "%s: 'resumen_por_instrumento' no es una lista no vacía (tipo %s).",
+            contexto, type(resumen).__name__,
+        )
+        return False
+
+    claves_resumen = ORQUESTACION_TOOL['input_schema']['properties']['resumen_por_instrumento']['items']['required']
+    for i, item in enumerate(resumen):
+        if not isinstance(item, dict) or not all(c in item for c in claves_resumen):
+            logger.warning("%s: resumen_por_instrumento[%d] no es un dict con todas las claves requeridas.", contexto, i)
+            return False
+
+    return True
+
+
 def _auditar_citas_duplicaciones(bloques, duplicaciones_verificadas):
     """
     Auditoría determinística (sin IA, solo logging) de que cada uso de la palabra

@@ -14,6 +14,7 @@ from trainer.views import (
     _auditar_citas_duplicaciones, comparar_versiones,
     evaluar_viabilidad_instrumental, detectar_duplicaciones_verificadas,
     detectar_alertas_criticas_no_comentadas, _auditar_identificadores_con_guion_bajo,
+    _validar_forma_final_data, ORQUESTACION_TOOL,
 )
 from trainer.metricas_ejecucion import (
     calcular_metricas_de_parte, resolver_instrumento, _cortes_registro, construir_mapa_tiempos,
@@ -1476,6 +1477,92 @@ class BloquesComoStringCuelgaElProcesoTests(TestCase):
         transcurrido = time.time() - inicio
         self.assertEqual(response.status_code, 200)
         self.assertLess(transcurrido, 10, "el PDF tiene que generarse en segundos, no colgarse")
+
+
+def _bloque_minimo_valido():
+    """Construye un bloque mínimo pero válido leyendo las claves requeridas
+    directamente de ORQUESTACION_TOOL -- si el schema cambia, este helper
+    (y los tests que lo usan) lo reflejan automáticamente, sin mantener una
+    segunda lista de claves a mano."""
+    claves = ORQUESTACION_TOOL['input_schema']['properties']['bloques']['items']['required']
+    listas = ('ediciones_sugeridas', 'duplicaciones_citadas', 'alertas_ejecucion_citadas')
+    return {c: ([] if c in listas else 'x') for c in claves}
+
+
+def _resumen_instrumento_minimo_valido():
+    claves = ORQUESTACION_TOOL['input_schema']['properties']['resumen_por_instrumento']['items']['required']
+    return {c: 'x' for c in claves}
+
+
+def _final_data_minimo_valido():
+    return {
+        'resumen_general': 'x',
+        'bloques': [_bloque_minimo_valido()],
+        'resumen_por_instrumento': [_resumen_instrumento_minimo_valido()],
+    }
+
+
+class ValidarFormaFinalDataTests(TestCase):
+    """
+    Punto 1 del plan de robustez post-incidente id=27: _validar_forma_final_data
+    tiene que detectar la forma de ese incidente real (bloques como string, JSON
+    por lo demás bien formado pero con un ':' faltante) ANTES de que llegue a
+    auditorías/cobro/guardado como éxito -- hoy ni el parseo estricto propio ni
+    el fallback tool_use_block.input del SDK lo marcaban como inválido.
+    """
+
+    def test_final_data_minimo_valido_pasa(self):
+        self.assertTrue(_validar_forma_final_data(_final_data_minimo_valido(), 'test'))
+
+    def test_final_data_no_es_dict(self):
+        with self.assertLogs('trainer.views', level='WARNING'):
+            self.assertFalse(_validar_forma_final_data('no es un dict', 'test'))
+
+    def test_falta_clave_top_level(self):
+        final_data = _final_data_minimo_valido()
+        del final_data['resumen_por_instrumento']
+        with self.assertLogs('trainer.views', level='WARNING'):
+            self.assertFalse(_validar_forma_final_data(final_data, 'test'))
+
+    def test_resumen_general_vacio(self):
+        final_data = _final_data_minimo_valido()
+        final_data['resumen_general'] = '   '
+        with self.assertLogs('trainer.views', level='WARNING'):
+            self.assertFalse(_validar_forma_final_data(final_data, 'test'))
+
+    def test_bloques_como_string_incidente_real_id_27(self):
+        """El incidente real: 'bloques' llegó como un string largo en vez de
+        una lista, con JSON por lo demás bien formado pero un ':' faltante
+        en medio -- no es la única forma de corrupción que esto detecta,
+        pero es la que de hecho pasó en producción sin que nada la marcara."""
+        final_data = _final_data_minimo_valido()
+        final_data['bloques'] = '[{"rango_compases":"1-9","analisis_balance_y_fango","El balance..."}]'
+        with self.assertLogs('trainer.views', level='WARNING'):
+            self.assertFalse(_validar_forma_final_data(final_data, 'test'))
+
+    def test_bloques_vacio(self):
+        final_data = _final_data_minimo_valido()
+        final_data['bloques'] = []
+        with self.assertLogs('trainer.views', level='WARNING'):
+            self.assertFalse(_validar_forma_final_data(final_data, 'test'))
+
+    def test_bloque_le_falta_una_clave_requerida(self):
+        final_data = _final_data_minimo_valido()
+        del final_data['bloques'][0]['solucion_prosa']
+        with self.assertLogs('trainer.views', level='WARNING'):
+            self.assertFalse(_validar_forma_final_data(final_data, 'test'))
+
+    def test_resumen_por_instrumento_como_string(self):
+        final_data = _final_data_minimo_valido()
+        final_data['resumen_por_instrumento'] = 'texto crudo, no una lista'
+        with self.assertLogs('trainer.views', level='WARNING'):
+            self.assertFalse(_validar_forma_final_data(final_data, 'test'))
+
+    def test_resumen_por_instrumento_item_le_falta_clave(self):
+        final_data = _final_data_minimo_valido()
+        del final_data['resumen_por_instrumento'][0]['descripcion']
+        with self.assertLogs('trainer.views', level='WARNING'):
+            self.assertFalse(_validar_forma_final_data(final_data, 'test'))
 
 
 class _FakeUsage:
