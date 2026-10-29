@@ -1610,9 +1610,13 @@ class _FakeStream:
 
 
 def _reporte_minimo_valido():
-    return {
-        'resumen_general': 'x', 'bloques': [], 'resumen_por_instrumento': [],
-    }
+    # Delega en _final_data_minimo_valido (definida arriba, junto a
+    # ValidarFormaFinalDataTests) -- con _validar_forma_final_data exigiendo
+    # bloques/resumen_por_instrumento no vacíos y con sus claves requeridas,
+    # el {'bloques': [], ...} que esta función devolvía antes ya no pasa la
+    # validación y rompía TruncamientoMaxTokensTests/AlturasSonorasEnMeasuresDataTests
+    # más abajo, que la usan para simular una respuesta "normal" de Claude.
+    return _final_data_minimo_valido()
 
 
 class TruncamientoMaxTokensTests(TestCase):
@@ -1697,6 +1701,77 @@ class TruncamientoMaxTokensTests(TestCase):
         self.assertTrue(resultado['data']['truncado'])
         analysis.refresh_from_db()
         self.assertEqual(analysis.creditos_cobrados, CREDITOS_SI_TRUNCADO)
+
+
+class ValidacionYCobroTests(TestCase):
+    """
+    Puntos 3/4 del plan post-incidente id=27: si la respuesta de Claude no
+    valida (_validar_forma_final_data), se guarda un estado de error
+    explícito y NO se cobra ningún crédito. Antes de este fix, el cobro
+    (consumir_credito_analisis) ocurría apenas había un tool_use_block en la
+    respuesta, sin mirar si su contenido era usable -- el id=27 real cobró 1
+    crédito con un informe inservible. End-to-end real a través de
+    _generar_analisis_orquestacion, mismo patrón que TruncamientoMaxTokensTests.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='validacion_cobro_test_user', password='x')
+
+    def _crear_analysis(self):
+        from trainer.models import ScoreAnalysis, UserProfile
+        from django.core.files.base import ContentFile
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        profile.creditos_bonus = 10
+        profile.save()
+
+        s = music21.stream.Score()
+        p = music21.stream.Part(); p.partName = 'Flute'
+        m = music21.stream.Measure(number=1)
+        m.insert(0, music21.tempo.MetronomeMark(number=100))
+        m.append(music21.note.Note('G5', quarterLength=4.0))
+        p.append(m)
+        s.insert(0, p)
+        xml_bytes = music21.musicxml.m21ToXml.GeneralObjectExporter(s).parse()
+
+        analysis = ScoreAnalysis.objects.create(user=self.user, name='Test validacion y cobro')
+        analysis.score_file.save('test.musicxml', ContentFile(xml_bytes))
+        analysis.save()
+        return analysis, profile
+
+    def _correr(self, analysis, tool_input):
+        from trainer.views import _generar_analisis_orquestacion
+        fake_stream = _FakeStream('end_turn', tool_input)
+        fake_client = type('FakeClient', (), {'messages': type('FakeMessages', (), {'stream': staticmethod(lambda **kw: fake_stream)})()})()
+        with patch.dict('os.environ', {'ANT_TEST_API_KEY_2': 'fake-key-para-test'}):
+            with patch('trainer.views.anthropic.Anthropic', return_value=fake_client):
+                resultado = None
+                for linea in _generar_analisis_orquestacion(analysis, None, creditos_a_cobrar=1, omitir_chequeo_tamano=True):
+                    obj = json.loads(linea)
+                    if not obj.get('heartbeat'):
+                        resultado = obj
+        return resultado
+
+    def test_respuesta_valida_sigue_cobrando_como_antes(self):
+        """Regresión: el camino válido no cambia de comportamiento con este fix."""
+        analysis, profile = self._crear_analysis()
+        resultado = self._correr(analysis, _final_data_minimo_valido())
+        self.assertEqual(resultado['status'], 'success')
+        self.assertNotIn('error', resultado['data'])
+        analysis.refresh_from_db()
+        self.assertEqual(analysis.creditos_cobrados, 1)
+
+    def test_respuesta_con_bloques_invalido_no_cobra_y_guarda_error(self):
+        analysis, profile = self._crear_analysis()
+        tool_input = {'resumen_general': 'x', 'bloques': 'esto no es una lista', 'resumen_por_instrumento': []}
+        resultado = self._correr(analysis, tool_input)
+        self.assertEqual(resultado['status'], 'success')
+        self.assertIn('error', resultado['data'])
+        self.assertIn('no se te cobró', resultado['data']['error'].lower())
+        analysis.refresh_from_db()
+        self.assertIsNone(analysis.creditos_cobrados)
+        profile.refresh_from_db()
+        self.assertEqual(profile.creditos_bonus, 10, "no se tiene que haber consumido ningún crédito")
 
 
 class AlturasSonorasEnMeasuresDataTests(TestCase):

@@ -1901,6 +1901,38 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                     )
                     final_data = tool_use_block.input
 
+                # PUNTOS 1/3/4 del plan post-incidente id=27: ni el parseo estricto
+                # propio ni el fallback de arriba garantizan que final_data sea
+                # usable -- hay que validar su forma ANTES de auditorías/cobro/
+                # guardado como éxito. Si no valida, se guarda el estado de error
+                # de una (sin pasar por nada más que pueda fallar) y no se cobra
+                # ningún crédito -- confirmado con el usuario: el id=27 real cobró
+                # 1 crédito con un informe inservible, eso había que corregirlo.
+                if not _validar_forma_final_data(final_data, 'orquestador_analizar'):
+                    # El string crudo completo (sin recortar) queda en el log, no
+                    # en la fila -- para poder ubicar el defecto exacto después
+                    # (ver scripts/diagnosticar_corrupcion.py) sin inflar la DB.
+                    logger.error(
+                        "orquestador_analizar: respuesta de Claude con forma inválida, no se "
+                        "cobra crédito. json_bruto_tool_use completo (%d caracteres): %s",
+                        len(json_bruto_tool_use), json_bruto_tool_use,
+                    )
+                    final_data = {
+                        "error": "No pudimos generar el informe por un problema del lado de la IA. "
+                                 "No se te cobró ningún crédito -- podés intentarlo de nuevo.",
+                        "raw_music_data": analysis_data,
+                    }
+                    analysis.analysis_data = final_data
+                    analysis.save()
+                    yield json.dumps({
+                        'status': 'success',
+                        'data': final_data,
+                        'analysis_id': analysis.id,
+                        'creditos_analisis': profile.creditos_analisis,
+                        'creditos_bonus': profile.creditos_bonus,
+                    }) + "\n"
+                    return
+
                 # TEMPORAL: diagnóstico del bug de resumen_general con JSON pegado al
                 # final. Confirma si el marcador ya estaba en el texto crudo del stream
                 # (bug del lado del modelo/generación) o si aparece recién después de
