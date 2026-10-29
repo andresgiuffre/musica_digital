@@ -1774,6 +1774,121 @@ class ValidacionYCobroTests(TestCase):
         self.assertEqual(profile.creditos_bonus, 10, "no se tiene que haber consumido ningún crédito")
 
 
+class ReintentoTests(TestCase):
+    """
+    Punto 2 del plan post-incidente id=27: si un intento da forma inválida,
+    se reintenta UNA vez -- pero nunca a ciegas, solo si entra en
+    MARGEN_SEGURIDAD_REINTENTO_SEGUNDOS bajo LIMITE_PROCESO_PYTHONANYWHERE_SEGUNDOS.
+    (a) intento 1 inválido + intento 2 válido: usa el intento 2, cobra una
+    sola vez. (b) ambos inválidos (con margen de tiempo de sobra): estado de
+    error, sin cobro, nunca un tercer intento. (c) intento 1 inválido y sin
+    margen de tiempo para reintentar: estado de error, sin cobro, nunca llega
+    a llamar al intento 2. End-to-end real a través de
+    _generar_analisis_orquestacion, mismo patrón que ValidacionYCobroTests.
+    """
+
+    INVALIDO = {'resumen_general': 'x', 'bloques': 'esto no es una lista', 'resumen_por_instrumento': []}
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='reintento_test_user', password='x')
+
+    def _crear_analysis(self):
+        from trainer.models import ScoreAnalysis, UserProfile
+        from django.core.files.base import ContentFile
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        profile.creditos_bonus = 10
+        profile.save()
+
+        s = music21.stream.Score()
+        p = music21.stream.Part(); p.partName = 'Flute'
+        m = music21.stream.Measure(number=1)
+        m.insert(0, music21.tempo.MetronomeMark(number=100))
+        m.append(music21.note.Note('G5', quarterLength=4.0))
+        p.append(m)
+        s.insert(0, p)
+        xml_bytes = music21.musicxml.m21ToXml.GeneralObjectExporter(s).parse()
+
+        analysis = ScoreAnalysis.objects.create(user=self.user, name='Test reintento')
+        analysis.score_file.save('test.musicxml', ContentFile(xml_bytes))
+        analysis.save()
+        return analysis, profile
+
+    def _correr(self, analysis, tool_inputs_por_llamada, margen_cero=False):
+        """
+        tool_inputs_por_llamada: una entrada por llamada esperada a
+        client.messages.stream -- si el código real llamara más veces de las
+        provistas (un reintento de más), un IndexError lo delataría en vez de
+        pasar en silencio. margen_cero fuerza LIMITE_PROCESO_PYTHONANYWHERE_SEGUNDOS
+        a 0 para probar el camino "sin margen para reintentar" sin depender de
+        tiempos reales de ejecución del test.
+        """
+        from trainer.views import _generar_analisis_orquestacion
+        llamadas = {'n': 0}
+
+        def fake_stream(**kw):
+            i = llamadas['n']
+            llamadas['n'] += 1
+            return _FakeStream('end_turn', tool_inputs_por_llamada[i])
+
+        fake_client = type('FakeClient', (), {'messages': type('FakeMessages', (), {'stream': staticmethod(fake_stream)})()})()
+        parches = [patch.dict('os.environ', {'ANT_TEST_API_KEY_2': 'fake-key-para-test'}),
+                   patch('trainer.views.anthropic.Anthropic', return_value=fake_client)]
+        if margen_cero:
+            parches.append(patch('trainer.views.LIMITE_PROCESO_PYTHONANYWHERE_SEGUNDOS', 0))
+        for p in parches:
+            p.start()
+        try:
+            resultado = None
+            for linea in _generar_analisis_orquestacion(analysis, None, creditos_a_cobrar=1, omitir_chequeo_tamano=True):
+                obj = json.loads(linea)
+                if not obj.get('heartbeat'):
+                    resultado = obj
+        finally:
+            for p in reversed(parches):
+                p.stop()
+        return resultado, llamadas['n']
+
+    def test_intento1_invalido_intento2_valido_usa_el_2_y_cobra_una_vez(self):
+        analysis, profile = self._crear_analysis()
+        resultado, n_llamadas = self._correr(analysis, [self.INVALIDO, _final_data_minimo_valido()])
+        self.assertEqual(n_llamadas, 2, "tiene que haber reintentado exactamente una vez")
+        self.assertEqual(resultado['status'], 'success')
+        self.assertNotIn('error', resultado['data'])
+        analysis.refresh_from_db()
+        self.assertEqual(analysis.creditos_cobrados, 1, "se cobra una sola vez, no dos")
+        profile.refresh_from_db()
+        self.assertEqual(profile.creditos_bonus, 9, "un solo crédito consumido, no dos")
+
+    def test_ambos_intentos_invalidos_no_cobra_ni_reintenta_una_tercera_vez(self):
+        analysis, profile = self._crear_analysis()
+        resultado, n_llamadas = self._correr(analysis, [self.INVALIDO, self.INVALIDO])
+        self.assertEqual(n_llamadas, 2, "tiene que haber reintentado exactamente una vez, nunca más")
+        self.assertEqual(resultado['status'], 'success')
+        self.assertIn('error', resultado['data'])
+        self.assertIn('no se te cobró', resultado['data']['error'].lower())
+        analysis.refresh_from_db()
+        self.assertIsNone(analysis.creditos_cobrados)
+        profile.refresh_from_db()
+        self.assertEqual(profile.creditos_bonus, 10, "no se tiene que haber consumido ningún crédito")
+
+    def test_sin_margen_de_tiempo_no_reintenta(self):
+        analysis, profile = self._crear_analysis()
+        # Un solo elemento en la lista: si el código llegara a reintentar
+        # pese a margen_cero, el índice 1 no existe -> IndexError delataría
+        # el reintento indebido en vez de pasar en silencio.
+        with self.assertLogs('trainer.views', level='WARNING') as cm:
+            resultado, n_llamadas = self._correr(analysis, [self.INVALIDO], margen_cero=True)
+        self.assertEqual(n_llamadas, 1, "sin margen de tiempo, no se tiene que llamar al intento 2")
+        self.assertTrue(any('se salta el reintento' in m for m in cm.output))
+        self.assertEqual(resultado['status'], 'success')
+        self.assertIn('error', resultado['data'])
+        analysis.refresh_from_db()
+        self.assertIsNone(analysis.creditos_cobrados)
+        profile.refresh_from_db()
+        self.assertEqual(profile.creditos_bonus, 10, "no se tiene que haber consumido ningún crédito")
+
+
 class AlturasSonorasEnMeasuresDataTests(TestCase):
     """
     Punto H del reporte de bugs sobre "Flauta exagerada": measures_data --lo

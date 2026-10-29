@@ -1557,6 +1557,25 @@ UMBRAL_PUNTAJE_CONFIRMACION = 800  # ver justificación en CLAUDE.md / historial
 # (no hay forma de evitar ese costo real), pero el usuario no recibió un
 # informe completo, así que no se le cobra nada -- confirmado con el usuario.
 CREDITOS_SI_TRUNCADO = 0
+
+# Punto 2 del plan post-incidente id=27: si el intento 1 da una respuesta con
+# forma inválida (_validar_forma_final_data), se reintenta UNA vez -- pero
+# nunca a ciegas. PythonAnywhere mata el proceso completo a los 300s
+# (LIMITE_PROCESO_PYTHONANYWHERE_SEGUNDOS); con los tiempos reales medidos
+# para una obra de tamaño medio (106-145s por intento, ver
+# scripts/diagnosticar_corrupcion.py), un segundo intento completo puede
+# acercarse demasiado a ese límite -- y a diferencia de un timeout HTTP
+# común, el kill de proceso no deja ni guardar el estado de error. Antes de
+# lanzar el intento 2 se exige que (tiempo ya transcurrido + duración del
+# intento anterior) quede por debajo de LIMITE_PROCESO_PYTHONANYWHERE_SEGUNDOS
+# menos este margen; si no entra, se salta el reintento y se guarda
+# directamente el estado de error (ver _generar_analisis_orquestacion).
+# Con los tiempos reales de las 4 corridas de "Flauta exagerada" (106.7/132.4/
+# 145.0/128.6s), el reintento entraría en 1 de esas 4 combinaciones -- valor
+# de partida, no calibrado, por eso es una constante con nombre y no un
+# número suelto en el medio del código.
+MARGEN_SEGURIDAD_REINTENTO_SEGUNDOS = 60
+LIMITE_PROCESO_PYTHONANYWHERE_SEGUNDOS = 300
 MOTIVO_CONFIRMACION_OBRA_GRANDE = (
     "Esta obra tiene una escala considerable — un análisis con este nivel de detalle "
     "va a consumir 2 créditos en lugar de 1. ¿Querés continuar?"
@@ -1796,92 +1815,102 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
             if get_language() == 'en':
                 prompt += "\n\nEscribí todo el texto de salida (resumen_general, los campos de prosa de cada bloque, y resumen_por_instrumento) en inglés."
 
-            with client.messages.stream(
-                model="claude-sonnet-5",
-                # FASE 2B (commit 3): subido de 48000 -- confirmado contra la
-                # documentación real del modelo que claude-sonnet-5 soporta hasta
-                # 128K tokens de salida en la API síncrona normal (la que usa este
-                # proyecto, no la Batch API). max_tokens es solo el TECHO de corte,
-                # no determina el costo -- se cobra por output_tokens realmente
-                # generados (ScoreAnalysis.output_tokens), así que subir el techo
-                # no le cuesta nada extra al usuario salvo que el modelo genere
-                # más contenido de verdad (lo que antes se hubiera cortado solo).
-                # 120000 deja margen de sobra bajo el techo real de 128000.
-                max_tokens=120000,
-                system=[
-                    {
-                        "type": "text",
-                        "text": GUIA_ESTILO_ORQUESTAL,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ],
-                tools=[ORQUESTACION_TOOL],
-                tool_choice={"type": "tool", "name": "reportar_analisis_orquestal"},
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-            ) as stream:
-                json_bruto_tool_use = ""
-                # Instrumentación de tiempos (sin cambiar comportamiento) --
-                # para calibrar max_tokens=120000 contra el timeout fijo de 5
-                # minutos de PythonAnywhere con datos reales, en vez de a
-                # ciegas. Log cada ~20s de progreso + el resumen final
-                # persistido en ScoreAnalysis (ver más abajo).
-                tiempo_inicio_llamada = time.time()
-                ultimo_log_en_segundo = 0.0
-                for event in stream:
-                    # El SDK expone, además del evento crudo, un evento "input_json" con
-                    # el fragmento de texto tal cual llegó — lo acumulamos nosotros mismos
-                    # para poder parsearlo con json.loads estricto al final, en vez de
-                    # confiar en el snapshot que arma el SDK internamente (ver más abajo).
-                    if event.type == "input_json":
-                        json_bruto_tool_use += event.partial_json
-                    transcurrido = time.time() - tiempo_inicio_llamada
-                    if transcurrido - ultimo_log_en_segundo >= 20:
-                        logger.info(
-                            "orquestador_analizar: progreso stream -- %.0fs transcurridos, "
-                            "%d caracteres acumulados en tool_use",
-                            transcurrido, len(json_bruto_tool_use),
-                        )
-                        ultimo_log_en_segundo = transcurrido
-                    # Heartbeat por cada evento del stream de Claude: con max_tokens=120000
-                    # esto da tráfico constante durante todo el minuto y medio que puede
-                    # tardar una obra grande.
-                    yield json.dumps({"heartbeat": True}) + "\n"
-                message = stream.get_final_message()
-                tiempo_generacion_segundos = time.time() - tiempo_inicio_llamada
-
             total_compases = max((len(v) for v in measures_data.values()), default=0)
-            tokens_por_segundo = (
-                message.usage.output_tokens / tiempo_generacion_segundos
-                if tiempo_generacion_segundos > 0 else None
-            )
-            analysis.tiempo_generacion_segundos = tiempo_generacion_segundos
-            analysis.tokens_por_segundo = tokens_por_segundo
-            logger.info(
-                "orquestador_analizar: generación completa -- %.1fs totales, output_tokens=%s, "
-                "tokens/seg=%s, stop_reason=%s, puntaje_obra=%s, instrumentos=%d, compases=%d",
-                tiempo_generacion_segundos, message.usage.output_tokens,
-                f"{tokens_por_segundo:.1f}" if tokens_por_segundo is not None else "N/A",
-                message.stop_reason, puntaje_obra, len(parts), total_compases,
-            )
 
-            # FASE 2B (commit 3): confirmado el diagnóstico que venía TEMPORAL acá --
-            # stop_reason == 'max_tokens' significa que el informe se cortó por
-            # longitud, puede estar incompleto. Se loguea igual (dato útil para
-            # calibrar max_tokens/el nivel de detalle pedido más adelante) y además
-            # se surfacea explícitamente al usuario vía final_data['truncado'].
-            logger.warning(
-                "orquestador_analizar: stop_reason=%s, tokens_entrada=%s, tokens_salida=%s",
-                message.stop_reason, message.usage.input_tokens, message.usage.output_tokens,
-            )
-            truncado = message.stop_reason == 'max_tokens'
+            def _un_intento_claude(numero_intento):
+                """
+                Un llamado completo a Claude (stream + parseo estricto/fallback). No
+                decide qué hacer con un resultado inválido -- esa decisión (aceptar,
+                reintentar, o darse por vencido) es del llamador, ver el loop de
+                reintento más abajo. `return (final_data, message, tiempo_intento,
+                tiene_tool_use_block, json_bruto_tool_use)` -- se consume con
+                `yield from` para que los heartbeats sigan llegando al frontend
+                durante la llamada.
+                `final_data` es None cuando `tiene_tool_use_block` es False (Claude no
+                llamó a la tool -- nunca se reintentó esto históricamente, se mantiene
+                así) o cuando sí hubo tool_use_block pero su forma no validó
+                (_validar_forma_final_data) -- el llamador distingue ambos casos por
+                `tiene_tool_use_block`.
+                """
+                json_bruto_tool_use = ""
+                tiempo_inicio_intento = time.time()
+                ultimo_log_en_segundo = 0.0
+                with client.messages.stream(
+                    model="claude-sonnet-5",
+                    # FASE 2B (commit 3): subido de 48000 -- confirmado contra la
+                    # documentación real del modelo que claude-sonnet-5 soporta hasta
+                    # 128K tokens de salida en la API síncrona normal (la que usa este
+                    # proyecto, no la Batch API). max_tokens es solo el TECHO de corte,
+                    # no determina el costo -- se cobra por output_tokens realmente
+                    # generados (ScoreAnalysis.output_tokens), así que subir el techo
+                    # no le cuesta nada extra al usuario salvo que el modelo genere
+                    # más contenido de verdad (lo que antes se hubiera cortado solo).
+                    # 120000 deja margen de sobra bajo el techo real de 128000.
+                    max_tokens=120000,
+                    system=[
+                        {
+                            "type": "text",
+                            "text": GUIA_ESTILO_ORQUESTAL,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                    tools=[ORQUESTACION_TOOL],
+                    tool_choice={"type": "tool", "name": "reportar_analisis_orquestal"},
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ],
+                ) as stream:
+                    for event in stream:
+                        # El SDK expone, además del evento crudo, un evento "input_json" con
+                        # el fragmento de texto tal cual llegó — lo acumulamos nosotros mismos
+                        # para poder parsearlo con json.loads estricto al final, en vez de
+                        # confiar en el snapshot que arma el SDK internamente (ver más abajo).
+                        if event.type == "input_json":
+                            json_bruto_tool_use += event.partial_json
+                        transcurrido = time.time() - tiempo_inicio_intento
+                        if transcurrido - ultimo_log_en_segundo >= 20:
+                            logger.info(
+                                "orquestador_analizar: progreso stream (intento %d) -- %.0fs "
+                                "transcurridos, %d caracteres acumulados en tool_use",
+                                numero_intento, transcurrido, len(json_bruto_tool_use),
+                            )
+                            ultimo_log_en_segundo = transcurrido
+                        # Heartbeat por cada evento del stream de Claude: con max_tokens=120000
+                        # esto da tráfico constante durante todo el minuto y medio que puede
+                        # tardar una obra grande.
+                        yield json.dumps({"heartbeat": True}) + "\n"
+                    message = stream.get_final_message()
+                tiempo_intento = time.time() - tiempo_inicio_intento
 
-            tool_use_block = next(
-                (block for block in message.content if block.type == "tool_use"),
-                None
-            )
-            if tool_use_block:
+                tokens_por_segundo = (
+                    message.usage.output_tokens / tiempo_intento if tiempo_intento > 0 else None
+                )
+                logger.info(
+                    "orquestador_analizar: intento %d completo -- %.1fs, output_tokens=%s, "
+                    "tokens/seg=%s, stop_reason=%s, puntaje_obra=%s, instrumentos=%d, compases=%d",
+                    numero_intento, tiempo_intento, message.usage.output_tokens,
+                    f"{tokens_por_segundo:.1f}" if tokens_por_segundo is not None else "N/A",
+                    message.stop_reason, puntaje_obra, len(parts), total_compases,
+                )
+                # FASE 2B (commit 3): confirmado el diagnóstico que venía TEMPORAL acá --
+                # stop_reason == 'max_tokens' significa que el informe se cortó por
+                # longitud, puede estar incompleto. Se loguea igual (dato útil para
+                # calibrar max_tokens/el nivel de detalle pedido más adelante) y además
+                # se surfacea explícitamente al usuario vía final_data['truncado'].
+                logger.warning(
+                    "orquestador_analizar: intento %d -- stop_reason=%s, tokens_entrada=%s, "
+                    "tokens_salida=%s",
+                    numero_intento, message.stop_reason, message.usage.input_tokens,
+                    message.usage.output_tokens,
+                )
+
+                tool_use_block = next(
+                    (block for block in message.content if block.type == "tool_use"),
+                    None
+                )
+                if not tool_use_block:
+                    return None, message, tiempo_intento, False, json_bruto_tool_use
+
                 try:
                     # El SDK parsea el JSON del tool_use con partial_mode=True (tolerante
                     # a datos incompletos) incluso para el resultado final — con
@@ -1894,124 +1923,171 @@ def _generar_analisis_orquestacion(analysis, version_de, creditos_a_cobrar, omit
                     final_data = json.loads(json_bruto_tool_use)
                 except (json.JSONDecodeError, ValueError) as e:
                     logger.warning(
-                        "orquestador_analizar: json.loads estricto falló sobre "
+                        "orquestador_analizar: intento %d -- json.loads estricto falló sobre "
                         "json_bruto_tool_use (%d caracteres): %s. Cayendo a "
                         "tool_use_block.input del SDK.",
-                        len(json_bruto_tool_use), e,
+                        numero_intento, len(json_bruto_tool_use), e,
                     )
                     final_data = tool_use_block.input
 
-                # PUNTOS 1/3/4 del plan post-incidente id=27: ni el parseo estricto
-                # propio ni el fallback de arriba garantizan que final_data sea
-                # usable -- hay que validar su forma ANTES de auditorías/cobro/
-                # guardado como éxito. Si no valida, se guarda el estado de error
-                # de una (sin pasar por nada más que pueda fallar) y no se cobra
-                # ningún crédito -- confirmado con el usuario: el id=27 real cobró
-                # 1 crédito con un informe inservible, eso había que corregirlo.
-                if not _validar_forma_final_data(final_data, 'orquestador_analizar'):
-                    # El string crudo completo (sin recortar) queda en el log, no
-                    # en la fila -- para poder ubicar el defecto exacto después
-                    # (ver scripts/diagnosticar_corrupcion.py) sin inflar la DB.
+                if not _validar_forma_final_data(final_data, f'orquestador_analizar (intento {numero_intento})'):
+                    # El string crudo completo (sin recortar) queda en el log -- para
+                    # poder ubicar el defecto exacto después (ver
+                    # scripts/diagnosticar_corrupcion.py) sin inflar la DB con él.
                     logger.error(
-                        "orquestador_analizar: respuesta de Claude con forma inválida, no se "
-                        "cobra crédito. json_bruto_tool_use completo (%d caracteres): %s",
-                        len(json_bruto_tool_use), json_bruto_tool_use,
+                        "orquestador_analizar: intento %d con forma inválida. "
+                        "json_bruto_tool_use completo (%d caracteres): %s",
+                        numero_intento, len(json_bruto_tool_use), json_bruto_tool_use,
+                    )
+                    return None, message, tiempo_intento, True, json_bruto_tool_use
+
+                analysis.tiempo_generacion_segundos = tiempo_intento
+                analysis.tokens_por_segundo = tokens_por_segundo
+                return final_data, message, tiempo_intento, True, json_bruto_tool_use
+
+            # PUNTO 2 del plan post-incidente id=27: si un intento da una
+            # respuesta con tool_use_block pero forma inválida, se reintenta UNA
+            # vez -- nunca a ciegas, solo si entra en
+            # MARGEN_SEGURIDAD_REINTENTO_SEGUNDOS bajo
+            # LIMITE_PROCESO_PYTHONANYWHERE_SEGUNDOS (ver esas constantes). Si
+            # Claude no devolvió ningún tool_use_block, no se reintenta -- nunca
+            # se reintentó esto históricamente, se mantiene así.
+            tiempo_inicio_proceso_claude = time.time()
+            final_data = None
+            tiempo_ultimo_intento = 0.0
+            tiene_tool_use_block = True
+            intentos_realizados = 0
+            for numero_intento in (1, 2):
+                if numero_intento > 1:
+                    tiempo_transcurrido = time.time() - tiempo_inicio_proceso_claude
+                    if (tiempo_transcurrido + tiempo_ultimo_intento) >= (
+                        LIMITE_PROCESO_PYTHONANYWHERE_SEGUNDOS - MARGEN_SEGURIDAD_REINTENTO_SEGUNDOS
+                    ):
+                        logger.warning(
+                            "orquestador_analizar: se salta el reintento (intento %d) por falta "
+                            "de margen de tiempo -- %.1fs transcurridos, el intento anterior "
+                            "tardó %.1fs, límite del proceso %ds, margen de seguridad "
+                            "configurado %ds.",
+                            numero_intento, tiempo_transcurrido, tiempo_ultimo_intento,
+                            LIMITE_PROCESO_PYTHONANYWHERE_SEGUNDOS, MARGEN_SEGURIDAD_REINTENTO_SEGUNDOS,
+                        )
+                        break
+                    logger.warning(
+                        "orquestador_analizar: reintentando (intento %d) tras forma inválida en "
+                        "el intento anterior -- %.1fs transcurridos hasta ahora.",
+                        numero_intento, tiempo_transcurrido,
+                    )
+
+                final_data, message, tiempo_ultimo_intento, tiene_tool_use_block, json_bruto_tool_use = yield from _un_intento_claude(numero_intento)
+                intentos_realizados += 1
+                truncado = message.stop_reason == 'max_tokens'
+
+                if final_data is not None or not tiene_tool_use_block:
+                    break
+                # tool_use_block presente pero forma inválida -- el loop decide
+                # arriba, en la próxima vuelta, si hay margen para reintentar.
+
+            if final_data is None:
+                if not tiene_tool_use_block:
+                    final_data = {
+                        "error": "Claude no devolvió un bloque tool_use.",
+                        "raw_music_data": analysis_data,
+                    }
+                else:
+                    logger.error(
+                        "orquestador_analizar: no se logró una respuesta con forma válida "
+                        "después de %d intento(s), no se cobra crédito.", intentos_realizados,
                     )
                     final_data = {
                         "error": "No pudimos generar el informe por un problema del lado de la IA. "
                                  "No se te cobró ningún crédito -- podés intentarlo de nuevo.",
                         "raw_music_data": analysis_data,
                     }
-                    analysis.analysis_data = final_data
-                    analysis.save()
-                    yield json.dumps({
-                        'status': 'success',
-                        'data': final_data,
-                        'analysis_id': analysis.id,
-                        'creditos_analisis': profile.creditos_analisis,
-                        'creditos_bonus': profile.creditos_bonus,
-                    }) + "\n"
-                    return
+                analysis.analysis_data = final_data
+                analysis.save()
+                yield json.dumps({
+                    'status': 'success',
+                    'data': final_data,
+                    'analysis_id': analysis.id,
+                    'creditos_analisis': profile.creditos_analisis,
+                    'creditos_bonus': profile.creditos_bonus,
+                }) + "\n"
+                return
 
-                # TEMPORAL: diagnóstico del bug de resumen_general con JSON pegado al
-                # final. Confirma si el marcador ya estaba en el texto crudo del stream
-                # (bug del lado del modelo/generación) o si aparece recién después de
-                # nuestro parseo (bug de nuestro lado). Sacar una vez confirmado.
-                marcador = '"resumen_por_instrumento"'
-                resumen = final_data.get('resumen_general') if isinstance(final_data, dict) else None
-                if isinstance(resumen, str) and marcador in resumen:
+            # TEMPORAL: diagnóstico del bug de resumen_general con JSON pegado al
+            # final. Confirma si el marcador ya estaba en el texto crudo del stream
+            # (bug del lado del modelo/generación) o si aparece recién después de
+            # nuestro parseo (bug de nuestro lado). Sacar una vez confirmado.
+            marcador = '"resumen_por_instrumento"'
+            resumen = final_data.get('resumen_general') if isinstance(final_data, dict) else None
+            if isinstance(resumen, str) and marcador in resumen:
+                logger.warning(
+                    "orquestador_analizar: BUG CONFIRMADO - resumen_general (%d "
+                    "caracteres) contiene el marcador %r. ¿Presente también en "
+                    "json_bruto_tool_use crudo (antes de parsear)?: %s",
+                    len(resumen), marcador, marcador in json_bruto_tool_use,
+                )
+
+            # Limpieza defensiva: pase lo que pase con el ajuste de prompt, ningún
+            # usuario final debe ver una fuga de JSON crudo en su reporte.
+            if isinstance(resumen, str):
+                resumen_limpio = _limpiar_fuga_json_en_resumen(resumen)
+                if resumen_limpio != resumen:
                     logger.warning(
-                        "orquestador_analizar: BUG CONFIRMADO - resumen_general (%d "
-                        "caracteres) contiene el marcador %r. ¿Presente también en "
-                        "json_bruto_tool_use crudo (antes de parsear)?: %s",
-                        len(resumen), marcador, marcador in json_bruto_tool_use,
+                        "orquestador_analizar: se recortó una fuga de JSON dentro de "
+                        "resumen_general (de %d a %d caracteres).",
+                        len(resumen), len(resumen_limpio),
                     )
+                    final_data['resumen_general'] = resumen_limpio
 
-                # Limpieza defensiva: pase lo que pase con el ajuste de prompt, ningún
-                # usuario final debe ver una fuga de JSON crudo en su reporte.
-                if isinstance(resumen, str):
-                    resumen_limpio = _limpiar_fuga_json_en_resumen(resumen)
-                    if resumen_limpio != resumen:
-                        logger.warning(
-                            "orquestador_analizar: se recortó una fuga de JSON dentro de "
-                            "resumen_general (de %d a %d caracteres).",
-                            len(resumen), len(resumen_limpio),
-                        )
-                        final_data['resumen_general'] = resumen_limpio
+            alertas_criticas_no_comentadas = []
+            if isinstance(final_data, dict):
+                _auditar_citas_duplicaciones(final_data.get('bloques'), duplicaciones_verificadas)
+                _auditar_citas_ejecucion(final_data.get('bloques'), alertas_ejecucion_verificadas)
+                # PUNTO I del reporte de bugs: identificadores internos (ej.
+                # "intervalo_fijo") filtrándose tal cual en la prosa, sin traducir.
+                _auditar_identificadores_con_guion_bajo(final_data)
+                # PUNTO A del reporte de bugs: respaldo determinístico visible al
+                # usuario -- si el modelo omitió por completo alguna alerta crítica
+                # (sin citarla en ningún bloque), se muestra tal cual al final del
+                # informe en vez de depender solo del log de auditoría.
+                alertas_criticas_no_comentadas = detectar_alertas_criticas_no_comentadas(
+                    final_data.get('bloques'), alertas_ejecucion_verificadas,
+                )
 
-                alertas_criticas_no_comentadas = []
-                if isinstance(final_data, dict):
-                    _auditar_citas_duplicaciones(final_data.get('bloques'), duplicaciones_verificadas)
-                    _auditar_citas_ejecucion(final_data.get('bloques'), alertas_ejecucion_verificadas)
-                    # PUNTO I del reporte de bugs: identificadores internos (ej.
-                    # "intervalo_fijo") filtrándose tal cual en la prosa, sin traducir.
-                    _auditar_identificadores_con_guion_bajo(final_data)
-                    # PUNTO A del reporte de bugs: respaldo determinístico visible al
-                    # usuario -- si el modelo omitió por completo alguna alerta crítica
-                    # (sin citarla en ningún bloque), se muestra tal cual al final del
-                    # informe en vez de depender solo del log de auditoría.
-                    alertas_criticas_no_comentadas = detectar_alertas_criticas_no_comentadas(
-                        final_data.get('bloques'), alertas_ejecucion_verificadas,
-                    )
+            final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
+            final_data['alertas_viabilidad'] = alertas_viabilidad
+            final_data['alertas_ejecucion'] = alertas_ejecucion
+            final_data['alertas_criticas_no_comentadas'] = alertas_criticas_no_comentadas
+            final_data['densidad_por_compas'] = densidad_por_compas
+            final_data['truncado'] = truncado
+            if version_de is not None:
+                final_data['comparacion_version_anterior'] = comparar_versiones(version_de, parts)
 
-                final_data['estadisticas_por_instrumento'] = estadisticas_por_instrumento
-                final_data['alertas_viabilidad'] = alertas_viabilidad
-                final_data['alertas_ejecucion'] = alertas_ejecucion
-                final_data['alertas_criticas_no_comentadas'] = alertas_criticas_no_comentadas
-                final_data['densidad_por_compas'] = densidad_por_compas
-                final_data['truncado'] = truncado
-                if version_de is not None:
-                    final_data['comparacion_version_anterior'] = comparar_versiones(version_de, parts)
+            creditos_a_cobrar_efectivo = CREDITOS_SI_TRUNCADO if truncado else creditos_a_cobrar
 
-                creditos_a_cobrar_efectivo = CREDITOS_SI_TRUNCADO if truncado else creditos_a_cobrar
+            try:
+                if creditos_a_cobrar_efectivo == 1:
+                    consumir_credito_analisis(profile)
+                elif creditos_a_cobrar_efectivo > 1:
+                    consumir_creditos_analisis_multiple(profile, creditos_a_cobrar_efectivo)
+                # == 0: no se cobra nada.
+            except CreditosInsuficientesError:
+                # Re-chequeo final por si el saldo cambió entre el aviso y esta
+                # confirmación (otra pestaña, por ejemplo). Ya se pagó el costo de la
+                # llamada a Claude, pero no se cobra ni se guarda como éxito.
+                final_data = {"error": "No había créditos suficientes para completar este análisis.", "raw_music_data": analysis_data}
+                analysis.analysis_data = final_data
+                analysis.save()
+                yield json.dumps({'status': 'error', 'message': 'No había créditos suficientes para completar este análisis.'}) + "\n"
+                return
 
-                try:
-                    if creditos_a_cobrar_efectivo == 1:
-                        consumir_credito_analisis(profile)
-                    elif creditos_a_cobrar_efectivo > 1:
-                        consumir_creditos_analisis_multiple(profile, creditos_a_cobrar_efectivo)
-                    # == 0: no se cobra nada.
-                except CreditosInsuficientesError:
-                    # Re-chequeo final por si el saldo cambió entre el aviso y esta
-                    # confirmación (otra pestaña, por ejemplo). Ya se pagó el costo de la
-                    # llamada a Claude, pero no se cobra ni se guarda como éxito.
-                    final_data = {"error": "No había créditos suficientes para completar este análisis.", "raw_music_data": analysis_data}
-                    analysis.analysis_data = final_data
-                    analysis.save()
-                    yield json.dumps({'status': 'error', 'message': 'No había créditos suficientes para completar este análisis.'}) + "\n"
-                    return
-
-                profile.refresh_from_db()
-                analysis.creditos_cobrados = creditos_a_cobrar_efectivo
-                analysis.input_tokens = message.usage.input_tokens
-                analysis.output_tokens = message.usage.output_tokens
-                analysis.cache_creation_input_tokens = getattr(message.usage, 'cache_creation_input_tokens', None)
-                analysis.cache_read_input_tokens = getattr(message.usage, 'cache_read_input_tokens', None)
-            else:
-                final_data = {
-                    "error": "Claude no devolvió un bloque tool_use.",
-                    "raw_music_data": analysis_data
-                }
+            profile.refresh_from_db()
+            analysis.creditos_cobrados = creditos_a_cobrar_efectivo
+            analysis.input_tokens = message.usage.input_tokens
+            analysis.output_tokens = message.usage.output_tokens
+            analysis.cache_creation_input_tokens = getattr(message.usage, 'cache_creation_input_tokens', None)
+            analysis.cache_read_input_tokens = getattr(message.usage, 'cache_read_input_tokens', None)
         else:
             final_data = {
                 "error": "Falta la variable de entorno ANT_TEST_API_KEY_2.",
